@@ -17,9 +17,9 @@ import
   peerid,
   protobuf/minprotobuf,
   errors,
-  utility
+  utils/[opt, shortlog, conversion, collections]
 import stew/[base58, base32, endians2]
-export results, vbuffer, errors, utility
+export results, vbuffer, errors, opt, shortlog, collections
 
 logScope:
   topics = "libp2p multiaddress"
@@ -404,7 +404,7 @@ const
       mcodec: multiCodec("ip6zone"), kind: Length, size: 0, coder: TranscoderIP6Zone
     ),
     MAProtocol(
-      mcodec: multiCodec("onion"), kind: Fixed, size: 10, coder: TranscoderOnion
+      mcodec: multiCodec("onion"), kind: Fixed, size: 12, coder: TranscoderOnion
     ),
     MAProtocol(
       mcodec: multiCodec("onion3"), kind: Fixed, size: 37, coder: TranscoderOnion3
@@ -507,6 +507,7 @@ proc initMultiAddressCodeTable(
   return res
 
 when libp2p_multiaddress_exts != "":
+  import ./utils/macroutils
   includeFile(libp2p_multiaddress_exts)
   const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList & @AddressExts)
 else:
@@ -833,14 +834,18 @@ proc init*(
     res.data = initVBuffer(32 + len(value))
     res.data.writeVarint(cast[uint64](proto.mcodec))
     case proto.kind
-    of Fixed, Length, Path:
+    of Fixed:
+      if len(value) != proto.size:
+        err("multiaddress: Incorrect fixed protocol value length")
+      else:
+        res.data.writeArray(value)
+        res.data.finish()
+        ok(res)
+    of Length, Path:
       if len(value) == 0:
         err("multiaddress: Value must not be empty array")
       else:
-        if proto.kind == Fixed:
-          res.data.writeArray(value)
-        else:
-          res.data.writeSeq(value)
+        res.data.writeSeq(value)
         res.data.finish()
         ok(res)
     of Marker:
@@ -1204,6 +1209,25 @@ proc getRepeatedField*(
 
 proc areAddrsConsistent*(a, b: MultiAddress): bool =
   ## Checks if two multiaddresses have the same protocol stack.
+  let
+    ip4 = multiCodec("ip4")
+    ip6 = multiCodec("ip6")
+    dns = multiCodec("dns")
+    dns4 = multiCodec("dns4")
+    dns6 = multiCodec("dns6")
+    dnsaddr = multiCodec("dnsaddr")
+
+  template isIp(proto: MultiCodec): bool =
+    proto == ip4 or proto == ip6
+
+  template isDnsAny(proto: MultiCodec): bool =
+    proto == dns or proto == dnsaddr
+
+  template isDnsIpEquivalent(protoA, protoB: MultiCodec): bool =
+    (isDnsAny(protoA) and isIp(protoB)) or (isDnsAny(protoB) and isIp(protoA)) or
+      (protoA == dns4 and protoB == ip4) or (protoA == ip4 and protoB == dns4) or
+      (protoA == dns6 and protoB == ip6) or (protoA == ip6 and protoB == dns6)
+
   let protosA = a.protocols().get()
   let protosB = b.protocols().get()
   if protosA.len != protosB.len:
@@ -1216,16 +1240,7 @@ proc areAddrsConsistent*(a, b: MultiAddress): bool =
     if protoA != protoB:
       if idx == 0:
         # allow DNS ↔ IP at the first component
-        if protoB == multiCodec("dns") or protoB == multiCodec("dnsaddr"):
-          if not (protoA == multiCodec("ip4") or protoA == multiCodec("ip6")):
-            return false
-        elif protoB == multiCodec("dns4"):
-          if protoA != multiCodec("ip4"):
-            return false
-        elif protoB == multiCodec("dns6"):
-          if protoA != multiCodec("ip6"):
-            return false
-        else:
+        if not isDnsIpEquivalent(protoA, protoB):
           return false
       else:
         return false

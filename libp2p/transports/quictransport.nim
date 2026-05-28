@@ -12,7 +12,7 @@ import
   ../muxers/muxer,
   ../stream/connection,
   ../upgrademngrs/upgrade,
-  ../utility,
+  ../utils/opt,
   ../utils/future
 import ./transport
 import tls/certificate

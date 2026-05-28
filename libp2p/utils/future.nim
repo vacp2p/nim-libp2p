@@ -3,6 +3,7 @@
 
 {.push raises: [].}
 
+import std/sequtils
 import chronos
 
 type AllFuturesFailedError* = object of CatchableError
@@ -52,3 +53,44 @@ proc allFuturesWaitOrTimeout*[Fut](
     await futs.allFutures().wait(timeout)
   except AsyncTimeoutError:
     discard
+
+template completeOnce*(fut: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete()
+
+template completeOnce*(fut: auto, val: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete(val)
+
+proc collectCompleted*[T, E](
+    futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
+): Future[seq[T]] {.async: (raises: [CancelledError]).} =
+  ## Wait up to `timeout`; collect only successfully completed futures.
+  ## Ignore results from futures throwing errors
+  try:
+    await futs.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    # Some futures didn’t finish in time, ignore
+    discard
+
+  # Collect only successful results
+  return futs.filterIt(it.completed()).mapIt(it.value())
+
+proc waitForTCPServer*(
+    taddr: TransportAddress,
+    retries: int = 20,
+    delay: chronos.Duration = 500.milliseconds,
+): Future[bool] {.async.} =
+  for i in 0 ..< retries:
+    try:
+      let conn = await connect(taddr)
+      await conn.closeWait()
+      return true
+    except OSError:
+      discard
+    except TransportOsError:
+      discard
+    await sleepAsync(delay)
+  return false

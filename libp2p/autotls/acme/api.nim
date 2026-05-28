@@ -70,7 +70,7 @@ type ACMEChallengeResponse* = object
   finalize*: string
   order*: string
 
-type ACMEChallengeResponseWrapper* = object
+type ACMEChallengeDns01Response* = object
   finalize*: string
   order*: string
   dns01*: ACMEChallenge
@@ -110,7 +110,8 @@ type ACMECertificate* = object
   certKeyPair*: KeyPair
 
 when defined(libp2p_autotls_support):
-  import sequtils, strutils, jwt, bearssl/pem
+  import sequtils, strutils
+  import ./jws
 
   const
     Alg = "RS256"
@@ -313,11 +314,7 @@ when defined(libp2p_autotls_support):
 
     let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
     handleError("createSignedAcmeRequest"):
-      var token = toJWT(%*{"header": acmeHeader, "claims": payload})
-      let derPrivKey = key.seckey.rsakey.getBytes.get
-      let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
-      token.sign(pemPrivKey)
-      $token.toFlattenedJson()
+      $toFlattenedJws(%*acmeHeader, %*payload, key.seckey.rsakey)
 
   proc requestRegister*(
       self: ACMEApi, key: KeyPair
@@ -387,9 +384,7 @@ when defined(libp2p_autotls_support):
 
   proc requestChallenge*(
       self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
-  ): Future[ACMEChallengeResponseWrapper] {.
-      async: (raises: [ACMEError, CancelledError])
-  .} =
+  ): Future[ACMEChallengeDns01Response] {.async: (raises: [ACMEError, CancelledError]).} =
     let orderResp = await self.requestNewOrder(domains, key, kid)
 
     let validRenewStatus = @[ACMEOrderStatus.PENDING, ACMEOrderStatus.READY]
@@ -403,7 +398,7 @@ when defined(libp2p_autotls_support):
       raise
         newException(ACMEError, "Could not find supported DNS challenge type (dns-01)")
 
-    return ACMEChallengeResponseWrapper(
+    return ACMEChallengeDns01Response(
       finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
     )
 

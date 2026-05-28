@@ -42,7 +42,6 @@ pkgs.stdenv.mkDerivation {
       --noNimblePath \
       ${cbindPathArgs} \
       ${pathArgs} \
-      --path:${deps.dnsclient}/src \
       --out:build/libp2p.${libExt} \
       --app:lib \
       --threads:on \
@@ -60,7 +59,6 @@ pkgs.stdenv.mkDerivation {
       --noNimblePath \
       ${cbindPathArgs} \
       ${pathArgs} \
-      --path:${deps.dnsclient}/src \
       --out:build/libp2p.a \
       --app:staticlib \
       --threads:on \

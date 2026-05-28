@@ -12,7 +12,6 @@
 import tables
 import results
 import stew/[base32, base58, base64]
-import ./utility
 
 type
   MultiBaseStatus* {.pure.} = enum
@@ -385,6 +384,7 @@ proc initLists(
   return (codes, names)
 
 when libp2p_multibase_exts != "":
+  import ./utils/macroutils
   includeFile(libp2p_multibase_exts)
   const (CodeMultiBases, NameMultiBases) = initLists(@MultiBaseCodecs & @BaseExts)
 else:

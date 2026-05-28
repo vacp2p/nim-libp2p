@@ -6,8 +6,6 @@
 import std/[hashes, sets]
 import chronos/timer, results
 
-import ../../utility
-
 export results
 
 const Timeout* = 10.seconds # default timeout in ms

@@ -2,7 +2,6 @@ bearssl;https://github.com/status-im/nim-bearssl@#22c6a76ce015bc07e011562bdcfc51
 boringssl;https://github.com/vacp2p/nim-boringssl@#1c91a4a2579123597df43bbdea70cc575957bdea
 chronicles;https://github.com/status-im/nim-chronicles@#e7f87336d2fa47b7752b42f0be4cabd5663a5e5c
 chronos;https://github.com/status-im/nim-chronos@#45f43a9ad8bd8bcf5903b42f365c1c879bd54240
-dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
 faststreams;https://github.com/status-im/nim-faststreams@#50889cd16ec8771106cdd0eeea460039e8571e06
 httputils;https://github.com/status-im/nim-http-utils@#f142cb2e8bd812dd002a6493b6082827bb248592
 json_serialization;https://github.com/status-im/nim-json-serialization@#a6dcf03e04e179127a5fcb7e495d19a821d56c17
@@ -17,6 +16,4 @@ testutils;https://github.com/status-im/nim-testutils@#e85cb6ff9c328a6e12441e81ff
 unittest2;https://github.com/status-im/nim-unittest2@#26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189
 websock;https://github.com/status-im/nim-websock@#387a8eb7e961e8fdd3b1a717d36bc53b55e4dc5d
 zlib;https://github.com/status-im/nim-zlib@#e680f269fb01af2c34a2ba879ff281795a5258fe
-bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#d34aa46bf9d0a3ffff810fbd3c4d2fa024eb9368
-jwt;https://github.com/vacp2p/nim-jwt@#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2
 protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#38d24eb3bd93e605fb88199da71d36b1ec0ad60d

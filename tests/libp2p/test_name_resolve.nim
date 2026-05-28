@@ -180,7 +180,7 @@ suite "Name resolving":
       ): Future[void] {.async: (raises: []).} =
         try:
           let msg = transp.getMessage()
-          let resp =
+          var resp =
             if msg[24] == 1: #AAAA or A
               "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
                 "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
@@ -195,6 +195,9 @@ suite "Name resolving":
                 "\x4f\x00\x10\x26\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\x68" &
                 "\x16\x18\xb5\xc0\x0c\x00\x1c\x00\x01\x00\x00\x00\x4f\x00\x10\x26" &
                 "\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\xac\x43\x0a\xa1"
+          # Echo back the query id so the resolver accepts the response.
+          resp[0] = char(msg[0])
+          resp[1] = char(msg[1])
           await transp.sendTo(raddr, resp)
         except CancelledError, transport.TransportError:
           raiseAssert "unexpected error: " & getCurrentExceptionMsg()
@@ -240,12 +243,16 @@ suite "Name resolving":
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async: (raises: []).} =
         try:
-          let resp =
+          let msg = transp.getMessage()
+          var resp =
             "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
             "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
+          # Echo back the query id so the resolver accepts the response.
+          resp[0] = char(msg[0])
+          resp[1] = char(msg[1])
           await transp.sendTo(raddr, resp)
         except CancelledError, transport.TransportError:
           raiseAssert "unexpected error: " & getCurrentExceptionMsg()

@@ -25,7 +25,7 @@ import
   peerid,
   peerstore,
   errors,
-  utility,
+  results,
   dialer,
   utils/future,
   crypto/rng
@@ -52,7 +52,7 @@ type
     muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
-    dialer*: Dial
+    dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
     started: bool

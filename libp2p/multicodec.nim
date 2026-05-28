@@ -11,7 +11,6 @@ import macros
 import strutils
 import vbuffer
 import results
-import utility
 export results
 
 const libp2p_multicodec_exts* {.strdefine.} = ""
@@ -51,6 +50,7 @@ proc initLists(
   return (nameCodecs, codeCodecs)
 
 when libp2p_multicodec_exts != "":
+  import utils/macroutils
   includeFile(libp2p_multicodec_exts)
   const (NameCodecs, CodeCodecs) =
     initLists(@MultiCodecList & @MultiCodecListCustom & @CodecExts)

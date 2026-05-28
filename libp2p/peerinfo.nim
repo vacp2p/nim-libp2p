@@ -13,7 +13,7 @@ import
   routing_record,
   peeraddrpolicy,
   errors,
-  utility
+  utils/shortlog
 
 export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 
@@ -150,16 +150,16 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     announcedAddrs: openArray[MultiAddress] = [],
 ): PeerInfo {.raises: [LPError].} =
-  let pubkey =
-    try:
-      key.getPublicKey().tryGet()
-    except CatchableError as e:
-      raise newException(
-        PeerInfoError, "invalid private key creating PeerInfo: " & e.msg, e
-      )
+  let pubkey = key.getPublicKey().valueOr:
+    raise
+      newException(PeerInfoError, "invalid private key creating PeerInfo: " & $error)
+  let peerId = PeerId.init(pubkey).valueOr:
+    raise newException(
+      PeerInfoError, "invalid public key creating PeerInfo peer id: " & $error
+    )
 
   PeerInfo(
-    peerId: PeerId.init(key).tryGet(),
+    peerId: peerId,
     publicKey: pubkey,
     privateKey: key,
     protoVersion: protoVersion,
