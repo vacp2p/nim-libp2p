@@ -9,20 +9,41 @@ import ./natservice/[port_mapper, miniupnpc_mapper, natpmp_mapper, mapped_addrs]
 import ../multiaddress
 import ../utils/heartbeat
 import ../switch
+import ../crypto/crypto
+import ../protocols/connectivity/autonat/[client, service]
+import ../protocols/connectivity/autonatv2/[client, service]
+import ../protocols/connectivity/relay/client as relayclient
+import ./[autorelayservice, hpservice]
 
 export port_mapper, miniupnpc_mapper, natpmp_mapper, mapped_addrs
+export OnReservationHandler, AutonatV2ServiceConfig
 
 logScope:
   topics = "libp2p natservice"
 
 type
+  AutonatVersion* = enum
+    AutonatV1
+    AutonatV2
+
   NATMode* = enum
-    Auto ## No port mapping; relies on autonat/hole-punching. TODO: not yet wired.
+    Auto ## Rely on autonat / hole-punching only; no port-mapping.
     ExplicitIp ## Static external IP combined with bound listen ports.
     Upnp ## Request port mappings from a UPnP IGD.
     NatPmp ## Request port mappings via NAT-PMP (RFC 6886).
 
   NATConfig* = object
+    ## ``autonat`` enables AutoNAT probing for the chosen version. When
+    ## ``enableHolePunching`` is true, libp2p runs hole-punching (DCUtR) backed
+    ## by AutoNAT v1 — pairing ``enableHolePunching`` with
+    ## ``autonat = some(AutonatV2)`` is rejected at setup time. ``maxNumRelays``
+    ## and ``onReservation`` configure the AutoRelay sub-service used by HP.
+    autonat*: Opt[AutonatVersion]
+    enableHolePunching*: bool
+    maxNumRelays*: int
+    onReservation*: OnReservationHandler
+    autonatV1ScheduleInterval*: Opt[Duration]
+    autonatV2ServiceConfig*: Opt[AutonatV2ServiceConfig]
     case mode*: NATMode
     of Auto:
       discard
@@ -35,11 +56,19 @@ type
 
   NATService* = ref object of Service
     config: NATConfig
+    rng: Rng
     addressMapper: AddressMapper
+    # Port-mapping (Upnp / NatPmp)
     portMapper: NATPortMapper
     externalIp: Opt[IpAddress]
     activeMappings: seq[PortMapping]
     refreshFut: Future[void]
+    # AutoNAT / hole-punching sub-services. Populated by setup() based on config.
+    autonatService*: AutonatService
+    autonatV2Service*: AutonatV2Service
+    autonatV2Client*: AutonatV2Client
+    autoRelayService*: AutoRelayService
+    hpService*: HPService
 
 const
   DefaultNATLeaseDuration* = 60.minutes
@@ -94,11 +123,16 @@ proc new*(T: typedesc[NATConfig], explicitIp: IpAddress): T =
   NATConfig(mode: ExplicitIp, explicitIp: explicitIp)
 
 proc new*(
-    T: typedesc[NATService], config: NATConfig, portMapper: NATPortMapper = nil
+    T: typedesc[NATService],
+    config: NATConfig,
+    rng: Rng,
+    portMapper: NATPortMapper = nil,
 ): T =
-  ## Optional ``portMapper`` overrides the default backend. When ``nil`` and
+  ## ``rng`` is forwarded to the AutoNAT / AutoRelay sub-services when
+  ## ``config.autonat`` or ``config.enableHolePunching`` is set. Optional
+  ## ``portMapper`` overrides the default backend; when ``nil`` and
   ## ``config.mode`` is ``Upnp``/``NatPmp``, setup builds the production mapper.
-  T(config: config, portMapper: portMapper)
+  T(config: config, rng: rng, portMapper: portMapper)
 
 proc acquireMappings(
     self: NATService, listenAddrs: seq[MultiAddress]
@@ -136,11 +170,13 @@ proc acquireMappings(
   ok()
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  debug "Setting up NATService", mode = self.config.mode
+  debug "Setting up NATService",
+    mode = self.config.mode,
+    autonat = self.config.autonat,
+    enableHolePunching = self.config.enableHolePunching
 
   case self.config.mode
   of Auto:
-    # TODO: wire autonat / hole-punching in here.
     discard
   of ExplicitIp:
     self.addressMapper = proc(
@@ -174,6 +210,50 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
         return @[]
       return gatewayMapped(listenAddrs, extIp, self.activeMappings)
 
+  if self.config.enableHolePunching:
+    if self.config.autonat == Opt.some(AutonatV2):
+      raise newException(
+        ServiceSetupError,
+        "NATService: enableHolePunching currently requires AutoNAT v1; " &
+          "set NATConfig.autonat to none or some(AutonatV1).",
+      )
+    let
+      maxNumRelays = if self.config.maxNumRelays > 0: self.config.maxNumRelays else: 1
+      autonatService = AutonatService.new(
+        AutonatClient(),
+        self.rng,
+        scheduleInterval = self.config.autonatV1ScheduleInterval,
+      )
+      autoRelayService = AutoRelayService.new(
+        maxNumRelays, RelayClient.new(), self.config.onReservation, self.rng
+      )
+    self.autonatService = autonatService
+    self.autoRelayService = autoRelayService
+    self.hpService = HPService.new(autonatService, autoRelayService)
+    self.hpService.setup(switch)
+  elif self.config.autonat == Opt.some(AutonatV1):
+    self.autonatService = AutonatService.new(
+      AutonatClient(),
+      self.rng,
+      scheduleInterval = self.config.autonatV1ScheduleInterval,
+    )
+    self.autonatService.setup(switch)
+  elif self.config.autonat == Opt.some(AutonatV2):
+    let serviceConfig =
+      self.config.autonatV2ServiceConfig.get(AutonatV2ServiceConfig.new())
+    self.autonatV2Client = AutonatV2Client.new(self.rng)
+    self.autonatV2Service = AutonatV2Service.new(
+      self.rng, client = self.autonatV2Client, config = serviceConfig
+    )
+    self.autonatV2Client.setup(switch)
+    try:
+      switch.mount(self.autonatV2Client)
+    except LPError as e:
+      raise newException(
+        ServiceSetupError, "NATService failed to mount AutonatV2Client: " & e.msg
+      )
+    self.autonatV2Service.setup(switch)
+
 proc refreshLoop(
     self: NATService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
@@ -195,6 +275,13 @@ method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledErro
   else:
     discard
 
+  if self.hpService != nil:
+    await self.hpService.start(switch)
+  elif self.autonatService != nil:
+    await self.autonatService.start(switch)
+  elif self.autonatV2Service != nil:
+    await self.autonatV2Service.start(switch)
+
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Stopping NATService"
   if self.refreshFut != nil and not self.refreshFut.finished:
@@ -212,3 +299,10 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   # Don't touch peerInfo.announcedAddrs / call peerInfo.update here — it can
   # make observers (e.g. IdentifyPusher) broadcast mid-shutdown.
+
+  if self.hpService != nil:
+    await self.hpService.stop(switch)
+  elif self.autonatService != nil:
+    await self.autonatService.stop(switch)
+  elif self.autonatV2Service != nil:
+    await self.autonatV2Service.stop(switch)

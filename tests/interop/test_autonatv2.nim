@@ -18,9 +18,13 @@ proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
     .withNoise()
 
   if withAutonatV2:
-    builder = builder.withAutonatV2Server().withAutonatV2(
-        serviceConfig =
-          AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
+    builder = builder.withAutonatV2Server().withNAT(
+        NATConfig(
+          mode: Auto,
+          autonat: Opt.some(AutonatV2),
+          autonatV2ServiceConfig:
+            Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))),
+        )
       )
 
   builder.build()

@@ -16,19 +16,9 @@ import
   transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
-  protocols/connectivity/[
-    autonat/server,
-    autonat/client,
-    autonat/service,
-    autonatv2/server,
-    autonatv2/service,
-    autonatv2/client,
-    relay/relay,
-    relay/client,
-    relay/rtransport,
-  ],
-  services/
-    [autorelayservice, hpservice, identify_pusher, natservice, wildcardresolverservice],
+  protocols/connectivity/
+    [autonat/server, autonatv2/server, relay/relay, relay/client, relay/rtransport],
+  services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -40,8 +30,7 @@ import
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
-  natservice.NATPortMapper
+  connmanager.maxTotal, connmanager.maxInOut, natservice
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -82,9 +71,6 @@ type
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
     autonatV2ServerConfig: Opt[AutonatV2Config]
-    autonatV2Client: AutonatV2Client
-    autonatV2Service: Opt[AutonatV2Service]
-    hpService: Opt[HPService]
     natConfig: Opt[NATConfig]
     natPortMapper: NATPortMapper
     autotlsConfig: Opt[AutotlsConfig]
@@ -342,36 +328,16 @@ proc withAutonatV2Server*(
   b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withAutonatV2*(
-    b: SwitchBuilder,
-    serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
-): SwitchBuilder =
-  b.autonatV2Client = AutonatV2Client.new(b.rng)
-  b.autonatV2Service = Opt.some(
-    AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
-  )
-  b
-
 proc withNAT*(
     b: SwitchBuilder, config: NATConfig, portMapper: NATPortMapper = nil
 ): SwitchBuilder =
-  ## Enable a NAT traversal service. Tests can pass ``portMapper`` to inject
-  ## a fake backend in place of the production miniupnpc / libnatpmp mapper.
-  ## TODO: wire in autonat / hole-punching.
+  ## Enable libp2p NAT traversal. ``NATConfig`` selects between explicit-IP
+  ## announce, AutoNAT-driven probing with optional hole-punching, and UPnP
+  ## / NAT-PMP port mapping. Tests can pass ``portMapper`` to inject a fake
+  ## backend in place of the production miniupnpc / libnatpmp mapper.
+  ## Replaces the previous ``withAutonatV2`` and ``withHolePunching`` builders.
   b.natConfig = Opt.some(config)
   b.natPortMapper = portMapper
-  b
-
-proc withHolePunching*(
-    b: SwitchBuilder, maxNumRelays: int, onReservationHandler: proc
-): SwitchBuilder =
-  let
-    autonatService = AutonatService.new(AutonatClient(), b.rng)
-    autoRelayService =
-      AutoRelayService.new(maxNumRelays, RelayClient.new(), onReservationHandler, b.rng)
-    hpService = HPService.new(autonatService, autoRelayService)
-
-  b.hpService = Opt.some(hpService)
   b
 
 when defined(libp2p_autotls_support):
@@ -528,14 +494,8 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.autonatV2Service.withValue(autonatV2Service):
-    switch.services.add(autonatV2Service)
-
-  b.hpService.withValue(hpservice):
-    switch.services.add(hpservice)
-
   b.natConfig.withValue(natCfg):
-    switch.services.add(NATService.new(natCfg, b.natPortMapper))
+    switch.services.add(NATService.new(natCfg, b.rng, b.natPortMapper))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())
@@ -546,10 +506,6 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
-
-  if not b.autonatV2Client.isNil:
-    b.autonatV2Client.setup(switch)
-    switch.mount(b.autonatV2Client)
 
   b.rdvConfig.withValue(rdvCfg):
     let rend = RendezVous.new(b.rng, rdvCfg)

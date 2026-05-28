@@ -250,3 +250,68 @@ suite "NATService":
     check mapper.discoverCount == 1
     check switch.peerInfo.addrs.len == 1
     check ($switch.peerInfo.addrs[0]).find("/ip4/198.51.100.42/") >= 0
+
+  asyncTest "autonat v1 spins up the AutonatService":
+    let
+      cfg = NATConfig(mode: Auto, autonat: Opt.some(AutonatV1))
+      switch = makeSwitch(cfg, @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    var nat: NATService
+    for s in switch.services:
+      if s of NATService:
+        nat = NATService(s)
+        break
+    check:
+      nat != nil
+      nat.autonatService != nil
+      nat.autonatV2Service == nil
+      nat.hpService == nil
+
+  asyncTest "autonat v2 spins up the AutonatV2 service + client":
+    let
+      cfg = NATConfig(mode: Auto, autonat: Opt.some(AutonatV2))
+      switch = makeSwitch(cfg, @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    var nat: NATService
+    for s in switch.services:
+      if s of NATService:
+        nat = NATService(s)
+        break
+    check:
+      nat != nil
+      nat.autonatV2Service != nil
+      nat.autonatV2Client != nil
+      nat.autonatService == nil
+      nat.hpService == nil
+
+  asyncTest "enableHolePunching composes the full HP stack":
+    let
+      cfg = NATConfig(mode: Auto, enableHolePunching: true, maxNumRelays: 2)
+      switch = makeSwitch(cfg, @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    var nat: NATService
+    for s in switch.services:
+      if s of NATService:
+        nat = NATService(s)
+        break
+    check:
+      nat != nil
+      nat.hpService != nil
+      nat.autonatService != nil
+      nat.autoRelayService != nil
+      nat.autonatV2Service == nil
+
+  test "enableHolePunching with AutonatV2 is rejected at setup":
+    let cfg =
+      NATConfig(mode: Auto, enableHolePunching: true, autonat: Opt.some(AutonatV2))
+    expect ServiceSetupError:
+      discard makeSwitch(cfg, @[TcpAutoAddress])

@@ -36,7 +36,7 @@ proc createSwitch(
     .withNameResolver(nameResolver)
 
   if withAutonat:
-    builder = builder.withAutonatV2()
+    builder = builder.withNAT(NATConfig(mode: Auto, autonat: Opt.some(AutonatV2)))
 
   var switch = builder.build()
 
