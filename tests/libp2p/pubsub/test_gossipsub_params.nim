@@ -73,6 +73,27 @@ suite "GossipSubParams validation":
     params.unsubscribeBackoff = 1.seconds
     check params.validateParameters().isOk()
 
+  test "historyLength fails when zero":
+    const errorMessage = "gossipsub: historyLength parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.historyLength = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "historyGossip fails when negative":
+    const errorMessage = "gossipsub: historyGossip parameter error, Must be >= 0"
+    var params = newDefaultValidParams()
+    params.historyGossip = -1
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "historyGossip succeeds when zero":
+    var params = newDefaultValidParams()
+    params.historyGossip = 0
+    check params.validateParameters().isOk()
+
   test "publishThreshold fails when equal to gossipThreshold":
     const errorMessage =
       "gossipsub: publishThreshold parameter error, Must be < gossipThreshold"

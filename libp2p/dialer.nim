@@ -40,13 +40,16 @@ type Dialer* = ref object of Dial
   ms: MultistreamSelect
   ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
-method dialAndUpgrade*(
+proc dialAndUpgrade*(
     self: Dialer,
     peerId: Opt[PeerId],
     hostname: string,
     addrs: MultiAddress,
     dir = Direction.Out,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Dial one resolved transport address and upgrade it to a muxer.
+  ## Returns nil when no transport can establish an upgraded connection.
+
   for transport in self.transports: # for each transport
     if transport.handles(addrs): # check if it can dial it
       trace "Dialing address", addrs, peerId = peerId.get(default(PeerId)), hostname
@@ -141,11 +144,14 @@ proc expandDnsAddr(
       addrs.add((resolvedAddress, peerId))
   addrs
 
-method dialAndUpgrade*(
+proc dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
 ): Future[Muxer] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
 .} =
+  ## Dial address candidates, resolving DNS addresses when configured.
+  ## Returns the first upgraded muxer, or nil when no address succeeds.
+
   debug "Dialing peer", peerId = peerId.get(default(PeerId)), addrs
 
   for rawAddress in addrs:
@@ -287,9 +293,13 @@ method connect*(
   return
     (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
 
-method negotiateStream*(
+proc negotiateStream*(
     self: Dialer, stream: Stream, protos: seq[string]
-): Future[Stream] {.async: (raises: [CatchableError]).} =
+): Future[Stream] {.async: (raises: [CancelledError, LPError]).} =
+  ## Negotiate one of `protos` over an open stream.
+  ## Raises DialFailedError when negotiation selects no supported protocol or
+  ## the selected protocol's outgoing stream budget is exhausted.
+
   trace "Negotiating stream", stream, protos
   let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
@@ -319,12 +329,13 @@ method negotiateStream*(
 
   return stream
 
-method tryDial*(
+proc tryDial*(
     self: Dialer, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[Opt[MultiAddress]] {.async: (raises: [DialFailedError, CancelledError]).} =
   ## Create a protocol stream in order to check
   ## if a connection is possible.
   ## Doesn't use the Connection Manager to save it.
+  ## Returns the observed address when the probe succeeds.
   ##
 
   trace "Check if it can dial", peerId, addrs
@@ -407,7 +418,7 @@ method dial*(
     await cleanup()
     raise newException(DialFailedError, "failed new dial: " & exc.msg, exc)
 
-method addTransport*(self: Dialer, t: Transport) =
+method addTransport*(self: Dialer, t: Transport) {.raises: [].} =
   self.transports &= t
 
 proc new*(
