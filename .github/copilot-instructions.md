@@ -138,7 +138,6 @@ These flags are used in CI and tests:
 
 | Flag | Purpose |
 |------|---------|
-| `-d:libp2p_autotls_support` | Enable AutoTLS support |
 | `-d:libp2p_expensive_metrics` | Per-peer cardinality metrics |
 | `-d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,...` | Known agent metrics |
 | `-d:KnownLibP2PTopics=topic1,topic2` | GossipSub topic metrics |
@@ -147,9 +146,6 @@ These flags are used in CI and tests:
 | `-d:libp2p_multiaddress_exts=<path>` | MultiAddress extensions file |
 | `-d:libp2p_multibase_exts=<path>` | MultiBase extensions file |
 | `-d:libp2p_contentids_exts=<path>` | ContentIds extensions file |
-
-The test runner (`libp2p.nimble`) always compiles with:
-`-d:libp2p_autotls_support`
 
 ---
 
@@ -429,7 +425,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ### AutoTLS (`autotls/`)
 - Automatic TLS certificate management using the ACME protocol
-- `service.nim` — AutoTLS service (enabled with `-d:libp2p_autotls_support`)
+- `service.nim` — AutoTLS service
 - `acme/` — ACME client and API for certificate issuance
 
 ### Peer ID Authentication (`peeridauth/`)
