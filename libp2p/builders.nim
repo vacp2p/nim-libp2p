@@ -373,12 +373,11 @@ proc withHolePunching*(
   )
   b
 
-when defined(libp2p_autotls_support):
-  proc withAutotls*(
-      b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
-  ): SwitchBuilder =
-    b.autotlsConfig = Opt.some(config)
-    b
+proc withAutotls*(
+    b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
+): SwitchBuilder =
+  b.autotlsConfig = Opt.some(config)
+  b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   if r.isNil:
@@ -485,11 +484,10 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
-  when defined(libp2p_autotls_support):
-    b.autotlsConfig.withValue(config):
-      let autotlsService = AutotlsService.new(b.rng, config)
-      autotlsOpt = Opt.some(autotlsService)
-      services.add(autotlsService)
+  b.autotlsConfig.withValue(config):
+    let autotlsService = AutotlsService.new(b.rng, config)
+    autotlsOpt = Opt.some(autotlsService)
+    services.add(autotlsService)
 
   var transports: seq[Transport]
   for tProvider in b.transports:
