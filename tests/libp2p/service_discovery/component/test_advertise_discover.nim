@@ -375,7 +375,8 @@ suite "Service Discovery Component - Advertise Discover":
     check:
       serviceTable.hasPeer(workingRegistrarPeerKey)
       not serviceTable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() == 1 # only the remote task (local registration is a separate dedicated loop)
+      advertiserNode.advertiser.running.len() == 1
+        # only the remote task (local registration is a separate dedicated loop)
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
     checkUntilTimeout:
