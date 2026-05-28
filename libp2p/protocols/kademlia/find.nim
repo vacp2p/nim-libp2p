@@ -34,15 +34,18 @@ type ReplyHandler* = proc(
 
 type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
 
-proc tryEvictFarthestUnresponded(
+proc tryEvictFarthest(
     state: var LookupState, newDist: XorDistance
 ): bool {.raises: [].} =
+  ## Drop the worst (farthest) peer from the shortlist if it is farther than
+  ## ``newDist``. Considers all peers — including ones that already responded —
+  ## because the iterative lookup needs the closer candidate to make progress.
+  ## A responded peer's contribution is already merged into the shortlist, so
+  ## evicting it costs nothing beyond bookkeeping.
   var worstPid: PeerId
   var worstDist: XorDistance
   var found = false
   for pid, d in state.shortlist.pairs():
-    if state.responded.contains(pid):
-      continue
     if not found or worstDist < d:
       worstPid = pid
       worstDist = d
@@ -51,6 +54,7 @@ proc tryEvictFarthestUnresponded(
     return false
   state.shortlist.del(worstPid)
   state.attempts.del(worstPid)
+  state.responded.del(worstPid)
   return true
 
 proc updateShortlist*(
@@ -67,7 +71,7 @@ proc updateShortlist*(
 
     let dist = xorDistance(pid, state.target, state.kad.rtable.config.hasher)
 
-    if state.shortlist.len >= cap and not state.tryEvictFarthestUnresponded(dist):
+    if state.shortlist.len >= cap and not state.tryEvictFarthest(dist):
       continue
 
     state.shortlist[pid] = dist
