@@ -54,12 +54,18 @@ type
     connManager*: ConnManager
     rng*: Rng
 
+  RelayReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
+
   SecureProtocol* {.pure.} = enum
     Noise
 
   KadInfo = object
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+
+  HolePunchingConfig = object
+    maxNumRelays: int
+    onReservationHandler: RelayReservationHandler
 
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
@@ -81,9 +87,9 @@ type
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
     autonatV2ServerConfig: Opt[AutonatV2Config]
+    autonatV2Config: Opt[AutonatV2ServiceConfig]
     autonatV2Client: AutonatV2Client
-    autonatV2Service: Opt[AutonatV2Service]
-    hpService: Opt[HPService]
+    holePunchingConfig: Opt[HolePunchingConfig]
     natConfig: Opt[NATConfig]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
@@ -107,6 +113,10 @@ proc new*(T: type[SwitchBuilder]): T =
     scoring: PeerScoring(),
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
+    autonatV2ServerConfig: Opt.none(AutonatV2Config),
+    autonatV2Config: Opt.none(AutonatV2ServiceConfig),
+    holePunchingConfig: Opt.none(HolePunchingConfig),
+    natConfig: Opt.none(NATConfig),
     autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
     rdvConfig: Opt.none(RendezVousConfig),
@@ -178,7 +188,7 @@ proc withMplex*(
   proc newMuxer(conn: RawConn): Muxer =
     Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
 
-  assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
+  doAssert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
   b
 
@@ -198,7 +208,7 @@ proc withYamux*(
       outTimeout = outTimeout,
     )
 
-  assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
+  doAssert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
   b
 
@@ -344,10 +354,7 @@ proc withAutonatV2*(
     b: SwitchBuilder,
     serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): SwitchBuilder =
-  b.autonatV2Client = AutonatV2Client.new(b.rng)
-  b.autonatV2Service = Opt.some(
-    AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
-  )
+  b.autonatV2Config = Opt.some(serviceConfig)
   b
 
 proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
@@ -357,15 +364,13 @@ proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
   b
 
 proc withHolePunching*(
-    b: SwitchBuilder, maxNumRelays: int, onReservationHandler: proc
+    b: SwitchBuilder, maxNumRelays: int, onReservationHandler: RelayReservationHandler
 ): SwitchBuilder =
-  let
-    autonatService = AutonatService.new(AutonatClient(), b.rng)
-    autoRelayService =
-      AutoRelayService.new(maxNumRelays, RelayClient.new(), onReservationHandler, b.rng)
-    hpService = HPService.new(autonatService, autoRelayService)
-
-  b.hpService = Opt.some(hpService)
+  b.holePunchingConfig = Opt.some(
+    HolePunchingConfig(
+      maxNumRelays: maxNumRelays, onReservationHandler: onReservationHandler
+    )
+  )
   b
 
 proc withAutotls*(
@@ -433,8 +438,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
-  let pkRes = PrivateKey.random(b.rng)
-  let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
+  let seckey = b.privKey.valueOr:
+    PrivateKey.random(b.rng).expect("Expected default Private Key")
 
   if b.secureManagers.len == 0:
     debug "no secure managers defined. Adding noise by default"
@@ -520,11 +525,20 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.autonatV2Service.withValue(autonatV2Service):
-    switch.services.add(autonatV2Service)
+  b.autonatV2Config.withValue(serviceConfig):
+    b.autonatV2Client = AutonatV2Client.new(b.rng)
+    switch.services.add(
+      AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
+    )
 
-  b.hpService.withValue(hpservice):
-    switch.services.add(hpservice)
+  b.holePunchingConfig.withValue(config):
+    let
+      autonatService = AutonatService.new(AutonatClient(), b.rng)
+      autoRelayService = AutoRelayService.new(
+        config.maxNumRelays, RelayClient.new(), config.onReservationHandler, b.rng
+      )
+
+    switch.services.add(HPService.new(autonatService, autoRelayService))
 
   b.natConfig.withValue(natCfg):
     switch.services.add(NATService.new(natCfg))
