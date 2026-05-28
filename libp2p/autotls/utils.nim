@@ -3,7 +3,16 @@
 {.push raises: [].}
 
 import chronos, chronicles, strutils
-import ../errors
+import stew/base36
+from times import DateTime, toTime, toUnix
+import
+  ../errors,
+  ../peerid,
+  ../multihash,
+  ../cid,
+  ../multicodec,
+  ../nameresolving/nameresolver,
+  ./acme/client
 
 logScope:
   topics = "libp2p utils"
@@ -13,16 +22,6 @@ type AutoTLSError* = object of LPError
 const
   DefaultDnsRetries = 3
   DefaultDnsRetryTime = 1.seconds
-
-from times import DateTime, toTime, toUnix
-import stew/base36
-import
-  ../peerid,
-  ../multihash,
-  ../cid,
-  ../multicodec,
-  ../nameresolving/nameresolver,
-  ./acme/client
 
 proc asMoment*(dt: DateTime): Moment =
   let unixTime: int64 = dt.toTime.toUnix

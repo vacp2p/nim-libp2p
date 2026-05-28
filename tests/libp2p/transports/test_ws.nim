@@ -7,6 +7,7 @@ import chronos, stew/byteutils
 import
   ../../../libp2p/[
     autotls/service,
+    autotls/mockservice,
     stream/connection,
     transports/transport,
     transports/wstransport,
@@ -201,10 +202,8 @@ suite "WebSocket transport":
 
     await transport1.stop()
 
-import ../../../libp2p/autotls/mockservice
-
 suite "WebSocket transport with autotls":
-  asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
+  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
     let key = KeyPair.random(PKScheme.RSA, rng()).get()

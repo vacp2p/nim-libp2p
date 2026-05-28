@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import json, uri
+import json, sequtils, strutils, uri
 from times import DateTime, parse
 import chronos/apps/http/httpclient, results, chronicles
 
+import ./jws
 import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
@@ -108,9 +109,6 @@ type ACMECertificate* = object
   rawCertificate*: string
   certificateExpiry*: DateTime
   certKeyPair*: KeyPair
-
-import sequtils, strutils
-import ./jws
 
 const
   Alg = "RS256"

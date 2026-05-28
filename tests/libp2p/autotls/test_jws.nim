@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 {.used.}
-{.push raises: [].}
 
 import json, base64, strutils
 import stew/byteutils
@@ -17,10 +16,7 @@ proc b64UrlDecode(s: string): seq[byte] {.raises: [ValueError].} =
   base64.decode(padded).toBytes()
 
 suite "ACME JWS":
-  var key {.threadvar.}: KeyPair
-
-  setup:
-    key = KeyPair.random(PKScheme.RSA, rng()).get()
+  let key = KeyPair.random(PKScheme.RSA, rng()).get()
 
   test "produces a valid RS256 flattened JWS":
     let header = %*{"alg": "RS256", "typ": "JWT", "nonce": "abc", "url": "https://e"}

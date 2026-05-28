@@ -3,8 +3,6 @@
 
 {.used.}
 
-{.push raises: [].}
-
 import sequtils, json, uri, chronos, chronos/apps/http/httpclient
 import
   ../../../libp2p/[

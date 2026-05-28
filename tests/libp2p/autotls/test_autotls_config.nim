@@ -3,8 +3,6 @@
 
 {.used.}
 
-{.push raises: [].}
-
 import chronos, uri
 import ../../../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
 import ../../tools/[unittest, crypto]

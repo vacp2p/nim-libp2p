@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 import ./service, ./acme/client, ./broker
-
 import ../crypto/crypto, ../crypto/rsa, websock/websock
 
 type MockAutotlsService* = ref object of AutotlsService
