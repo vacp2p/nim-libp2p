@@ -78,6 +78,9 @@ func main() {
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
 		libp2p.EnableAutoNATv2(),
+		// AutoNATv2 normally rejects private addresses; the interop test
+		// runs on a local network, so allow them here.
+		libp2p.AutoNATv2AllowPrivateAddrs(),
 		libp2p.ListenAddrStrings(
 			// only use IPv6 addresses, as this test case also verifies
 			// interoperability with IPv6. we do not want to accidentally

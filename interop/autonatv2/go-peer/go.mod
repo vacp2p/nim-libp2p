@@ -4,8 +4,6 @@ go 1.25.1
 
 require github.com/libp2p/go-libp2p v0.43.0
 
-replace github.com/libp2p/go-libp2p => ./go-libp2p
-
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
