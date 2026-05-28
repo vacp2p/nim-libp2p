@@ -216,10 +216,20 @@ suite "utilities test":
 
     check:
       cert_generate(
-        certKey, @[], @[byte(1)], "test", "20250101130506Z".cstring,
-        "20250101140506Z".cstring, CERT_FORMAT_DER,
+        certKey,
+        @[],
+        @[byte(1)],
+        "test",
+        "20250101130506Z".cstring,
+        "20250101140506Z".cstring,
+        CERT_FORMAT_DER,
       ).error == CERT_ERROR_EXTENSION_DATA
       cert_generate(
-        certKey, @[byte(1)], @[], "test", "20250101130506Z".cstring,
-        "20250101140506Z".cstring, CERT_FORMAT_DER,
+        certKey,
+        @[byte(1)],
+        @[],
+        "test",
+        "20250101130506Z".cstring,
+        "20250101140506Z".cstring,
+        CERT_FORMAT_DER,
       ).error == CERT_ERROR_EXTENSION_DATA

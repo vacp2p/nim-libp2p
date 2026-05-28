@@ -359,9 +359,8 @@ proc cert_parse*(
   # const unsigned char *p;
   let p = ASN1_STRING_get0_data(ext_data).notNil(CERT_ERROR_EXTENSION_DATA)
 
-  let as1Seq = d2i_ASN1_SEQUENCE_ANY(nil, p.addr, ext_data_len).notNil(
-    CERT_ERROR_DECODE_SEQUENCE
-  )
+  let as1Seq =
+    d2i_ASN1_SEQUENCE_ANY(nil, p.addr, ext_data_len).notNil(CERT_ERROR_DECODE_SEQUENCE)
   defer:
     let proc1 = proc(freeFunc: OPENSSL_sk_free_func, v: pointer) {.cdecl.} =
       freeFunc(v)
