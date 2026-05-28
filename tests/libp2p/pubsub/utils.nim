@@ -187,7 +187,7 @@ proc applyDValues*(parameters: var GossipSubParams, dValues: Opt[DValues]) =
     parameters.dLazy = values.dLazy.get
 
 proc generateNodes*(
-    num: Natural,
+    num: int,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     gossip: bool = false,
     triggerSelf: bool = false,
