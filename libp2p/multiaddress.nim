@@ -1283,13 +1283,11 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
 proc hasIp*(ma: MultiAddress): bool =
   ## Returns ``true`` if ``ma`` contains an ``/ip4`` or ``/ip6`` component.
-  ma.contains(multiCodec("ip4")).get(false) or
-    ma.contains(multiCodec("ip6")).get(false)
+  ma.contains(multiCodec("ip4")).get(false) or ma.contains(multiCodec("ip6")).get(false)
 
 proc hasPort*(ma: MultiAddress): bool =
   ## Returns ``true`` if ``ma`` contains a ``/tcp`` or ``/udp`` component.
-  ma.contains(multiCodec("tcp")).get(false) or
-    ma.contains(multiCodec("udp")).get(false)
+  ma.contains(multiCodec("tcp")).get(false) or ma.contains(multiCodec("udp")).get(false)
 
 proc getPort*(ma: MultiAddress): Opt[Port] =
   ## Extract the first ``/tcp`` or ``/udp`` port from ``ma``.

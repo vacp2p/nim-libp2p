@@ -97,7 +97,5 @@ proc collectInternalPorts*(listenAddrs: seq[MultiAddress]): seq[PortMapping] =
         continue
     if seen.anyIt(it.internalPort == port and it.protocol == protocol):
       continue
-    seen.add(
-      PortMapping(internalPort: port, externalPort: port, protocol: protocol)
-    )
+    seen.add(PortMapping(internalPort: port, externalPort: port, protocol: protocol))
   seen
