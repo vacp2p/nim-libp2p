@@ -6,6 +6,8 @@ author = "Status Research & Development GmbH"
 description = "C bindings for LibP2P implementation"
 license = "MIT"
 
+import os, strutils
+
 # The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
 requires "taskpools >= 0.1.0"
 
@@ -43,9 +45,35 @@ task libDynamic, "Generate dynamic bindings":
 task libStatic, "Generate static bindings":
   buildCBindings "static", ""
 
+proc findNatPkgDir(): string =
+  # Match the top-level Makefile: nimble installs deps under pkgs2 on newer
+  # versions and pkgs on older ones; resolve from either.
+  for base in ["../nimbledeps/pkgs2", "../nimbledeps/pkgs"]:
+    if dirExists(base):
+      for d in listDirs(base):
+        if d.extractFilename().startsWith("nat_traversal-"):
+          return d
+  quit "nat_traversal package not found under ../nimbledeps/pkgs2 or " &
+    "../nimbledeps/pkgs; run 'nimble install_pinned' first"
+
 task examples, "Build and run C bindings examples":
   buildCBindings "static", ""
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
-  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a -pthread"
+  # libp2p.a transitively references miniupnpc and libnatpmp via nat_traversal.
+  # Build the vendored .a's via the parent Makefile and link them in.
+  exec "make -C .. nat_libs"
+  let natPkg = findNatPkgDir()
+  # miniupnpc's unix Makefile drops the .a under build/, but its Makefile.mingw
+  # drops it at the package root. Match the parent Makefile's per-OS choice.
+  let upnpA =
+    when defined(windows):
+      natPkg / "vendor/miniupnp/miniupnpc/libminiupnpc.a"
+    else:
+      natPkg / "vendor/miniupnp/miniupnpc/build/libminiupnpc.a"
+  let pmpA = natPkg / "vendor/libnatpmp-upstream/libnatpmp.a"
+  let natLibs = upnpA & " " & pmpA
+  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
+    natLibs & " -pthread"
+  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &
+    " -pthread"
   exec "../build/cbindings"
   exec "../build/echo"
