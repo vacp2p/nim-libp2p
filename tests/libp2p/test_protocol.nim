@@ -177,11 +177,16 @@ suite "LPProtocol stream budget":
 
     check:
       p.reserveOutgoing(peerId1)
-      p.openGaugeOut() == 2
       not p.canOpenOutgoing(peerId1)
-      not p.reserveOutgoing(peerId1) # make rejection
       p.openGaugeOut() == 2
+
+    check:
       p.canOpenOutgoing(peerId2)
+      not p.reserveOutgoing(peerId1) # make rejection
+      rejectionCounter("out", "per_peer") == 1
+      not p.reserveOutgoing(peerId1) # make rejection, again
+      rejectionCounter("out", "per_peer") == 2
+      p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
@@ -214,6 +219,13 @@ suite "LPProtocol stream budget":
       p.reserveOutgoing(peerId2)
       p.openGaugeOut() == 2
       not p.canOpenOutgoing(peerId3)
+
+    check:
+      not p.reserveOutgoing(peerId1)  # make rejection
+      rejectionCounter("out", "total") == 1
+      not p.reserveOutgoing(peerId2)  # make rejection, again
+      rejectionCounter("out", "total") == 2
+      p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId3)
