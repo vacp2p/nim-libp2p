@@ -116,6 +116,20 @@ suite "Quic transport":
 
     await runClient()
 
+  asyncTest "dial rejects mismatched peer ID":
+    let serverPrivateKey = PrivateKey.random(ECDSA, rng()).tryGet()
+    let wrongPeerId = PeerId.random(rng()).tryGet()
+    let server = await createQuicTransport(
+      isServer = true, privateKey = Opt.some(serverPrivateKey)
+    )
+    let client = await createQuicTransport()
+    defer:
+      await client.stop()
+      await server.stop()
+
+    expect QuicTransportDialError:
+      discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
+
   asyncTest "should allow multiple local addresses":
     let key = PrivateKey.random(ECDSA, rng()).tryGet()
     let server = QuicTransport.new(Upgrade(), key)

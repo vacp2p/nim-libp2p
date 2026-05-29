@@ -57,7 +57,7 @@ proc pop*(pr: ProviderRecords): ProviderRecord {.inline.} =
 proc len*(pr: ProviderRecords): int {.inline.} =
   pr.records.len()
 
-proc del*(pr: ProviderRecords, index: Natural) {.inline.} =
+proc del*(pr: ProviderRecords, index: int) {.inline.} =
   pr.records.del(index)
 
 proc find*(pr: ProviderRecords, record: ProviderRecord): int {.inline.} =

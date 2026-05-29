@@ -282,23 +282,44 @@ type QuicTransport* = ref object of Transport
   rng: Rng
   certGenerator: CertGenerator
 
-proc makeCertificateVerifier(): CertificateVerifier =
-  proc certificateVerifier(serverName: string, certificatesDer: seq[seq[byte]]): bool =
-    if certificatesDer.len != 1:
-      trace "CertificateVerifier: expected one certificate in the chain",
-        cert_count = certificatesDer.len
-      return false
+proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
+  if certificatesDer.len != 1:
+    trace "CertificateVerifier: expected one certificate in the chain",
+      cert_count = certificatesDer.len
+    return Opt.none(P2pCertificate)
 
-    let cert =
-      try:
-        parse(certificatesDer[0])
-      except CertificateParsingError as e:
-        trace "CertificateVerifier: failed to parse certificate", msg = e.msg
-        return false
+  let cert =
+    try:
+      parse(certificatesDer[0])
+    except CertificateParsingError as e:
+      trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+      return Opt.none(P2pCertificate)
 
-    return cert.verify()
+  Opt.some(cert)
 
-  return CustomCertificateVerifier.init(certificateVerifier)
+proc verifyCertificates(certificatesDer: seq[seq[byte]]): bool =
+  let cert = parseCertificate(certificatesDer).valueOr:
+    return false
+
+  if cert.verifiedIdentityKey().isNone:
+    trace "CertificateVerifier: certificate verification failed"
+    return false
+  true
+
+proc verifyCertificatesForPeer(
+    certificatesDer: seq[seq[byte]], expectedPeerId: PeerId
+): bool =
+  let cert = parseCertificate(certificatesDer).valueOr:
+    return false
+
+  if not cert.verify(expectedPeerId):
+    trace "CertificateVerifier: certificate did not match expected peer id",
+      expectedPeerId = expectedPeerId
+    return false
+  true
+
+proc certificateVerifier(_: string, certificatesDer: seq[seq[byte]]): bool {.gcsafe.} =
+  verifyCertificates(certificatesDer)
 
 proc defaultCertGenerator(
     kp: KeyPair
@@ -344,9 +365,12 @@ proc makeConfig(self: QuicTransport): TLSConfig =
     raiseAssert "could not obtain public key"
 
   let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
-  let certVerifier = makeCertificateVerifier()
+  let certVerifier = CustomCertificateVerifier.init(certificateVerifier)
   let tlsConfig = TLSConfig.new(
-    cert.certificate, cert.privateKey, @[alpn].toHashSet(), Opt.some(certVerifier)
+    cert.certificate,
+    cert.privateKey,
+    @[alpn].toHashSet(),
+    Opt.some(CertificateVerifier(certVerifier)),
   )
   return tlsConfig
 
@@ -506,6 +530,13 @@ method dial*(
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
+    peerId.withValue(expectedPeerId):
+      if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
+        quicConnection.abort()
+        raise newException(
+          QuicTransportDialError,
+          "error in quic dial: certificate does not match expected peer id",
+        )
     return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(
