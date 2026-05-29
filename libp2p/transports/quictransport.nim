@@ -135,7 +135,9 @@ method write*(
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
   try:
+    trace "Closing QUIC stream write side", peer = stream.peerId, dir = $stream.dir
     await stream.stream.close()
+    trace "Closed QUIC stream write side", peer = stream.peerId, dir = $stream.dir
   except CancelledError, StreamError:
     discard
 
@@ -147,7 +149,9 @@ method resetImpl*(stream: QuicStream) {.async: (raises: []).} =
 
 method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   try:
+    trace "Closing QUIC stream", peer = stream.peerId, dir = $stream.dir
     await stream.stream.close()
+    trace "Closed QUIC stream", peer = stream.peerId, dir = $stream.dir
   except CancelledError, StreamError:
     discard
   stream.session.streams.excl(stream)
@@ -159,12 +163,19 @@ method closed*(session: QuicSession): bool {.raises: [].} =
 
 method close*(session: QuicSession) {.async: (raises: []).} =
   let streams = session.streams
+  trace "Closing QUIC session", peer = session.peerId, streams = streams.len
   session.streams.clear()
+  trace "Closing QUIC session streams", peer = session.peerId, streams = streams.len
   await noCancel allFutures(streams.mapIt(it.close()))
+  trace "Closed QUIC session streams", peer = session.peerId
+  trace "Closing QUIC connection", peer = session.peerId
   session.connection.close()
+  trace "Closed QUIC connection", peer = session.peerId
   when defined(libp2p_agents_metrics):
     session.untrackPeerIdentity()
+  trace "Closing QUIC session wrapper", peer = session.peerId
   await procCall P2PConnection(session).close()
+  trace "Closed QUIC session wrapper", peer = session.peerId
 
 proc getStream(
     session: QuicSession, direction = Direction.In
@@ -258,9 +269,13 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
+    trace "Closing QuicMuxer", peer = m.connection.peerId
     await m.session.close()
+    trace "Closed QuicMuxer session", peer = m.connection.peerId
     if not isNil(m.handleFut):
+      trace "Cancelling QuicMuxer handler", peer = m.connection.peerId
       m.handleFut.cancelSoon()
+      trace "Cancelled QuicMuxer handler", peer = m.connection.peerId
   except CatchableError:
     discard
 
@@ -532,7 +547,7 @@ method dial*(
     let quicConnection = await client.dial(taAddress)
     peerId.withValue(expectedPeerId):
       if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
-        quicConnection.close()
+        quicConnection.abort()
         raise newException(
           QuicTransportDialError,
           "error in quic dial: certificate does not match expected peer id",
