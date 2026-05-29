@@ -221,9 +221,9 @@ suite "LPProtocol stream budget":
       not p.canOpenOutgoing(peerId3)
 
     check:
-      not p.reserveOutgoing(peerId1)  # make rejection
+      not p.reserveOutgoing(peerId1) # make rejection
       rejectionCounter("out", "total") == 1
-      not p.reserveOutgoing(peerId2)  # make rejection, again
+      not p.reserveOutgoing(peerId2) # make rejection, again
       rejectionCounter("out", "total") == 2
       p.openGaugeOut() == 2
 
