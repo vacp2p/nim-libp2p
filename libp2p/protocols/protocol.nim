@@ -132,6 +132,7 @@ func canAcceptIncoming*(p: LPProtocol, peerId: PeerId): bool =
 proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
+    libp2p_protocol_streams_open.inc(labelValues = [p.codec, "in"])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.In)
@@ -149,6 +150,7 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
 proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
+    libp2p_protocol_streams_open.dec(labelValues = [p.codec, "in"])
     return
 
   let pb = budget.perPeerIncoming[peerId]
@@ -171,6 +173,7 @@ func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
 proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
+    libp2p_protocol_streams_open.inc(labelValues = [p.codec, "out"])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.Out)
@@ -188,6 +191,7 @@ proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
+    libp2p_protocol_streams_open.dec(labelValues = [p.codec, "out"])
     return
 
   let pb = budget.perPeerOutgoing[peerId]
