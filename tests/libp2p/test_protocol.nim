@@ -18,9 +18,9 @@ template handleKeyError(body: untyped): float64 =
   except exceptions.KeyError:
     0.0
 
-template rejectionCounter(dir: string, scope: string): float64 =
+template rejectionCounter(proto: LPProtocol, dir: string, scope: string): float64 =
   handleKeyError:
-    libp2p_protocol_stream_cap_rejections_total.value([codecs[0], dir, scope])
+    libp2p_protocol_stream_cap_rejections_total.value([proto.codecs[0], dir, scope])
 
 template openGaugeIn(proto: LPProtocol): float64 =
   handleKeyError:
@@ -58,12 +58,6 @@ suite "LPProtocol stream budget":
       p.canAcceptIncoming(peerId1)
       p.canAcceptIncoming(peerId2)
 
-    check:
-      rejectionCounter("in", "total") == 0.0
-      rejectionCounter("in", "per_peer") == 0.0
-      rejectionCounter("out", "total") == 0.0
-      rejectionCounter("out", "per_peer") == 0.0
-
   test "canOpenOutgoing returns true with no limits":
     let p = LPProtocol.new(
       codecs,
@@ -77,12 +71,6 @@ suite "LPProtocol stream budget":
     check:
       p.canOpenOutgoing(peerId1)
       p.canOpenOutgoing(peerId2)
-
-    check:
-      rejectionCounter("in", "total") == 0.0
-      rejectionCounter("in", "per_peer") == 0.0
-      rejectionCounter("out", "total") == 0.0
-      rejectionCounter("out", "per_peer") == 0.0
 
   test "reserveIncoming and releaseIncoming with per-peer limit":
     let p = LPProtocol.new(
@@ -109,9 +97,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveIncoming(peerId1) # make rejection
-      rejectionCounter("in", "per_peer") == 1
+      p.rejectionCounter("in", "per_peer") == 1
       not p.reserveIncoming(peerId1) # make rejection, again
-      rejectionCounter("in", "per_peer") == 2
+      p.rejectionCounter("in", "per_peer") == 2
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
@@ -145,9 +133,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveIncoming(peerId3) # make rejection
-      rejectionCounter("in", "total") == 1
+      p.rejectionCounter("in", "total") == 1
       not p.reserveIncoming(peerId3) # make rejection, again
-      rejectionCounter("in", "total") == 2
+      p.rejectionCounter("in", "total") == 2
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
@@ -183,9 +171,9 @@ suite "LPProtocol stream budget":
     check:
       p.canOpenOutgoing(peerId2)
       not p.reserveOutgoing(peerId1) # make rejection
-      rejectionCounter("out", "per_peer") == 1
+      p.rejectionCounter("out", "per_peer") == 1
       not p.reserveOutgoing(peerId1) # make rejection, again
-      rejectionCounter("out", "per_peer") == 2
+      p.rejectionCounter("out", "per_peer") == 2
       p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
@@ -222,9 +210,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveOutgoing(peerId1) # make rejection
-      rejectionCounter("out", "total") == 1
+      p.rejectionCounter("out", "total") == 1
       not p.reserveOutgoing(peerId2) # make rejection, again
-      rejectionCounter("out", "total") == 2
+      p.rejectionCounter("out", "total") == 2
       p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
@@ -473,3 +461,43 @@ suite "LPProtocol stream budget":
       p2.reserveOutgoing(peerId1)
       p2.openGaugeOut() == 3
       p1.openGaugeOut() == 0 # protocol one gauge is unchanged
+
+  test "different protocols have different rejection counter":
+    let p1 = LPProtocol.new(@["/proto-one/1.0.0"], handler, maxIncomingStreamsTotal = 1)
+    let p2 = LPProtocol.new(@["/proto-two/1.0.0"], handler, maxIncomingStreamsTotal = 1)
+
+    check:
+      p1.reserveIncoming(peerId1)
+      not p1.reserveIncoming(peerId1)
+      p1.rejectionCounter("in", "total") == 1
+      not p1.reserveIncoming(peerId1)
+      p1.rejectionCounter("in", "total") == 2
+
+      # other p1 counters are not changed
+      p1.rejectionCounter("in", "per_peer") == 0
+      p1.rejectionCounter("out", "total") == 0
+      p1.rejectionCounter("out", "per_peer") == 0
+
+      # p2 counters are not changed
+      p2.rejectionCounter("in", "total") == 0
+      p2.rejectionCounter("in", "per_peer") == 0
+      p2.rejectionCounter("out", "total") == 0
+      p2.rejectionCounter("out", "per_peer") == 0
+
+    check:
+      p2.reserveIncoming(peerId1)
+      not p2.reserveIncoming(peerId1)
+      p2.rejectionCounter("in", "total") == 1
+      not p2.reserveIncoming(peerId1)
+      p2.rejectionCounter("in", "total") == 2
+
+      # other p2 counters are not changed
+      p2.rejectionCounter("in", "per_peer") == 0
+      p2.rejectionCounter("out", "total") == 0
+      p2.rejectionCounter("out", "per_peer") == 0
+
+      # p1 counters keep old state
+      p2.rejectionCounter("in", "total") == 2
+      p2.rejectionCounter("in", "per_peer") == 0
+      p2.rejectionCounter("out", "total") == 0
+      p2.rejectionCounter("out", "per_peer") == 0
