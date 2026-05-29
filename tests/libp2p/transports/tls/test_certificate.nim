@@ -43,7 +43,7 @@ suite "Certificate roundtrip tests":
         actualPeerId == peerId
         actualPeerId != otherPeerId
 
-  test "gnerate with invalid validity time":
+  test "generate with invalid validity time":
     let keypair = KeyPair.random(Ed25519, rng()).tryGet()
 
     # past
