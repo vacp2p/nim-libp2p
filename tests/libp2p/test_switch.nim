@@ -233,55 +233,35 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
-    proc traceKnownPeerIdTest(stage: string) =
-      echo "[known-peer-id] " & stage
-
-    traceKnownPeerIdTest("create switches")
     let switch1 = makeStandardSwitch()
     let switch2 = makeStandardSwitch()
-    traceKnownPeerIdTest("start switch1")
     await switch1.start()
-    traceKnownPeerIdTest("started switch1 addrs=" & $switch1.peerInfo.addrs)
-    traceKnownPeerIdTest("start switch2")
     await switch2.start()
-    traceKnownPeerIdTest("started switch2 addrs=" & $switch2.peerInfo.addrs)
 
     # via direct ip
-    traceKnownPeerIdTest("check initial disconnected state")
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
     # without specifying allow unknown, will fail
-    traceKnownPeerIdTest("direct address expected failure begin")
     expect(DialFailedError):
       discard await switch2.connect(switch1.peerInfo.addrs[0])
-    traceKnownPeerIdTest("direct address expected failure done")
 
     # with invalid PeerId, will fail
-    traceKnownPeerIdTest("build fake peer id address")
     let fakeMa = concat(
         switch1.peerInfo.addrs[0],
         MultiAddress.init(multiCodec("p2p"), PeerId.random(rng()).tryGet().data).tryGet(),
       )
       .tryGet()
-    traceKnownPeerIdTest("fake peer id expected failure begin fakeMa=" & $fakeMa)
     expect(DialFailedError):
       discard (await switch2.connect(fakeMa))
-    traceKnownPeerIdTest("fake peer id expected failure done")
 
     # real thing works
     let fullAddr = switch1.peerInfo.fullAddrs.tryGet()[0]
-    traceKnownPeerIdTest("known peer connect begin fullAddr=" & $fullAddr)
     let connectedPeerId = await switch2.connect(fullAddr)
-    traceKnownPeerIdTest("known peer connect done peerId=" & $connectedPeerId)
     check connectedPeerId == switch1.peerInfo.peerId
 
-    traceKnownPeerIdTest("disconnect begin")
     await switch2.disconnect(switch1.peerInfo.peerId)
-    traceKnownPeerIdTest("disconnect done")
 
-    traceKnownPeerIdTest("stop switches begin")
     await allFuturesRaising(switch1.stop(), switch2.stop())
-    traceKnownPeerIdTest("stop switches done")
 
   asyncTest "e2e should not leak on peer disconnect":
     let switch1 = makeStandardSwitch()

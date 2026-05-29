@@ -21,7 +21,21 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          # Temporary diagnostic narrowing for the Windows/GCC switch hang.
+          - os: linux
+            cpu: amd64
+            cc: gcc
+          - os: linux
+            cpu: i386
+            cc: gcc
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
+          - os: macos-15
+            cpu: arm64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: clang
           - os: windows
             cpu: amd64
             cc: gcc
@@ -34,6 +48,23 @@ jobs:
           - ref: v2.2.10
             memory_management: orc
         include:
+          - platform:
+              os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
+          - platform:
+              os: macos-15
+            builder: macos-15
+            shell: bash
+          - platform:
+              os: windows
+              cc: clang
+            builder: windows-2022
+            shell: bash
           - platform:
               os: windows
               cc: gcc
@@ -134,13 +165,11 @@ jobs:
           fi
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=TRACE"
 
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
-          echo "Temporary diagnostic: running only tests matching test_switch"
-          make test test_switch
+          make test
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}

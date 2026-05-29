@@ -358,14 +358,10 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
 proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
   trace "Cleaning up muxer", m = muxer
 
-  trace "Closing muxer", m = muxer
   await muxer.close()
-  trace "Closed muxer", m = muxer
   if not muxer.handler.isNil:
     try:
-      trace "Waiting for muxer handler", m = muxer
       await muxer.handler
-      trace "Muxer handler done", m = muxer
     except CatchableError as exc:
       trace "Exception in close muxer handler", description = exc.msg
   trace "Cleaned up muxer", m = muxer
