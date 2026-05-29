@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import net, chronos
+import ../../libp2p/utils/future
 import
   ../../libp2p/[
     builders,
@@ -40,8 +41,7 @@ proc autonatInteropTest*(
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability != NetworkReachability.Unknown and confidence.isSome() and
         confidence.get() >= 0.3:
-      if not awaiter.finished:
-        awaiter.complete()
+      awaiter.completeOnce()
 
   let service = cast[AutonatV2Service](switch.services[1])
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
