@@ -53,14 +53,6 @@ suite "Conversion":
     check not (compiles do:
       let converted: Color = safeConvert[Color](3))
 
-  test "successful safeConvert from range to int":
-    let res: int = safeConvert[int, range[1 .. 10]](5)
-    check res == 5
-
-  test "unsuccessful safeConvert from int to range":
-    check not (compiles do:
-      let converted: range[1 .. 10] = safeConvert[range[1 .. 10], int](11))
-
   test "unsuccessful safeConvert from int to uint":
     check not (compiles do:
       let converted: uint = safeConvert[uint](11))

@@ -198,6 +198,41 @@ suite "GossipSub Extensions :: Partial Message Extension":
       cr.incomingRPC.len == 1 # should call onIncomingRPC
       cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
 
+  test "handleRPC: calls onIncomingRPC when node serves partials and peer requests them":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var config = cr.config()
+    config.nodeTopicOpts = proc(topic: string): TopicOpts {.gcsafe, raises: [].} =
+      TopicOpts(requestsPartial: false, supportsSendingPartial: true)
+    var ext = PartialMessageExtension.new(config)
+
+    ext.subscribe(peerId, topic, true)
+
+    let pmRPC = PartialMessageExtensionRPC(
+      topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+    )
+    ext.handlePartialMessage(peerId, pmRPC)
+    check:
+      cr.incomingRPC.len == 1
+      cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
+
+  test "handleRPC: does not call onIncomingRPC":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var config = cr.config()
+    config.nodeTopicOpts = proc(topic: string): TopicOpts {.gcsafe, raises: [].} =
+      TopicOpts(requestsPartial: false, supportsSendingPartial: false)
+    var ext = PartialMessageExtension.new(config)
+
+    ext.subscribe(peerId, topic, true)
+
+    let pmRPC = PartialMessageExtensionRPC(
+      topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+    )
+    ext.handlePartialMessage(peerId, pmRPC)
+    check:
+      cr.incomingRPC.len == 0
+
   test "handleRPC: adds penalty when groupId or topicId is not set":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
