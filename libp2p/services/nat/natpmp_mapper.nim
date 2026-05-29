@@ -78,9 +78,10 @@ proc setError(resp: var NatPmpResponse, msg: string) =
   resp.errorLen = n
 
 proc getError(resp: NatPmpResponse): string =
-  result = newString(resp.errorLen)
+  var msg = newString(resp.errorLen)
   for i in 0 ..< resp.errorLen:
-    result[i] = resp.errorBuf[i]
+    msg[i] = resp.errorBuf[i]
+  msg
 
 proc setIp(resp: var NatPmpResponse, ip: IpAddress) =
   case ip.family
@@ -254,15 +255,17 @@ proc new*(T: typedesc[NatPmpMapper]): T {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper respSignal: " & error)
 
-  result = NatPmpMapper(ctx: ctx, lock: newAsyncLock())
+  let mapper = NatPmpMapper(ctx: ctx, lock: newAsyncLock())
 
   try:
-    createThread(result.thread, natpmpWorker, ctx)
+    createThread(mapper.thread, natpmpWorker, ctx)
   except ValueError, ResourceExhaustedError:
     discard ctx.reqSignal.close()
     discard ctx.respSignal.close()
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper thread create failed")
+
+  mapper
 
 method discover*(
     self: NatPmpMapper, timeout: Duration

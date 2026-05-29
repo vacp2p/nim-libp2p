@@ -77,9 +77,10 @@ proc setError(resp: var UpnpResponse, msg: string) =
   resp.errorLen = n
 
 proc getError(resp: UpnpResponse): string =
-  result = newString(resp.errorLen)
+  var msg = newString(resp.errorLen)
   for i in 0 ..< resp.errorLen:
-    result[i] = resp.errorBuf[i]
+    msg[i] = resp.errorBuf[i]
+  msg
 
 proc setIp(resp: var UpnpResponse, ip: IpAddress) =
   case ip.family
@@ -234,15 +235,17 @@ proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
 
-  result = T(ctx: ctx)
+  let mapper = T(ctx: ctx)
 
   try:
-    createThread(result.thread, upnpWorker, ctx)
+    createThread(mapper.thread, upnpWorker, ctx)
   except ValueError, ResourceExhaustedError:
     discard ctx.reqSignal.close()
     discard ctx.respSignal.close()
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper thread create failed")
+
+  mapper
 
 method discover*(
     self: UpnpMapper, timeout: Duration

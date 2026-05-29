@@ -276,15 +276,18 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
   of Upnp, NatPmp:
     if self.config.refreshInterval <= 0.seconds:
       raise newException(
-        ServiceSetupError, "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
+        ServiceSetupError,
+        "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
       )
     if self.config.discoveryTimeout <= 0.seconds:
       raise newException(
-        ServiceSetupError, "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
+        ServiceSetupError,
+        "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
       )
     if self.config.leaseDuration <= 0.seconds:
       raise newException(
-        ServiceSetupError, "NATService: leaseDuration must be > 0; use upnpConfig/natPmpConfig",
+        ServiceSetupError,
+        "NATService: leaseDuration must be > 0; use upnpConfig/natPmpConfig",
       )
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
