@@ -63,6 +63,10 @@ type
     closed: Atomic[bool]
     lock: AsyncLock
     inflight: Future[void]
+    drainPending: Future[void]
+      ## Pending respSignal wait left over from a dispatch that timed out
+      ## before the worker finished. The next dispatch awaits this first so
+      ## it doesn't pick up the stale signal as its own response.
     mappings: Table[MappingKey, uint16]
       ## externalPort,proto -> internalPort, populated on successful map() so
       ## unmap() can send the correct internal port (NAT-PMP identifies a
@@ -203,7 +207,7 @@ proc natpmpWorker(ctx: ptr NatPmpWorkerCtx) {.thread.} =
 
 proc dispatch(
     self: NatPmpMapper, req: sink NatPmpRequest, timeout: Duration = InfiniteDuration
-): Future[void] {.async: (raises: [CancelledError]).} =
+): Future[NatPmpResponse] {.async: (raises: [CancelledError]).} =
   if self.closed.load:
     raise newException(CancelledError, "NatPmpMapper closed")
 
@@ -212,6 +216,21 @@ proc dispatch(
     if self.closed.load:
       raise newException(CancelledError, "NatPmpMapper closed")
 
+    # A previous dispatch may have timed out before the worker fired
+    # respSignal. Consume that lingering signal here so the caller's timeout
+    # below only governs its own request — not the previous one's tail.
+    if self.drainPending != nil:
+      let drain = self.drainPending
+      self.drainPending = nil
+      self.inflight = drain
+      try:
+        await drain
+      except AsyncError, CancelledError:
+        discard
+      self.inflight = nil
+      if self.closed.load:
+        raise newException(CancelledError, "NatPmpMapper closed")
+
     self.ctx.request = req
     let fr = self.ctx.reqSignal.fireSync()
     if fr.isErr or not fr.get():
@@ -219,26 +238,29 @@ proc dispatch(
 
     let waitFut = self.ctx.respSignal.wait()
     self.inflight = waitFut
+    var timedOut = false
     try:
       try:
         if timeout == InfiniteDuration:
           await waitFut
-        else:
-          if not await waitFut.withTimeout(timeout):
-            # Timed out; the worker is still running its blocking call (libnatpmp
-            # has its own internal retry timeout). Drain respSignal before
-            # releasing the lock so the next dispatch starts with clean state.
-            let drainFut = self.ctx.respSignal.wait()
-            self.inflight = drainFut
-            try:
-              await drainFut
-            except AsyncError, CancelledError:
-              discard
-            raise newException(CancelledError, "NatPmpMapper timeout")
+        elif not await waitFut.withTimeout(timeout):
+          timedOut = true
       except AsyncError as exc:
         raise newException(CancelledError, "NatPmpMapper wait: " & exc.msg)
     finally:
       self.inflight = nil
+
+    if timedOut:
+      # waitFut is still pending; the worker will fire respSignal once
+      # libnatpmp's internal retry loop gives up. Stash the wait so the
+      # NEXT dispatch drains it, instead of blocking this caller past its
+      # requested timeout.
+      self.drainPending = waitFut
+      raise newException(CancelledError, "NatPmpMapper timeout")
+
+    # Copy the response out under the lock so callers don't race with the
+    # next dispatch overwriting self.ctx.response.
+    return self.ctx.response
   finally:
     try:
       self.lock.release()
@@ -270,11 +292,11 @@ proc new*(T: typedesc[NatPmpMapper]): T {.raises: [ResourceExhaustedError].} =
 method discover*(
     self: NatPmpMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  await self.dispatch(NatPmpRequest(kind: nrDiscover), timeout)
+  let resp = await self.dispatch(NatPmpRequest(kind: nrDiscover), timeout)
 
-  if not self.ctx.response.success:
-    return Result[IpAddress, string].err(self.ctx.response.getError())
-  let ipOpt = self.ctx.response.getIp()
+  if not resp.success:
+    return Result[IpAddress, string].err(resp.getError())
+  let ipOpt = resp.getIp()
   if ipOpt.isNone:
     return Result[IpAddress, string].err("natpmp discover: missing IP in response")
   Result[IpAddress, string].ok(ipOpt.get())
@@ -294,7 +316,7 @@ method map*(
       "natpmp map: lease must be > 0 (lease=0 deletes the mapping per RFC 6886)"
     )
 
-  await self.dispatch(
+  let resp = await self.dispatch(
     NatPmpRequest(
       kind: nrMap,
       mapInternal: uint16(internalPort),
@@ -304,11 +326,11 @@ method map*(
     )
   )
 
-  if self.ctx.response.success:
-    let mapped = Port(self.ctx.response.externalPort)
+  if resp.success:
+    let mapped = Port(resp.externalPort)
     self.mappings[(uint16(mapped), proto)] = uint16(internalPort)
     return Result[Port, string].ok(mapped)
-  Result[Port, string].err(self.ctx.response.getError())
+  Result[Port, string].err(resp.getError())
 
 method unmap*(
     self: NatPmpMapper, externalPort: Port, proto: MapProto
@@ -323,7 +345,7 @@ method unmap*(
     )
   let internalPort = self.mappings.getOrDefault(key)
 
-  await self.dispatch(
+  let resp = await self.dispatch(
     NatPmpRequest(
       kind: nrUnmap,
       unmapInternal: internalPort,
@@ -332,10 +354,10 @@ method unmap*(
     )
   )
 
-  if self.ctx.response.success:
+  if resp.success:
     self.mappings.del(key)
     return Result[void, string].ok()
-  Result[void, string].err(self.ctx.response.getError())
+  Result[void, string].err(resp.getError())
 
 method close*(self: NatPmpMapper) {.gcsafe, raises: [].} =
   if self.closed.exchange(true):
@@ -343,10 +365,16 @@ method close*(self: NatPmpMapper) {.gcsafe, raises: [].} =
 
   # Unblock any dispatch currently parked on respSignal so the caller sees
   # CancelledError instead of waiting for a response that may never come if
-  # the worker is stuck inside libnatpmp.
+  # the worker is stuck inside libnatpmp. Also cancel any drain left over
+  # from a previous timeout, since joinThread below would otherwise wait
+  # for the worker to fire respSignal first.
   let inflight = self.inflight
   if inflight != nil and not inflight.finished():
     inflight.cancelSoon()
+
+  let drain = self.drainPending
+  if drain != nil and not drain.finished():
+    drain.cancelSoon()
 
   self.ctx.request = NatPmpRequest(kind: nrShutdown)
   let fr = self.ctx.reqSignal.fireSync()
