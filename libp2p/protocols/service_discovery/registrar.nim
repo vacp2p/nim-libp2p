@@ -504,7 +504,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     let windowStart = t.tMod + t.tWaitFor
     let windowEnd = windowStart + disco.discoConfig.registrationWindow
     if now >= windowStart and now <= windowEnd:
-      ticket.tInit = t
+      ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
     error "failed to sign ticket"
