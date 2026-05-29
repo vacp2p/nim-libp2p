@@ -86,6 +86,7 @@ proc new*(
     maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
     maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
+  doAssert(codecs.len > 0, "Codecs sequence must not be empty!")
   T(
     codecs: codecs,
     handlerImpl: handler,
