@@ -17,13 +17,11 @@ import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
-# TODO: nim-libp2p#2526 service-disco: registrar closerPeers do not use RegT
-
 suite "Service Discovery Component - Registrar Closer Peers":
   teardown:
     checkTrackers()
 
-  asyncTest "REGISTER closerPeers come from main Kad table, not RegT":
+  asyncTest "REGISTER closerPeers come from RegT when available":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
@@ -59,11 +57,10 @@ suite "Service Discovery Component - Registrar Closer Peers":
     let closerPeerIds = response.get().closerPeers.mapIt(it.peerId)
 
     check:
+      serviceOnlyNode.switch.peerInfo.peerId in closerPeerIds
       kadOnlyNode.switch.peerInfo.peerId in closerPeerIds
-      serviceOnlyNode.switch.peerInfo.peerId notin closerPeerIds
-        # node is in RegT with valid addresses, but RegT is not used.
 
-  asyncTest "GET_ADS closerPeers come from main Kad table, not RegT":
+  asyncTest "GET_ADS closerPeers come from RegT when available":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
@@ -91,21 +88,17 @@ suite "Service Discovery Component - Registrar Closer Peers":
       serviceId, serviceOnlyNode.switch.peerInfo.peerId.toKey()
     )
 
-    let kadOnlyKey = kadOnlyNode.switch.peerInfo.peerId.toKey()
     let serviceOnlyKey = serviceOnlyNode.switch.peerInfo.peerId.toKey()
 
     check:
-      not discovererNode.rtable.hasPeer(kadOnlyKey)
       not discovererNode.rtable.hasPeer(serviceOnlyKey)
 
     let found = await discovererNode.lookup(serviceId)
     check:
       found.isOk()
-      discovererNode.rtable.hasPeer(kadOnlyKey)
-      not discovererNode.rtable.hasPeer(serviceOnlyKey)
-        # node is in RegT with valid addresses, but RegT is not used.
+      discovererNode.rtable.hasPeer(serviceOnlyKey)
 
-  asyncTest "REGISTER with Wait does not add advertiser to existing RegT":
+  asyncTest "REGISTER with Wait adds advertiser to RegT":
     # Use safetyParam = 0 so the first registration is Confirmed, and
     # advertCacheCap = 1 so the cache is full after that, forcing the
     # second registration to return Wait.
@@ -154,14 +147,12 @@ suite "Service Discovery Component - Registrar Closer Peers":
       waitResponse.isOk()
       waitResponse.get().status == kad_protobuf.RegistrationStatus.Wait
 
-    # Spec: the registrar adds the advertiser to RegT on every REGISTER.
-    # Implementation: the Wait path skips the service table write.
     let tableAfterWait = registrarNode.rtManager.getTable(serviceId)
     check:
       tableAfterWait.isSome()
-      not tableAfterWait.get().hasPeer(waitKey)
+      tableAfterWait.get().hasPeer(waitKey)
 
-  asyncTest "GET_ADS does not add discoverer to RegT":
+  asyncTest "GET_ADS adds discoverer to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
@@ -197,9 +188,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check found.isOk()
     check found.get().len == 1
 
-    # Spec: the registrar adds the discoverer to RegT on GET_ADS.
-    # Implementation: GET_ADS never writes to RegT.
     let tableAfter = registrarNode.rtManager.getTable(serviceId)
     check:
       tableAfter.isSome()
-      not tableAfter.get().hasPeer(discovererKey)
+      tableAfter.get().hasPeer(discovererKey)

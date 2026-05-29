@@ -249,7 +249,14 @@ proc handlePartialRPC(
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
-  ext.config.onIncomingRPC(peerId, rpc)
+  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+  let shouldHandlePartialRPC =
+    nodeTopicOpts.requestsPartial or (
+      nodeTopicOpts.supportsSendingPartial and
+      ext.peerRequestsPartial(peerId, rpc.topicID)
+    )
+  if shouldHandlePartialRPC:
+    ext.config.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
