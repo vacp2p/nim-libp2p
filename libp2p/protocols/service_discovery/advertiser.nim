@@ -27,7 +27,7 @@ proc clear*(a: Advertiser) =
   a.providedAdverts = initTable[ServiceId, seq[byte]]()
   cd_advertiser_pending_actions.set(0)
 
-proc cleanupFinishedTasks*(a: Advertiser) =
+proc cleanupFinishedTasks(a: Advertiser) =
   var toRemove: HashSet[AdvertiseTask]
   for t in a.running:
     if t.fut.finished:
@@ -36,9 +36,7 @@ proc cleanupFinishedTasks*(a: Advertiser) =
     a.running.excl(toRemove)
     cd_advertiser_pending_actions.set(a.running.len.float64)
 
-proc getAdvertBytes*(
-    disco: ServiceDiscovery, explicit: Opt[seq[byte]]
-): Opt[seq[byte]] =
+proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[byte]] =
   if explicit.isSome():
     return Opt.some(explicit.get())
 
@@ -58,7 +56,7 @@ proc advertiseToRegistrar*(
   advert: seq[byte],
 ) {.async: (raises: [CancelledError]).}
 
-proc startLocalRegistration*(disco: ServiceDiscovery) =
+proc startLocalRegistration(disco: ServiceDiscovery) =
   ## Starts (or restarts) the single long-lived local self-registration task.
 
   if not disco.localRegistrationLoop.isNil and not disco.localRegistrationLoop.finished:
@@ -82,7 +80,7 @@ proc startLocalRegistration*(disco: ServiceDiscovery) =
   disco.localRegistrationLoop =
     disco.advertiseToRegistrar(sid, selfPeer, Opt.none(Ticket), advertBytes)
 
-proc stopLocalRegistration*(
+proc stopLocalRegistration(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   if disco.localRegistrationLoop.isNil:
@@ -132,6 +130,7 @@ proc maintainRegistrations*(
       for t in stale:
         t.fut.cancelSoon()
         disco.advertiser.running.excl(t)
+        cd_advertiser_pending_actions.dec()
         active.excl(t.registrar)
 
       let target = min(disco.discoConfig.kRegister, bucket.peers.len)
