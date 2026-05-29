@@ -16,6 +16,8 @@ import strutils, os
 --d:
   libp2p_mplex_metrics
 --d:
+  metricsTest
+--d:
   unittestPrintTime
 
 # Only add chronicles param if the

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos
+import chronos, metrics
 import ../../libp2p/[peerid, protocols/protocol, stream/connection]
 import ../tools/[unittest, crypto]
 
@@ -12,12 +12,36 @@ proc handler(
 ): Future[void] {.async: (raises: [CancelledError]).} =
   discard
 
+const codecs = @["/test/1.0.0"]
+
+template handleKeyError(body: untyped): float64 =
+  try:
+    body
+  except exceptions.KeyError:
+    0.0
+
+template rejectionCounter(dir: string, scope: string): float64 =
+  handleKeyError:
+    libp2p_protocol_stream_cap_rejections_total.value([codecs[0], dir, scope])
+
+template openGaugeIn(): float64 =
+  handleKeyError:
+    libp2p_protocol_streams_open.value([codecs[0], "in"])
+
+template openGaugeOut(): float64 =
+  handleKeyError:
+    libp2p_protocol_streams_open.value([codecs[0], "out"])
+
 suite "LPProtocol stream budget":
-  const codecs = @["/test/1.0.0"]
   let
     peerId1 = PeerId.random(rng()).get()
     peerId2 = PeerId.random(rng()).get()
     peerId3 = PeerId.random(rng()).get()
+
+  setup:
+    # clear previous values
+    libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], "in"])
+    libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], "out"])
 
   test "canAcceptIncoming returns true with no limits":
     let p = LPProtocol.new(
@@ -33,6 +57,12 @@ suite "LPProtocol stream budget":
       p.canAcceptIncoming(peerId1)
       p.canAcceptIncoming(peerId2)
 
+    check:
+      rejectionCounter("in", "total") == 0.0
+      rejectionCounter("in", "per_peer") == 0.0
+      rejectionCounter("out", "total") == 0.0
+      rejectionCounter("out", "per_peer") == 0.0
+
   test "canOpenOutgoing returns true with no limits":
     let p = LPProtocol.new(
       codecs,
@@ -46,6 +76,12 @@ suite "LPProtocol stream budget":
     check:
       p.canOpenOutgoing(peerId1)
       p.canOpenOutgoing(peerId2)
+
+    check:
+      rejectionCounter("in", "total") == 0.0
+      rejectionCounter("in", "per_peer") == 0.0
+      rejectionCounter("out", "total") == 0.0
+      rejectionCounter("out", "per_peer") == 0.0
 
   test "reserveIncoming and releaseIncoming with per-peer limit":
     let p = LPProtocol.new(
@@ -61,18 +97,30 @@ suite "LPProtocol stream budget":
 
     check:
       p.reserveIncoming(peerId1)
+      openGaugeIn() == 1
       p.canAcceptIncoming(peerId1)
 
     check:
       p.reserveIncoming(peerId1)
       not p.canAcceptIncoming(peerId1)
+      openGaugeIn() == 2
       p.canAcceptIncoming(peerId2) # other peer not affected
 
+    check:
+      not p.reserveIncoming(peerId1) # make rejection
+      rejectionCounter("in", "per_peer") == 1
+      not p.reserveIncoming(peerId1) # make rejection, again
+      rejectionCounter("in", "per_peer") == 2
+
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
 
   test "reserveIncoming and releaseIncoming with total limit":
     let p = LPProtocol.new(
@@ -94,10 +142,20 @@ suite "LPProtocol stream budget":
       p.reserveIncoming(peerId2)
       not p.canAcceptIncoming(peerId3)
 
+    check:
+      not p.reserveIncoming(peerId3) # make rejection
+      rejectionCounter("in", "total") == 1
+      not p.reserveIncoming(peerId3) # make rejection, again
+      rejectionCounter("in", "total") == 2
+
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
 
     p.releaseIncoming(peerId2)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
 
   test "reserveOutgoing and releaseOutgoing with per-peer limit":
     let p = LPProtocol.new(
@@ -113,11 +171,14 @@ suite "LPProtocol stream budget":
 
     check:
       p.reserveOutgoing(peerId1)
+      openGaugeOut() == 1
       p.canOpenOutgoing(peerId1)
 
     check:
       p.reserveOutgoing(peerId1)
+      openGaugeOut() == 2
       not p.canOpenOutgoing(peerId1)
+      not p.reserveOutgoing(peerId1) # make rejection
       p.canOpenOutgoing(peerId2)
 
     p.releaseOutgoing(peerId1)
@@ -125,6 +186,10 @@ suite "LPProtocol stream budget":
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
 
   test "reserveOutgoing and releaseOutgoing with total limit":
     let p = LPProtocol.new(
@@ -151,6 +216,10 @@ suite "LPProtocol stream budget":
     check p.canOpenOutgoing(peerId3)
 
     p.releaseOutgoing(peerId2)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
 
   test "combined incoming and outgoing limits (per-peer and total)":
     let p = LPProtocol.new(
@@ -198,6 +267,10 @@ suite "LPProtocol stream budget":
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1) # peerId1 per-peer count now 1 < 2, and total 3 < 4
 
+    check:
+      openGaugeIn() == 3
+      openGaugeOut() == 3
+
   test "release underflow protection (release without reserve)":
     let p = LPProtocol.new(
       codecs,
@@ -210,6 +283,7 @@ suite "LPProtocol stream budget":
 
     # Releasing without reserving should not cause negative counts
     p.releaseIncoming(peerId1)
+    check openGaugeIn() == 0
     check p.canAcceptIncoming(peerId1)
 
     # Reserve up to limit, then release extra should keep within limits
@@ -227,6 +301,10 @@ suite "LPProtocol stream budget":
     # Same for outgoing
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
 
   test "budget with new() using int arguments directly (not Opt)":
     let p = LPProtocol.new(
@@ -266,6 +344,10 @@ suite "LPProtocol stream budget":
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
 
+    check:
+      openGaugeIn() == 1
+      openGaugeOut() == 2
+
   test "different peers share total budget correctly":
     let p = LPProtocol.new(
       codecs,
@@ -276,27 +358,29 @@ suite "LPProtocol stream budget":
       maxOutgoingStreamsPerPeer = Opt.none(int),
     )
 
+    # Incoming
     check:
       p.reserveIncoming(peerId1)
       p.canAcceptIncoming(peerId1)
-
-    check:
       p.reserveIncoming(peerId2)
       not p.canAcceptIncoming(peerId3)
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
 
-    p.releaseIncoming(peerId2)
-
     # Outgoing
     check:
       p.reserveOutgoing(peerId1)
+      p.canOpenOutgoing(peerId2)
       p.reserveOutgoing(peerId2)
       not p.canOpenOutgoing(peerId3)
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId3)
+
+    check:
+      openGaugeIn() == 1
+      openGaugeOut() == 1
 
   test "reserveIncoming and releaseIncoming with per-peer limit using Opt.some":
     let p = LPProtocol.new(
@@ -318,6 +402,10 @@ suite "LPProtocol stream budget":
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
 
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
+
   test "reserveOutgoing and releaseOutgoing with per-peer limit using Opt.some":
     let p = LPProtocol.new(
       codecs,
@@ -337,3 +425,7 @@ suite "LPProtocol stream budget":
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
+
+    check:
+      openGaugeIn() == 0
+      openGaugeOut() == 0
