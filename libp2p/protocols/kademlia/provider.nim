@@ -107,45 +107,45 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
 proc dispatchAddProvider(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
-  withRpcSlot(kad):
-    let streamRes = catch:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    if streamRes.isErr:
-      return err(streamRes.error.msg)
-    let stream = streamRes.value()
-    defer:
-      await stream.close()
+  withRpcSlot(kad)
+  let streamRes = catch:
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
+  defer:
+    await stream.close()
 
-    let msg = Message(
-      msgType: MessageType.addProvider,
-      key: key,
-      providerPeers: @[kad.switch.peerInfo.toPeer()],
-    )
-    let encoded = msg.encode(kad.config.hideConnectionStatus)
-    kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
-    )
-    let writeRes = catch:
-      await stream.writeLp(encoded.buffer)
-    if writeRes.isErr:
-      return err(writeRes.error.msg)
+  let msg = Message(
+    msgType: MessageType.addProvider,
+    key: key,
+    providerPeers: @[kad.switch.peerInfo.toPeer()],
+  )
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
+  kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
+  )
+  let writeRes = catch:
+    await stream.writeLp(encoded.buffer)
+  if writeRes.isErr:
+    return err(writeRes.error.msg)
 
-    if not kad.config.providerRejection:
-      return ok(AddProviderStatus.accepted)
+  if not kad.config.providerRejection:
+    return ok(AddProviderStatus.accepted)
 
-    let readFut = stream.readLp(MaxMsgSize)
-    if not (await readFut.withTimeout(kad.config.timeout)):
-      return ok(AddProviderStatus.accepted)
-    let readRes = catch:
-      await readFut
-    if readRes.isErr:
-      return ok(AddProviderStatus.accepted)
+  let readFut = stream.readLp(MaxMsgSize)
+  if not (await readFut.withTimeout(kad.config.timeout)):
+    return ok(AddProviderStatus.accepted)
+  let readRes = catch:
+    await readFut
+  if readRes.isErr:
+    return ok(AddProviderStatus.accepted)
 
-    let reply = Message.decode(readRes.value).valueOr:
-      return ok(AddProviderStatus.accepted)
+  let reply = Message.decode(readRes.value).valueOr:
+    return ok(AddProviderStatus.accepted)
 
-    return ok(reply.providerStatus.get(AddProviderStatus.accepted))
+  return ok(reply.providerStatus.get(AddProviderStatus.accepted))
 
 proc sendBatch(kad: KadDHT, peers: seq[PeerId], key: Key): auto =
   peers.mapIt(kad.dispatchAddProvider(it, key))
@@ -291,47 +291,47 @@ method handleAddProvider*(
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  withRpcSlot(kad):
-    let streamRes = catch:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    if streamRes.isErr:
-      return err(streamRes.error.msg)
-    let stream = streamRes.value()
-    defer:
-      await stream.close()
-    let msg = Message(msgType: MessageType.getProviders, key: key)
-    let encoded = msg.encode(kad.config.hideConnectionStatus)
+  withRpcSlot(kad)
+  let streamRes = catch:
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
+  defer:
+    await stream.close()
+  let msg = Message(msgType: MessageType.getProviders, key: key)
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
-    kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
-    )
+  kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+  )
 
-    var replyBuf: seq[byte]
-    var ioRes: Result[void, ref CatchableError]
-    kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
-      ioRes = catch:
-        await stream.writeLp(encoded.buffer)
-        replyBuf = await stream.readLp(MaxMsgSize)
-    if ioRes.isErr:
-      return err(ioRes.error.msg)
+  var replyBuf: seq[byte]
+  var ioRes: Result[void, ref CatchableError]
+  kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
+    ioRes = catch:
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
+  if ioRes.isErr:
+    return err(ioRes.error.msg)
 
-    kad_message_bytes_received.inc(
-      replyBuf.len.int64, labelValues = [$MessageType.getProviders]
-    )
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.getProviders]
+  )
 
-    let reply = Message.decode(replyBuf).valueOr:
-      return err("GetProviders reply decode fail")
+  let reply = Message.decode(replyBuf).valueOr:
+    return err("GetProviders reply decode fail")
 
-    if reply.closerPeers.len > 0:
-      kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
+  if reply.closerPeers.len > 0:
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
 
-    debug "Received reply for GetProviders", peer = peer, reply = reply
+  debug "Received reply for GetProviders", peer = peer, reply = reply
 
-    stream.observedAddr.withValue(observedAddr):
-      kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
+  stream.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
-    return ok(reply)
+  return ok(reply)
 
 proc getProviders*(
     kad: KadDHT, key: Key

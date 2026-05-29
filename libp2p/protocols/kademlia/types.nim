@@ -457,13 +457,11 @@ type KadDHT* = ref object of LPProtocol
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
 
-template withRpcSlot*(kad: KadDHT, body: untyped): untyped =
-  ## Acquire one ``rpcSem`` slot for the duration of ``body``. The slot is
-  ## released whether ``body`` completes normally, raises, or is cancelled.
+template withRpcSlot*(kad: KadDHT) =
+  ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is
+  ## released whether the scope exits normally, raises, or is cancelled.
   await kad.rpcSem.acquire()
-  try:
-    body
-  finally:
+  defer:
     try:
       kad.rpcSem.release()
     except AsyncSemaphoreError:

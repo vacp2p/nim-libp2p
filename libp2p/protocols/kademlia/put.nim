@@ -50,49 +50,49 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc dispatchPutVal*(
     kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  withRpcSlot(kad):
-    let streamRes = catch:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    if streamRes.isErr:
-      return err(streamRes.error.msg)
-    let stream = streamRes.value()
-    defer:
-      await stream.close()
-    let msg = Message(
-      msgType: MessageType.putValue,
-      key: key,
-      record: Opt.some(Record(key: key, value: Opt.some(value))),
-    )
-    let encoded = msg.encode()
+  withRpcSlot(kad)
+  let streamRes = catch:
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
+  defer:
+    await stream.close()
+  let msg = Message(
+    msgType: MessageType.putValue,
+    key: key,
+    record: Opt.some(Record(key: key, value: Opt.some(value))),
+  )
+  let encoded = msg.encode()
 
-    kad_messages_sent.inc(labelValues = [$MessageType.putValue])
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
-    )
+  kad_messages_sent.inc(labelValues = [$MessageType.putValue])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
+  )
 
-    var replyBuf: seq[byte]
-    var ioRes: Result[void, ref CatchableError]
-    kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
-      ioRes = catch:
-        await stream.writeLp(encoded.buffer)
-        replyBuf = await stream.readLp(MaxMsgSize)
-    if ioRes.isErr:
-      return err(ioRes.error.msg)
+  var replyBuf: seq[byte]
+  var ioRes: Result[void, ref CatchableError]
+  kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
+    ioRes = catch:
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
+  if ioRes.isErr:
+    return err(ioRes.error.msg)
 
-    kad_message_bytes_received.inc(
-      replyBuf.len.int64, labelValues = [$MessageType.putValue]
-    )
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.putValue]
+  )
 
-    let reply = Message.decode(replyBuf).valueOr:
-      return err("PutValue reply decode fail")
+  let reply = Message.decode(replyBuf).valueOr:
+    return err("PutValue reply decode fail")
 
-    debug "Got PutValue reply", msg = msg, reply = reply, stream = stream
+  debug "Got PutValue reply", msg = msg, reply = reply, stream = stream
 
-    if reply != msg:
-      error "Unexpected change between msg and reply: ",
-        msg = msg, reply = reply, stream = stream
+  if reply != msg:
+    error "Unexpected change between msg and reply: ",
+      msg = msg, reply = reply, stream = stream
 
-    return ok()
+  return ok()
 
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
