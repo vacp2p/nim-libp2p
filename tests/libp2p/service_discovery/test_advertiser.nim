@@ -36,7 +36,8 @@ suite "Advertiser - addProvidedService":
     disco.addProvidedService(service)
 
     check disco.rtManager.hasService(serviceId)
-    check disco.advertiser.running.len() == 1 #local action
+    check disco.advertiser.running.len() == 0
+      # local registration is now a dedicated loop, not in running
 
   test "schedules up to kRegister actions per populated bucket":
     let disco = setupServiceDiscoveryNode()
@@ -46,7 +47,8 @@ suite "Advertiser - addProvidedService":
     disco.populateAdvertisementTable(serviceId)
     disco.addProvidedService(service)
 
-    check disco.advertiser.running.len() == disco.discoConfig.kRegister + 1 #local action
+    check disco.advertiser.running.len() == disco.discoConfig.kRegister
+      # only remote tasks; local is a separate dedicated loop now
 
   test "scheduling caps at kRegister tasks per populated bucket":
     let kRegister = 3
@@ -76,8 +78,8 @@ suite "Advertiser - addProvidedService":
 
     disco.addProvidedService(service)
 
-    # Each remaining bucket must contribute exactly kRegister tasks, plus 1 local self-advertise.
-    check disco.advertiser.running.len() == overpopulatedBuckets * kRegister + 1
+    # Only remote tasks are tracked in running now.
+    check disco.advertiser.running.len() == overpopulatedBuckets * kRegister
 
   test "adding same service twice is idempotent":
     let disco = setupServiceDiscoveryNode()
@@ -107,7 +109,8 @@ suite "Advertiser - addProvidedService":
     check disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.hasService(s3.id.hashServiceId())
-    check disco.advertiser.running.len() == 6 # 1 local + 1 remote for each
+    check disco.advertiser.running.len() == 3
+      # only the remote tasks (1 per service); local registration is a separate loop
 
 # ===========================================================================
 suite "Advertiser - removeProvidedService":
@@ -130,7 +133,8 @@ suite "Advertiser - removeProvidedService":
     check:
       not disco.rtManager.hasService(sid1)
       disco.rtManager.hasService(sid2)
-      disco.advertiser.running.len() == 2 # Only local actions remains
+      disco.advertiser.running.len() == 1
+        # only the remote task for the remaining service
 
   asyncTest "removing non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()

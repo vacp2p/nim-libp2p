@@ -234,8 +234,8 @@ suite "Service Discovery Component - Advertise Discover":
     let ads = registrarNode.getAdsInCache(serviceId)
     check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
-  asyncTest "advertiser re-advertises after advertExpiry":
-    let conf = ServiceDiscoveryConfig.new(advertExpiry = 500.millis, safetyParam = 0.0)
+  asyncTest "remote registration task terminates after one Confirmed cycle and maintenance refills the slot":
+    let conf = ServiceDiscoveryConfig.new(advertExpiry = 300.millis, safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -244,26 +244,38 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    # addProvidedService starts an advertiseToRegistrar task.
-    # The task keeps running after the first REGISTER is Confirmed.
-    # It waits advertExpiry, then sends REGISTER again for the same ad.
-    # The registrar keeps one ad and refreshes cacheTimestamps.
     advertiserNode.addProvidedService(service)
 
+    # Wait for the first registration to succeed on the remote registrar
     checkUntilTimeout:
       registrarNode.countAdsInCache(serviceId) == 1
 
-    let
-      cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-      adKey = cachedAd.toAdvertisementKey()
-      firstTimestamp = registrarNode.registrar.cacheTimestamps[adKey]
+    # Capture the remote tasks that were started for this service
+    # (the local registration now lives in localRegistrationLoop, not in running).
+    var remoteTasks = advertiserNode.advertiser.running.filterIt(
+      it.serviceId == serviceId and it.registrar != advertiserNode.switch.peerInfo.peerId
+    )
 
+    check remoteTasks.len > 0
+
+    # After one advertExpiry following Confirmed, the remote tasks should
+    # have terminated (new behavior: they return instead of looping).
     checkUntilTimeout:
-      block:
-        let ads = registrarNode.getAdsInCache(serviceId)
-        ads.len == 1 and ads[0].toAdvertisementKey() == adKey and
-          registrarNode.registrar.cacheTimestamps.hasKey(adKey) and
-          registrarNode.registrar.cacheTimestamps[adKey] > firstTimestamp
+      remoteTasks.allIt(it.fut.finished)
+
+    # Force a maintenance tick. This simulates the bucket refresh and
+    # should detect the deficit (no active remote tasks for the bucket)
+    # and start new registration task(s).
+    await advertiserNode.maintainRegistrations()
+
+    # There should now be new remote registration task(s) for the service.
+    remoteTasks = advertiserNode.advertiser.running.filterIt(
+      it.serviceId == serviceId and it.registrar != advertiserNode.switch.peerInfo.peerId
+    )
+
+    check remoteTasks.len > 0
+    # The newly created tasks should still be running (not yet finished).
+    check remoteTasks.anyIt(not it.fut.finished)
 
   asyncTest "advertiser stops after the registrar replies Rejected":
     let registrarNode = setupServiceDiscoveryNode()
@@ -370,12 +382,13 @@ suite "Service Discovery Component - Advertise Discover":
 
     # The in-range registrar is kept and receives the ad.
     # The out-of-range registrar is absent from the service table.
-    # No remote advertise task is scheduled for the out-of-range registrar.
+    # Only the remote task is tracked in running (local registration uses a dedicated loop).
     let serviceTable = advertiserNode.rtManager.getTable(serviceId).get()
     check:
       serviceTable.hasPeer(workingRegistrarPeerKey)
       not serviceTable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() == 2
+      advertiserNode.advertiser.running.len() == 1
+        # only the remote task (local registration is a separate dedicated loop)
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
     checkUntilTimeout:
