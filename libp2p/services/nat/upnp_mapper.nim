@@ -224,7 +224,7 @@ proc dispatch(
   except AsyncError as exc:
     raise newException(CancelledError, "UpnpMapper wait: " & exc.msg)
 
-proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
+proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
     freeShared(ctx)
@@ -234,7 +234,7 @@ proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
 
-  result = UpnpMapper(ctx: ctx)
+  result = T(ctx: ctx)
 
   try:
     createThread(result.thread, upnpWorker, ctx)

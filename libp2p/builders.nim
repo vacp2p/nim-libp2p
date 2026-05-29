@@ -41,7 +41,8 @@ export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
   connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
-  natservice.PortMapperFactory, natservice.NATService
+  natservice.PortMapperFactory, natservice.NATService, natservice.upnpConfig,
+  natservice.natPmpConfig
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -548,12 +549,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.services.add(HPService.new(autonatService, autoRelayService))
 
   b.natConfig.withValue(natCfg):
-    let svc =
-      if b.natPortMapperFactory.isNil:
-        NATService.new(natCfg)
-      else:
-        NATService.new(natCfg, b.natPortMapperFactory)
-    switch.services.add(svc)
+    switch.services.add(NATService.new(natCfg, b.natPortMapperFactory))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())

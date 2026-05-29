@@ -206,7 +206,7 @@ proc dispatch(
   except AsyncError as exc:
     raise newException(CancelledError, "NatPmpMapper wait: " & exc.msg)
 
-proc newNatPmpMapper*(): NatPmpMapper {.raises: [ResourceExhaustedError].} =
+proc new*(T: typedesc[NatPmpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(NatPmpWorkerCtx, 1)
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
     freeShared(ctx)
@@ -216,7 +216,7 @@ proc newNatPmpMapper*(): NatPmpMapper {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper respSignal: " & error)
 
-  result = NatPmpMapper(ctx: ctx)
+  result = T(ctx: ctx)
 
   try:
     createThread(result.thread, natpmpWorker, ctx)

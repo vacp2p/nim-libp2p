@@ -39,9 +39,9 @@ type
     of Upnp, NatPmp:
       refreshInterval*: Duration
       discoveryTimeout*: Duration
-      leaseDuration*: uint32
+      leaseDuration*: Duration
 
-  PortMapperFactory* = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].}
+  PortMapperFactory* = proc(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: [].}
 
   NATService* = ref object of Service
     config: NATConfig
@@ -55,27 +55,51 @@ type
 const
   DefaultRefreshInterval* = 30.minutes
   DefaultDiscoveryTimeout* = 10.seconds
-  DefaultLeaseDuration*: uint32 = 3600
+  DefaultLeaseDuration* = 1.hours
 
-proc defaultPortMapperFactory(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+proc defaultPortMapperFactory(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: [].} =
   try:
     case mode
     of Upnp:
-      newUpnpMapper()
+      Opt.some(PortMapper(UpnpMapper.new()))
     of NatPmp:
-      newNatPmpMapper()
+      Opt.some(PortMapper(NatPmpMapper.new()))
     else:
-      nil
+      Opt.none(PortMapper)
   except ResourceExhaustedError as exc:
     error "Failed to construct port mapper", mode, err = exc.msg
-    nil
+    Opt.none(PortMapper)
 
 proc new*(
     T: typedesc[NATService],
     config: NATConfig,
-    portMapperFactory: PortMapperFactory = defaultPortMapperFactory,
+    portMapperFactory: PortMapperFactory = nil,
 ): T =
   T(config: config, portMapperFactory: portMapperFactory)
+
+proc upnpConfig*(
+    refreshInterval = DefaultRefreshInterval,
+    discoveryTimeout = DefaultDiscoveryTimeout,
+    leaseDuration = DefaultLeaseDuration,
+): NATConfig =
+  NATConfig(
+    mode: Upnp,
+    refreshInterval: refreshInterval,
+    discoveryTimeout: discoveryTimeout,
+    leaseDuration: leaseDuration,
+  )
+
+proc natPmpConfig*(
+    refreshInterval = DefaultRefreshInterval,
+    discoveryTimeout = DefaultDiscoveryTimeout,
+    leaseDuration = DefaultLeaseDuration,
+): NATConfig =
+  NATConfig(
+    mode: NatPmp,
+    refreshInterval: refreshInterval,
+    discoveryTimeout: discoveryTimeout,
+    leaseDuration: leaseDuration,
+  )
 
 proc explicitIpMapped*(
     listenAddrs: seq[MultiAddress], explicitIp: IpAddress
@@ -126,13 +150,19 @@ proc replaceTransportPort(ma: MultiAddress, port: Port): Opt[MultiAddress] =
     if code == tcp or code == udp:
       let portMa = MultiAddress.init(code, int(port)).valueOr:
         return Opt.none(MultiAddress)
-      discard res.append(portMa)
+      res.append(portMa).isOkOr:
+        return Opt.none(MultiAddress)
     else:
-      discard res.append(part)
+      res.append(part).isOkOr:
+        return Opt.none(MultiAddress)
   Opt.some(res)
 
 proc extractListenPort(ma: MultiAddress): Opt[ListenPort] =
+  # NAT-PMP only supports IPv4 and nim-nat-traversal's UPnP backend does not
+  # yet support IPv6 mappings either, so drop non-IPv4 listen addresses early.
   let ta = initTAddress(ma).valueOr:
+    return Opt.none(ListenPort)
+  if ta.family != AddressFamily.IPv4:
     return Opt.none(ListenPort)
   let proto = transportProto(ma).valueOr:
     return Opt.none(ListenPort)
@@ -158,15 +188,14 @@ proc findMappableListenPorts(listenAddrs: seq[MultiAddress]): seq[ListenPort] =
     .filterIt(it.isSome)
     .mapIt(it.get())
 
-proc ensureDiscovered(
+proc discoverExternalIp(
     self: NATService
 ): Future[bool] {.async: (raises: [CancelledError]).} =
-  if self.externalIp.isSome:
-    return true
   let discoverRes = await self.mapper.discover(self.config.discoveryTimeout)
   if discoverRes.isErr:
     warn "NAT discovery failed; not announcing mapped addresses",
       err = discoverRes.error
+    self.externalIp = Opt.none(IpAddress)
     return false
   self.externalIp = Opt.some(discoverRes.get())
   info "NAT discovery succeeded", externalIp = self.externalIp.get()
@@ -175,8 +204,8 @@ proc ensureDiscovered(
 proc mapOnePort(
     self: NATService, lp: ListenPort, externalIp: IpAddress
 ): Future[Opt[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  let mapRes =
-    await self.mapper.map(lp.port, lp.port, lp.proto, self.config.leaseDuration)
+  let lease = uint32(self.config.leaseDuration.seconds)
+  let mapRes = await self.mapper.map(lp.port, lp.port, lp.proto, lease)
   if mapRes.isErr:
     warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = mapRes.error
     return Opt.none(MultiAddress)
@@ -206,7 +235,7 @@ proc setupMappings*(
   if self.mapper.isNil:
     debug "No port mapper available; skipping NAT port mapping"
     return @[]
-  if not await self.ensureDiscovered():
+  if self.externalIp.isNone and not await self.discoverExternalIp():
     return @[]
 
   let externalIp = self.externalIp.get()
@@ -217,19 +246,16 @@ proc setupMappings*(
         announced.add(annAddr)
   announced
 
-proc refreshLoop(self: NATService, switch: Switch) {.async: (raises: []).} =
+proc refreshLoop(
+    self: NATService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   ## Trigger ``peerInfo.update()`` periodically so the addressMapper re-runs
-  ## and reissues mappings before the lease expires.
+  ## and reissues mappings before the lease expires. Invalidates the cached
+  ## external IP first so DHCP renewals / failovers are picked up.
   while true:
-    try:
-      await sleepAsync(self.config.refreshInterval)
-    except CancelledError:
-      return
-
-    try:
-      await switch.peerInfo.update()
-    except CancelledError:
-      return
+    await sleepAsync(self.config.refreshInterval)
+    self.externalIp = Opt.none(IpAddress)
+    await switch.peerInfo.update()
 
 # --------------------------------------------------------------------------
 # Service lifecycle
@@ -248,15 +274,17 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
       return explicitIpMapped(listenAddrs, self.config.explicitIp)
   of Upnp, NatPmp:
-    if self.portMapperFactory.isNil:
+    if self.config.refreshInterval <= 0.seconds:
       raise newException(
-        ServiceSetupError, "NATService: portMapperFactory must be set for UPnP/NAT-PMP"
+        ServiceSetupError, "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
       )
-    self.mapper = self.portMapperFactory(self.config.mode)
-    if self.mapper.isNil:
+    if self.config.discoveryTimeout <= 0.seconds:
       raise newException(
-        ServiceSetupError,
-        "NATService: portMapperFactory returned nil for " & $self.config.mode,
+        ServiceSetupError, "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
+      )
+    if self.config.leaseDuration <= 0.seconds:
+      raise newException(
+        ServiceSetupError, "NATService: leaseDuration must be > 0; use upnpConfig/natPmpConfig",
       )
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
@@ -272,16 +300,26 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Starting NATService", mode = self.config.mode
 
+  case self.config.mode
+  of Upnp, NatPmp:
+    # Construct the mapper here (not in setup) so a stop()/start() cycle
+    # re-creates it after we close it in stop().
+    let mapperOpt =
+      if self.portMapperFactory.isNil:
+        defaultPortMapperFactory(self.config.mode)
+      else:
+        self.portMapperFactory(self.config.mode)
+    self.mapper = mapperOpt.valueOr:
+      warn "Could not build port mapper; NATService inactive", mode = self.config.mode
+      return
+    self.refreshLoopFut = self.refreshLoop(switch)
+  else:
+    discard
+
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.add(self.addressMapper)
   # peerInfo.update is invoked by Switch.start once transports have bound, at
   # which point the mapper runs against the resolved listenAddrs.
-
-  case self.config.mode
-  of Upnp, NatPmp:
-    self.refreshLoopFut = self.refreshLoop(switch)
-  else:
-    discard
 
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Stopping NATService"
@@ -297,13 +335,15 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
     # shutdown can cause observers (e.g. IdentifyPusher) to broadcast while the
     # switch is tearing down.
   of Upnp, NatPmp:
-    if self.refreshLoopFut != nil and not self.refreshLoopFut.finished:
+    if self.refreshLoopFut != nil:
       await self.refreshLoopFut.cancelAndWait()
+      self.refreshLoopFut = nil
     if self.addressMapper != nil:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     if self.mapper != nil:
       await self.unmapAll()
       self.mapper.close()
       self.mapper = nil
+    self.externalIp = Opt.none(IpAddress)
     # Mirror the explicitIp path: deliberately do not call peerInfo.update()
     # during shutdown.
