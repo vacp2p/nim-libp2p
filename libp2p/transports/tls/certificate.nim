@@ -76,7 +76,7 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
 proc makeASN1Time(time: Time): string {.inline.} =
   let str =
     try:
-      let f = initTimeFormat("yyyyMMddhhmmss")
+      let f = initTimeFormat("yyyyMMddHHmmss")
       format(time.utc(), f)
     except TimeFormatParseError as e:
       raiseAssert "time format is const and checked with test: " & e.msg
@@ -158,6 +158,8 @@ proc generateX509*(
   var certKey = cert_generate_key().valueOr:
     raise
       newException(KeyGenerationError, "Failed to generate certificate key: " & $error)
+  defer:
+    cert_free_key(certKey)
 
   let issuerDN = makeIssuerDN(identityKeyPair)
   let libp2pExtension = makeExtValues(identityKeyPair, certKey)
@@ -178,11 +180,14 @@ proc generateX509*(
   return CertificateX509(certificate: certificate, privateKey: privKDer)
 
 proc parseCertTime*(certTime: string): Time {.raises: [TimeParseError].} =
+  if certTime.len <= 4 or not certTime.endsWith(" GMT"):
+    raise newException(TimeParseError, "invalid certificate time")
+
   var timeNoZone = certTime[0 ..^ 5] # removes GMT part
   # days with 1 digit have additional space -> strip it
   timeNoZone = timeNoZone.replace("  ", " ")
 
-  const certTimeFormat = "MMM d hh:mm:ss yyyy"
+  const certTimeFormat = "MMM d HH:mm:ss yyyy"
   const f = initTimeFormat(certTimeFormat)
   return parse(timeNoZone, f, utc()).toTime()
 
@@ -221,23 +226,35 @@ proc parse*(
     validTo: validTo,
   )
 
-proc verify*(self: P2pCertificate): bool =
-  ## Verifies that P2pCertificate has signature that was signed by owner of the certificate.
+proc verifiedIdentityKey*(self: P2pCertificate): Opt[PublicKey] =
+  ## Returns the embedded identity public key when the certificate is valid.
+  let currentTime = now().utc().toTime()
+  if not (currentTime >= self.validFrom and currentTime < self.validTo):
+    return Opt.none(PublicKey)
+
+  var sig: Signature
+  var publicKey: PublicKey
+  if sig.init(self.extension.signature) and publicKey.init(self.extension.publicKey):
+    let msg = makeSignatureMessage(self.pubKeyDer)
+    if sig.verify(msg, publicKey):
+      return Opt.some(publicKey)
+
+  Opt.none(PublicKey)
+
+proc verify*(self: P2pCertificate, expectedPeerId: PeerId): bool =
+  ## Verifies that P2pCertificate is valid and belongs to `expectedPeerId`.
   ##
   ## Parameters:
   ## - `self`: The P2pCertificate.
-  ## 
+  ## - `expectedPeerId`: The peer id expected to own the certificate.
+  ##
   ## Returns:
-  ## `true` if certificate is valid.
+  ## `true` if certificate is valid and its identity key matches `expectedPeerId`.
 
-  let currentTime = now().utc().toTime()
-  if not (currentTime >= self.validFrom and currentTime < self.validTo):
+  let key = self.verifiedIdentityKey().valueOr:
     return false
 
-  var sig: Signature
-  var key: PublicKey
-  if sig.init(self.extension.signature) and key.init(self.extension.publicKey):
-    let msg = makeSignatureMessage(self.pubKeyDer)
-    return sig.verify(msg, key)
+  let actualPeerId = PeerId.init(key).valueOr:
+    return false
 
-  return false
+  actualPeerId == expectedPeerId
