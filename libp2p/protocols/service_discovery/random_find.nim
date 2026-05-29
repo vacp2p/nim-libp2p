@@ -1,15 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, heapqueue]
+import std/[sequtils, sets, tables]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
-import ../kademlia/[types, find, get, protobuf, routing_table]
+import ../kademlia/[types, find, get, protobuf]
 import ./[types]
 
 logScope:
   topics = "ext-kad-dht random records"
+
+proc cancelPending(
+    futs: seq[Future[Result[Message, string]].Raising([CancelledError])]
+) {.async: (raises: []).} =
+  var pending: seq[FutureBase]
+  for fut in futs:
+    if not fut.finished:
+      pending.add(fut)
+  if pending.len > 0:
+    await noCancel allFutures(pending.mapIt(it.cancelAndWait()))
 
 proc randomRecords(
     disco: ServiceDiscovery
@@ -22,23 +32,37 @@ proc randomRecords(
 
   let randomKey = randomPeerId.toKey()
 
-  let queue = newPeerDistanceHeap()
+  let state = LookupState.init(disco, randomKey)
+  var queried: HashSet[PeerId]
+  var getValFuts: seq[Future[Result[Message, string]].Raising([CancelledError])]
 
-  let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
-  for peer in peers:
-    let distance = xorDistance(peer, randomKey, disco.rtable.config.hasher)
-    queue[].push(PeerDistance(peerId: peer, distance: distance))
+  try:
+    while not closestAvailableStop(state):
+      let progressed =
+        await disco.lookOnce(state, disco.rtable, findNodeDispatch, noopReply)
+      if not progressed:
+        break
 
-  # CancelledError propagates; findNode reports any other failure via logs.
-  discard await disco.findNode(randomKey, queue)
+      # Issue getValue requests as soon as peers respond, so they run in
+      # parallel with the next lookup round.
+      for peerId, status in state.responded:
+        if status == RespondedStatus.Success and peerId notin queried:
+          queried.incl(peerId)
+          getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
+  except CancelledError as e:
+    await cancelPending(getValFuts)
+    raise e
 
-  # findNode has finished, so the heap now holds every discovered peer. Drain it
-  # closest-first and fetch each peer's value.
   var buffers: seq[seq[byte]]
-  while queue[].len > 0:
-    let peerId = queue[].pop().peerId
+  for fut in getValFuts:
+    let res =
+      try:
+        await fut
+      except CancelledError as e:
+        await cancelPending(getValFuts)
+        raise e
 
-    let reply = (await disco.dispatchGetVal(peerId, peerId.toKey())).valueOr:
+    let reply = res.valueOr:
       error "kad getValue failed", error = error
       continue
 
@@ -58,9 +82,9 @@ proc randomRecords(
 
     records.incl(sxpr.data)
 
-  return records.toSeq()
+  records.toSeq()
 
 proc lookupRandom*(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  return await disco.randomRecords()
+  await disco.randomRecords()

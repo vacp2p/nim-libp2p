@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm, heapqueue]
+import std/[tables, sequtils, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
@@ -15,20 +15,7 @@ type RespondedStatus* = enum
   Failed
   Success
 
-type PeerDistance* = object
-  ## Heap entry ordering peers by XOR distance to the lookup target.
-  peerId*: PeerId
-  distance*: XorDistance
-
-proc `<`*(a, b: PeerDistance): bool {.inline.} =
-  a.distance < b.distance
-
-proc newPeerDistanceHeap*(): ref HeapQueue[PeerDistance] =
-  ## Min-heap of peers ordered by XOR distance to the lookup target. Held by
-  ## ``ref`` so ``findNode`` can populate it as an out-parameter.
-  new(HeapQueue[PeerDistance])
-
-type LookupState* = object
+type LookupState* = ref object
   kad: KadDHT
   target*: Key
   shortlist*: Table[PeerId, XorDistance]
@@ -42,14 +29,12 @@ type DispatchProc* = proc(
 .}
 
 type ReplyHandler* = proc(
-  peer: PeerId, msg: Opt[Message], state: var LookupState
+  peer: PeerId, msg: Opt[Message], state: LookupState
 ): Future[void] {.async: (raises: []), gcsafe.}
 
 type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
 
-proc updateShortlist*(
-    state: var LookupState, msg: Message
-): seq[PeerInfo] {.raises: [].} =
+proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
 
   for newPeer in msg.closerPeers:
@@ -129,11 +114,11 @@ proc allSortedPeers*(state: LookupState): seq[PeerId] =
   state.sortedShortlist(excludeResponded = false).mapIt(it[0])
 
 proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
-  var res = LookupState(kad: kad, target: target)
+  let res = LookupState(kad: kad, target: target)
   for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
     res.shortlist[pid] = xorDistance(pid, target, kad.rtable.config.hasher)
 
-  return res
+  res
 
 proc dispatchFindNode*(
     kad: KadDHT,
@@ -200,7 +185,7 @@ proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises
   kad.updatePeers(peerInfos)
 
 proc noopReply*(
-    peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
+    peerId: PeerId, msgOpt: Opt[Message], state: LookupState
 ): Future[void] {.async: (raises: []), gcsafe.} =
   discard
 
@@ -212,6 +197,60 @@ proc findNodeDispatch*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   return await dispatchFindNode(kad, peer, target)
 
+proc lookOnce*(
+    kad: KadDHT,
+    state: LookupState,
+    rtable: RoutingTable,
+    dispatch: DispatchProc,
+    onReply: ReplyHandler,
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## Run a single round of the iterative lookup against ``state.target``.
+  ## Returns ``false`` when no further peers can be queried, signalling the
+  ## caller to stop driving the lookup.
+  let toQuery = state.selectCloserPeers(kad.config.alpha)
+  if toQuery.len() == 0:
+    return false
+
+  for peerId in toQuery:
+    state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
+
+  debug "Lookup queries", peersToQuery = toQuery.mapIt(it.shortLog())
+
+  let target = state.target
+  let dispatchWithPeer = proc(
+      peerId: PeerId
+  ): Future[(PeerId, Result[Message, string])] {.
+      async: (raises: [CancelledError]), gcsafe
+  .} =
+    let msg = await dispatch(kad, peerId, target)
+    return (peerId, msg)
+
+  let
+    rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
+    completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+
+  for (fut, peerId) in zip(rpcBatch, toQuery):
+    if not fut.finished():
+      continue
+    if fut.failed():
+      state.responded[peerId] = RespondedStatus.Failed
+    else:
+      let (_, res) = fut.value()
+      if res.isErr():
+        state.responded[peerId] = RespondedStatus.Failed
+        error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+      else:
+        state.responded[peerId] = RespondedStatus.Success
+
+  for (peerId, res) in completedRPCBatch:
+    let reply = res.valueOr:
+      continue
+    let newPeerInfos = state.updateShortlist(reply)
+    kad.switch.updatePeers(kad.config.addressPolicy, rtable, newPeerInfos)
+    await onReply(peerId, Opt.some(reply), state)
+
+  return true
+
 proc iterativeLookup*(
     kad: KadDHT,
     target: Key,
@@ -220,54 +259,13 @@ proc iterativeLookup*(
     onReply: ReplyHandler,
     stopCond: StopCond,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
-  var state = LookupState.init(kad, target)
+  let state = LookupState.init(kad, target)
 
-  while true:
-    if stopCond(state):
+  while not stopCond(state):
+    if not await kad.lookOnce(state, rtable, dispatch, onReply):
       break
 
-    let toQuery = state.selectCloserPeers(kad.config.alpha)
-    if toQuery.len() == 0:
-      break
-
-    for peerId in toQuery:
-      state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-
-    debug "Lookup queries", peersToQuery = toQuery.mapIt(it.shortLog())
-
-    let dispatchWithPeer = proc(
-        peerId: PeerId
-    ): Future[(PeerId, Result[Message, string])] {.
-        async: (raises: [CancelledError]), gcsafe
-    .} =
-      let msg = await dispatch(kad, peerId, target)
-      return (peerId, msg)
-
-    let
-      rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
-      completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
-
-    for (fut, peerId) in zip(rpcBatch, toQuery):
-      if not fut.finished():
-        continue
-      if fut.failed():
-        state.responded[peerId] = RespondedStatus.Failed
-      else:
-        let (_, res) = fut.value()
-        if res.isErr():
-          state.responded[peerId] = RespondedStatus.Failed
-          error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
-        else:
-          state.responded[peerId] = RespondedStatus.Success
-
-    for (peerId, res) in completedRPCBatch:
-      let reply = res.valueOr:
-        continue
-      let newPeerInfos = state.updateShortlist(reply)
-      kad.switch.updatePeers(kad.config.addressPolicy, rtable, newPeerInfos)
-      await onReply(peerId, Opt.some(reply), state)
-
-  return state
+  state
 
 proc iterativeLookup*(
     kad: KadDHT,
@@ -279,28 +277,19 @@ proc iterativeLookup*(
   await kad.iterativeLookup(target, kad.rtable, dispatch, onReply, stopCond)
 
 method findNode*(
-    kad: KadDHT, target: Key, rtable: RoutingTable, queue = newPeerDistanceHeap()
+    kad: KadDHT, target: Key, rtable: RoutingTable
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
-
-  let hasher = rtable.config.hasher
-  let collectReply = proc(
-      peerId: PeerId, msgOpt: Opt[Message], _: var LookupState
-  ): Future[void] {.async: (raises: []), gcsafe.} =
-    # Can't access `state` here: async closures can't capture `var` params.
-    let distance = xorDistance(peerId, target, hasher)
-    queue[].push(PeerDistance(peerId: peerId, distance: distance))
-
   let state = await kad.iterativeLookup(
-    target, rtable, findNodeDispatch, collectReply, closestAvailableStop
+    target, rtable, findNodeDispatch, noopReply, closestAvailableStop
   )
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
 method findNode*(
-    kad: KadDHT, target: Key, queue = newPeerDistanceHeap()
+    kad: KadDHT, target: Key
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
-  await kad.findNode(target, kad.rtable, queue)
+  await kad.findNode(target, kad.rtable)
 
 proc findPeer*(
     kad: KadDHT, target: PeerId

@@ -348,7 +348,7 @@ proc getProviders*(
     allProviders.incl(kad.switch.peerInfo.toPeer())
 
   let onReply = proc(
-      peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
+      peerId: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     let reply = msgOpt.valueOr:
       return

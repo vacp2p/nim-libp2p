@@ -25,21 +25,17 @@ suite "Service Discovery Component - Find Random":
     for record in records:
       check record.peerId in peerIds
 
-  asyncTest "lookupRandom completes when findNode finishes without enqueuing peers":
-    # With an empty routing table, findNode completes immediately without ever
-    # pushing a peer onto the heap. The drain loop then sees an empty heap and
-    # exits, so lookupRandom must complete rather than hang.
+  asyncTest "lookupRandom completes when there are no peers to query":
+    # With an empty routing table the shortlist is empty, so lookOnce returns
+    # immediately and lookupRandom must complete rather than hang.
     let discos = setupServiceDiscoveryNodes(1)
     startAndDeferStop(discos)
 
-    # No peers are connected, so the routing table is empty and findNode returns
-    # without adding anything to the queue.  This must complete, not hang.
     check await discos[0].lookupRandom().withTimeout(5.seconds)
 
   asyncTest "lookupRandom can be cancelled while the lookup is in flight":
-    # Cancelling lookupRandom while it is awaiting findNode must propagate the
-    # cancellation cleanly without leaking transport resources, which teardown's
-    # checkTrackers verifies.
+    # Cancelling lookupRandom must propagate the cancellation cleanly without
+    # leaking transport resources, which teardown's checkTrackers verifies.
     let discos = setupServiceDiscoveryNodes(3)
     startAndDeferStop(discos)
     await connectStar(discos)
