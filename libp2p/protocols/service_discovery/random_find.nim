@@ -11,16 +11,6 @@ import ./[types]
 logScope:
   topics = "ext-kad-dht random records"
 
-proc cancelPending(
-    futs: seq[Future[Result[Message, string]].Raising([CancelledError])]
-) {.async: (raises: []).} =
-  var pending: seq[FutureBase]
-  for fut in futs:
-    if not fut.finished:
-      pending.add(fut)
-  if pending.len > 0:
-    await noCancel allFutures(pending.mapIt(it.cancelAndWait()))
-
 proc randomRecords(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
@@ -50,7 +40,7 @@ proc randomRecords(
           queried.incl(peerId)
           getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
   except CancelledError as e:
-    await cancelPending(getValFuts)
+    await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
     raise e
 
   var buffers: seq[seq[byte]]
@@ -59,7 +49,7 @@ proc randomRecords(
       try:
         await fut
       except CancelledError as e:
-        await cancelPending(getValFuts)
+        await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
         raise e
 
     let reply = res.valueOr:
