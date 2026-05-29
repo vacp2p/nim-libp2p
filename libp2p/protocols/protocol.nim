@@ -151,13 +151,15 @@ proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   if budget.isNil:
     return
 
-  budget.totalIncoming.dec
-  if budget.totalIncoming < 0:
-    budget.totalIncoming = 0
-  budget.perPeerIncoming.inc(peerId, -1)
-  if budget.perPeerIncoming[peerId] <= 0:
+  let pb = budget.perPeerIncoming[peerId]
+  if pb == 0:
+    return # there was no reserve for this peer
+  elif pb == 1:
     budget.perPeerIncoming.del(peerId)
+  else:
+    budget.perPeerIncoming.inc(peerId, -1)
 
+  budget.totalIncoming.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, "in"])
 
 func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
@@ -188,11 +190,13 @@ proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   if budget.isNil:
     return
 
-  budget.totalOutgoing.dec
-  if budget.totalOutgoing < 0:
-    budget.totalOutgoing = 0
-  budget.perPeerOutgoing.inc(peerId, -1)
-  if budget.perPeerOutgoing[peerId] <= 0:
+  let pb = budget.perPeerOutgoing[peerId]
+  if pb == 0:
+    return # there was no reserve for this peer
+  elif pb == 1:
     budget.perPeerOutgoing.del(peerId)
+  else:
+    budget.perPeerOutgoing.inc(peerId, -1)
 
+  budget.totalOutgoing.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, "out"])
