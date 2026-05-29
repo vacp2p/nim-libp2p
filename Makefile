@@ -82,7 +82,7 @@ nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs
 # `before install` hook builds them, but the resulting .a files are not always
 # preserved alongside the package dir (cross-OS cache reuse, different gcc
 # versions). Rebuild them up-front against the host's toolchain.
-NAT_PKG_DIR := $(firstword $(wildcard nimbledeps/pkgs2/nat_traversal-*))
+NAT_PKG_DIR := $(firstword $(wildcard nimbledeps/pkgs2/nat_traversal-*) $(wildcard nimbledeps/pkgs/nat_traversal-*))
 NAT_PMP_LIB := $(NAT_PKG_DIR)/vendor/libnatpmp-upstream/libnatpmp.a
 
 # Use gcc rather than `cc` so the linux-i386 wrapper (external/bin/gcc, which
@@ -111,7 +111,7 @@ nat_libs: $(NAT_LIBS_STAMP)
 
 nat_pkg_dir_check:
 	@test -n "$(NAT_PKG_DIR)" || \
-	  (echo "Error: nat_traversal package not found under nimbledeps/pkgs2/. Run 'nimble install_pinned' first." && exit 1)
+	  (echo "Error: nat_traversal package not found under nimbledeps/pkgs2/ or nimbledeps/pkgs/. Run 'nimble install_pinned' first." && exit 1)
 
 $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	rm -f "$(NAT_UPNP_LIB)" "$(NAT_PMP_LIB)"
