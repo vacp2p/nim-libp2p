@@ -4,13 +4,13 @@
 ## UPnP-IGD port mapper. The underlying `nat_traversal/miniupnpc` API is
 ## synchronous (blocking C calls into miniupnpc), so this module owns a
 ## dedicated worker thread that holds the `Miniupnp` instance for the lifetime
-## of the mapper. The async API on top dispatches one request at a time to the
-## worker via two `ThreadSignalPtr`s, with all transferred data laid out as
-## fixed-size POD so no Nim GC heap crosses the thread boundary.
+## of the mapper. An `AsyncLock` serializes concurrent main-thread callers, and
+## all transferred data is fixed-size POD so no Nim GC heap crosses the thread
+## boundary.
 
 {.push raises: [].}
 
-import std/[atomics, net]
+import std/[atomics, math, net]
 import chronos, chronos/threadsync, chronicles, results
 import nat_traversal/miniupnpc
 import ./portmapper
@@ -18,16 +18,13 @@ import ./portmapper
 logScope:
   topics = "libp2p natservice upnp"
 
-const
-  ErrBufLen = 256
-  IpBufLen = 16
+const ErrBufLen = 256
 
 type
   UpnpReqKind = enum
     urDiscover
     urMap
     urUnmap
-    urShutdown
 
   UpnpRequest = object
     case kind: UpnpReqKind
@@ -41,20 +38,18 @@ type
     of urUnmap:
       unmapExternal: uint16
       unmapProto: MapProto
-    of urShutdown:
-      discard
 
   UpnpResponse = object
     success: bool
     errorLen: int
     errorBuf: array[ErrBufLen, char]
-    ipFamily: int # 0 = unset, 4 = IPv4, 6 = IPv6
-    ipBuf: array[IpBufLen, byte]
+    ip: Opt[IpAddress]
     externalPort: uint16
 
   UpnpWorkerCtx = object
     reqSignal: ThreadSignalPtr
     respSignal: ThreadSignalPtr
+    shutdown: Atomic[bool]
     request: UpnpRequest
     response: UpnpResponse
 
@@ -62,14 +57,11 @@ type
     ctx: ptr UpnpWorkerCtx
     thread: Thread[ptr UpnpWorkerCtx]
     closed: Atomic[bool]
-
-# ----------------------------------------------------------------------------
-# Response buffer helpers (called from both threads; only touch POD fields)
-# ----------------------------------------------------------------------------
+    lock: AsyncLock
 
 proc setError(resp: var UpnpResponse, msg: string) =
   resp.success = false
-  resp.ipFamily = 0
+  resp.ip.reset()
   resp.externalPort = 0
   let n = min(msg.len, ErrBufLen)
   for i in 0 ..< n:
@@ -82,44 +74,12 @@ proc getError(resp: UpnpResponse): string =
     msg[i] = resp.errorBuf[i]
   msg
 
-proc setIp(resp: var UpnpResponse, ip: IpAddress) =
-  case ip.family
-  of IpAddressFamily.IPv4:
-    resp.ipFamily = 4
-    for i in 0 .. 3:
-      resp.ipBuf[i] = ip.address_v4[i]
-  of IpAddressFamily.IPv6:
-    resp.ipFamily = 6
-    for i in 0 .. 15:
-      resp.ipBuf[i] = ip.address_v6[i]
-
-proc getIp(resp: UpnpResponse): Opt[IpAddress] =
-  case resp.ipFamily
-  of 4:
-    var ip = IpAddress(family: IpAddressFamily.IPv4)
-    for i in 0 .. 3:
-      ip.address_v4[i] = resp.ipBuf[i]
-    Opt.some(ip)
-  of 6:
-    var ip = IpAddress(family: IpAddressFamily.IPv6)
-    for i in 0 .. 15:
-      ip.address_v6[i] = resp.ipBuf[i]
-    Opt.some(ip)
-  else:
-    Opt.none(IpAddress)
-
-# ----------------------------------------------------------------------------
-# Worker thread body
-# ----------------------------------------------------------------------------
-
 proc toUpnpProto(p: MapProto): UPNPProtocol =
   case p
   of mpTcp: UPNPProtocol.TCP
   of mpUdp: UPNPProtocol.UDP
 
-proc handleDiscover(upnp: var Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
-  if upnp == nil:
-    upnp = newMiniupnp()
+proc handleDiscover(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
   upnp.discoverDelay = req.discoverDelayMs
 
   let dr = upnp.discover()
@@ -138,17 +98,12 @@ proc handleDiscover(upnp: var Miniupnp, req: UpnpRequest, resp: var UpnpResponse
     return
 
   try:
-    let ip = parseIpAddress(ipr.get())
+    resp.ip = Opt.some(parseIpAddress(ipr.get()))
     resp.success = true
-    resp.setIp(ip)
-  except ValueError as exc:
-    resp.setError("upnp parseIpAddress: " & exc.msg)
+  except ValueError as e:
+    resp.setError("upnp parseIpAddress: " & e.msg)
 
 proc handleMap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
-  if upnp == nil:
-    resp.setError("upnp map: not discovered")
-    return
-
   let r = upnp.addPortMapping(
     externalPort = $req.mapExternal,
     protocol = toUpnpProto(req.mapProto),
@@ -161,14 +116,10 @@ proc handleMap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
     resp.setError("upnp addPortMapping: " & $r.error)
     return
 
-  resp.success = true
   resp.externalPort = req.mapExternal # IGD:1 returns the requested port
+  resp.success = true
 
 proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
-  if upnp == nil:
-    resp.setError("upnp unmap: not discovered")
-    return
-
   let r = upnp.deletePortMapping(
     externalPort = $req.unmapExternal, protocol = toUpnpProto(req.unmapProto)
   )
@@ -179,12 +130,11 @@ proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
   resp.success = true
 
 proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
-  var upnp: Miniupnp = nil
+  let upnp = newMiniupnp()
 
   while true:
     let w = ctx.reqSignal.waitSync()
-    if w.isErr:
-      # signal closed or fatal — bail out
+    if w.isErr or ctx.shutdown.load:
       break
 
     ctx.response = UpnpResponse()
@@ -196,34 +146,41 @@ proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
       handleMap(upnp, ctx.request, ctx.response)
     of urUnmap:
       handleUnmap(upnp, ctx.request, ctx.response)
-    of urShutdown:
-      if upnp != nil:
-        upnp.close()
-        upnp = nil
-      discard ctx.respSignal.fireSync()
-      break
 
     discard ctx.respSignal.fireSync()
 
-# ----------------------------------------------------------------------------
-# Main-thread async dispatch
-# ----------------------------------------------------------------------------
+  upnp.close()
 
 proc dispatch(
     self: UpnpMapper, req: sink UpnpRequest
-): Future[void] {.async: (raises: [CancelledError]).} =
+): Future[Result[UpnpResponse, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   if self.closed.load:
-    raise newException(CancelledError, "UpnpMapper closed")
+    return err("UpnpMapper closed")
 
-  self.ctx.request = req
-  let fr = self.ctx.reqSignal.fireSync()
-  if fr.isErr or not fr.get():
-    raise newException(CancelledError, "UpnpMapper signal fire failed")
-
+  await self.lock.acquire()
   try:
-    await self.ctx.respSignal.wait()
-  except AsyncError as exc:
-    raise newException(CancelledError, "UpnpMapper wait: " & exc.msg)
+    if self.closed.load:
+      return err("UpnpMapper closed")
+
+    self.ctx.request = req
+    let fr = self.ctx.reqSignal.fireSync()
+    if fr.isErr or not fr.get():
+      return err("UpnpMapper signal fire failed")
+
+    try:
+      await self.ctx.respSignal.wait()
+    except AsyncError as e:
+      return err("UpnpMapper wait: " & e.msg)
+
+    if self.closed.load:
+      return err("UpnpMapper closed")
+
+    ok(self.ctx.response)
+  finally:
+    try:
+      self.lock.release()
+    except AsyncLockError as e:
+      warn "UpnpMapper lock release failed", err = e.msg
 
 proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
@@ -235,7 +192,7 @@ proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
 
-  let mapper = T(ctx: ctx)
+  result = UpnpMapper(ctx: ctx, lock: newAsyncLock())
 
   try:
     createThread(mapper.thread, upnpWorker, ctx)
@@ -250,16 +207,15 @@ proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
 method discover*(
     self: UpnpMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  await self.dispatch(
-    UpnpRequest(kind: urDiscover, discoverDelayMs: cint(timeout.milliseconds))
-  )
+  let delayMs = cint(timeout.milliseconds.clamp(0'i64, int64(high(cint))))
+  let resp =
+    ?await self.dispatch(UpnpRequest(kind: urDiscover, discoverDelayMs: delayMs))
 
-  if not self.ctx.response.success:
-    return Result[IpAddress, string].err(self.ctx.response.getError())
-  let ipOpt = self.ctx.response.getIp()
-  if ipOpt.isNone:
-    return Result[IpAddress, string].err("upnp discover: missing IP in response")
-  Result[IpAddress, string].ok(ipOpt.get())
+  if not resp.success:
+    return err(resp.getError())
+  if resp.ip.isNone:
+    return err("upnp discover: missing IP in response")
+  ok(resp.ip.get())
 
 method map*(
     self: UpnpMapper,
@@ -268,7 +224,7 @@ method map*(
     proto: MapProto,
     lease: uint32,
 ): Future[Result[Port, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  await self.dispatch(
+  let resp = ?await self.dispatch(
     UpnpRequest(
       kind: urMap,
       mapInternal: uint16(internalPort),
@@ -278,26 +234,32 @@ method map*(
     )
   )
 
-  if self.ctx.response.success:
-    return Result[Port, string].ok(Port(self.ctx.response.externalPort))
-  Result[Port, string].err(self.ctx.response.getError())
+  if not resp.success:
+    return err(resp.getError())
+  ok(Port(resp.externalPort))
 
 method unmap*(
     self: UpnpMapper, externalPort: Port, proto: MapProto
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  await self.dispatch(
+  let resp = ?await self.dispatch(
     UpnpRequest(kind: urUnmap, unmapExternal: uint16(externalPort), unmapProto: proto)
   )
 
-  if self.ctx.response.success:
-    return Result[void, string].ok()
-  Result[void, string].err(self.ctx.response.getError())
+  if not resp.success:
+    return err(resp.getError())
+  ok()
 
 method close*(self: UpnpMapper) {.gcsafe, raises: [].} =
   if self.closed.exchange(true):
     return
 
-  self.ctx.request = UpnpRequest(kind: urShutdown)
+  # Wake any in-flight dispatch waiting on respSignal so it observes `closed`
+  # and returns promptly instead of hanging.
+  discard self.ctx.respSignal.fireSync()
+
+  # Tell the worker to exit. A separate shutdown flag (rather than a urShutdown
+  # request) avoids racing with worker reads of ctx.request.
+  self.ctx.shutdown.store(true)
   let fr = self.ctx.reqSignal.fireSync()
   if fr.isErr or not fr.get():
     warn "UpnpMapper shutdown signal failed",
@@ -305,8 +267,8 @@ method close*(self: UpnpMapper) {.gcsafe, raises: [].} =
 
   try:
     joinThread(self.thread)
-  except Exception as exc:
-    warn "UpnpMapper joinThread failed", err = exc.msg
+  except CatchableError as e:
+    warn "UpnpMapper joinThread failed", err = e.msg
 
   discard self.ctx.reqSignal.close()
   discard self.ctx.respSignal.close()
