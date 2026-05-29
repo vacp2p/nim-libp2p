@@ -192,7 +192,7 @@ proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
     freeShared(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
 
-  result = UpnpMapper(ctx: ctx, lock: newAsyncLock())
+  let mapper = UpnpMapper(ctx: ctx, lock: newAsyncLock())
 
   try:
     createThread(mapper.thread, upnpWorker, ctx)
