@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sequtils, sets
+import chronos, results, sets
 import
   ../../../libp2p/[
     extended_peer_record,
