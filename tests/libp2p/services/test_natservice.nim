@@ -448,194 +448,194 @@ proc loopbackAddr(): MultiAddress =
 proc privateAddr(port: int = 9000): MultiAddress =
   MultiAddress.init("/ip4/192.168.1.5/tcp/" & $port).get()
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+suite "NATService":
+  teardown:
+    checkTrackers()
 
-asyncTest "Upnp announces external IP after successful mapping":
-  let
-    externalIp = parseIpAddress("203.0.113.42")
-    mapper = newMockOk(externalIp)
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-    svc = findNatService(switch)
+  asyncTest "Upnp announces external IP after successful mapping":
+    let
+      externalIp = parseIpAddress("203.0.113.42")
+      mapper = newMockOk(externalIp)
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      svc = findNatService(switch)
 
-  await switch.start()
-  defer:
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Loopback isn't "private" — the mapper sits idle until we feed it a
+    # private listen address. Drive setupMappings directly with one.
+    let announced = await svc.setupMappings(@[privateAddr(9000)])
+    check announced.len == 1
+    check svc.externalIp.isSome
+    check svc.externalIp.get() == externalIp
+    let annTa = initTAddress(announced[0]).tryGet()
+    check annTa.address_v4 == externalIp.address_v4
+    check annTa.port == Port(9000)
+
+  asyncTest "Upnp discovery failure leaves announced empty":
+    let
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], mockFactoryFail())
+      svc = findNatService(switch)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let announced = await svc.setupMappings(@[privateAddr(9000)])
+    check announced.len == 0
+    check svc.externalIp.isNone
+
+  asyncTest "Upnp refresh loop reissues map calls":
+    let
+      externalIp = parseIpAddress("203.0.113.55")
+      mapper = newMockOk(externalIp)
+    mapper.mapEvent = newAsyncEvent()
+
+    let
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 50.milliseconds,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Override the bound listenAddrs with a private one so the addressMapper
+    # actually runs the mapper. The refresh loop calls peerInfo.update(), which
+    # re-invokes the addressMapper.
+    switch.peerInfo.listenAddrs = @[privateAddr(9000)]
+    await switch.peerInfo.update()
+    let firstCalls = mapper.mapCalls.len
+    check firstCalls >= 1
+
+    mapper.mapEvent.clear()
+    await mapper.mapEvent.wait()
+    check mapper.mapCalls.len > firstCalls
+
+  asyncTest "Upnp stop unmaps all created mappings":
+    let
+      externalIp = parseIpAddress("203.0.113.7")
+      mapper = newMockOk(externalIp)
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      svc = findNatService(switch)
+
+    await switch.start()
+
+    discard await svc.setupMappings(@[privateAddr(9000)])
+    let mapsBefore = mapper.mapCalls.len
+
     await switch.stop()
 
-  # Loopback isn't "private" — the mapper sits idle until we feed it a
-  # private listen address. Drive setupMappings directly with one.
-  let announced = await svc.setupMappings(@[privateAddr(9000)])
-  check announced.len == 1
-  check svc.externalIp.isSome
-  check svc.externalIp.get() == externalIp
-  let annTa = initTAddress(announced[0]).tryGet()
-  check annTa.address_v4 == externalIp.address_v4
-  check annTa.port == Port(9000)
+    check mapsBefore >= 1
+    check mapper.unmapCalls.len == mapsBefore
+    check mapper.closed
 
-asyncTest "Upnp discovery failure leaves announced empty":
-  let
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
+  asyncTest "NatPmp announces external IP after successful mapping":
+    let
+      externalIp = parseIpAddress("203.0.113.99")
+      mapper = newMockOk(externalIp)
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: NatPmp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      svc = findNatService(switch)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let announced = await svc.setupMappings(@[privateAddr(9000)])
+    check announced.len == 1
+    check svc.externalIp.isSome
+    check svc.externalIp.get() == externalIp
+
+  asyncTest "non-private listen addresses are skipped":
+    let
+      externalIp = parseIpAddress("203.0.113.1")
+      mapper = newMockOk(externalIp)
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      svc = findNatService(switch)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Public + loopback addresses only → discover never runs, no mappings made.
+    let announced = await svc.setupMappings(
+      @[
+        MultiAddress.init("/ip4/8.8.8.8/tcp/9000").tryGet(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/9001").tryGet(),
+      ]
     )
-    switch = makeSwitch(cfg, @[loopbackAddr()], mockFactoryFail())
-    svc = findNatService(switch)
 
-  await switch.start()
-  defer:
-    await switch.stop()
+    check mapper.discoverCalls == 0
+    check mapper.mapCalls.len == 0
+    check announced.len == 0
 
-  let announced = await svc.setupMappings(@[privateAddr(9000)])
-  check announced.len == 0
-  check svc.externalIp.isNone
+  asyncTest "user-set announcedAddrs are not overwritten":
+    let
+      externalIp = parseIpAddress("203.0.113.111")
+      userAddr = MultiAddress.init("/ip4/198.51.100.7/tcp/4242").tryGet()
+      mapper = newMockOk(externalIp)
+      factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
+        mapper
+      cfg = NATConfig(
+        mode: Upnp,
+        refreshInterval: 1.hours,
+        discoveryTimeout: DefaultDiscoveryTimeout,
+        leaseDuration: DefaultLeaseDuration,
+      )
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
-asyncTest "Upnp refresh loop reissues map calls":
-  let
-    externalIp = parseIpAddress("203.0.113.55")
-    mapper = newMockOk(externalIp)
-  mapper.mapEvent = newAsyncEvent()
+    switch.peerInfo.announcedAddrs = @[userAddr]
 
-  let
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 50.milliseconds,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+    await switch.start()
+    defer:
+      await switch.stop()
 
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  # Override the bound listenAddrs with a private one so the addressMapper
-  # actually runs the mapper. The refresh loop calls peerInfo.update(), which
-  # re-invokes the addressMapper.
-  switch.peerInfo.listenAddrs = @[privateAddr(9000)]
-  await switch.peerInfo.update()
-  let firstCalls = mapper.mapCalls.len
-  check firstCalls >= 1
-
-  mapper.mapEvent.clear()
-  await mapper.mapEvent.wait()
-  check mapper.mapCalls.len > firstCalls
-
-asyncTest "Upnp stop unmaps all created mappings":
-  let
-    externalIp = parseIpAddress("203.0.113.7")
-    mapper = newMockOk(externalIp)
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-    svc = findNatService(switch)
-
-  await switch.start()
-
-  discard await svc.setupMappings(@[privateAddr(9000)])
-  let mapsBefore = mapper.mapCalls.len
-
-  await switch.stop()
-
-  check mapsBefore >= 1
-  check mapper.unmapCalls.len == mapsBefore
-  check mapper.closed
-
-asyncTest "NatPmp announces external IP after successful mapping":
-  let
-    externalIp = parseIpAddress("203.0.113.99")
-    mapper = newMockOk(externalIp)
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: NatPmp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-    svc = findNatService(switch)
-
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  let announced = await svc.setupMappings(@[privateAddr(9000)])
-  check announced.len == 1
-  check svc.externalIp.isSome
-  check svc.externalIp.get() == externalIp
-
-asyncTest "non-private listen addresses are skipped":
-  let
-    externalIp = parseIpAddress("203.0.113.1")
-    mapper = newMockOk(externalIp)
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-    svc = findNatService(switch)
-
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  # Public + loopback addresses only → discover never runs, no mappings made.
-  let announced = await svc.setupMappings(
-    @[
-      MultiAddress.init("/ip4/8.8.8.8/tcp/9000").tryGet(),
-      MultiAddress.init("/ip4/127.0.0.1/tcp/9001").tryGet(),
-    ]
-  )
-
-  check mapper.discoverCalls == 0
-  check mapper.mapCalls.len == 0
-  check announced.len == 0
-
-asyncTest "user-set announcedAddrs are not overwritten":
-  let
-    externalIp = parseIpAddress("203.0.113.111")
-    userAddr = MultiAddress.init("/ip4/198.51.100.7/tcp/4242").tryGet()
-    mapper = newMockOk(externalIp)
-    factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
-      mapper
-    cfg = NATConfig(
-      mode: Upnp,
-      refreshInterval: 1.hours,
-      discoveryTimeout: DefaultDiscoveryTimeout,
-      leaseDuration: DefaultLeaseDuration,
-    )
-    switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-
-  switch.peerInfo.announcedAddrs = @[userAddr]
-
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  check switch.peerInfo.announcedAddrs == @[userAddr]
-  # expandAddrs uses announcedAddrs directly when set, bypassing the
-  # addressMapper chain — so the mapper should never have been consulted.
-  check mapper.discoverCalls == 0
+    check switch.peerInfo.announcedAddrs == @[userAddr]
+    # expandAddrs uses announcedAddrs directly when set, bypassing the
+    # addressMapper chain — so the mapper should never have been consulted.
+    check mapper.discoverCalls == 0
