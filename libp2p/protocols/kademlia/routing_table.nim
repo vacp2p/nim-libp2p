@@ -133,12 +133,6 @@ proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   ## Returns up to `count` nodes in the table with the smallest XOR distance to `targetId`.
-  ##
-  ## When `config.selfIdPreHashed` is true (used by service discovery per-service tables),
-  ## `targetId` is treated as already being in the table's ID space (e.g. a raw
-  ## `hashServiceId()` result) and is **not** re-hashed. Peer nodeIds are always
-  ## hashed via the configured hasher for the distance computation. This ensures
-  ## findClosest produces the same ordering as the bucketing done by `bucketIndex()`.
   var allNodes: seq[Key] = @[]
 
   for bucket in rtable.buckets:
@@ -164,6 +158,44 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 
 proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   return findClosest(rtable, targetId, count)
+    .mapIt(it.toPeerId())
+    .filterIt(it.isOk)
+    .mapIt(it.value())
+
+proc randomPeersClosestFirst*(
+    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
+): seq[Key] =
+  ## Returns up to `count` peers sampled randomly from the routing table's
+  ## buckets, starting from the closest buckets (highest indices) and moving
+  ## to farther buckets (lower indices).
+
+  if count <= 0:
+    return @[]
+
+  var selected: seq[Key] = @[]
+  var remaining = count
+
+  for i in countdown(rtable.buckets.high, 0):
+    if remaining <= 0:
+      break
+    let bucket = rtable.buckets[i]
+    if bucket.peers.len == 0:
+      continue
+
+    let take = min(remaining, min(maxPerBucket, bucket.peers.len))
+    let picked = rng.pick(bucket.peers, take).valueOr(@[])
+    for entry in picked:
+      selected.add(entry.nodeId)
+      remaining.dec
+      if remaining <= 0:
+        break
+
+  return selected
+
+proc randomPeersClosestFirstPeerIds*(
+    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
+): seq[PeerId] =
+  randomPeersClosestFirst(rtable, rng, count, maxPerBucket)
     .mapIt(it.toPeerId())
     .filterIt(it.isOk)
     .mapIt(it.value())

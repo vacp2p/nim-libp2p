@@ -415,7 +415,9 @@ proc getCloserPeers(
 ): seq[Peer] =
   let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
 
-  let keys = table.findClosest(serviceId, count)
+  let keys = table.randomPeersClosestFirst(
+    disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
+  )
 
   return disco.switch.toPeers(keys)
 
