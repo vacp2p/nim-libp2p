@@ -39,7 +39,7 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerId) {.async.} =
+    let handlePing = proc(peer: PeerId): Future[void] {.async: (raises: []), gcsafe.} =
       inc pingReceivedCount
 
     pingProto1 = Ping.new(rng = rng())
@@ -69,9 +69,11 @@ suite "Ping":
     stream = await transport2.dial(transport1.addrs[0])
 
     discard await msDial.select(stream, PingCodec)
-    let time = await pingProto2.ping(stream)
+    let first = await pingProto2.ping(stream)
+    let second = await pingProto2.ping(stream)
 
-    check not time.isZero()
+    check not first.isZero()
+    check not second.isZero()
 
   asyncTest "ping callback":
     msDial.addHandler(PingCodec, pingProto2)
@@ -80,6 +82,7 @@ suite "Ping":
       let c = await transport1.accept()
       discard await msListen.select(c, PingCodec)
       discard await pingProto1.ping(c)
+      await c.close()
 
     acceptFut = acceptHandler()
     stream = await transport2.dial(transport1.addrs[0])

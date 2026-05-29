@@ -22,29 +22,31 @@ type ZeroQueue* = object
   # byte sequences `seq[byte]` (called chunks). This type is useful for streaming or buffering 
   # scenarios where chunks of binary data are accumulated and consumed incrementally.
   chunks: Deque[Chunk]
+  queuedBytes: int64
 
 proc clear*(q: var ZeroQueue) =
   q.chunks.clear()
+  q.queuedBytes = 0
 
 proc isEmpty*(q: ZeroQueue): bool =
-  return q.chunks.len() == 0
+  q.chunks.len() == 0
 
 proc len*(q: ZeroQueue): int64 =
-  var l: int64
-  for b in q.chunks.items():
-    l += b.len()
-  return l
+  q.queuedBytes
 
 proc push*(q: var ZeroQueue, b: sink seq[byte]) =
   if b.len > 0:
+    q.queuedBytes += b.len.int64
     q.chunks.addLast(newChunk(b))
 
 proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
+  doAssert(count > 0, "count must be positive integer")
   var first = q.chunks.popFirst()
 
   # first chunk has up to requested count elements,
   # queue will return this chunk (chunk might have less then requested)
   if first.len() <= count:
+    q.queuedBytes -= first.len().int64
     return first
 
   # first chunk has more elements then requested count, 
@@ -53,6 +55,7 @@ proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
   ret.size = ret.start + count
   first.start += count
   q.chunks.addFirst(first)
+  q.queuedBytes -= count.int64
   return ret
 
 proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
@@ -67,7 +70,8 @@ proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   return consumed
 
 proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
-  if q.isEmpty:
+  doAssert(count >= 0, "count must be non-negative integer")
+  if count == 0 or q.isEmpty:
     return @[]
 
   let chunk = q.popChunk(count)

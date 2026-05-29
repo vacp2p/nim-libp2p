@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, nativesockets, stew/[endians2, byteutils], strutils
+import chronos, nativesockets, stew/[endians2], strutils
 import
   ../../../libp2p/[
     builders,
