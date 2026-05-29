@@ -22,22 +22,21 @@ type ZeroQueue* = object
   # byte sequences `seq[byte]` (called chunks). This type is useful for streaming or buffering 
   # scenarios where chunks of binary data are accumulated and consumed incrementally.
   chunks: Deque[Chunk]
-  length: int64
+  queuedBytes: int64
 
 proc clear*(q: var ZeroQueue) =
   q.chunks.clear()
-  q.length = 0
+  q.queuedBytes = 0
 
 proc isEmpty*(q: ZeroQueue): bool =
-  q.length == 0
+  q.chunks.len() == 0
 
 proc len*(q: ZeroQueue): int64 =
-  q.length
+  q.queuedBytes
 
 proc push*(q: var ZeroQueue, b: sink seq[byte]) =
-  let length = b.len
-  if length > 0:
-    q.length += length.int64
+  if b.len > 0:
+    q.queuedBytes += b.len.int64
     q.chunks.addLast(newChunk(b))
 
 proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
@@ -46,9 +45,8 @@ proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
 
   # first chunk has up to requested count elements,
   # queue will return this chunk (chunk might have less then requested)
-  let firstLen = first.len()
-  if firstLen <= count:
-    q.length -= firstLen.int64
+  if first.len() <= count:
+    q.queuedBytes -= first.len().int64
     return first
 
   # first chunk has more elements then requested count, 
@@ -57,12 +55,10 @@ proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
   ret.size = ret.start + count
   first.start += count
   q.chunks.addFirst(first)
-  q.length -= count.int64
+  q.queuedBytes -= count.int64
   return ret
 
 proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
-  if nbytes == 0:
-    return 0
   var consumed = 0
   while consumed < nbytes and not q.isEmpty():
     let chunk = q.popChunk(nbytes - consumed)
@@ -74,16 +70,13 @@ proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   return consumed
 
 proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
-  if count <= 0 or q.isEmpty:
+  doAssert(count >= 0, "count must be non-negative integer")
+  if count == 0 or q.isEmpty:
     return @[]
 
   let chunk = q.popChunk(count)
-  let chunkLen = chunk.len()
-  if chunkLen == 0:
-    return @[]
-
-  var dest = newSeqUninit[byte](chunkLen)
+  var dest = newSeqUninit[byte](chunk.len())
   let offsetPtr = cast[ptr byte](cast[int](addr chunk.data[0]) + chunk.start)
-  copyMem(dest[0].addr, offsetPtr, chunkLen)
+  copyMem(dest[0].addr, offsetPtr, chunk.len())
 
   return dest

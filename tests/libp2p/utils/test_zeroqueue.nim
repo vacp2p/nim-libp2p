@@ -24,7 +24,8 @@ suite "ZeroQueue":
     check not q.isEmpty()
 
     check q.popChunkSeq(0) == newSeq[byte]()
-    check q.popChunkSeq(-1) == newSeq[byte]()
+    expect AssertionDefect:
+      discard q.popChunkSeq(-1)
     check q.len() == 5
     check q.popChunkSeq(3) == @[1'u8, 2, 3] # pop eactly the size of the chunk
     check q.popChunkSeq(1) == @[4'u8] # pop less then size of the chunk
