@@ -354,9 +354,27 @@ suite "MultiAddress test suite":
     var
       address_v4: array[4, byte]
       address_v6: array[16, byte]
+    let
+      onionMa = MultiAddress.init("/onion/timaq4ygg2iegci7:1234/http").get()
+      onionPart = onionMa.getPart(multiCodec("onion")).get()
+      onionArg = onionPart.protoAddress().get()
     check:
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
+      $onionMa == "/onion/timaq4ygg2iegci7:1234/http"
+      onionMa.protocols().get() == @[multiCodec("onion"), multiCodec("http")]
+      len(onionMa).get() == 2
+      onionArg.len == 12
+      onionArg[10] == 0x04'u8
+      onionArg[11] == 0xD2'u8
+
+  test "MultiAddress init fixed byte length validation":
+    check:
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3]).isErr()
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3, 4, 5]).isErr()
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3, 4]).isOk()
+      MultiAddress.init(multiCodec("tcp"), @[0'u8]).isErr()
+      MultiAddress.init(multiCodec("tcp"), @[0'u8, 80]).isOk()
 
   test "MultiAddress getPart":
     let ma = MultiAddress
@@ -514,6 +532,29 @@ suite "MultiAddress test suite":
       MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
       MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
     )
+
+    # DNS/IP pairs should be symmetric for the first component
+    check:
+      areAddrsConsistent(
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/dns/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+        MultiAddress.init("/dnsaddr/example.com/tcp/4040").get(),
+      )
+      not areAddrsConsistent(
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+      )
 
 suite "parseIpAddress":
   test "valid IPv4 addresses parse to IPv4 family":
