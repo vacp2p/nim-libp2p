@@ -255,8 +255,9 @@ suite "Switch":
       discard (await switch2.connect(fakeMa))
 
     # real thing works
-    check (await switch2.connect(switch1.peerInfo.fullAddrs.tryGet()[0])) ==
-      switch1.peerInfo.peerId
+    let fullAddr = switch1.peerInfo.fullAddrs.tryGet()[0]
+    let connectedPeerId = await switch2.connect(fullAddr)
+    check connectedPeerId == switch1.peerInfo.peerId
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
