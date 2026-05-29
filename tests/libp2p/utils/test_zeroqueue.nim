@@ -23,6 +23,10 @@ suite "ZeroQueue":
     check q.len() == 5
     check not q.isEmpty()
 
+    check q.popChunkSeq(0) == newSeq[byte]()
+    expect AssertionDefect:
+      discard q.popChunkSeq(-1)
+    check q.len() == 5
     check q.popChunkSeq(3) == @[1'u8, 2, 3] # pop eactly the size of the chunk
     check q.popChunkSeq(1) == @[4'u8] # pop less then size of the chunk
     check q.popChunkSeq(5) == @[5'u8] # pop more then size of the chunk
@@ -50,6 +54,14 @@ suite "ZeroQueue":
 
     # consumeTo: on empty queue
     check q.consumeTo(pbytes, nbytes) == 0
+
+    # consumeTo: zero-length reads do not need a destination pointer
+    q.push(@[9'u8])
+    check q.consumeTo(nil, 0) == 0
+    check q.len() == 1
+    check q.consumeTo(pbytes, 1) == 1
+    check toSeq(pbytes, 1) == @[9'u8]
+    check q.isEmpty()
 
     # consumeTo: emptying whole queue (multiple pushes)
     q.push(@[1'u8, 2, 3])

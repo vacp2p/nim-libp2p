@@ -1386,7 +1386,9 @@ suite "Service Discovery Registrar - registration response":
     let disco = setupServiceDiscoveryNode()
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(serviceName).encode().get()
+    let ad = makeAdvertisement(serviceName)
+    let adBytes = ad.encode().get()
+    let advertiserId = ad.data.peerId
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
@@ -1400,7 +1402,7 @@ suite "Service Discovery Registrar - registration response":
       ),
     )
 
-    let reply = disco.registration(inMsg).register.get()
+    let reply = disco.registration(advertiserId, inMsg).register.get()
 
     check:
       reply.status.get() == kadprotobuf.RegistrationStatus.Wait
@@ -1448,7 +1450,7 @@ suite "Service Discovery Registrar - registration response":
       ),
     )
 
-    let reply = disco.registration(inMsg).register.get()
+    let reply = disco.registration(advertiserId, inMsg).register.get()
 
     check:
       reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed

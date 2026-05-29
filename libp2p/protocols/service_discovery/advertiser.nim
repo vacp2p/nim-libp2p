@@ -181,7 +181,7 @@ proc maintainAdvertiser*(
     await disco.maintainRegistrations()
 
 proc localRegister(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
-  return ok(disco.registration(msg))
+  return ok(disco.registration(disco.switch.peerInfo.peerId, msg))
 
 proc sendRegister*(
     disco: ServiceDiscovery,
