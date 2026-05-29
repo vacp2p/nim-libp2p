@@ -18,7 +18,7 @@ type
     msgs*: Table[MessageId, Message]
     history*: seq[seq[CacheEntry]]
     pos*: int
-    windowSize*: Natural
+    windowSize*: int
 
 func get*(c: MCache, msgId: MessageId): Opt[Message] =
   if msgId in c.msgs:
@@ -58,5 +58,8 @@ func shift*(c: var MCache) =
 
   reset(c.history[c.pos])
 
-func init*(T: type MCache, window, history: Natural): T =
+func init*(T: type MCache, window, history: int): T =
+  doAssert history > 0, "history must be > 0"
+  doAssert window >= 0, "window must be >= 0"
+
   T(history: newSeq[seq[CacheEntry]](history), windowSize: window)
