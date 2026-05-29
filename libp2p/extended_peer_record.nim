@@ -130,6 +130,18 @@ proc checkValid*(spr: SignedExtendedPeerRecord): Result[void, EnvelopeError] =
   else:
     ok()
 
+proc isValid*(si: ServiceInfo): bool {.inline.} =
+  si.data.len <= MaxServiceDataSize
+
+proc isValid*(xpr: SignedExtendedPeerRecord): bool =
+  for svc in xpr.data.services:
+    if not svc.isValid():
+      return false
+  let encoded = xpr.encode()
+  if encoded.isErr or encoded.get().len > MaxXPRSize:
+    return false
+  true
+
 # This is for internal use only
 proc hash*(service: ServiceInfo): Hash =
   return service.id.hash()

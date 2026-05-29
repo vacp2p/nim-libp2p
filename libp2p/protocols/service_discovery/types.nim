@@ -12,7 +12,9 @@ import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
-export extended_peer_record.MaxServiceDataSize, extended_peer_record.MaxXPRSize
+export extended_peer_record.MaxServiceDataSize
+export extended_peer_record.MaxXPRSize
+export extended_peer_record.isValid
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
@@ -231,7 +233,7 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     services: seq[ServiceInfo] = disco.services.toSeq()
 
   for svc in services:
-    if svc.data.len > MaxServiceDataSize:
+    if not svc.isValid():
       return err(
         "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
       )
@@ -247,13 +249,8 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
   ).valueOr:
     return err("Failed to create signed peer record: " & $error)
 
-  let encoded = extPeerRecord.encode().valueOr:
-    return err("Failed to encode record for size validation: " & $error)
-  if encoded.len > MaxXPRSize:
-    return err(
-      "encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes (got " &
-        $encoded.len & ")"
-    )
+  if not extPeerRecord.isValid():
+    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
 
   return ok(extPeerRecord)
 

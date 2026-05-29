@@ -296,7 +296,7 @@ proc addProvidedService*(
 ) =
   doAssert not disco.clientMode, "not supported in client mode"
 
-  if service.data.len > MaxServiceDataSize:
+  if not service.isValid():
     error "rejecting service with oversized data",
       service = service.id, dataLen = service.data.len, max = MaxServiceDataSize
     return

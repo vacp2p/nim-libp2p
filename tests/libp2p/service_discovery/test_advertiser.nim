@@ -168,19 +168,19 @@ suite "Advertiser - record creation":
       services = @[ServiceInfo(id: "service", data: validData)]
     )
     let recordValid = discoValid.record()
+    check recordValid.isOk()
+    let svc = recordValid.get().data.services[0]
     check:
-      recordValid.isOk()
-      recordValid.get().data.services.len == 1
-      recordValid.get().data.services[0].data.len == MaxServiceDataSize
+      svc.isValid()
+      svc.data.len == MaxServiceDataSize
 
     # Oversized service data is rejected
     let oversizedData = newSeq[byte](MaxServiceDataSize + 1)
-    let discoBad = setupServiceDiscoveryNode(
-      services = @[ServiceInfo(id: "service", data: oversizedData)]
-    )
+    let badSvc = ServiceInfo(id: "service", data: oversizedData)
+    let discoBad = setupServiceDiscoveryNode(services = @[badSvc])
     let recordBad = discoBad.record()
     check:
-      oversizedData.len > MaxServiceDataSize
+      not badSvc.isValid()
       recordBad.isErr()
 
   test "record creation rejects encoded XPR larger than MaxXPRSize":
@@ -188,17 +188,38 @@ suite "Advertiser - record creation":
     let discoSmall = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
     let recordSmall = discoSmall.record()
     check recordSmall.isOk()
-    let encodedSmall = recordSmall.get().encode()
+    let smallXpr = recordSmall.get()
     check:
-      encodedSmall.isOk()
-      encodedSmall.get().len <= MaxXPRSize
+      smallXpr.isValid()
+      smallXpr.encode().get().len <= MaxXPRSize
+        # still useful for the exact size assertion
 
-    # Oversized encoded XPR (caused by many addresses) is rejected
+    # Oversized encoded XPR (caused by many addresses) is rejected.
+    # We dynamically discover the number of addresses required rather than
+    # hard-coding a repeat count. This makes the test robust against changes
+    # in MultiAddress encoding, protobuf serialization, signature size, etc.
     let discoBig = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
-    # Repeating the same address is a simple way to inflate the encoded XPR size.
-    # 100 repeats is sufficient to exceed MaxXPRSize (1024 bytes).
-    let bigAddrs = makeMultiAddress("10.0.0.1").repeat(100)
-    discoBig.switch.peerInfo.addrs = bigAddrs
+    let baseAddr = makeMultiAddress("10.0.0.1")
+    var addrs: seq[MultiAddress]
+    var foundOversized = false
+
+    # Search for the smallest number of addresses that makes either:
+    # - record() return an error (because the XPR is too big), or
+    # - the successfully built record's encoded size exceeds the limit.
+    # Safety bound prevents infinite loops in case of unforeseen issues.
+    for _ in 1 .. 10_000:
+      addrs.add(baseAddr)
+      discoBig.switch.peerInfo.addrs = addrs
+      let rec = discoBig.record()
+      if rec.isErr():
+        foundOversized = true
+        break
+      let enc = rec.get().encode()
+      if enc.isOk and enc.get().len > MaxXPRSize:
+        foundOversized = true
+        break
+
+    doAssert foundOversized, "Could not generate an XPR larger than MaxXPRSize"
 
     let recordBig = discoBig.record()
     check recordBig.isErr()

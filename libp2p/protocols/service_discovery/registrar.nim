@@ -237,11 +237,9 @@ proc validateRegisterMessage*(
     error "advertisement does not advertise the requested service", serviceId
     return Opt.none(Advertisement)
 
-  for svc in ad.data.services:
-    if svc.data.len > MaxServiceDataSize:
-      error "advertisement contains oversized service data",
-        service = svc.id, len = svc.data.len, max = MaxServiceDataSize
-      return Opt.none(Advertisement)
+  if not ad.isValid():
+    error "advertisement violates XPR or ServiceInfo size limits"
+    return Opt.none(Advertisement)
 
   return Opt.some(ad)
 

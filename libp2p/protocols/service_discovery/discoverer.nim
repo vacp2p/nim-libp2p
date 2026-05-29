@@ -31,8 +31,8 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
       error "advert service mismatch", serviceId
       continue
 
-    if ad.data.services.anyIt(it.data.len > MaxServiceDataSize):
-      error "advertisement contains oversized service data", serviceId
+    if not ad.isValid():
+      error "advertisement violates XPR or ServiceInfo size limits", serviceId
       continue
 
     validAds.add(ad)
