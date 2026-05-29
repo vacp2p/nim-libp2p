@@ -87,8 +87,9 @@ proc stopLocalRegistration*(
 ) {.async: (raises: [CancelledError]).} =
   if disco.localRegistrationLoop.isNil:
     return
-  if not disco.localRegistrationLoop.finished:
-    await disco.localRegistrationLoop.cancelAndWait()
+
+  await disco.localRegistrationLoop.cancelAndWait()
+
   disco.localRegistrationLoop = nil
 
 proc maintainRegistrations*(
@@ -129,8 +130,7 @@ proc maintainRegistrations*(
           if not bucket.peers.anyIt(it.nodeId == regKey):
             stale.add(t)
       for t in stale:
-        if not t.fut.finished:
-          t.fut.cancelSoon()
+        t.fut.cancelSoon()
         disco.advertiser.running.excl(t)
         active.excl(t.registrar)
 
@@ -146,9 +146,6 @@ proc maintainRegistrations*(
         if pid notin active and pid != selfPeer:
           candidates.add(pid)
 
-      let toAdd = disco.rng.pick(candidates, deficit).valueOr:
-        continue
-
       let advertBytes = (
         if sid in disco.advertiser.providedAdverts:
           disco.advertiser.providedAdverts.getOrDefault(sid)
@@ -156,6 +153,9 @@ proc maintainRegistrations*(
           disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
       )
       if advertBytes.len == 0:
+        continue
+
+      let toAdd = disco.rng.pick(candidates, deficit).valueOr:
         continue
 
       for registrar in toAdd:
