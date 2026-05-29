@@ -265,14 +265,8 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
   debug "Setting up NATService", mode = self.config.mode
 
   case self.config.mode
-  of Auto:
-    # TODO: wire autonat / hole-punching in here.
+  of Auto, ExplicitIp:
     discard
-  of ExplicitIp:
-    self.addressMapper = proc(
-        listenAddrs: seq[MultiAddress]
-    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-      return explicitIpMapped(listenAddrs, self.config.explicitIp)
   of Upnp, NatPmp:
     if self.config.refreshInterval <= 0.seconds:
       raise newException(
@@ -289,6 +283,30 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
         ServiceSetupError,
         "NATService: leaseDuration must be > 0; use upnpConfig/natPmpConfig",
       )
+
+method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  trace "Starting NATService", mode = self.config.mode
+
+  # Construct the mapper and addressMapper here (not in setup) so a
+  # stop()/start() cycle re-creates them after we tear them down in stop().
+  case self.config.mode
+  of Auto:
+    # TODO: wire autonat / hole-punching in here.
+    discard
+  of ExplicitIp:
+    self.addressMapper = proc(
+        listenAddrs: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+      return explicitIpMapped(listenAddrs, self.config.explicitIp)
+  of Upnp, NatPmp:
+    let mapperOpt =
+      if self.portMapperFactory.isNil:
+        defaultPortMapperFactory(self.config.mode)
+      else:
+        self.portMapperFactory(self.config.mode)
+    self.mapper = mapperOpt.valueOr:
+      warn "Could not build port mapper; NATService inactive", mode = self.config.mode
+      return
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
@@ -299,25 +317,7 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
       if announced.len == 0:
         return listenAddrs
       return announced
-
-method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Starting NATService", mode = self.config.mode
-
-  case self.config.mode
-  of Upnp, NatPmp:
-    # Construct the mapper here (not in setup) so a stop()/start() cycle
-    # re-creates it after we close it in stop().
-    let mapperOpt =
-      if self.portMapperFactory.isNil:
-        defaultPortMapperFactory(self.config.mode)
-      else:
-        self.portMapperFactory(self.config.mode)
-    self.mapper = mapperOpt.valueOr:
-      warn "Could not build port mapper; NATService inactive", mode = self.config.mode
-      return
     self.refreshLoopFut = self.refreshLoop(switch)
-  else:
-    discard
 
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.add(self.addressMapper)
@@ -333,6 +333,7 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
   of ExplicitIp:
     if self.addressMapper != nil:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+      self.addressMapper = nil
     # Do not touch peerInfo.announcedAddrs here: those may have been set by the
     # user via withAnnouncedAddresses, and triggering peerInfo.update during
     # shutdown can cause observers (e.g. IdentifyPusher) to broadcast while the
@@ -343,6 +344,7 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
       self.refreshLoopFut = nil
     if self.addressMapper != nil:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+      self.addressMapper = nil
     if self.mapper != nil:
       await self.unmapAll()
       self.mapper.close()
