@@ -242,10 +242,6 @@ proc processRetryTicket*(
     ad: Advertisement,
     t_wait: Duration,
 ): Duration {.raises: [].} =
-  ## Process a retry ticket if present.
-  ## Returns t_wait unchanged when there is no ticket or the ticket is invalid/expired/outside window.
-  ## Returns t_wait - totalWaitSoFar when the ticket is valid and the retry is within the window;
-  ## a non-positive result means the peer has waited long enough and may be accepted.
   let ticketMsg = regMsg.ticket.valueOr:
     return t_wait
 
@@ -268,6 +264,24 @@ proc processRetryTicket*(
     return t_wait - totalWaitSoFar
 
   return t_wait
+
+proc isTicketAuthentic(
+    disco: ServiceDiscovery, regMsg: RegisterMessage
+): bool {.raises: [].} =
+  let ticket = regMsg.ticket.valueOr:
+    return true
+
+  if ticket.advertisement != regMsg.advertisement:
+    return false
+
+  let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
+    error "Failed to get registrar public key", error
+    return false
+
+  if not ticket.verify(registrarPubKey):
+    return false
+
+  return true
 
 proc sendRegisterResponse*(
     stream: Stream,
@@ -404,12 +418,6 @@ proc acceptAdvertisement*(
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
 
-proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
-  ticket.withValue(t):
-    return t.tInit
-  else:
-    default
-
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
@@ -460,6 +468,15 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
+  if not disco.isTicketAuthentic(regMsg):
+    error "invalid ticket"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
   let now = Moment.now()
   var tWait = disco.registrar.waitingTime(
     disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
@@ -479,12 +496,15 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-  var ticket = Ticket(
-    advertisement: regMsg.advertisement,
-    tInit: regMsg.ticket.tInitOrDefault(now),
-    tMod: now,
-    tWaitFor: tWait,
-  )
+  var ticket =
+    Ticket(advertisement: regMsg.advertisement, tInit: now, tMod: now, tWaitFor: tWait)
+
+  if regMsg.ticket.isSome():
+    let t = regMsg.ticket.get()
+    let windowStart = t.tMod + t.tWaitFor
+    let windowEnd = windowStart + disco.discoConfig.registrationWindow
+    if now >= windowStart and now <= windowEnd:
+      ticket.tInit = t
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
     error "failed to sign ticket"

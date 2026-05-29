@@ -61,6 +61,21 @@ suite "Service Discovery Component - Register":
     check regResp.isOk()
     check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
 
+    # Even though a validly-signed ticket was supplied, because it was outside
+    # the retry window its time values must not be used. The response ticket
+    # must carry a fresh tInit (and will have its own tMod / tWaitFor).
+    let respTicketOpt = regResp.get().ticket
+    check respTicketOpt.isSome()
+    let respTicket = respTicketOpt.get()
+    let registrarPubKey = registrarNode.switch.peerInfo.privateKey.getPublicKey().get()
+    check:
+      respTicket.verify(registrarPubKey)
+      respTicket.advertisement == adBytes
+      respTicket.tWaitFor > ZeroDuration
+      # tInit must be fresh (this registration), not the ancient value from the request
+      (Moment.now() - respTicket.tInit).seconds < 5
+      respTicket.tInit != (now - 10000000.secs)
+
   asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
