@@ -26,7 +26,7 @@ export libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open
 
 const
   scopeTotal = "total"
-  scopePeerPeer = "per_peer"
+  scopePerPeer = "per_peer"
 
 type
   LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.
@@ -109,14 +109,14 @@ func budgetReason(p: LPProtocol, peerId: PeerId, dir: Direction): (bool, string)
   if dir == Direction.In:
     if p.maxIncomingStreamsPerPeer.isSome and
         budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreamsPerPeer.get:
-      return (false, scopePeerPeer)
+      return (false, scopePerPeer)
     if p.maxIncomingStreamsTotal.isSome and
         budget.totalIncoming >= p.maxIncomingStreamsTotal.get:
       return (false, scopeTotal)
   else:
     if p.maxOutgoingStreamsPerPeer.isSome and
         budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreamsPerPeer.get:
-      return (false, scopePeerPeer)
+      return (false, scopePerPeer)
     if p.maxOutgoingStreamsTotal.isSome and
         budget.totalOutgoing >= p.maxOutgoingStreamsTotal.get:
       return (false, scopeTotal)
