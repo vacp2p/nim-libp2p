@@ -41,9 +41,13 @@ proc makeAutonatServicePrivate(): Switch =
       await stream.writeLp(
         AutonatMsg(
           msgType: MsgType.DialResponse,
-          response: Opt.some(AutonatDialResponse(
-            status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
-          ))
+          response: Opt.some(
+            AutonatDialResponse(
+              status: DialError,
+              text: Opt.some("dial failed"),
+              ma: Opt.none(MultiAddress),
+            )
+          ),
         ).encode()
       )
     except LPStreamError:
@@ -102,15 +106,17 @@ suite "Autonat":
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
     let buffer = AutonatMsg(
       msgType: MsgType.Dial,
-      dial: Opt.some(AutonatDial(
-        peerInfo: Opt.some(
-          AutonatPeerInfo(
-            id: Opt.some(src.peerInfo.peerId),
-            # we ask to be dialed in the does nothing listener instead
-            addrs: doesNothingListener.addrs,
+      dial: Opt.some(
+        AutonatDial(
+          peerInfo: Opt.some(
+            AutonatPeerInfo(
+              id: Opt.some(src.peerInfo.peerId),
+              # we ask to be dialed in the does nothing listener instead
+              addrs: doesNothingListener.addrs,
+            )
           )
         )
-      ))
+      ),
     ).encode()
     await stream.writeLp(buffer)
     let response = AutonatMsg.decode(await stream.readLp(1024)).get().response.get()

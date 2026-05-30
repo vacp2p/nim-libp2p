@@ -60,6 +60,4 @@ type
 proc isReachable*(self: NetworkReachability): bool =
   self == NetworkReachability.Reachable
 
-Protobuf.serializerFor(
-  [AutonatPeerInfo, AutonatDial, AutonatDialResponse, AutonatMsg]
-)
+Protobuf.serializerFor([AutonatPeerInfo, AutonatDial, AutonatDialResponse, AutonatMsg])

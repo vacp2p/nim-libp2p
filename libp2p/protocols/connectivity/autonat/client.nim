@@ -18,9 +18,9 @@ proc sendDial(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = AutonatMsg(
     msgType: MsgType.Dial,
-    dial: Opt.some(AutonatDial(
-      peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
-    ))
+    dial: Opt.some(
+      AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs)))
+    ),
   ).encode()
   await stream.writeLp(pb)
 

@@ -31,15 +31,17 @@ proc sendResponseError(
 ) {.async: (raises: [CancelledError]).} =
   let pb = AutonatMsg(
     msgType: MsgType.DialResponse,
-    response: Opt.some(AutonatDialResponse(
-      status: status,
-      text:
-        if text == "":
-          Opt.none(string)
-        else:
-          Opt.some(text),
-      ma: Opt.none(MultiAddress),
-    ))
+    response: Opt.some(
+      AutonatDialResponse(
+        status: status,
+        text:
+          if text == "":
+            Opt.none(string)
+          else:
+            Opt.some(text),
+        ma: Opt.none(MultiAddress),
+      )
+    ),
   ).encode()
   try:
     await stream.writeLp(pb)
@@ -51,9 +53,11 @@ proc sendResponseOk(
 ) {.async: (raises: [CancelledError]).} =
   let pb = AutonatMsg(
     msgType: MsgType.DialResponse,
-    response: Opt.some(AutonatDialResponse(
-      status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
-    ))
+    response: Opt.some(
+      AutonatDialResponse(
+        status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
+      )
+    ),
   ).encode()
   try:
     await stream.writeLp(pb)
