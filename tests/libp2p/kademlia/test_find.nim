@@ -5,6 +5,7 @@
 
 import chronos, sequtils
 import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/protocols/kademlia/[find, types]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 

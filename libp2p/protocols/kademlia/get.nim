@@ -93,7 +93,7 @@ proc getValue*(
     kad.config.quorum
 
   let onReply = proc(
-      peer: PeerId, msgOpt: Opt[Message], state: var LookupState
+      peer: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     if not received.hasKey(peer) and received.len >= kad.config.limits.maxReceivedSize:
       debug "GetValue: ReceivedTable cap reached, dropping reply",
