@@ -255,6 +255,10 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       trace "ignoring prune for unsubscribed topic", peer, topic
       continue
 
+    if not g.mesh.hasPeer(topic, peer):
+      trace "ignoring prune for peer outside mesh", peer, topic
+      continue
+
     # add peer backoff
     if prune.backoff > 0:
       let
