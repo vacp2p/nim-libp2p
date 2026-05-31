@@ -465,6 +465,37 @@ suite "GossipSub Behavior":
     check:
       timeDifference < 1.seconds.nanoseconds
 
+  asyncTest "handlePrune - ignores unsubscribed topics":
+    const unknownTopic = "not-subscribed"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    var routingRecordsCalled = false
+    gossipSub.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        routingRecordsCalled = true
+    )
+
+    gossipSub.handlePrune(
+      peer,
+      @[
+        ControlPrune(
+          topicID: unknownTopic,
+          peers: @[PeerInfoMsg(peerId: peer.peerId)],
+          backoff: 300'u64,
+        )
+      ],
+    )
+
+    check:
+      unknownTopic notin gossipSub.backingOff
+      peer in gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == 1
+      routingRecordsCalled == false
+
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
