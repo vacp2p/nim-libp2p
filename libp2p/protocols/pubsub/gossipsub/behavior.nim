@@ -251,6 +251,10 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
     trace "peer pruned topicID", peer, topic
 
+    if topic notin g.topics:
+      trace "ignoring prune for unsubscribed topic", peer, topic
+      continue
+
     # add peer backoff
     if prune.backoff > 0:
       let
