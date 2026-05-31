@@ -499,6 +499,34 @@ suite "GossipSub Behavior":
       gossipSub.mesh[topic].len == 1
       routingRecordsCalled == false
 
+  asyncTest "handlePrune - ignores peers outside mesh":
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    var routingRecordsCalled = false
+    gossipSub.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        routingRecordsCalled = true
+    )
+
+    gossipSub.handlePrune(
+      peer,
+      @[
+        ControlPrune(
+          topicID: topic, peers: @[PeerInfoMsg(peerId: peer.peerId)], backoff: 300'u64
+        )
+      ],
+    )
+
+    check:
+      topic notin gossipSub.backingOff
+      peer notin gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == 0
+      routingRecordsCalled == false
+
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
