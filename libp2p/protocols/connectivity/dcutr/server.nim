@@ -51,13 +51,37 @@ proc new*(
           ourAddrs
         return
 
+      peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
+      if peerDialableAddrs.len > 0:
+        # During DCUtR both peers dial at nearly the same time, so this side can
+        # transiently see the existing connection plus one incoming and one
+        # outgoing connection. Register both possible over-limit directions
+        # before sending Connect so the peer's Sync-triggered dial cannot race
+        # the conn-manager cap.
+        let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
+        if expectedIncoming.failed() and
+            expectedIncoming.error of AlreadyExpectingConnectionError:
+          raise newException(
+            DcutrError, expectedIncoming.error.msg, expectedIncoming.error
+          )
+        defer:
+          expectedIncoming.cancelSoon()
+
+        let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
+        if expectedOutgoing.failed() and
+            expectedOutgoing.error of AlreadyExpectingConnectionError:
+          raise newException(
+            DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error
+          )
+        defer:
+          expectedOutgoing.cancelSoon()
+
       await stream.send(MsgType.Connect, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
         raise newException(DcutrError, "Failed to decode a Sync message.")
       debug "Dcutr receiver has received a Sync message.", syncMsg
 
-      peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
       if peerDialableAddrs.len == 0:
         debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
           addrs = connectMsg.addrs

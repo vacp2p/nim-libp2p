@@ -58,6 +58,19 @@ proc startSync*(
     let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
+
+    # The receiver may dial us while our own simultaneous dial is in flight. If
+    # one of those connections fills the per-peer connection limit first, allow
+    # the other expected DCUtR connection through instead of failing the punch.
+    let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
+    if expectedIncoming.failed() and
+        expectedIncoming.error of AlreadyExpectingConnectionError:
+      raise newException(
+        DcutrError, expectedIncoming.error.msg, expectedIncoming.error
+      )
+    defer:
+      expectedIncoming.cancelSoon()
+
     await stream.send(MsgType.Sync, @[])
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
