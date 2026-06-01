@@ -73,7 +73,7 @@ proc new(
   quicstream
 
 method getWrapped*(self: QuicStream): P2PConnection =
-  self
+  self.session
 
 when defined(libp2p_agents_metrics):
   proc trackPeerIdentity(s: QuicSession) =
@@ -192,7 +192,7 @@ proc getStream(
   return qs
 
 method getWrapped*(self: QuicSession): P2PConnection =
-  self
+  nil
 
 # Muxer
 type QuicMuxer* = ref object of Muxer
@@ -271,12 +271,13 @@ type QuicUpgrade = ref object of Upgrade
 type CertGenerator =
   proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
 
-type QuicAcceptType = typeof(default(Listener).accept())
+type QuicAcceptType = typeof(default(QuicEndpoint).accept())
 
 type QuicTransport* = ref object of Transport
-  listeners: seq[Listener]
+  listeners: seq[QuicEndpoint]
   acceptFuts: seq[QuicAcceptType]
-  client: Opt[QuicClient]
+  dialEndpoint4: Opt[QuicEndpoint]
+  dialEndpoint6: Opt[QuicEndpoint]
   privateKey: PrivateKey
   connections: HashSet[P2PConnection]
   rng: Rng
@@ -389,11 +390,11 @@ method start*(
   var listenMAs: seq[MultiAddress]
   var initialized = false
   try:
-    let server = QuicServer.new(self.makeConfig())
+    let tlsConfig = self.makeConfig()
     for ta in addrsTa:
-      let listener = server.listen(ta)
-      self.listeners.add(listener)
-      listenMAs.add(toMultiAddress(listener.localAddress()))
+      let endpoint = QuicEndpoint.new(tlsConfig, ta)
+      self.listeners.add(endpoint)
+      listenMAs.add(toMultiAddress(endpoint.localAddress()))
     initialized = true
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
@@ -420,6 +421,14 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
+  transport.dialEndpoint4.withValue(endpoint):
+    await noCancel endpoint.stop()
+  transport.dialEndpoint6.withValue(endpoint):
+    await noCancel endpoint.stop()
+
+  transport.dialEndpoint4 = Opt.none(QuicEndpoint)
+  transport.dialEndpoint6 = Opt.none(QuicEndpoint)
+
   for listener in transport.listeners:
     try:
       await listener.stop()
@@ -428,10 +437,6 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   transport.listeners = @[]
   transport.acceptFuts = @[]
 
-  transport.client.withValue(client):
-    await noCancel client.stop()
-
-  transport.client = Opt.none(QuicClient)
   await procCall Transport(transport).stop()
 
 proc wrapConnection(
@@ -510,6 +515,39 @@ method accept*(
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
 
+proc listenerEndpointFor(
+    self: QuicTransport, address: TransportAddress
+): Opt[QuicEndpoint] {.raises: [TransportOsError].} =
+  for endpoint in self.listeners:
+    if endpoint.localAddress().family == address.family:
+      return Opt.some(endpoint)
+
+  Opt.none(QuicEndpoint)
+
+proc dialOnlyEndpointFor(
+    self: QuicTransport, family: AddressFamily
+): QuicEndpoint {.raises: [TLSCertificateError, QuicError, TransportOsError].} =
+  case family
+  of AddressFamily.IPv4:
+    if self.dialEndpoint4.isNone():
+      self.dialEndpoint4 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+    self.dialEndpoint4.get()
+  of AddressFamily.IPv6:
+    if self.dialEndpoint6.isNone():
+      self.dialEndpoint6 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+    self.dialEndpoint6.get()
+  else:
+    raise newException(QuicError, "client supports only IPv4/IPv6 address")
+
+proc dialEndpointFor(
+    self: QuicTransport, address: TransportAddress
+): QuicEndpoint {.raises: [TLSCertificateError, QuicError, TransportOsError].} =
+  let listenerEndpoint = self.listenerEndpointFor(address)
+  if listenerEndpoint.isSome():
+    return listenerEndpoint.get()
+
+  self.dialOnlyEndpointFor(address.family)
+
 method dial*(
     self: QuicTransport,
     hostname: string,
@@ -525,11 +563,8 @@ method dial*(
       )
 
   try:
-    if not self.client.isSome:
-      self.client = Opt.some(QuicClient.new(self.makeConfig()))
-
-    let client = self.client.get()
-    let quicConnection = await client.dial(taAddress)
+    let endpoint = self.dialEndpointFor(taAddress)
+    let quicConnection = await endpoint.dial(taAddress)
     peerId.withValue(expectedPeerId):
       if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
         quicConnection.abort()

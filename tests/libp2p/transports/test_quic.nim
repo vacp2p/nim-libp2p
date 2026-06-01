@@ -163,6 +163,42 @@ suite "Quic transport":
       not serverConn1.closed()
       not serverConn2.closed()
 
+  asyncTest "dial reuses listener endpoint when available":
+    let client = await createQuicTransport(isServer = true)
+    let server = await createQuicTransport(isServer = true)
+    defer:
+      await allFutures(client.stop(), server.stop())
+
+    let clientListenPort = extractPort(client.addrs[0])
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    defer:
+      await allFutures(clientConn.close(), serverConn.close())
+
+    check:
+      clientConn.localAddr.isSome()
+      serverConn.observedAddr.isSome()
+      extractPort(clientConn.localAddr.get()) == clientListenPort
+      extractPort(serverConn.observedAddr.get()) == clientListenPort
+
+  asyncTest "dial without listener uses dial-only endpoint":
+    let server = await createQuicTransport(isServer = true)
+    let client = await createQuicTransport()
+    defer:
+      await allFutures(client.stop(), server.stop())
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    defer:
+      await allFutures(clientConn.close(), serverConn.close())
+
+    check:
+      clientConn.localAddr.isSome()
+      serverConn.observedAddr.isSome()
+      extractPort(clientConn.localAddr.get()) != extractPort(server.addrs[0])
+
   asyncTest "server not accepting":
     let server = await createQuicTransport(isServer = true)
     # intentionally not calling createServerAcceptConn as server should not accept

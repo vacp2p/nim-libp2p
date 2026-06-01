@@ -49,4 +49,8 @@ proc getHolePunchableAddrs*(
     # This is necessary to also accept addrs like /ip4/198.51.100/tcp/1234/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
     if [TCP, mapAnd(TCP_DNS, P2PPattern), mapAnd(TCP_IP, P2PPattern)].anyIt(it.match(a)):
       res.add(a[0 .. 1].tryGet())
+    elif [
+      QUIC_V1, mapAnd(QUIC_V1_DNS, P2PPattern), mapAnd(QUIC_V1_IP, P2PPattern)
+    ].anyIt(it.match(a)):
+      res.add(a[0 .. 2].tryGet())
   return res

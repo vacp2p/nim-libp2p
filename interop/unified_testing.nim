@@ -62,6 +62,12 @@ proc resolveBindIp*(ip: string): string =
 
   ($addresses[0][0].host).split(":")[0]
 
+proc defaultMuxerForTransport(transport: string): string =
+  # QUIC provides security and multiplexing for direct connections, but relay
+  # circuit connections still negotiate an inner stream muxer. Rust's quic-v1
+  # hole-punch implementation uses yamux for that relay-client path.
+  if transport == "quic-v1": "yamux" else: "mplex"
+
 proc readBaseConfig*(): BaseConfig =
   let isDialer = parseBoolEnv("IS_DIALER", false)
   let bindIp =
@@ -72,14 +78,15 @@ proc readBaseConfig*(): BaseConfig =
   let testKey = getEnv("TEST_KEY")
   if testKey.len == 0:
     raise newException(CatchableError, "TEST_KEY env var is required")
+  let transport = getEnv("TRANSPORT", "tcp")
   let config = BaseConfig(
     isDialer: isDialer,
     bindIp: bindIp,
     redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
     testKey: testKey,
-    transport: getEnv("TRANSPORT", "tcp"),
+    transport: transport,
     secureChannel: getEnv("SECURE_CHANNEL", "noise"),
-    muxer: getEnv("MUXER", "mplex"),
+    muxer: getEnv("MUXER", defaultMuxerForTransport(transport)),
     testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
   )
   config

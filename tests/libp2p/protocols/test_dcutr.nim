@@ -84,6 +84,38 @@ suite "Dcutr":
 
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
+  asyncTest "DCUtR establishes a new QUIC connection":
+    let behindNATSwitch = makeSwitch(transport = TransportType.QUIC)
+    let publicSwitch = makeSwitch(transport = TransportType.QUIC)
+
+    let dcutrProto = Dcutr.new(publicSwitch)
+    publicSwitch.mount(dcutrProto)
+
+    await allFutures(behindNATSwitch.start(), publicSwitch.start())
+
+    await publicSwitch.connect(
+      behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
+    )
+    let initialConnCount =
+      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId)
+    check initialConnCount == 1
+
+    for t in behindNATSwitch.transports:
+      t.networkReachability = NetworkReachability.NotReachable
+
+    await DcutrClient
+      .new(connectTimeout = 5.seconds)
+      .startSync(
+        behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
+      )
+      .wait(5.seconds)
+
+    checkUntilTimeout:
+      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
+        initialConnCount
+
+    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
+
   template ductrClientTest(
       behindNATSwitch: Switch, publicSwitch: Switch, body: untyped
   ) =
@@ -212,7 +244,7 @@ suite "Dcutr":
 
     await ductrServerTest(connectProc)
 
-  test "should return valid TCP/IP and TCP/DNS addresses only":
+  test "should return valid TCP and QUIC-v1 addresses only":
     let testAddrs = @[
       MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
       MultiAddress
@@ -226,7 +258,19 @@ suite "Dcutr":
           "/dns4/example.com/tcp/3456/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
+      MultiAddress.init("/ip4/192.0.2.2/udp/3456/quic-v1").tryGet(),
+      MultiAddress
+        .init(
+          "/ip4/203.0.113.6/udp/4567/quic-v1/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+        )
+        .tryGet(),
+      MultiAddress
+        .init(
+          "/dns4/example.org/udp/5678/quic-v1/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+        )
+        .tryGet(),
       MultiAddress.init("/ip4/198.51.100.42/udp/7890").tryGet(),
+      MultiAddress.init("/ip4/198.51.100.43/udp/7890/quic").tryGet(),
     ]
 
     let expected = @[
@@ -234,6 +278,9 @@ suite "Dcutr":
       MultiAddress.init("/ip4/203.0.113.5/tcp/5678").tryGet(),
       MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
       MultiAddress.init("/dns4/example.com/tcp/3456").tryGet(),
+      MultiAddress.init("/ip4/192.0.2.2/udp/3456/quic-v1").tryGet(),
+      MultiAddress.init("/ip4/203.0.113.6/udp/4567/quic-v1").tryGet(),
+      MultiAddress.init("/dns4/example.org/udp/5678/quic-v1").tryGet(),
     ]
 
     let res = getHolePunchableAddrs(testAddrs)
