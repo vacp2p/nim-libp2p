@@ -12,7 +12,6 @@ import
 import ../../tools/unittest
 import ./utils
 
-# ===========================================================================
 suite "Advertiser - addProvidedService":
   teardown:
     checkTrackers()
@@ -36,7 +35,6 @@ suite "Advertiser - addProvidedService":
 
     check disco.rtManager.hasService(serviceId)
     check disco.advertiser.running.len() == 0
-      # local registration is now a dedicated loop, not in running
 
   test "schedules up to kRegister actions per populated bucket":
     let disco = setupServiceDiscoveryNode()
@@ -47,25 +45,21 @@ suite "Advertiser - addProvidedService":
     disco.addProvidedService(service)
 
     check disco.advertiser.running.len() == disco.discoConfig.kRegister
-      # only remote tasks; local is a separate dedicated loop now
 
   test "scheduling caps at kRegister tasks per populated bucket":
     let kRegister = 3
     let conf = ServiceDiscoveryConfig.new(kRegister = kRegister)
     let disco = setupServiceDiscoveryNode(discoConfig = conf)
-    # Fill the routing table with random peers.
     disco.populateRoutingTable(100)
 
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    # Seed the per-service table from the main one.
     check disco.rtManager.addService(
       serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
       Interest,
     )
 
-    # Empty every bucket that wouldn't exercise the cap, keep only overpopulated buckets.
     let table = disco.rtManager.getTable(serviceId).get()
     var overpopulatedBuckets = 0
     for bucket in mitems(table.buckets):
@@ -77,7 +71,6 @@ suite "Advertiser - addProvidedService":
 
     disco.addProvidedService(service)
 
-    # Only remote tasks are tracked in running now.
     check disco.advertiser.running.len() == overpopulatedBuckets * kRegister
 
   test "adding same service twice is idempotent":
@@ -109,9 +102,7 @@ suite "Advertiser - addProvidedService":
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.hasService(s3.id.hashServiceId())
     check disco.advertiser.running.len() == 3
-      # only the remote tasks (1 per service); local registration is a separate loop
 
-# ===========================================================================
 suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()
@@ -133,7 +124,6 @@ suite "Advertiser - removeProvidedService":
       not disco.rtManager.hasService(sid1)
       disco.rtManager.hasService(sid2)
       disco.advertiser.running.len() == 1
-        # only the remote task for the remaining service
 
   asyncTest "removing non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
@@ -156,13 +146,11 @@ suite "Advertiser - removeProvidedService":
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
 
-# ===========================================================================
 suite "Advertiser - record creation":
   teardown:
     checkTrackers()
 
   test "record creation rejects service data larger than MaxServiceDataSize":
-    # Baseline: service data at the size limit is accepted
     let validData = newSeq[byte](MaxServiceDataSize)
     let discoValid = setupServiceDiscoveryNode(
       services = @[ServiceInfo(id: "service", data: validData)]
@@ -174,7 +162,6 @@ suite "Advertiser - record creation":
       svc.isValid()
       svc.data.len == MaxServiceDataSize
 
-    # Oversized service data is rejected
     let oversizedData = newSeq[byte](MaxServiceDataSize + 1)
     let badSvc = ServiceInfo(id: "service", data: oversizedData)
     let discoBad = setupServiceDiscoveryNode(services = @[badSvc])
@@ -184,7 +171,6 @@ suite "Advertiser - record creation":
       recordBad.isErr()
 
   test "record creation rejects encoded XPR larger than MaxXPRSize":
-    # Baseline: a normal (small) record is accepted and its encoded size is within limit
     let discoSmall = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
     let recordSmall = discoSmall.record()
     check recordSmall.isOk()
@@ -192,21 +178,12 @@ suite "Advertiser - record creation":
     check:
       smallXpr.isValid()
       smallXpr.encode().get().len <= MaxXPRSize
-        # still useful for the exact size assertion
 
-    # Oversized encoded XPR (caused by many addresses) is rejected.
-    # We dynamically discover the number of addresses required rather than
-    # hard-coding a repeat count. This makes the test robust against changes
-    # in MultiAddress encoding, protobuf serialization, signature size, etc.
     let discoBig = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
     let baseAddr = makeMultiAddress("10.0.0.1")
     var addrs: seq[MultiAddress]
     var foundOversized = false
 
-    # Search for the smallest number of addresses that makes either:
-    # - record() return an error (because the XPR is too big), or
-    # - the successfully built record's encoded size exceeds the limit.
-    # Safety bound prevents infinite loops in case of unforeseen issues.
     for _ in 1 .. 10_000:
       addrs.add(baseAddr)
       discoBig.switch.peerInfo.addrs = addrs
@@ -219,7 +196,7 @@ suite "Advertiser - record creation":
         foundOversized = true
         break
 
-    doAssert foundOversized, "Could not generate an XPR larger than MaxXPRSize"
+    check foundOversized
 
     let recordBig = discoBig.record()
     check recordBig.isErr()
