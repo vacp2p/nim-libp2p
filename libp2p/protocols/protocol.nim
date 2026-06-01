@@ -87,18 +87,22 @@ proc new*(
     maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
   doAssert(codecs.len > 0, "Codecs sequence must not be empty!")
-  T(
+  var proto = T(
     codecs: codecs,
     handlerImpl: handler,
     maxIncomingStreamsTotal: toOpt(maxIncomingStreamsTotal),
     maxIncomingStreamsPerPeer: toOpt(maxIncomingStreamsPerPeer),
     maxOutgoingStreamsTotal: toOpt(maxOutgoingStreamsTotal),
     maxOutgoingStreamsPerPeer: toOpt(maxOutgoingStreamsPerPeer),
-    streamBudget: StreamBudgetState(
-      perPeerIncoming: initCountTable[PeerId](),
-      perPeerOutgoing: initCountTable[PeerId](),
-    ),
   )
+
+  # initialize streamBudget only when there is some limit used.
+  # keeping streamBudget uninitialized makes `reserve` and `release` return early (fast path).
+  if proto.maxIncomingStreamsTotal.isSome or proto.maxIncomingStreamsPerPeer.isSome or
+      proto.maxOutgoingStreamsTotal.isSome or proto.maxOutgoingStreamsPerPeer.isSome:
+    proto.streamBudget = StreamBudgetState()
+
+  proto
 
 func budgetReason(p: LPProtocol, peerId: PeerId, dir: Direction): (bool, string) =
   ## Returns (canAccept, scope) indicating whether a stream can be accepted
