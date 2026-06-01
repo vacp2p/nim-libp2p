@@ -247,7 +247,10 @@ proc validateRegisterMessage*(
 ): Opt[Advertisement] =
   ## Validate a REGISTER message and decode/verify the advertisement.
   ## Returns Opt.none if the message is invalid.
-  if regMsg.advertisement.len == 0:
+  if regMsg.advertisement.len == 0 or regMsg.advertisement.len > MaxXPRSize:
+    if regMsg.advertisement.len > 0:
+      error "advertisement exceeds maximum encoded XPR size",
+        len = regMsg.advertisement.len, max = MaxXPRSize
     return Opt.none(Advertisement)
 
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
@@ -256,6 +259,10 @@ proc validateRegisterMessage*(
 
   if not ad.advertisesService(serviceId):
     error "advertisement does not advertise the requested service", serviceId
+    return Opt.none(Advertisement)
+
+  if not ad.isValid():
+    error "advertisement violates XPR or ServiceInfo size limits"
     return Opt.none(Advertisement)
 
   return Opt.some(ad)
