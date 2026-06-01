@@ -2,18 +2,16 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sequtils, sets
+import chronos, results, sets
 import
   ../../../libp2p/[
     extended_peer_record,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
   ]
-from ../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../tools/unittest
 import ./utils
 
-# ===========================================================================
 suite "Advertiser - addProvidedService":
   teardown:
     checkTrackers()
@@ -37,7 +35,6 @@ suite "Advertiser - addProvidedService":
 
     check disco.rtManager.hasService(serviceId)
     check disco.advertiser.running.len() == 0
-      # local registration is now a dedicated loop, not in running
 
   test "schedules up to kRegister actions per populated bucket":
     let disco = setupServiceDiscoveryNode()
@@ -48,25 +45,21 @@ suite "Advertiser - addProvidedService":
     disco.addProvidedService(service)
 
     check disco.advertiser.running.len() == disco.discoConfig.kRegister
-      # only remote tasks; local is a separate dedicated loop now
 
   test "scheduling caps at kRegister tasks per populated bucket":
     let kRegister = 3
     let conf = ServiceDiscoveryConfig.new(kRegister = kRegister)
     let disco = setupServiceDiscoveryNode(discoConfig = conf)
-    # Fill the routing table with random peers.
     disco.populateRoutingTable(100)
 
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    # Seed the per-service table from the main one.
     check disco.rtManager.addService(
       serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
       Interest,
     )
 
-    # Empty every bucket that wouldn't exercise the cap, keep only overpopulated buckets.
     let table = disco.rtManager.getTable(serviceId).get()
     var overpopulatedBuckets = 0
     for bucket in mitems(table.buckets):
@@ -78,7 +71,6 @@ suite "Advertiser - addProvidedService":
 
     disco.addProvidedService(service)
 
-    # Only remote tasks are tracked in running now.
     check disco.advertiser.running.len() == overpopulatedBuckets * kRegister
 
   test "adding same service twice is idempotent":
@@ -110,9 +102,7 @@ suite "Advertiser - addProvidedService":
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.hasService(s3.id.hashServiceId())
     check disco.advertiser.running.len() == 3
-      # only the remote tasks (1 per service); local registration is a separate loop
 
-# ===========================================================================
 suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()
@@ -134,7 +124,6 @@ suite "Advertiser - removeProvidedService":
       not disco.rtManager.hasService(sid1)
       disco.rtManager.hasService(sid2)
       disco.advertiser.running.len() == 1
-        # only the remote task for the remaining service
 
   asyncTest "removing non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
@@ -157,41 +146,57 @@ suite "Advertiser - removeProvidedService":
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
 
-# ===========================================================================
 suite "Advertiser - record creation":
   teardown:
     checkTrackers()
 
-  test "record creation does not enforce service data size limit":
-    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
-    let serviceData = newSeq[byte](MaxMsgSize + 1)
-    let disco = setupServiceDiscoveryNode(
-      services = @[ServiceInfo(id: "service", data: serviceData)]
+  test "record creation rejects service data larger than MaxServiceDataSize":
+    let validData = newSeq[byte](MaxServiceDataSize)
+    let discoValid = setupServiceDiscoveryNode(
+      services = @[ServiceInfo(id: "service", data: validData)]
     )
-
-    let record = disco.record()
-
+    let recordValid = discoValid.record()
+    check recordValid.isOk()
+    let svc = recordValid.get().data.services[0]
     check:
-      serviceData.len > MaxMsgSize
-      record.isOk()
-      record.get().data.services.len == 1
-      record.get().data.services[0].id == "service"
-      record.get().data.services[0].data.len == serviceData.len
+      svc.isValid()
+      svc.data.len == MaxServiceDataSize
 
-  test "record creation does not enforce encoded XPR size limit":
-    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
-    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
-    # Repeating the same address is just a simple way to make a large valid XPR.
-    # With this address, 328 repeats is the first value over MaxMsgSize.
-    let addrs = makeMultiAddress("10.0.0.1").repeat(328)
-    disco.switch.peerInfo.addrs = addrs
-
-    let record = disco.record()
-    check record.isOk()
-
-    let encoded = record.get().encode()
-
+    let oversizedData = newSeq[byte](MaxServiceDataSize + 1)
+    let badSvc = ServiceInfo(id: "service", data: oversizedData)
+    let discoBad = setupServiceDiscoveryNode(services = @[badSvc])
+    let recordBad = discoBad.record()
     check:
-      encoded.isOk()
-      encoded.get().len > MaxMsgSize
-      record.get().data.addresses.len == addrs.len
+      not badSvc.isValid()
+      recordBad.isErr()
+
+  test "record creation rejects encoded XPR larger than MaxXPRSize":
+    let discoSmall = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    let recordSmall = discoSmall.record()
+    check recordSmall.isOk()
+    let smallXpr = recordSmall.get()
+    check:
+      smallXpr.isValid()
+      smallXpr.encode().get().len <= MaxXPRSize
+
+    let discoBig = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    let baseAddr = makeMultiAddress("10.0.0.1")
+    var addrs: seq[MultiAddress]
+    var foundOversized = false
+
+    for _ in 1 .. 10_000:
+      addrs.add(baseAddr)
+      discoBig.switch.peerInfo.addrs = addrs
+      let rec = discoBig.record()
+      if rec.isErr():
+        foundOversized = true
+        break
+      let enc = rec.get().encode()
+      if enc.isOk and enc.get().len > MaxXPRSize:
+        foundOversized = true
+        break
+
+    check foundOversized
+
+    let recordBig = discoBig.record()
+    check recordBig.isErr()
