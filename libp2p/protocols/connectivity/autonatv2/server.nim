@@ -197,7 +197,11 @@ proc chooseDialAddr(
       let (mux, stream) =
         try:
           (await (self.forceNewConnection(pid, @[ma]).wait(self.config.dialTimeout))).valueOr:
-            return (Opt.none((Muxer, Stream)), Opt.none(AddrIdx))
+            # canDial is true, which means the dial was attempted but failed.
+            # Opt.some(i.AddrIdx) is returned so the response is EDialError, which
+            # triggers NotReachable, and not EDialRefused, which triggers Unknown
+            # and would never be updated.
+            return (Opt.none((Muxer, Stream)), Opt.some(AddrIdx))
         except AsyncTimeoutError:
           trace "Dial timed out"
           return (Opt.none((Muxer, Stream)), Opt.some(i.AddrIdx))
