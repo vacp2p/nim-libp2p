@@ -35,5 +35,5 @@ method unmap*(
 ): Future[Result[void, string]] {.base, async: (raises: [CancelledError]), gcsafe.} =
   raiseAssert "PortMapper.unmap not implemented"
 
-method close*(self: PortMapper) {.base, gcsafe, raises: [].} =
+method close*(self: PortMapper) {.base, async: (raises: [CancelledError]), gcsafe.} =
   discard
