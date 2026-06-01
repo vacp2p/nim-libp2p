@@ -190,7 +190,8 @@ proc dispatch(
   self.ctx.request = req
   let fr = self.ctx.reqSignal.fireSync()
   if fr.isErr or not fr.get():
-    return err("UpnpMapper signal fire failed")
+    return
+      err("UpnpMapper signal fire failed: " & (if fr.isErr: fr.error else: "timeout"))
 
   try:
     await self.ctx.respSignal.wait()
