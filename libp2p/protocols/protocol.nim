@@ -36,8 +36,8 @@ type
   StreamBudgetState = ref object
     totalIncoming: int
     totalOutgoing: int
-    perPeerIncoming: CountTable[PeerId] = initCountTable[PeerId]()
-    perPeerOutgoing: CountTable[PeerId] = initCountTable[PeerId]()
+    perPeerIncoming: CountTable[PeerId]
+    perPeerOutgoing: CountTable[PeerId]
 
   LPProtocol* = ref object of RootObj
     started*: bool
