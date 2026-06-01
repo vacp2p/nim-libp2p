@@ -184,18 +184,18 @@ suite "Service Discovery Component - Register":
     let conf =
       ServiceDiscoveryConfig.new(advertCacheCap = 10, registrationWindow = 5.secs)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let maliciousNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let maloryNode = setupServiceDiscoveryNode(discoConfig = conf)
     let legitimateNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, maliciousNode, legitimateNode])
-    await connect(registrarNode, maliciousNode)
+    startAndDeferStop(@[registrarNode, maloryNode, legitimateNode])
+    await connect(registrarNode, maloryNode)
     await connect(registrarNode, legitimateNode)
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
-    let maliciousAdBytes = makeAdvertisement(
-        serviceName, maliciousNode.switch.peerInfo.privateKey
+    let maloryAdBytes = makeAdvertisement(
+        serviceName, maloryNode.switch.peerInfo.privateKey
       )
       .encode()
       .get()
@@ -207,33 +207,29 @@ suite "Service Discovery Component - Register":
 
     let oldTInit = Moment.init(Moment.now().epochSeconds - 3600, Second)
     var invalidTicket = Ticket(
-      advertisement: maliciousAdBytes,
+      advertisement: maloryAdBytes,
       tInit: oldTInit,
       tMod: Moment.now(),
       tWaitFor: 0.secs,
       signature: @[],
     )
-    check invalidTicket.sign(maliciousNode.switch.peerInfo.privateKey).isOk()
+    check invalidTicket.sign(maloryNode.switch.peerInfo.privateKey).isOk()
 
-    let maliciousResp1 = await maliciousNode.sendRegister(
-      registrarPeerId, serviceId, maliciousAdBytes, Opt.some(invalidTicket)
+    let maliciousResp = await maloryNode.sendRegister(
+      registrarPeerId, serviceId, maloryAdBytes, Opt.some(invalidTicket)
     )
     check:
-      maliciousResp1.isOk()
-      maliciousResp1.get().status == kad_protobuf.RegistrationStatus.Rejected
-      maliciousResp1.get().ticket.isNone()
+      maliciousResp.isOk()
+      maliciousResp.get().status == kad_protobuf.RegistrationStatus.Rejected
+      maliciousResp.get().ticket.isNone()
     check registrarNode.countAdsInCache(serviceId) == 0
 
-    let maliciousResp2 =
-      await maliciousNode.sendRegister(registrarPeerId, serviceId, maliciousAdBytes)
-    check maliciousResp2.isOk()
-    let m2Status = maliciousResp2.get().status
-    check m2Status in
-      {kad_protobuf.RegistrationStatus.Wait, kad_protobuf.RegistrationStatus.Confirmed}
+    let maloryResp =
+      await maloryNode.sendRegister(registrarPeerId, serviceId, maloryAdBytes)
+    check maloryResp.isOk()
+    check maloryResp.get().status == kad_protobuf.RegistrationStatus.Wait
 
-    let legitimateResp1 =
+    let legitimateResp =
       await legitimateNode.sendRegister(registrarPeerId, serviceId, legitimateAdBytes)
-    check legitimateResp1.isOk()
-    let l1Status = legitimateResp1.get().status
-    check l1Status in
-      {kad_protobuf.RegistrationStatus.Wait, kad_protobuf.RegistrationStatus.Confirmed}
+    check legitimateResp.isOk()
+    check legitimateResp.get().status == kad_protobuf.RegistrationStatus.Wait
