@@ -12,6 +12,7 @@ import results
 
 import
   ../../../multiaddress,
+  ../../../dial,
   ../../../errors,
   ../../../stream/connection,
   ../../../protobuf/utils
@@ -40,6 +41,11 @@ proc send*(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
   await stream.writeLp(pb)
+
+proc waitExpectedConnection*[T](
+    fut: Future[T]
+): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
+  discard await fut
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]

@@ -90,6 +90,9 @@ proc startSync*(
         dir = Direction.In,
       )
     )
+    futs.add(waitExpectedConnection(expectedIncoming))
+    debug "Dcutr initiator waiting for direct dial or incoming connection",
+      attempts = futs.len
     try:
       discard await anyCompleted(futs).wait(self.connectTimeout)
       debug "Dcutr initiator has directly connected to the remote peer."
