@@ -44,8 +44,23 @@ proc send*(
 
 proc waitExpectedConnection*[T](
     fut: Future[T]
-): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
-  discard await fut
+): Future[void].Raising([DialFailedError, CancelledError]) {.raises: [].} =
+  let expected = Future[void].Raising([DialFailedError, CancelledError]).init(
+    "Dcutr.waitExpectedConnection"
+  )
+
+  fut.addCallback proc(udata: pointer) {.raises: [].} =
+    if expected.finished:
+      return
+
+    if fut.completed():
+      expected.complete()
+    elif fut.cancelled():
+      expected.cancelSoon()
+    else:
+      expected.fail(newException(DialFailedError, "expected connection failed"))
+
+  expected
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]
