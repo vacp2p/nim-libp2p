@@ -122,15 +122,6 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Use nim-lsquic shared-socket fix
-        run: |
-          rm -rf nimbledeps/pkgs2/lsquic-* nimbledeps/pkgs/lsquic-*
-          mkdir -p nimbledeps/pkgs2
-          git clone --depth 1 --recurse-submodules --shallow-submodules \
-            --branch codex/quic-shared-socket-cid-routing \
-            https://github.com/vacp2p/nim-lsquic nimbledeps/pkgs2/lsquic-0.5.0
-          rm -f nimble.paths
-
       - name: Run tests
         id: run-tests
         run: |
