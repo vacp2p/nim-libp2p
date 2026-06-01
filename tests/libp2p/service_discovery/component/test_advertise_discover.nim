@@ -234,8 +234,8 @@ suite "Service Discovery Component - Advertise Discover":
     let ads = registrarNode.getAdsInCache(serviceId)
     check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
-  asyncTest "advertiser re-advertises after advertExpiry":
-    let conf = ServiceDiscoveryConfig.new(advertExpiry = 500.millis, safetyParam = 0.0)
+  asyncTest "remote registration task terminates after one Confirmed cycle and maintenance refills the slot":
+    let conf = ServiceDiscoveryConfig.new(advertExpiry = 300.millis, safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -244,26 +244,38 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    # addProvidedService starts an advertiseToRegistrar task.
-    # The task keeps running after the first REGISTER is Confirmed.
-    # It waits advertExpiry, then sends REGISTER again for the same ad.
-    # The registrar keeps one ad and refreshes cacheTimestamps.
     advertiserNode.addProvidedService(service)
 
+    # Wait for the first registration to succeed on the remote registrar
     checkUntilTimeout:
       registrarNode.countAdsInCache(serviceId) == 1
 
-    let
-      cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-      adKey = cachedAd.toAdvertisementKey()
-      firstTimestamp = registrarNode.registrar.cacheTimestamps[adKey]
+    # Capture the remote tasks that were started for this service
+    # (the local registration now lives in localRegistrationLoop, not in running).
+    var remoteTasks = advertiserNode.advertiser.running.filterIt(
+      it.serviceId == serviceId and it.registrar != advertiserNode.switch.peerInfo.peerId
+    )
 
+    check remoteTasks.len > 0
+
+    # After one advertExpiry following Confirmed, the remote tasks should
+    # have terminated (new behavior: they return instead of looping).
     checkUntilTimeout:
-      block:
-        let ads = registrarNode.getAdsInCache(serviceId)
-        ads.len == 1 and ads[0].toAdvertisementKey() == adKey and
-          registrarNode.registrar.cacheTimestamps.hasKey(adKey) and
-          registrarNode.registrar.cacheTimestamps[adKey] > firstTimestamp
+      remoteTasks.allIt(it.fut.finished)
+
+    # Force a maintenance tick. This simulates the bucket refresh and
+    # should detect the deficit (no active remote tasks for the bucket)
+    # and start new registration task(s).
+    await advertiserNode.maintainRegistrations()
+
+    # There should now be new remote registration task(s) for the service.
+    remoteTasks = advertiserNode.advertiser.running.filterIt(
+      it.serviceId == serviceId and it.registrar != advertiserNode.switch.peerInfo.peerId
+    )
+
+    check remoteTasks.len > 0
+    # The newly created tasks should still be running (not yet finished).
+    check remoteTasks.anyIt(not it.fut.finished)
 
   asyncTest "advertiser stops after the registrar replies Rejected":
     let registrarNode = setupServiceDiscoveryNode()
@@ -291,6 +303,29 @@ suite "Service Discovery Component - Advertise Discover":
       .wait(5.seconds)
 
     check registrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "advertiser stops on send failure":
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[advertiserNode])
+
+    let serviceId = makeServiceId()
+
+    check advertiserNode.rtManager.addService(
+      serviceId, advertiserNode.rtable, advertiserNode.config.replication,
+      advertiserNode.discoConfig.bucketsCount, Provided,
+    )
+
+    # A peer with no address in the peer store triggers an immediate send failure.
+    let unreachablePeer = randomPeerId()
+
+    # sendRegister fails and the task returns without retrying.
+    await advertiserNode
+      .advertiseToRegistrar(
+        serviceId, unreachablePeer, Opt.none(Ticket), @[1'u8, 2, 3, 4]
+      )
+      .wait(5.seconds)
+
+    check advertiserNode.countAdsInCache(serviceId) == 0
 
   asyncTest "auto-advertise on start":
     # Using ipSimCoefficient = 0.0 to not trigger sybil protection when advertising multiple services
@@ -370,14 +405,48 @@ suite "Service Discovery Component - Advertise Discover":
 
     # The in-range registrar is kept and receives the ad.
     # The out-of-range registrar is absent from the service table.
-    # No remote advertise task is scheduled for the out-of-range registrar.
+    # Only the remote task is tracked in running (local registration uses a dedicated loop).
     let serviceTable = advertiserNode.rtManager.getTable(serviceId).get()
     check:
       serviceTable.hasPeer(workingRegistrarPeerKey)
       not serviceTable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() == 2
+      advertiserNode.advertiser.running.len() == 1
+        # only the remote task (local registration is a separate dedicated loop)
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
     checkUntilTimeout:
       workingRegistrarNode.countAdsInCache(serviceId) == 1
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "advertiser registers with peers discovered after addProvidedService":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let initialRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
+    let lateRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+
+    # maintainAdvertiser runs maintainRegistrations every bucketRefreshTime (default 10 min).
+    # Set it short so multiple refresh cycles complete within the test window.
+    advertiserNode.config.bucketRefreshTime = 50.millis
+
+    startAndDeferStop(@[initialRegistrar, lateRegistrar, advertiserNode])
+
+    # Only initialRegistrar is known when addProvidedService spawns tasks.
+    await connect(initialRegistrar, advertiserNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    checkUntilTimeout:
+      initialRegistrar.countAdsInCache(serviceId) == 1
+
+    # Simulate a peer discovered after the initial task spawn
+    await connect(lateRegistrar, advertiserNode)
+    advertiserNode.rtManager.insertPeer(
+      serviceId, lateRegistrar.switch.peerInfo.peerId.toKey()
+    )
+
+    # The maintenance loop rotates the new bucket peer in and registers with it.
+    checkUntilTimeout:
+      lateRegistrar.countAdsInCache(serviceId) == 1

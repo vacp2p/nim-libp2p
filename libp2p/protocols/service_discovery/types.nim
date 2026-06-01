@@ -57,10 +57,13 @@ type
   AdvertiseTask* = ref object
     fut*: Future[void]
     serviceId*: ServiceId
+    registrar*: PeerId
+    bucketIdx*: int
 
   Advertiser* = ref object
     running*: HashSet[AdvertiseTask]
     seqNo*: uint64
+    providedAdverts*: Table[ServiceId, seq[byte]]
 
   ServiceDiscoveryConfig* = object
     kRegister*: int
@@ -86,6 +89,8 @@ type
     selfSignedPeerRecordLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
+    advertiserMaintenanceLoop*: Future[void]
+    localRegistrationLoop*: Future[void]
     clientMode*: bool
 
 proc new*(
@@ -160,7 +165,11 @@ proc new*(T: typedesc[Registrar]): T =
   )
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[AdvertiseTask](), seqNo: Moment.now().epochSeconds.uint64)
+  T(
+    running: initHashSet[AdvertiseTask](),
+    seqNo: Moment.now().epochSeconds.uint64,
+    providedAdverts: initTable[ServiceId, seq[byte]](),
+  )
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
