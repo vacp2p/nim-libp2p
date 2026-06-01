@@ -128,7 +128,7 @@ jobs:
           mkdir -p nimbledeps/pkgs2
           git clone --depth 1 --recurse-submodules --shallow-submodules \
             --branch codex/quic-shared-socket-cid-routing \
-            https://github.com/vacp2p/nim-lsquic nimbledeps/pkgs2/lsquic-0.5.0-codex
+            https://github.com/vacp2p/nim-lsquic nimbledeps/pkgs2/lsquic-0.5.0
           rm -f nimble.paths
 
       - name: Run tests
