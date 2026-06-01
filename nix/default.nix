@@ -27,14 +27,12 @@ pkgs.stdenv.mkDerivation {
     nim c \
       --noNimblePath \
       ${pathArgs} \
-      --path:${deps.dnsclient}/src \
       --compileOnly \
       --styleCheck:usages \
       --styleCheck:error \
       --skipUserCfg \
       --threads:on \
       --opt:speed \
-      -d:libp2p_autotls_support \
       -d:libp2p_mix_experimental_exit_is_dest \
       libp2p.nim
   '';

@@ -8,6 +8,7 @@ import ../kademlia
 import ../kademlia/types
 import
   ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
+import ../../utils/future
 
 logScope:
   topics = "service-disco discoverer"
@@ -31,7 +32,7 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   return validAds
 
 proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
-  return ok(disco.getAdvertisements(msg))
+  return ok(disco.getAdvertisements(disco.switch.peerInfo.peerId, msg))
 
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
@@ -108,9 +109,7 @@ proc collectBucketAds(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
   defer:
-    for fut in pending:
-      if not fut.finished():
-        fut.cancelSoon()
+    pending.cancelSoon()
 
   let deadline = Moment.fromNow(disco.config.timeout)
   for _ in 0 ..< pending.len:

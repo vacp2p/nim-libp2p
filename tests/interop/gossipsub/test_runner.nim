@@ -11,6 +11,7 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/rpc/messages,
     switch,
+    utils/future,
   ]
 import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
@@ -35,8 +36,8 @@ suite "GossipSub Interop - Script runner - Component":
     peer.subscribe(
       topic,
       proc(topic: string, data: seq[byte]) {.async.} =
-        if data.len >= 8 and not receivedMsgIdFut.finished():
-          receivedMsgIdFut.complete($extractMsgId(data))
+        if data.len >= 8:
+          receivedMsgIdFut.completeOnce($extractMsgId(data))
       ,
     )
 
@@ -264,9 +265,10 @@ suite "GossipSub Interop - Script runner - Component":
       key in runner0.messages
       key in runner1.messages
       runner0.messages[key].isComplete()
-      runner1.messages[key].isComplete()
+      not runner1.messages[key].isComplete()
+        # will never receive message since it is not subscribed
       logStream0.data.contains("All parts received")
-      logStream1.data.contains("All parts received")
+      not logStream1.data.contains("All parts received") # should not receive all parts
 
   asyncTest "received message logs include duplicates once per inbound rpc":
     let sender = createNode(0, TcpAutoAddress)

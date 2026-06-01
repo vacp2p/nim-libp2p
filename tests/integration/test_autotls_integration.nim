@@ -3,7 +3,7 @@
 
 {.used.}
 
-when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
+when defined(linux) and defined(amd64):
   import chronos, chronos/apps/http/httpclient
   import
     ../../libp2p/[
@@ -21,7 +21,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
     ]
   import ../tools/[unittest, crypto, switch_builder]
 
-  template assertChallenge(challenge: ACMEChallengeResponseWrapper): auto =
+  template assertChallenge(challenge: ACMEChallengeDns01Response): auto =
     check:
       challenge.finalize.len > 0
       challenge.order.len > 0

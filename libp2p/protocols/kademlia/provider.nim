@@ -55,7 +55,7 @@ proc pop*(pr: ProviderRecords): ProviderRecord {.inline.} =
 proc len*(pr: ProviderRecords): int {.inline.} =
   pr.records.len()
 
-proc del*(pr: ProviderRecords, index: Natural) {.inline.} =
+proc del*(pr: ProviderRecords, index: int) {.inline.} =
   pr.records.del(index)
 
 proc find*(pr: ProviderRecords, record: ProviderRecord): int {.inline.} =
@@ -348,7 +348,7 @@ proc getProviders*(
     allProviders.incl(kad.switch.peerInfo.toPeer())
 
   let onReply = proc(
-      peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
+      peerId: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     let reply = msgOpt.valueOr:
       return

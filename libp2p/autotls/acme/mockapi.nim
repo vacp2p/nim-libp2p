@@ -24,22 +24,21 @@ proc new*(
     acmeServerURL: parseUri(LetsEncryptURL),
   )
 
-when defined(libp2p_autotls_support):
-  method requestNonce*(
-      self: MockACMEApi
-  ): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]).} =
-    return $self.acmeServerURL & "/acme/1234"
+method requestNonce*(
+    self: MockACMEApi
+): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]).} =
+  return $self.acmeServerURL & "/acme/1234"
 
-  method post*(
-      self: MockACMEApi, uri: Uri, payload: string
-  ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
-    let resp = self.mockedResponses[0]
-    self.mockedResponses.delete(0)
-    resp
+method post*(
+    self: MockACMEApi, uri: Uri, payload: string
+): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
+  let resp = self.mockedResponses[0]
+  self.mockedResponses.delete(0)
+  resp
 
-  method get*(
-      self: MockACMEApi, uri: Uri
-  ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
-    let resp = self.mockedResponses[0]
-    self.mockedResponses.delete(0)
-    resp
+method get*(
+    self: MockACMEApi, uri: Uri
+): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
+  let resp = self.mockedResponses[0]
+  self.mockedResponses.delete(0)
+  resp
