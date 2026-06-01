@@ -34,18 +34,54 @@ type ReplyHandler* = proc(
 
 type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
 
+proc getFarthest(
+    t: Table[PeerId, XorDistance]
+): Opt[(PeerId, XorDistance)] {.raises: [].} =
+  var worstPid: PeerId
+  var worstDist: XorDistance
+  var found = false
+  for pid, d in t.pairs():
+    if not found or worstDist < d:
+      worstPid = pid
+      worstDist = d
+      found = true
+  if found:
+    Opt.some((worstPid, worstDist))
+  else:
+    Opt.none((PeerId, XorDistance))
+
+proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: [].} =
+  ## Drop the worst (farthest) peer from the shortlist if it is farther than
+  ## ``newDist``. Considers all peers — including ones that already responded —
+  ## because the iterative lookup needs the closer candidate to make progress.
+  ## A responded peer's contribution is already merged into the shortlist, so
+  ## evicting it costs nothing beyond bookkeeping.
+  let (pid, dist) = state.shortlist.getFarthest().valueOr:
+    return false
+  if newDist >= dist:
+    return false
+  state.shortlist.del(pid)
+  state.attempts.del(pid)
+  state.responded.del(pid)
+  return true
+
 proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
+  let cap = state.kad.config.limits.maxShortlistSize
 
   for newPeer in msg.closerPeers:
     let pid = PeerId.init(newPeer.id).valueOr:
       continue
-    if not state.shortlist.contains(pid):
-      state.shortlist[pid] =
-        xorDistance(pid, state.target, state.kad.rtable.config.hasher)
+    if state.shortlist.contains(pid):
+      continue
 
-      let peerInfo = PeerInfo(peerId: pid, addrs: newPeer.addrs)
-      newPeerInfos.add(peerInfo)
+    let dist = xorDistance(pid, state.target, state.kad.rtable.config.hasher)
+
+    if state.shortlist.len >= cap and not state.tryEvictFarthest(dist):
+      continue
+
+    state.shortlist[pid] = dist
+    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))
 
   return newPeerInfos
 
@@ -126,6 +162,7 @@ proc dispatchFindNode*(
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  withRpcSlot(kad)
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
   let streamRes = catch:
     await kad.switch.dial(peer, addrs, kad.codec)
