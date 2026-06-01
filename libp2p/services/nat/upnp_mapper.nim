@@ -61,6 +61,15 @@ type
     # and orders close() after any in-flight dispatch.
     lock: AsyncLock
 
+proc free(ctx: ptr UpnpWorkerCtx) =
+  # Tolerates partial initialization — a signal field that was never assigned
+  # (or that was already closed in-place) is left as nil and skipped here.
+  if not ctx.reqSignal.isNil:
+    discard ctx.reqSignal.close()
+  if not ctx.respSignal.isNil:
+    discard ctx.respSignal.close()
+  freeShared(ctx)
+
 proc setError(resp: var UpnpResponse, msg: string) =
   resp.success = false
   resp.ip.reset()
@@ -136,6 +145,8 @@ proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
 
 proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
   let upnp = newMiniupnp()
+  defer:
+    upnp.close()
 
   while true:
     let w = ctx.reqSignal.waitSync()
@@ -145,6 +156,7 @@ proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
       # further requests — exit. Closing respSignal unblocks any awaiter.
       error "UpnpMapper worker reqSignal wait failed", err = w.error
       discard ctx.respSignal.close()
+      ctx.respSignal = nil # don't double-close in free()
       break
     if ctx.shutdown.load():
       error "UpnpMapper worker shutdown"
@@ -167,9 +179,8 @@ proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
       error "UpnpMapper worker respSignal fire failed",
         err = (if fr.isErr: fr.error else: "timeout")
       discard ctx.respSignal.close()
+      ctx.respSignal = nil # don't double-close in free()
       break
-
-  upnp.close()
 
 proc dispatch(
     self: UpnpMapper, req: sink UpnpRequest
@@ -182,7 +193,7 @@ proc dispatch(
     try:
       self.lock.release()
     except AsyncLockError as e:
-      warn "UpnpMapper lock release failed", err = e.msg
+      raiseAssert "UpnpMapper lock release failed: " & e.msg
 
   if self.closed.load():
     return err("UpnpMapper closed")
@@ -216,11 +227,10 @@ proc dispatch(
 proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    freeShared(ctx)
+    free(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper reqSignal: " & error)
   ctx.respSignal = ThreadSignalPtr.new().valueOr:
-    discard ctx.reqSignal.close()
-    freeShared(ctx)
+    free(ctx)
     raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
 
   let mapper = UpnpMapper(ctx: ctx, lock: newAsyncLock())
@@ -228,15 +238,11 @@ proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
   try:
     createThread(mapper.thread, upnpWorker, ctx)
   except ValueError as e:
-    discard ctx.reqSignal.close()
-    discard ctx.respSignal.close()
-    freeShared(ctx)
+    free(ctx)
     raise
       newException(ResourceExhaustedError, "UpnpMapper thread create failed: " & e.msg)
   except ResourceExhaustedError as e:
-    discard ctx.reqSignal.close()
-    discard ctx.respSignal.close()
-    freeShared(ctx)
+    free(ctx)
     raise
       newException(ResourceExhaustedError, "UpnpMapper thread create failed: " & e.msg)
 
@@ -287,7 +293,11 @@ method unmap*(
     return err(resp.getError())
   ok()
 
-method close*(self: UpnpMapper) {.async: (raises: [CancelledError]), gcsafe.} =
+method close*(self: UpnpMapper) {.async: (raises: []), gcsafe.} =
+  # No cancellable awaits: the only await is `noCancel(lock.acquire())`, and
+  # the lock release in the defer below is guarded against AsyncLockError —
+  # which is a developer error (release without acquire), not a runtime
+  # failure mode.
   if self.closed.exchange(true):
     return
 
@@ -298,7 +308,7 @@ method close*(self: UpnpMapper) {.async: (raises: [CancelledError]), gcsafe.} =
     try:
       self.lock.release()
     except AsyncLockError as e:
-      warn "UpnpMapper lock release failed", err = e.msg
+      raiseAssert "UpnpMapper lock release failed: " & e.msg
 
   # Tell the worker to exit. A separate shutdown flag (rather than a
   # urShutdown request) avoids racing with worker reads of ctx.request.
@@ -310,9 +320,8 @@ method close*(self: UpnpMapper) {.async: (raises: [CancelledError]), gcsafe.} =
     # Force the worker's waitSync to return so it can exit and joinThread
     # below does not deadlock.
     discard self.ctx.reqSignal.close()
+    self.ctx.reqSignal = nil # don't double-close in free()
 
   joinThread(self.thread)
 
-  discard self.ctx.reqSignal.close()
-  discard self.ctx.respSignal.close()
-  freeShared(self.ctx)
+  free(self.ctx)
