@@ -17,6 +17,15 @@ import
 
 export peerid, multiaddress, signed_envelope
 
+const
+  ## Maximum allowed size (in bytes) for the `data` field inside a `ServiceInfo`.
+  ## Larger values are rejected at advertisement creation and on receipt.
+  MaxServiceDataSize* = 33
+
+  ## Maximum allowed size (in bytes) for an encoded `SignedExtendedPeerRecord`
+  ## (the full XPR advertisement that is stored and gossiped for a service).
+  MaxXPRSize* = 1024
+
 type
   ServiceInfo* = object
     id*: string
@@ -120,6 +129,18 @@ proc checkValid*(spr: SignedExtendedPeerRecord): Result[void, EnvelopeError] =
     err(EnvelopeInvalidSignature)
   else:
     ok()
+
+proc isValid*(si: ServiceInfo): bool {.inline.} =
+  si.data.len <= MaxServiceDataSize
+
+proc isValid*(xpr: SignedExtendedPeerRecord): bool =
+  for svc in xpr.data.services:
+    if not svc.isValid():
+      return false
+  let encoded = xpr.encode()
+  if encoded.isErr or encoded.get().len > MaxXPRSize:
+    return false
+  true
 
 # This is for internal use only
 proc hash*(service: ServiceInfo): Hash =
