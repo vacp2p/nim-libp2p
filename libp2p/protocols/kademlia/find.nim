@@ -50,9 +50,7 @@ proc getFarthest(
   else:
     Opt.none((PeerId, XorDistance))
 
-proc tryEvictFarthest(
-    state: var LookupState, newDist: XorDistance
-): bool {.raises: [].} =
+proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: [].} =
   ## Drop the worst (farthest) peer from the shortlist if it is farther than
   ## ``newDist``. Considers all peers — including ones that already responded —
   ## because the iterative lookup needs the closer candidate to make progress.
