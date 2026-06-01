@@ -206,7 +206,7 @@ proc sortPeers*(
     .mapIt(it[0])
 
 proc addRandomPeers*(
-    state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
+    state: LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   var peers: seq[PeerId]
   for i in 0 ..< count:
