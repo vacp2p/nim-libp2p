@@ -15,6 +15,12 @@ proc handler(
 template assertNoLimits(p: LPProtocol) =
   # when there are no limits reserve and release will always succeed
 
+  # this for is here to drive over any limits (default of explicit)
+  for i in 0 .. 1000:
+    check:
+      p.reserveIncoming(peerId1)
+      p.reserveOutgoing(peerId1)
+
   check: # incoming
     p.canAcceptIncoming(peerId1)
     p.canAcceptIncoming(peerId2)
