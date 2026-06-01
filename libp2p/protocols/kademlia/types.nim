@@ -32,6 +32,18 @@ const
 
   MaxMsgSize* = 4096
 
+  DefaultMaxProvidersPerKey* = 20 ## upper bound on providers stored per key
+  DefaultMaxShortlistSize* = DefaultReplication * 2
+    ## upper bound on iterative-lookup shortlist
+  DefaultMaxReceivedSize* = DefaultReplication
+    ## upper bound on per-query ``ReceivedTable``
+  DefaultMaxValueSize* = 3072
+    ## upper bound (bytes) on a stored record value. Held below ``MaxMsgSize``
+    ## (4096) to leave headroom for the protobuf overhead from other message
+    ## fields, so an accepted value still fits in a single LP frame.
+  DefaultMaxConcurrentRpcs* = 100
+    ## upper bound on in-flight outbound RPCs across find/get/put/provider
+
 type Key* = seq[byte]
 
 proc toCid*(k: Key): Cid =
@@ -313,6 +325,37 @@ method select*(
 
   return ok(bestIdx)
 
+type KadDHTLimits* = object
+  maxProvidersPerKey*: Opt[int]
+    ## Maximum number of distinct providers stored per key.
+    ## ``Opt.none`` means unlimited; when limits are derived by the
+    ## ``KadDHTConfig`` constructor this defaults to ``replication``.
+  maxShortlistSize*: int
+    ## Maximum number of peers retained in an iterative-lookup shortlist.
+    ## When exceeded, farther peers are dropped so the shortlist stays bounded.
+  maxReceivedSize*: int
+    ## Maximum number of per-peer entries retained in a GET_VALUE
+    ## ``ReceivedTable``.
+  maxValueSize*: int
+    ## Maximum size (bytes) of an individual record value. Enforced on
+    ## ``putValue`` and on incoming PUT_VALUE / GET_VALUE records.
+  maxConcurrentRpcs*: int
+    ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
+    ## across the whole node. Excess calls wait on a shared semaphore.
+
+proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises: [].} =
+  ## Builds a limits object whose shortlist/received caps and providers-per-key
+  ## are sized off the actual ``replication`` and ``quorum`` so the configuration
+  ## stays internally consistent (e.g. ``maxShortlistSize >= replication``,
+  ## ``maxReceivedSize >= quorum``).
+  T(
+    maxProvidersPerKey: Opt.some(replication),
+    maxShortlistSize: replication * 2,
+    maxReceivedSize: max(replication, quorum),
+    maxValueSize: DefaultMaxValueSize,
+    maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
+  )
+
 type KadDHTConfig* = object
   validator*: EntryValidator
   selector*: EntrySelector
@@ -334,13 +377,12 @@ type KadDHTConfig* = object
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
   providerRejection*: bool
-    ## When true, the node enforces ``maxProvidersPerKey`` and replies to
-    ## ADD_PROVIDER with accepted/rejected on field 11; the sender spills over
-    ## to farther peers when a full batch is rejected.
-  maxProvidersPerKey*: Opt[int]
-    ## Maximum number of distinct providers stored per key.
-    ## None (default) means unlimited.
-    ## Only enforced when ``providerRejection`` is true.
+    ## When true, ADD_PROVIDER receivers reply with accepted/rejected on
+    ## field 11; the sender spills over to farther peers when a full batch is
+    ## rejected. The per-key cap (``limits.maxProvidersPerKey``) is always
+    ## enforced regardless of this flag — this only controls whether
+    ## rejections are acknowledged on the wire.
+  limits*: KadDHTLimits
 
 proc new*(
     K: typedesc[KadDHTConfig],
@@ -363,10 +405,21 @@ proc new*(
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
     providerRejection: bool = false,
-    maxProvidersPerKey: Opt[int] = Opt.none(int),
+    limits: Opt[KadDHTLimits] = Opt.none(KadDHTLimits),
 ): K {.raises: [].} =
-  doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
+  let actualLimits = limits.valueOr:
+    KadDHTLimits.new(replication, quorum)
+  doAssert actualLimits.maxProvidersPerKey.isNone or
+    actualLimits.maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
+  doAssert actualLimits.maxShortlistSize > 0, "maxShortlistSize must be > 0"
+  doAssert actualLimits.maxReceivedSize > 0, "maxReceivedSize must be > 0"
+  doAssert actualLimits.maxValueSize > 0, "maxValueSize must be > 0"
+  doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
+  doAssert actualLimits.maxShortlistSize >= replication,
+    "maxShortlistSize must be >= replication so the shortlist can hold the target k-bucket"
+  doAssert actualLimits.maxReceivedSize >= quorum,
+    "maxReceivedSize must be >= quorum so getValue can ever satisfy quorum"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -387,7 +440,7 @@ proc new*(
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
     providerRejection: providerRejection,
-    maxProvidersPerKey: maxProvidersPerKey,
+    limits: actualLimits,
   )
 
 type KadDHT* = ref object of LPProtocol
@@ -401,3 +454,15 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
+  rpcSem*: AsyncSemaphore
+    ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
+
+template withRpcSlot*(kad: KadDHT) =
+  ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is
+  ## released whether the scope exits normally, raises, or is cancelled.
+  await kad.rpcSem.acquire()
+  defer:
+    try:
+      kad.rpcSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "rpcSem released without acquire"
