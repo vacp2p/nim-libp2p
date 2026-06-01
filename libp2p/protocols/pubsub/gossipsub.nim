@@ -165,6 +165,10 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: gossipThreshold parameter error, Must be < 0")
   elif parameters.unsubscribeBackoff.seconds <= 0:
     err("gossipsub: unsubscribeBackoff parameter error, Must be > 0 seconds")
+  elif parameters.historyLength <= 0:
+    err("gossipsub: historyLength parameter error, Must be > 0")
+  elif parameters.historyGossip < 0:
+    err("gossipsub: historyGossip parameter error, Must be >= 0")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:

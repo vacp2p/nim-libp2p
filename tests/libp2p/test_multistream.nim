@@ -209,6 +209,7 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       await stream.close()
 
+    protocol.codec = "/test/proto/1.0.0"
     protocol.handler = testHandler
     ms.addHandler("/test/proto/1.0.0", protocol)
     await ms.handle(stream)
@@ -236,7 +237,9 @@ suite "Multistream select":
       check proto == "/test/proto/1.0.0"
       await stream.close()
 
+    firstProtocol.codec = "/test/proto/1.0.0"
     firstProtocol.handler = firstHandler
+    secondProtocol.codec = "/test/proto/1.0.0"
     secondProtocol.handler = secondHandler
     ms.addHandler("/test/proto/1.0.0", firstProtocol)
     ms.addHandler("/test/proto/1.0.0", secondProtocol)
@@ -261,6 +264,7 @@ suite "Multistream select":
     stream = Connection(newTestLsStream(testLsHandler))
 
     var protocol: LPProtocol = new LPProtocol
+    protocol.codecs = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
     protocol.handler = noReachHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
     ms.addHandler("/test/proto2/1.0.0", protocol)
@@ -300,6 +304,7 @@ suite "Multistream select":
       finally:
         await stream.close()
 
+    protocol.codec = "/test/proto/1.0.0"
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
     msListen.addHandler("/test/proto/1.0.0", protocol)
@@ -460,6 +465,7 @@ suite "Multistream select":
       finally:
         await stream.close()
 
+    protocol.codec = "/test/proto/1.0.0"
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
     msListen.addHandler("/test/proto/1.0.0", protocol)
@@ -501,6 +507,7 @@ suite "Multistream select":
       finally:
         await stream.close()
 
+    protocol.codecs = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
     msListen.addHandler("/test/proto1/1.0.0", protocol)

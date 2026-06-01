@@ -92,7 +92,7 @@ proc getValue*(
     kad.config.quorum
 
   let onReply = proc(
-      peer: PeerId, msgOpt: Opt[Message], state: var LookupState
+      peer: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     received[peer] = Opt.none(EntryRecord)
 

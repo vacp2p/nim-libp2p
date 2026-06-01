@@ -84,7 +84,7 @@ method dial*(
 proc dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): Future[RawConn] {.gcsafe.} =
-  self.dial("", address)
+  self.dial("", address, peerId)
 
 method upgrade*(
     self: Transport, conn: RawConn, peerId: Opt[PeerId]

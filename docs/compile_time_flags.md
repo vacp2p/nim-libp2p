@@ -1,11 +1,5 @@
 # Compile time flags
 
-Enable autotls support
-
-```bash
-nim c -d:libp2p_autotls_support some_file.nim
-```
-
 Enable expensive metrics (ie, metrics with per-peer cardinality):
 
 ```bash

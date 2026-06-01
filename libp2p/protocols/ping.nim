@@ -7,13 +7,7 @@
 
 import chronos, chronicles
 import
-  ../peerinfo,
-  ../stream/connection,
-  ../peerid,
-  ../crypto/crypto,
-  ../multiaddress,
-  ../protocols/protocol,
-  ../errors
+  ../stream/connection, ../peerid, ../crypto/crypto, ../protocols/protocol, ../errors
 
 export chronicles, rng, connection
 
@@ -28,13 +22,14 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
+  PingHandler* = proc(peer: PeerId): Future[void] {.async: (raises: []), gcsafe.}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
     rng: Rng
 
 proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: Rng): T =
+  doAssert not rng.isNil, "Rng is nil"
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -44,15 +39,15 @@ method init*(p: Ping) =
     try:
       trace "handling ping", stream
       var buf: array[PingSize, byte]
-      await stream.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", stream, pingData = @buf
-      await stream.write(@buf)
-      if not isNil(p.pingHandler):
-        await p.pingHandler(stream.peerId)
-    except CancelledError as exc:
-      trace "cancelled ping handler"
-      raise exc
-    except CatchableError as exc:
+      while true:
+        await stream.readExactly(addr buf[0], PingSize)
+        trace "echoing ping", stream, pingData = @buf
+        await stream.write(@buf)
+        if not isNil(p.pingHandler):
+          await p.pingHandler(stream.peerId)
+    except LPStreamEOFError as exc:
+      trace "ping stream closed", description = exc.msg, stream
+    except LPStreamError as exc:
       trace "exception in ping handler", description = exc.msg, stream
 
   p.handler = handle
