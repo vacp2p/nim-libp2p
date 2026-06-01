@@ -48,10 +48,11 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       debug "Expired record removed", key = key
 
 proc dispatchPutVal*(
-    switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
+    kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  withRpcSlot(kad)
   let streamRes = catch:
-    await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
@@ -96,6 +97,12 @@ proc dispatchPutVal*(
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  if value.len > kad.config.limits.maxValueSize:
+    return err(
+      "value exceeds maxValueSize (" & $value.len & " > " &
+        $kad.config.limits.maxValueSize & ")"
+    )
+
   let record = EntryRecord(value: value, time: Timestamp.now())
 
   if not kad.config.validator.isValid(key, record):
@@ -109,7 +116,7 @@ proc putValue*(
   kad.dataTable.insert(key, value, Timestamp.now())
 
   for chunk in peers.toChunks(kad.config.alpha):
-    let batch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
+    let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
     await batch.allFuturesWaitOrTimeout(kad.config.timeout)
 
   ok()
@@ -127,6 +134,12 @@ proc handlePutValue*(
 
   let value = record.value.valueOr:
     error "No value in record", msg = msg, stream = stream
+    return
+
+  if value.len > kad.config.limits.maxValueSize:
+    debug "PUT_VALUE dropped: value exceeds maxValueSize",
+      stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
+    await stream.reset()
     return
 
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())
