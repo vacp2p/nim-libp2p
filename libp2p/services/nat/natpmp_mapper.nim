@@ -341,11 +341,11 @@ method close*(self: NatPmpMapper) {.async: (raises: [CancelledError]), gcsafe.} 
   if self.closed.exchange(true):
     return
 
-  # Unblock any dispatch currently parked on respSignal so the caller sees
-  # CancelledError instead of waiting for a response that may never come if
+  # Unblock any dispatch currently parked on respSignal so it can release the
+  # lock — without this, noCancel(lock.acquire) below would block forever if
   # the worker is stuck inside libnatpmp. Also cancel any drain left over
-  # from a previous timeout, since joinThread below would otherwise wait
-  # for the worker to fire respSignal first.
+  # from a previous timeout, since joinThread further down would otherwise
+  # wait for the worker to fire respSignal first.
   let inflight = self.inflight
   if inflight != nil:
     inflight.cancelSoon()
@@ -353,6 +353,15 @@ method close*(self: NatPmpMapper) {.async: (raises: [CancelledError]), gcsafe.} 
   let drain = self.drainPending
   if drain != nil:
     drain.cancelSoon()
+
+  # Wait uncancellably for any in-flight dispatch to release the lock so the
+  # signal handles and ctx are not mutated/torn down while still in use.
+  await noCancel(self.lock.acquire())
+  defer:
+    try:
+      self.lock.release()
+    except AsyncLockError as e:
+      warn "NatPmpMapper lock release failed", err = e.msg
 
   self.ctx.request = NatPmpRequest(kind: nrShutdown)
   let fr = self.ctx.reqSignal.fireSync()
