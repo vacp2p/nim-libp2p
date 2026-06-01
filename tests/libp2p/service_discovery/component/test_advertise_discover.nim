@@ -418,14 +418,13 @@ suite "Service Discovery Component - Advertise Discover":
       workingRegistrarNode.countAdsInCache(serviceId) == 1
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
-  asyncTest "advertiser does not register with peers discovered after addProvidedService":
-    # TODO: vacp2p/nim-libp2p#2540 advertiser should continuously maintain K_register per bucket
+  asyncTest "advertiser registers with peers discovered after addProvidedService":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let initialRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
     let lateRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
 
-    # maintainServiceTables runs every bucketRefreshTime (default 10 min).
+    # maintainAdvertiser runs maintainRegistrations every bucketRefreshTime (default 10 min).
     # Set it short so multiple refresh cycles complete within the test window.
     advertiserNode.config.bucketRefreshTime = 50.millis
 
@@ -448,7 +447,6 @@ suite "Service Discovery Component - Advertise Discover":
       serviceId, lateRegistrar.switch.peerInfo.peerId.toKey()
     )
 
-    # Wait for several refresh cycles.
-    await sleepAsync(500.millis)
-
-    check lateRegistrar.countAdsInCache(serviceId) == 0
+    # The maintenance loop rotates the new bucket peer in and registers with it.
+    checkUntilTimeout:
+      lateRegistrar.countAdsInCache(serviceId) == 1
