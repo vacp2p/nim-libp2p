@@ -52,44 +52,48 @@ proc new*(
         return
 
       peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
-      if peerDialableAddrs.len > 0:
-        # During DCUtR both peers dial at nearly the same time, so this side can
-        # transiently see the existing connection plus one incoming and one
-        # outgoing connection. Register both possible over-limit directions
-        # before sending Connect so the peer's Sync-triggered dial cannot race
-        # the conn-manager cap.
-        debug "Dcutr receiver registering expected incoming connection",
-          remotePeerId = stream.peerId
-        let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
-        if expectedIncoming.failed() and
-            expectedIncoming.error of AlreadyExpectingConnectionError:
-          raise newException(
-            DcutrError, expectedIncoming.error.msg, expectedIncoming.error
-          )
-        defer:
-          expectedIncoming.cancelSoon()
+      if peerDialableAddrs.len == 0:
+        await stream.send(MsgType.Connect, ourAddrs)
+        debug "Dcutr receiver has sent a Connect message back."
+        let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
+          raise newException(DcutrError, "Failed to decode a Sync message.")
+        debug "Dcutr receiver has received a Sync message.", syncMsg
+        debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
+          addrs = connectMsg.addrs
+        return
 
-        debug "Dcutr receiver registering expected outgoing connection",
-          remotePeerId = stream.peerId
-        let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
-        if expectedOutgoing.failed() and
-            expectedOutgoing.error of AlreadyExpectingConnectionError:
-          raise newException(
-            DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error
-          )
-        defer:
-          expectedOutgoing.cancelSoon()
+      # During DCUtR both peers dial at nearly the same time, so this side can
+      # transiently see the existing connection plus one incoming and one
+      # outgoing connection. Register both possible over-limit directions
+      # before sending Connect so the peer's Sync-triggered dial cannot race
+      # the conn-manager cap.
+      debug "Dcutr receiver registering expected incoming connection",
+        remotePeerId = stream.peerId
+      let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
+      if expectedIncoming.failed() and
+          expectedIncoming.error of AlreadyExpectingConnectionError:
+        raise newException(
+          DcutrError, expectedIncoming.error.msg, expectedIncoming.error
+        )
+      defer:
+        expectedIncoming.cancelSoon()
+
+      debug "Dcutr receiver registering expected outgoing connection",
+        remotePeerId = stream.peerId
+      let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
+      if expectedOutgoing.failed() and
+          expectedOutgoing.error of AlreadyExpectingConnectionError:
+        raise newException(
+          DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error
+        )
+      defer:
+        expectedOutgoing.cancelSoon()
 
       await stream.send(MsgType.Connect, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
         raise newException(DcutrError, "Failed to decode a Sync message.")
       debug "Dcutr receiver has received a Sync message.", syncMsg
-
-      if peerDialableAddrs.len == 0:
-        debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
-          addrs = connectMsg.addrs
-        return
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0 ..< maxDialableAddrs]
@@ -104,6 +108,7 @@ proc new*(
           dir = Direction.Out,
         )
       )
+      futs.add(waitExpectedConnection(expectedIncoming))
       try:
         discard await anyCompleted(futs).wait(connectTimeout)
         debug "Dcutr receiver has directly connected to the remote peer."

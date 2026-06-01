@@ -21,17 +21,55 @@ jobs:
       fail-fast: false
       matrix:
         platform:
+          - os: linux
+            cpu: amd64
+            cc: gcc
+          - os: linux
+            cpu: i386
+            cc: gcc
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
           - os: macos-15
             cpu: arm64
             cc: clang
+          - os: windows
+            cpu: amd64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: gcc
         nim:
+          - ref: v2.2.4
+            memory_management: refc
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
           - ref: v2.2.10
             memory_management: refc
+          - ref: v2.2.10
+            memory_management: orc
         include:
+          - platform:
+              os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
           - platform:
               os: macos-15
             builder: macos-15
             shell: bash
+          - platform:
+              os: windows
+              cc: clang
+            builder: windows-2022
+            shell: bash
+          - platform:
+              os: windows
+              cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
 
     defaults:
       run:
@@ -122,15 +160,6 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Use nim-lsquic shared-socket fix
-        run: |
-          rm -rf nimbledeps/pkgs2/lsquic-* nimbledeps/pkgs/lsquic-*
-          mkdir -p nimbledeps/pkgs2
-          git clone --depth 1 --recurse-submodules --shallow-submodules \
-            --branch codex/quic-shared-socket-cid-routing \
-            https://github.com/vacp2p/nim-lsquic nimbledeps/pkgs2/lsquic-0.5.0
-          rm -f nimble.paths
-
       - name: Run tests
         id: run-tests
         run: |
@@ -147,14 +176,7 @@ jobs:
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
-          export NIMFLAGS="${NIMFLAGS} -d:chronicles_sinks=textlines[stdout] -d:chronicles_log_level=TRACE"
-
-          git -C nimbledeps/pkgs2/lsquic-0.5.0 rev-parse HEAD
-          make nimble.paths
-          grep 'lsquic' nimble.paths
-
-          make test libp2p/protocols/test_dcutr \
-            RUNNER_FLAGS="--output-level=VERBOSE --console 'DCUtR establishes a new QUIC connection'"
+          make test
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
