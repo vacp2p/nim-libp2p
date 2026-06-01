@@ -337,7 +337,11 @@ method unmap*(
     return Result[void, string].ok()
   Result[void, string].err(resp.getError())
 
-method close*(self: NatPmpMapper) {.async: (raises: [CancelledError]), gcsafe.} =
+method close*(self: NatPmpMapper) {.async: (raises: []), gcsafe.} =
+  # No cancellable awaits: the only await is `noCancel(lock.acquire())`, and
+  # the lock release in the defer below is guarded against AsyncLockError —
+  # which is a developer error (release without acquire), not a runtime
+  # failure mode.
   if self.closed.exchange(true):
     return
 
@@ -361,7 +365,7 @@ method close*(self: NatPmpMapper) {.async: (raises: [CancelledError]), gcsafe.} 
     try:
       self.lock.release()
     except AsyncLockError as e:
-      warn "NatPmpMapper lock release failed", err = e.msg
+      raiseAssert "NatPmpMapper lock release failed: " & e.msg
 
   self.ctx.request = NatPmpRequest(kind: nrShutdown)
   let fr = self.ctx.reqSignal.fireSync()
@@ -369,9 +373,6 @@ method close*(self: NatPmpMapper) {.async: (raises: [CancelledError]), gcsafe.} 
     warn "NatPmpMapper shutdown signal failed",
       err = (if fr.isErr(): fr.error() else: "timeout")
 
-  try:
-    joinThread(self.thread)
-  except Exception as e:
-    warn "NatPmpMapper joinThread failed", err = e.msg
+  joinThread(self.thread)
 
   destroyCtx(self.ctx)
