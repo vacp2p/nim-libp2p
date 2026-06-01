@@ -1094,7 +1094,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       .init(
         privateKey,
         ExtendedPeerRecord(
-          peerId: peerId, seqNo: 1, addresses: @[], services: @[makeServiceInfo(svc)]
+          peerId: peerId,
+          seqNo: 1,
+          addresses: @[],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()
@@ -1103,7 +1106,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       .init(
         privateKey,
         ExtendedPeerRecord(
-          peerId: peerId, seqNo: 2, addresses: @[], services: @[makeServiceInfo(svc)]
+          peerId: peerId,
+          seqNo: 2,
+          addresses: @[],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()
@@ -1129,7 +1135,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       .init(
         privateKey,
         ExtendedPeerRecord(
-          peerId: peerId, seqNo: 10, addresses: @[], services: @[makeServiceInfo(svc)]
+          peerId: peerId,
+          seqNo: 10,
+          addresses: @[],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()
@@ -1138,7 +1147,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       .init(
         privateKey,
         ExtendedPeerRecord(
-          peerId: peerId, seqNo: 5, addresses: @[], services: @[makeServiceInfo(svc)]
+          peerId: peerId,
+          seqNo: 5,
+          addresses: @[],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()
@@ -1179,7 +1191,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
           peerId: peerId,
           seqNo: 1,
           addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.1"))],
-          services: @[makeServiceInfo(svc)],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()
@@ -1191,7 +1203,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
           peerId: peerId,
           seqNo: 2,
           addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.2"))],
-          services: @[makeServiceInfo(svc)],
+          services: @[makeServiceInfo(svc), makeServiceInfo(svc & "-2")],
         ),
       )
       .get()

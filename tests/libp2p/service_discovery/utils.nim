@@ -67,7 +67,7 @@ proc makeAdvertisement*(
     peerId: peerId,
     seqNo: seqNo,
     addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[makeServiceInfo(serviceId)],
+    services: @[makeServiceInfo(serviceId), makeServiceInfo(serviceId & "-secondary")],
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 

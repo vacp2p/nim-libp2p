@@ -78,26 +78,27 @@ proc pruneAdsForService(
     advertExpiry: Duration,
     expiredCount: var int,
 ) =
-  var i = 0
-  while i < ads.len:
-    let ad = ads[i]
-    let key = ad.toAdvertisementKey()
-    var doDelete = false
+  var writeIdx = 0
+  for readIdx in 0 ..< ads.len:
+    let
+      ad = ads[readIdx]
+      key = ad.toAdvertisementKey()
+
+    # Absent key counts as an orphan, so default to expired.
+    var expired = true
     registrar.cacheTimestamps.withValue(key, ts):
-      if isExpired(now, ts[], advertExpiry):
-        doDelete = true
-    do:
-      # key not present -> orphan, delete from list
-      doDelete = true
-    if doDelete:
-      ads.delete(i)
+      expired = isExpired(now, ts[], advertExpiry)
+
+    if expired:
       if not hasAdReference(registrar, key, excludeSid = serviceId):
         registrar.ipTree.removeAd(ad)
-        if key in registrar.cacheTimestamps:
-          registrar.cacheTimestamps.del(key)
-        inc(expiredCount)
+        registrar.cacheTimestamps.del(key)
+        inc expiredCount
     else:
-      inc(i)
+      ads[writeIdx] = ad
+      inc writeIdx
+
+  ads.setLen(writeIdx)
 
 proc pruneEmptyServices(registrar: Registrar) =
   var toRemove: seq[ServiceId] = @[]
@@ -332,51 +333,47 @@ proc findOldestKey(disco: ServiceDiscovery): Opt[AdvertisementKey] =
 
   return Opt.some(oldestKey)
 
+func findAd(registrar: Registrar, key: AdvertisementKey): Opt[Advertisement] =
+  for sads in registrar.cache.values:
+    for a in sads:
+      if a.toAdvertisementKey() == key:
+        return Opt.some(a)
+  Opt.none(Advertisement)
+
+proc removeAdFromLists(registrar: Registrar, key: AdvertisementKey): seq[ServiceId] =
+  var emptiedSids: seq[ServiceId]
+  for sid, sads in registrar.cache.mpairs:
+    var
+      writeIdx = 0
+      removedHere = false
+    for readIdx in 0 ..< sads.len:
+      if sads[readIdx].toAdvertisementKey() == key:
+        removedHere = true
+      else:
+        sads[writeIdx] = sads[readIdx]
+        inc writeIdx
+    if removedHere:
+      sads.setLen(writeIdx)
+      if sads.len == 0:
+        emptiedSids.add(sid)
+  emptiedSids
+
 proc evictOldestAd*(
     disco: ServiceDiscovery, serviceId: ServiceId, ads: var seq[Advertisement]
 ) =
-  ## Evict the globally oldest advertisement. Removes it from *all* service
-  ## caches that reference it (supporting multi-service ads), then drops global
-  ## ts/ip tracking.
   let oldestKey = disco.findOldestKey().valueOr:
     return
 
-  # Capture the ad object before mutating lists
-  var oldestAd: Advertisement
-  var found = false
-  for sads in disco.registrar.cache.values:
-    for a in sads:
-      if a.toAdvertisementKey() == oldestKey:
-        oldestAd = a
-        found = true
-        break
-    if found:
-      break
-  if not found:
+  let oldestAd = disco.registrar.findAd(oldestKey).valueOr:
     # Stale ts entry with no list refs; just drop it
     disco.registrar.cacheTimestamps.del(oldestKey)
     return
 
-  # Remove from every service list that has it
-  var emptiedSids: seq[ServiceId] = @[]
-  for sid, sads in disco.registrar.cache.mpairs:
-    var i = 0
-    var removedHere = false
-    while i < sads.len:
-      if sads[i].toAdvertisementKey() == oldestKey:
-        sads.delete(i)
-        removedHere = true
-      else:
-        inc(i)
-    if removedHere and sads.len == 0:
-      emptiedSids.add(sid)
-    if sid == serviceId and removedHere:
-      ads = sads
+  let emptiedSids = disco.registrar.removeAdFromLists(oldestKey)
 
   for sid in emptiedSids:
     disco.registrar.cache.del(sid)
 
-  # Global cleanup (once)
   disco.registrar.ipTree.removeAd(oldestAd)
   disco.registrar.cacheTimestamps.del(oldestKey)
 
@@ -387,11 +384,6 @@ proc updateExistingAd*(
     ad: Advertisement,
     now: Moment,
 ): bool =
-  ## Update an advertisement that already exists in the cache for this peer.
-  ## - Same seqNo: refreshes the timestamp (no structural change).
-  ## - Higher seqNo: replaces the old entry in the cache and IP tree.
-  ## - Lower seqNo: stale update, ignored.
-  ## Returns true when the cache changed and metrics should be refreshed.
   let existing = ads[idx]
   if existing.data.seqNo == ad.data.seqNo:
     registrar.cacheTimestamps[existing.toAdvertisementKey()] = now
@@ -413,9 +405,6 @@ proc insertNewAd*(
     ad: Advertisement,
     now: Moment,
 ): bool =
-  ## Insert a brand-new advertisement into the cache.
-  ## Evicts the globally oldest entry first if the cache is at capacity.
-  ## Returns true (a new insertion always warrants a metrics update).
   if disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
     evictOldestAd(disco, serviceId, ads)
   ads.add(ad)
@@ -423,10 +412,84 @@ proc insertNewAd*(
   disco.registrar.ipTree.insertAd(ad)
   return true
 
+proc removeOlderAdsForPeer(
+    registrar: Registrar, peerId: PeerId, newSeqNo: uint64
+): bool {.raises: [].} =
+  var removedAny = false
+  for sid, sads in registrar.cache.mpairs:
+    var i = 0
+    while i < sads.len:
+      let ex = sads[i]
+      if ex.data.peerId == peerId and ex.data.seqNo < newSeqNo:
+        let exKey = ex.toAdvertisementKey()
+        sads.delete(i)
+        if exKey in registrar.cacheTimestamps:
+          registrar.ipTree.removeAd(ex)
+          registrar.cacheTimestamps.del(exKey)
+        removedAny = true
+      else:
+        inc(i)
+  removedAny
+
+proc upsertAdvertisementForService(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    now: Moment,
+    adKey: AdvertisementKey,
+    peerId: PeerId,
+    shouldUpdateMetrics: var bool,
+) {.raises: [].} =
+  var ads = disco.registrar.cache.getOrDefault(serviceId)
+  let idxOpt = findAdIdx(ads, peerId)
+
+  if idxOpt.isSome():
+    let existing = ads[idxOpt.get()]
+    if existing.data.seqNo == ad.data.seqNo:
+      var replaced = false
+      if ad.data.services.len > existing.data.services.len:
+        ads[idxOpt.get()] = ad
+        replaced = true
+      elif ad.data.services.len == existing.data.services.len and
+          ad.data.services != existing.data.services:
+        ads[idxOpt.get()] = ad
+        replaced = true
+      if replaced:
+        disco.registrar.cache[serviceId] = ads
+      disco.registrar.cacheTimestamps[adKey] = now
+    elif ad.data.seqNo > existing.data.seqNo:
+      # Higher seqNo wins for this service.
+      disco.registrar.ipTree.removeAd(existing)
+      disco.registrar.cacheTimestamps.del(existing.toAdvertisementKey())
+      ads[idxOpt.get()] = ad
+      disco.registrar.cacheTimestamps[adKey] = now
+      disco.registrar.ipTree.insertAd(ad)
+      disco.registrar.cache[serviceId] = ads
+      shouldUpdateMetrics = true
+    else:
+      # Stale (lower seqNo). Keep whatever we already have.
+      disco.registrar.cache[serviceId] = ads
+  else:
+    if adKey in disco.registrar.cacheTimestamps:
+      # This ad (by key) is already live under some other service(s).
+      # Just add a reference for this service as well.
+      ads.add(ad)
+      disco.registrar.cache[serviceId] = ads
+      disco.registrar.cacheTimestamps[adKey] = now
+      shouldUpdateMetrics = true
+    else:
+      # Truly new advertisement globally.
+      if disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
+        evictOldestAd(disco, serviceId, ads)
+      ads.add(ad)
+      disco.registrar.cacheTimestamps[adKey] = now
+      disco.registrar.ipTree.insertAd(ad)
+      disco.registrar.cache[serviceId] = ads
+      shouldUpdateMetrics = true
+
 proc acceptAdvertisement*(disco: ServiceDiscovery, now: Moment, ad: Advertisement) =
   let claimedServices = ad.advertisedServices()
 
-  # Ensure routing tables + peer presence for every service the ad claims
   for sid in claimedServices:
     discard disco.rtManager.addService(
       sid, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -434,65 +497,18 @@ proc acceptAdvertisement*(disco: ServiceDiscovery, now: Moment, ad: Advertisemen
     )
     disco.rtManager.insertPeer(sid, ad.data.peerId.toKey())
 
-  # If this is a newer seqNo for the peer, drop all older versions of its ads
-  # (from any services) so the new ad can be attached cleanly under its claimed services.
   var shouldUpdateMetrics = false
   let peerId = ad.data.peerId
-  block removeOlder:
-    for sid, sads in disco.registrar.cache.mpairs:
-      var i = 0
-      while i < sads.len:
-        let ex = sads[i]
-        if ex.data.peerId == peerId and ex.data.seqNo < ad.data.seqNo:
-          let exKey = ex.toAdvertisementKey()
-          sads.delete(i)
-          if exKey in disco.registrar.cacheTimestamps:
-            disco.registrar.ipTree.removeAd(ex)
-            disco.registrar.cacheTimestamps.del(exKey)
-          shouldUpdateMetrics = true
-        else:
-          inc(i)
 
-  if shouldUpdateMetrics:
+  if removeOlderAdsForPeer(disco.registrar, peerId, ad.data.seqNo):
     pruneEmptyServices(disco.registrar)
+    shouldUpdateMetrics = true
 
-  # Now attach (or refresh) this ad under all services it claims.
-  # The global ts/ip is created only once; additional services just get a reference.
   let adKey = ad.toAdvertisementKey()
   for sid in claimedServices:
-    var ads = disco.registrar.cache.getOrDefault(sid)
-    let idxOpt = findAdIdx(ads, peerId)
-
-    if idxOpt.isSome():
-      let existing = ads[idxOpt.get()]
-      if existing.data.seqNo == ad.data.seqNo:
-        disco.registrar.cacheTimestamps[adKey] = now
-      elif ad.data.seqNo > existing.data.seqNo:
-        # Higher arrived after pre-clean (e.g. concurrent); replace here
-        disco.registrar.ipTree.removeAd(existing)
-        disco.registrar.cacheTimestamps.del(existing.toAdvertisementKey())
-        ads[idxOpt.get()] = ad
-        disco.registrar.cacheTimestamps[adKey] = now
-        disco.registrar.ipTree.insertAd(ad)
-        shouldUpdateMetrics = true
-      # lower or equal handled; stale ignored
-      disco.registrar.cache[sid] = ads
-    else:
-      if adKey in disco.registrar.cacheTimestamps:
-        # Already live under other service(s) - just reference it here too
-        ads.add(ad)
-        disco.registrar.cache[sid] = ads
-        disco.registrar.cacheTimestamps[adKey] = now
-        shouldUpdateMetrics = true
-      else:
-        # Brand new advertisement
-        if disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
-          evictOldestAd(disco, sid, ads)
-        ads.add(ad)
-        disco.registrar.cacheTimestamps[adKey] = now
-        disco.registrar.ipTree.insertAd(ad)
-        disco.registrar.cache[sid] = ads
-        shouldUpdateMetrics = true
+    upsertAdvertisementForService(
+      disco, sid, ad, now, adKey, peerId, shouldUpdateMetrics
+    )
 
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
