@@ -62,6 +62,8 @@ proc startSync*(
     # The receiver may dial us while our own simultaneous dial is in flight. If
     # one of those connections fills the per-peer connection limit first, allow
     # the other expected DCUtR connection through instead of failing the punch.
+    debug "Dcutr initiator registering expected incoming connection",
+      remotePeerId = stream.peerId
     let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
     if expectedIncoming.failed() and
         expectedIncoming.error of AlreadyExpectingConnectionError:
@@ -77,6 +79,8 @@ proc startSync*(
 
     if peerDialableAddrs.len > self.maxDialableAddrs:
       peerDialableAddrs = peerDialableAddrs[0 ..< self.maxDialableAddrs]
+    debug "Dcutr initiator starting direct dial attempts",
+      peerDialableAddrs, connectTimeout = self.connectTimeout
     var futs = peerDialableAddrs.mapIt(
       switch.connect(
         stream.peerId,
@@ -90,7 +94,10 @@ proc startSync*(
       discard await anyCompleted(futs).wait(self.connectTimeout)
       debug "Dcutr initiator has directly connected to the remote peer."
     finally:
+      debug "Dcutr initiator cancelling remaining direct dial attempts",
+        attempts = futs.len
       await futs.cancelAndWait()
+      debug "Dcutr initiator finished direct dial cleanup"
   except CancelledError as err:
     raise err
   except AllFuturesFailedError as err:

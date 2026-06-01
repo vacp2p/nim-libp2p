@@ -147,6 +147,12 @@ jobs:
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_sinks=textlines[stdout] -d:chronicles_log_level=TRACE"
+
+          git -C nimbledeps/pkgs2/lsquic-0.5.0 rev-parse HEAD
+          make nimble.paths
+          grep 'lsquic' nimble.paths
+
           make test libp2p/protocols/test_dcutr \
             RUNNER_FLAGS="--output-level=VERBOSE --console 'DCUtR establishes a new QUIC connection'"
 

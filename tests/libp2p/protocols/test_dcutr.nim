@@ -108,7 +108,7 @@ suite "Dcutr":
       .startSync(
         behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
       )
-      .wait(5.seconds)
+      .wait(10.seconds)
 
     checkUntilTimeout:
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >

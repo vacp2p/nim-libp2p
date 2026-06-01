@@ -58,6 +58,8 @@ proc new*(
         # outgoing connection. Register both possible over-limit directions
         # before sending Connect so the peer's Sync-triggered dial cannot race
         # the conn-manager cap.
+        debug "Dcutr receiver registering expected incoming connection",
+          remotePeerId = stream.peerId
         let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
         if expectedIncoming.failed() and
             expectedIncoming.error of AlreadyExpectingConnectionError:
@@ -67,6 +69,8 @@ proc new*(
         defer:
           expectedIncoming.cancelSoon()
 
+        debug "Dcutr receiver registering expected outgoing connection",
+          remotePeerId = stream.peerId
         let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
         if expectedOutgoing.failed() and
             expectedOutgoing.error of AlreadyExpectingConnectionError:
@@ -89,6 +93,8 @@ proc new*(
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0 ..< maxDialableAddrs]
+      debug "Dcutr receiver starting direct dial attempts",
+        peerDialableAddrs, connectTimeout
       var futs = peerDialableAddrs.mapIt(
         switch.connect(
           stream.peerId,
@@ -102,7 +108,10 @@ proc new*(
         discard await anyCompleted(futs).wait(connectTimeout)
         debug "Dcutr receiver has directly connected to the remote peer."
       finally:
+        debug "Dcutr receiver cancelling remaining direct dial attempts",
+          attempts = futs.len
         await futs.cancelAndWait()
+        debug "Dcutr receiver finished direct dial cleanup"
     except CancelledError as err:
       trace "cancelled Dcutr receiver"
       raise err
