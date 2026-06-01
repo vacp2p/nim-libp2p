@@ -67,7 +67,7 @@ suite "LPProtocol stream budget":
     )
     assertNoLimits(p)
 
-  test "LPProtocol with no limits (created with new keword)":
+  test "LPProtocol with no limits (created with new keyword)": 
     let p = new LPProtocol
     p.codecs = codecs
     assertNoLimits(p)
