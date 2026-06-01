@@ -12,6 +12,33 @@ proc handler(
 ): Future[void] {.async: (raises: [CancelledError]).} =
   discard
 
+template assertNoLimits(p: LPProtocol) =
+  # when there are no limits reserve and release will always succeed
+
+  check: # incoming
+    p.canAcceptIncoming(peerId1)
+    p.canAcceptIncoming(peerId2)
+    p.reserveIncoming(peerId1)
+    p.reserveIncoming(peerId1)
+    p.reserveIncoming(peerId2)
+    p.canAcceptIncoming(peerId1)
+    p.canAcceptIncoming(peerId2)
+
+  p.releaseIncoming(peerId1)
+  p.releaseIncoming(peerId2)
+
+  check: # outgoing
+    p.canOpenOutgoing(peerId1)
+    p.canOpenOutgoing(peerId2)
+    p.reserveOutgoing(peerId1)
+    p.reserveOutgoing(peerId1)
+    p.reserveOutgoing(peerId2)
+    p.canOpenOutgoing(peerId1)
+    p.canOpenOutgoing(peerId2)
+
+  p.releaseOutgoing(peerId1)
+  p.releaseOutgoing(peerId2)
+
 suite "LPProtocol stream budget":
   const codecs = @["/test/1.0.0"]
   let
@@ -19,7 +46,11 @@ suite "LPProtocol stream budget":
     peerId2 = PeerId.random(rng()).get()
     peerId3 = PeerId.random(rng()).get()
 
-  test "canAcceptIncoming returns true with no limits":
+  test "LPProtocol with no limits (default values)":
+    let p = LPProtocol.new(codecs, handler)
+    assertNoLimits(p)
+
+  test "LPProtocol with no limits (explicit values)":
     let p = LPProtocol.new(
       codecs,
       handler,
@@ -28,24 +59,7 @@ suite "LPProtocol stream budget":
       maxOutgoingStreamsTotal = Opt.none(int),
       maxOutgoingStreamsPerPeer = Opt.none(int),
     )
-
-    check:
-      p.canAcceptIncoming(peerId1)
-      p.canAcceptIncoming(peerId2)
-
-  test "canOpenOutgoing returns true with no limits":
-    let p = LPProtocol.new(
-      codecs,
-      handler,
-      maxIncomingStreamsTotal = Opt.none(int),
-      maxIncomingStreamsPerPeer = Opt.none(int),
-      maxOutgoingStreamsTotal = Opt.none(int),
-      maxOutgoingStreamsPerPeer = Opt.none(int),
-    )
-
-    check:
-      p.canOpenOutgoing(peerId1)
-      p.canOpenOutgoing(peerId2)
+    assertNoLimits(p)
 
   test "reserveIncoming and releaseIncoming with per-peer limit":
     let p = LPProtocol.new(
