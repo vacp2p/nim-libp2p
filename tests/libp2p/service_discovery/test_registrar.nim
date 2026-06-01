@@ -820,6 +820,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
+    let now = Moment.now()
 
     let regMsg = kadprotobuf.RegisterMessage(
       advertisement: adBuf,
@@ -828,7 +829,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -836,6 +837,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
+    let now = Moment.now()
 
     let otherAd = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.2")])
     let otherAdBuf = otherAd.encode().get()
@@ -856,7 +858,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -865,6 +867,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let otherDisco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
+    let now = Moment.now()
 
     var ticket = Ticket(
       advertisement: adBuf,
@@ -882,7 +885,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -908,7 +911,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -935,7 +938,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -963,7 +966,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining == tWait
 
@@ -992,7 +995,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     # totalWaitSoFar = 151 ± 1; tRemaining = 149 ± 1
     check abs(tRemaining.secs - 149) <= 1
@@ -1021,7 +1024,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 100.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check tRemaining <= ZeroDuration
 
@@ -1049,7 +1052,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     )
     let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     # totalWaitSoFar = 150 ± 1; tRemaining = 150 ± 1
     check abs(tRemaining.secs - 150) <= 1
