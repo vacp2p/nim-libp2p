@@ -81,7 +81,7 @@ proc startSync*(
       peerDialableAddrs = peerDialableAddrs[0 ..< self.maxDialableAddrs]
     debug "Dcutr initiator starting direct dial attempts",
       peerDialableAddrs, connectTimeout = self.connectTimeout
-    var futs = peerDialableAddrs.mapIt(
+    let dialFuts = peerDialableAddrs.mapIt(
       switch.connect(
         stream.peerId,
         @[it],
@@ -90,11 +90,17 @@ proc startSync*(
         dir = Direction.In,
       )
     )
+    var futs = dialFuts
     futs.add(waitExpectedConnection(expectedIncoming))
     debug "Dcutr initiator waiting for direct dial or incoming connection",
       attempts = futs.len
     try:
-      discard await anyCompleted(futs).wait(self.connectTimeout)
+      try:
+        discard await anyCompleted(futs).wait(self.connectTimeout)
+      except AsyncTimeoutError as err:
+        if dialFuts.allIt(it.finished and not it.completed()):
+          raise newException(AllFuturesFailedError, "all direct dial attempts failed")
+        raise err
       debug "Dcutr initiator has directly connected to the remote peer."
     finally:
       debug "Dcutr initiator cancelling remaining direct dial attempts",
