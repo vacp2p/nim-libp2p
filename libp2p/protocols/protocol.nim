@@ -85,7 +85,7 @@ proc new*(
     maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
   doAssert(codecs.len > 0, "codecs sequence must not be empty")
-  doAssert(not handler.isNil, "handler must not be set")
+  doAssert(not handler.isNil, "handler must be set")
 
   var proto = T(
     codecs: codecs,
