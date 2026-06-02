@@ -3,8 +3,7 @@
 
 {.used.}
 
-import
-  results, ../../libp2p/[errors, switch, builders, multiaddress, transports/wstransport]
+import ../../libp2p/[switch, builders, multiaddress, transports/wstransport]
 import ./[crypto, multiaddress]
 
 export builders
@@ -26,8 +25,7 @@ proc makeStandardSwitchBuilder*(
     b = b.withTransport(
       proc(transportConfig: TransportConfig): Transport =
         WsTransport.new(transportConfig.upgr, transportConfig.rng)
-    )
-    b = b.withMplex()
+    ).withMplex()
   elif Memory.match(address):
     b = b.withMemoryTransport().withMplex()
   else:
