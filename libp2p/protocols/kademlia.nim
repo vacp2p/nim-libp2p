@@ -58,9 +58,6 @@ proc new*(
     client: bool = false,
     codec: string = KadCodec,
 ): K {.raises: [].} =
-  if config.maxProvidersPerKey.isSome and not config.providerRejection:
-    warn "maxProvidersPerKey has no effect when providerRejection is false"
-
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
@@ -72,6 +69,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
   )
 
   # Fill up buckets with initial bootstrap nodes

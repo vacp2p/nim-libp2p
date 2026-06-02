@@ -96,10 +96,16 @@ ifeq ($(OS),Windows_NT)
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS := -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
   NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
+  # libnatpmp's Makefile only appends wingettimeofday.o to LIBOBJS when $(OS)
+  # contains mingw/cygwin/msys. The CI Windows runner passes through Windows_NT
+  # (the host env var), so that branch never matches — leaving
+  # natpmp_gettimeofday undefined at link time. Pass LIBOBJS explicitly.
+  NAT_PMP_MAKE_ARGS := LIBOBJS="natpmp.o getgateway.o wingettimeofday.o" libnatpmp.a
 else
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS := CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
   NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
+  NAT_PMP_MAKE_ARGS := libnatpmp.a
 endif
 
 # Stamp-based rebuild: the stamp records "the .a files in this package dir were
@@ -118,7 +124,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
-	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" libnatpmp.a
+	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
 	touch "$@"
 
 test: nimble.paths nat_libs

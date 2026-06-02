@@ -10,15 +10,13 @@
 
 {.push raises: [].}
 
-import std/[atomics, math, net]
+import std/[atomics, net]
 import chronos, chronos/threadsync, chronicles, results
 import nat_traversal/miniupnpc
 import ./portmapper
 
 logScope:
   topics = "libp2p natservice upnp"
-
-const ErrBufLen = 256
 
 type
   UpnpReqKind = enum
@@ -39,52 +37,27 @@ type
       unmapExternal: uint16
       unmapProto: MapProto
 
-  UpnpResponse = object
-    success: bool
-    errorLen: int
-    errorBuf: array[ErrBufLen, char]
-    ip: Opt[IpAddress]
-    externalPort: uint16
-
   UpnpWorkerCtx = object
     reqSignal: ThreadSignalPtr
     respSignal: ThreadSignalPtr
     shutdown: Atomic[bool]
     request: UpnpRequest
-    response: UpnpResponse
+    response: MapperResponse
 
   UpnpMapper* = ref object of PortMapper
     ctx: ptr UpnpWorkerCtx
     thread: Thread[ptr UpnpWorkerCtx]
     closed: Atomic[bool]
-    # Active dispatch + close participants. Whoever decrements this to zero
-    # after `closed` is set performs the final teardown, so ctx and the signal
-    # handles outlive any in-flight `dispatch` coroutine.
-    refs: Atomic[int]
-    finalized: Atomic[bool]
+    # Serializes dispatch() callers so only one request is in flight at a time,
+    # and orders close() after any in-flight dispatch.
     lock: AsyncLock
-
-proc setError(resp: var UpnpResponse, msg: string) =
-  resp.success = false
-  resp.ip.reset()
-  resp.externalPort = 0
-  let n = min(msg.len, ErrBufLen)
-  for i in 0 ..< n:
-    resp.errorBuf[i] = msg[i]
-  resp.errorLen = n
-
-proc getError(resp: UpnpResponse): string =
-  var msg = newString(resp.errorLen)
-  for i in 0 ..< resp.errorLen:
-    msg[i] = resp.errorBuf[i]
-  msg
 
 proc toUpnpProto(p: MapProto): UPNPProtocol =
   case p
   of mpTcp: UPNPProtocol.TCP
   of mpUdp: UPNPProtocol.UDP
 
-proc handleDiscover(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
+proc handleDiscover(upnp: Miniupnp, req: UpnpRequest, resp: var MapperResponse) =
   upnp.discoverDelay = req.discoverDelayMs
 
   let dr = upnp.discover()
@@ -108,7 +81,7 @@ proc handleDiscover(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
   except ValueError as e:
     resp.setError("upnp parseIpAddress: " & e.msg)
 
-proc handleMap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
+proc handleMap(upnp: Miniupnp, req: UpnpRequest, resp: var MapperResponse) =
   # Clamp via uint64 so the int() conversion is safe on 32-bit targets where
   # high(int) < high(uint32).
   let lease = int(min(req.mapLease.uint64, uint64(high(int))))
@@ -127,7 +100,7 @@ proc handleMap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
   resp.externalPort = req.mapExternal # IGD:1 returns the requested port
   resp.success = true
 
-proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
+proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var MapperResponse) =
   let r = upnp.deletePortMapping(
     externalPort = $req.unmapExternal, protocol = toUpnpProto(req.unmapProto)
   )
@@ -139,13 +112,24 @@ proc handleUnmap(upnp: Miniupnp, req: UpnpRequest, resp: var UpnpResponse) =
 
 proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
   let upnp = newMiniupnp()
+  defer:
+    upnp.close()
 
   while true:
     let w = ctx.reqSignal.waitSync()
-    if w.isErr or ctx.shutdown.load:
+    if w.isErr:
+      # Either reqSignal was closed (intentional shutdown unblock) or the
+      # underlying primitive failed. Either way, the worker can't observe
+      # further requests — exit. Closing respSignal unblocks any awaiter.
+      error "UpnpMapper worker reqSignal wait failed", err = w.error
+      discard ctx.respSignal.close()
+      ctx.respSignal = nil # don't double-close in free()
+      break
+    if ctx.shutdown.load():
+      error "UpnpMapper worker shutdown"
       break
 
-    ctx.response = UpnpResponse()
+    ctx.response = MapperResponse()
 
     case ctx.request.kind
     of urDiscover:
@@ -155,78 +139,71 @@ proc upnpWorker(ctx: ptr UpnpWorkerCtx) {.thread.} =
     of urUnmap:
       handleUnmap(upnp, ctx.request, ctx.response)
 
-    discard ctx.respSignal.fireSync()
-
-  upnp.close()
-
-proc finalize(self: UpnpMapper) =
-  if self.finalized.exchange(true):
-    return
-  discard self.ctx.reqSignal.close()
-  discard self.ctx.respSignal.close()
-  freeShared(self.ctx)
-
-proc release(self: UpnpMapper) =
-  if self.refs.fetchSub(1) == 1 and self.closed.load:
-    self.finalize()
+    let fireR = ctx.respSignal.fireSyncOrErr()
+    if fireR.isErr():
+      # The awaiting dispatch() can't see this response. Close respSignal so
+      # the wait errors out instead of hanging, then exit the worker.
+      error "UpnpMapper worker respSignal fire failed", err = fireR.error()
+      discard ctx.respSignal.close()
+      ctx.respSignal = nil # don't double-close in free()
+      break
 
 proc dispatch(
     self: UpnpMapper, req: sink UpnpRequest
-): Future[Result[UpnpResponse, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  if self.closed.load:
+): Future[Result[MapperResponse, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  if self.closed.load():
     return err("UpnpMapper closed")
 
-  discard self.refs.fetchAdd(1)
+  await self.lock.acquire()
+  defer:
+    self.lock.safeRelease("UpnpMapper")
+
+  if self.closed.load():
+    return err("UpnpMapper closed")
+
+  self.ctx.request = req
+  let fireR = self.ctx.reqSignal.fireSyncOrErr()
+  if fireR.isErr():
+    return err("UpnpMapper signal fire failed: " & fireR.error())
+
   try:
-    if self.closed.load:
-      return err("UpnpMapper closed")
-
-    await self.lock.acquire()
+    await self.ctx.respSignal.wait()
+  except AsyncError as e:
+    return err("UpnpMapper wait: " & e.msg)
+  except CancelledError as e:
+    # The worker keeps running until it finishes the in-flight request and
+    # fires respSignal. Drain that fire before releasing the lock, otherwise
+    # the next dispatch would consume it and read this cancelled request's
+    # response.
     try:
-      if self.closed.load:
-        return err("UpnpMapper closed")
+      await noCancel(self.ctx.respSignal.wait())
+    except AsyncError:
+      discard
+    raise e
 
-      self.ctx.request = req
-      let fr = self.ctx.reqSignal.fireSync()
-      if fr.isErr or not fr.get():
-        return err("UpnpMapper signal fire failed")
+  if self.closed.load():
+    return err("UpnpMapper closed")
 
-      try:
-        await self.ctx.respSignal.wait()
-      except AsyncError as e:
-        return err("UpnpMapper wait: " & e.msg)
-
-      if self.closed.load:
-        return err("UpnpMapper closed")
-
-      return ok(self.ctx.response)
-    finally:
-      try:
-        self.lock.release()
-      except AsyncLockError as e:
-        warn "UpnpMapper lock release failed", err = e.msg
-  finally:
-    self.release()
+  ok(self.ctx.response)
 
 proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
-  ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    freeShared(ctx)
-    raise newException(ResourceExhaustedError, "UpnpMapper reqSignal: " & error)
-  ctx.respSignal = ThreadSignalPtr.new().valueOr:
-    discard ctx.reqSignal.close()
-    freeShared(ctx)
-    raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
+  initSignals(ctx, "UpnpMapper")
 
   let mapper = UpnpMapper(ctx: ctx, lock: newAsyncLock())
 
   try:
     createThread(mapper.thread, upnpWorker, ctx)
-  except ValueError, ResourceExhaustedError:
-    discard ctx.reqSignal.close()
-    discard ctx.respSignal.close()
-    freeShared(ctx)
-    raise newException(ResourceExhaustedError, "UpnpMapper thread create failed")
+  except ValueError as e:
+    free(ctx)
+    raise
+      newException(ResourceExhaustedError, "UpnpMapper thread create failed: " & e.msg)
+  except ResourceExhaustedError as e:
+    free(ctx)
+    raise
+      newException(ResourceExhaustedError, "UpnpMapper thread create failed: " & e.msg)
+
+  mapper
 
   mapper
 
@@ -275,29 +252,31 @@ method unmap*(
     return err(resp.getError())
   ok()
 
-method close*(self: UpnpMapper) {.gcsafe, raises: [].} =
+method close*(self: UpnpMapper) {.async: (raises: []), gcsafe.} =
+  # No cancellable awaits: the only await is `noCancel(lock.acquire())`, and
+  # the lock release in the defer below is guarded against AsyncLockError —
+  # which is a developer error (release without acquire), not a runtime
+  # failure mode.
   if self.closed.exchange(true):
     return
 
-  # Participate in the refcount so the last party out (this proc or a still-
-  # suspended dispatch) is the one that actually frees ctx and the signals.
-  discard self.refs.fetchAdd(1)
+  # Wait uncancellably for any in-flight dispatch to release the lock, so the
+  # signal handles and ctx are not torn down while still in use.
+  await noCancel(self.lock.acquire())
+  defer:
+    self.lock.safeRelease("UpnpMapper")
 
-  # Wake any in-flight dispatch waiting on respSignal so it observes `closed`
-  # and returns promptly instead of hanging.
-  discard self.ctx.respSignal.fireSync()
-
-  # Tell the worker to exit. A separate shutdown flag (rather than a urShutdown
-  # request) avoids racing with worker reads of ctx.request.
+  # Tell the worker to exit. A separate shutdown flag (rather than a
+  # urShutdown request) avoids racing with worker reads of ctx.request.
   self.ctx.shutdown.store(true)
-  let fr = self.ctx.reqSignal.fireSync()
-  if fr.isErr or not fr.get():
-    warn "UpnpMapper shutdown signal failed",
-      err = (if fr.isErr: fr.error else: "timeout")
+  let fireR = self.ctx.reqSignal.fireSyncOrErr()
+  if fireR.isErr():
+    warn "UpnpMapper shutdown signal failed", err = fireR.error()
+    # Force the worker's waitSync to return so it can exit and joinThread
+    # below does not deadlock.
+    discard self.ctx.reqSignal.close()
+    self.ctx.reqSignal = nil # don't double-close in free()
 
-  try:
-    joinThread(self.thread)
-  except CatchableError as e:
-    warn "UpnpMapper joinThread failed", err = e.msg
+  joinThread(self.thread)
 
-  self.release()
+  free(self.ctx)
