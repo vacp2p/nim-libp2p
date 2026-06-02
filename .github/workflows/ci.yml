@@ -160,19 +160,6 @@ jobs:
         run: |
           nimble install_pinned
 
-      # Nim's semantic phase OOMs on linux-i386 + orc when compiling
-      # tests/test_all.nim (one TU pulling in ~150 test files; orc injects
-      # lifetime hooks at every value site, blowing past the runner's RAM).
-      # Refc fits; orc needs the spill.
-      - name: Increase swap (linux-i386 + orc)
-        if: matrix.platform.os == 'linux' && matrix.platform.cpu == 'i386' && matrix.nim.memory_management == 'orc'
-        run: |
-          sudo fallocate -l 8G /swapfile_extra
-          sudo chmod 600 /swapfile_extra
-          sudo mkswap /swapfile_extra
-          sudo swapon /swapfile_extra
-          free -h
-
       - name: Run tests
         id: run-tests
         run: |
