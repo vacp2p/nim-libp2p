@@ -16,11 +16,14 @@ import
     switch,
   ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
-import ../../../tools/[crypto, lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest]
 import ../utils
 
-const MaxRegistrarSetupAttempts = 5000
-
+# The setup* procs below use the static lookup table exported from ../utils
+# (populated offline by the commented generator there). Review of call sites
+# shows only the service name "service" is ever passed to setupRegistrarsIn*
+# (the other tests use different ad-hoc names but do not call those procs).
+# Thus we use the least number of services (1) to minimize static table size.
 proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
   bucketIndex(
     serviceId,
@@ -30,73 +33,53 @@ proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
     selfIdPreHashed = true,
   )
 
-proc findPrivateKeyForBucket(
-    serviceId: ServiceId, targetBucket: int, maxB: int, maxTries = 2_000_000
-): PrivateKey =
-  for _ in 0 ..< maxTries:
-    let pk = PrivateKey.random(rng()).get()
-    let pid = PeerId.init(pk).get()
-    let b = bucketIndex(
-      serviceId,
-      pid.toKey(),
-      Opt.none(XorDHasher),
-      maxBuckets = maxB,
-      selfIdPreHashed = true,
-    )
-    if b == targetBucket:
-      return pk
-  raiseAssert "could not synthesize privkey for bucket " & $targetBucket
-
 proc setupRegistrarsInDistinctBuckets(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId
 ): tuple[queriedFirst, queriedSecond: ServiceDiscovery] =
   ## Two registrars in distinct buckets of the routing table rooted at `serviceId`.
   ## Returned in the order `lookup()` would visit them (lower bucket index first).
-  let maxB = conf.bucketsCount
-  let pkLow = findPrivateKeyForBucket(serviceId, 0, maxB)
-  var pkHigh: PrivateKey
-  for b in 1 ..< maxB:
-    try:
-      pkHigh = findPrivateKeyForBucket(serviceId, b, maxB, maxTries = 200_000)
+
+  let svcName = "service"
+  let pk0 = getStaticPrivateKeyForBucket(svcName, 0)
+  # Get a key for a higher bucket (we have entries for 1).
+  var pk1 = pk0
+  for b in 1 ..< conf.bucketsCount:
+    if b in precomputedStaticBucketKeys[svcName] and
+        precomputedStaticBucketKeys[svcName][b].len > 0:
+      pk1 = getStaticPrivateKeyForBucket(svcName, b)
       break
-    except AssertionDefect:
-      continue
-  if not (pkHigh == PrivateKey()):
-    discard # have a high one
+  let n0 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk0))
+  let n1 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk1))
+  let bb0 = bucketOf(n0, serviceId)
+  let bb1 = bucketOf(n1, serviceId)
+  if bb0 < bb1:
+    return (n0, n1)
   else:
-    pkHigh = pkLow # fallback (same bucket)
-
-  let lowNode =
-    setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pkLow))
-  let highNode =
-    setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pkHigh))
-  let bL = bucketOf(lowNode, serviceId)
-  let bH = bucketOf(highNode, serviceId)
-
-  if bH < bL:
-    return (highNode, lowNode)
-
-  return (lowNode, highNode)
+    return (n1, n0)
 
 proc setupRegistrarsInSameBucket(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId, count: int
 ): seq[ServiceDiscovery] =
   ## Registrars that land in one service routing table bucket.
+
   doAssert count > 0, "count must be > 0"
-
-  var registrarsByBucket = initTable[int, seq[ServiceDiscovery]]()
-  for _ in 0 ..< MaxRegistrarSetupAttempts:
-    let registrar = setupServiceDiscoveryNode(discoConfig = conf)
-    let bucket = bucketOf(registrar, serviceId)
-
-    if not registrarsByBucket.hasKey(bucket):
-      registrarsByBucket[bucket] = @[]
-    registrarsByBucket[bucket].add(registrar)
-
-    if registrarsByBucket[bucket].len == count:
-      return registrarsByBucket[bucket]
-
-  raiseAssert "could not find enough registrars in one bucket"
+  let svcName = "service"
+  # Find a bucket that has enough precomputed keys (will be 0 for "service").
+  var chosenB = -1
+  for b, lst in precomputedStaticBucketKeys[svcName]:
+    if lst.len >= count:
+      chosenB = b
+      break
+  if chosenB >= 0:
+    var nodes: seq[ServiceDiscovery]
+    for i in 0 ..< count:
+      let pk = getStaticPrivateKeyForBucket(svcName, chosenB)
+      nodes.add(
+        setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk))
+      )
+    # Optional sanity: all should report the same bucket (the chosen one).
+    return nodes
+  raiseAssert "static table not populated with enough keys for " & svcName
 
 suite "Service Discovery Component - Lookup Get Ads":
   teardown:
