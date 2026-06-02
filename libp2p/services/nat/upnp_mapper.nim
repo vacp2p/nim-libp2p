@@ -156,10 +156,7 @@ proc dispatch(
 
   await self.lock.acquire()
   defer:
-    try:
-      self.lock.release()
-    except AsyncLockError as e:
-      raiseAssert "UpnpMapper lock release failed: " & e.msg
+    self.lock.safeRelease("UpnpMapper")
 
   if self.closed.load():
     return err("UpnpMapper closed")
@@ -191,12 +188,7 @@ proc dispatch(
 
 proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
-  ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    free(ctx)
-    raise newException(ResourceExhaustedError, "UpnpMapper reqSignal: " & error)
-  ctx.respSignal = ThreadSignalPtr.new().valueOr:
-    free(ctx)
-    raise newException(ResourceExhaustedError, "UpnpMapper respSignal: " & error)
+  initSignals(ctx, "UpnpMapper")
 
   let mapper = UpnpMapper(ctx: ctx, lock: newAsyncLock())
 
@@ -270,10 +262,7 @@ method close*(self: UpnpMapper) {.async: (raises: []), gcsafe.} =
   # signal handles and ctx are not torn down while still in use.
   await noCancel(self.lock.acquire())
   defer:
-    try:
-      self.lock.release()
-    except AsyncLockError as e:
-      raiseAssert "UpnpMapper lock release failed: " & e.msg
+    self.lock.safeRelease("UpnpMapper")
 
   # Tell the worker to exit. A separate shutdown flag (rather than a
   # urShutdown request) avoids racing with worker reads of ctx.request.

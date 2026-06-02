@@ -177,10 +177,7 @@ proc dispatch(
 ): Future[Result[MapperResponse, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   await self.lock.acquire()
   defer:
-    try:
-      self.lock.release()
-    except AsyncLockError as e:
-      raiseAssert "NatPmpMapper lock release failed: " & e.msg
+    self.lock.safeRelease("NatPmpMapper")
 
   await self.drainPrevious()
   # Close can only have run at the awaits above; synchronous code below is
@@ -219,19 +216,21 @@ proc dispatch(
 
 proc newNatPmpMapper*(): NatPmpMapper {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(NatPmpWorkerCtx, 1)
-  ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    free(ctx)
-    raise newException(ResourceExhaustedError, "NatPmpMapper reqSignal: " & error)
-  ctx.respSignal = ThreadSignalPtr.new().valueOr:
-    free(ctx)
-    raise newException(ResourceExhaustedError, "NatPmpMapper respSignal: " & error)
+  initSignals(ctx, "NatPmpMapper")
 
   let mapper = NatPmpMapper(ctx: ctx, lock: newAsyncLock())
   try:
     createThread(mapper.thread, natpmpWorker, ctx)
-  except ValueError, ResourceExhaustedError:
+  except ValueError as e:
     free(ctx)
-    raise newException(ResourceExhaustedError, "NatPmpMapper thread create failed")
+    raise newException(
+      ResourceExhaustedError, "NatPmpMapper thread create failed: " & e.msg
+    )
+  except ResourceExhaustedError as e:
+    free(ctx)
+    raise newException(
+      ResourceExhaustedError, "NatPmpMapper thread create failed: " & e.msg
+    )
   mapper
 
 method discover*(
@@ -327,10 +326,7 @@ method close*(self: NatPmpMapper) {.async: (raises: []), gcsafe.} =
   # signal handles and ctx are not mutated/torn down while still in use.
   await noCancel(self.lock.acquire())
   defer:
-    try:
-      self.lock.release()
-    except AsyncLockError as e:
-      raiseAssert "NatPmpMapper lock release failed: " & e.msg
+    self.lock.safeRelease("NatPmpMapper")
 
   self.ctx.request = NatPmpRequest(kind: nrShutdown)
   let fireR = self.ctx.reqSignal.fireSyncOrErr()

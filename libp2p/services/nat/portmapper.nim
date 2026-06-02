@@ -64,6 +64,28 @@ proc fireSyncOrErr*(signal: ThreadSignalPtr): Result[void, string] =
     return err("fireSync timed out")
   ok()
 
+proc safeRelease*(lock: AsyncLock, owner: static string) =
+  ## Releases an AsyncLock from a defer block. `AsyncLockError` (release without
+  ## acquire) is a developer error, not a runtime mode — surface it as an
+  ## assertion so the bug is caught loud instead of silently warned.
+  try:
+    lock.release()
+  except AsyncLockError as e:
+    raiseAssert owner & " lock release failed: " & e.msg
+
+proc initSignals*[T](
+    ctx: ptr T, owner: static string
+) {.raises: [ResourceExhaustedError].} =
+  ## Allocates `reqSignal` + `respSignal` on the worker ctx; on either failure
+  ## frees what was already allocated (via `free`) and raises with `owner` as
+  ## the message prefix so the caller knows which mapper hit the limit.
+  ctx.reqSignal = ThreadSignalPtr.new().valueOr:
+    free(ctx)
+    raise newException(ResourceExhaustedError, owner & " reqSignal: " & error)
+  ctx.respSignal = ThreadSignalPtr.new().valueOr:
+    free(ctx)
+    raise newException(ResourceExhaustedError, owner & " respSignal: " & error)
+
 method discover*(
     self: PortMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.base, async: (raises: [CancelledError]), gcsafe.} =
