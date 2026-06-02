@@ -3,7 +3,7 @@
 
 {.used.}
 
-import ../../libp2p/[switch, builders, multiaddress, transports/wstransport]
+import ../../libp2p/[switch, builders, multiaddress]
 import ./[crypto, multiaddress]
 
 export builders
@@ -11,8 +11,8 @@ export builders
 proc makeStandardSwitchBuilder*(
     address: MultiAddress = QuicAutoAddress
 ): SwitchBuilder =
-  ## Helper that creates Switch with standard configurations.
-  ## Transport is added automatically to match listen `address`.
+  ## Helper that creates a SwitchBuilder with standard configurations.
+  ## Transport is added automatically to match the listen `address`.
 
   var b = SwitchBuilder.new().withRng(rng()).withNoise().withAddress(address)
 
@@ -26,7 +26,7 @@ proc makeStandardSwitchBuilder*(
   elif Memory.match(address):
     b = b.withMemoryTransport().withMplex()
   else:
-    raiseAssert "could not infere transport from address"
+    raiseAssert "could not infer transport from address"
 
   b
 
