@@ -9,7 +9,9 @@ import ./[crypto, multiaddress]
 
 export builders
 
-proc makeStandardSwitchBuilder*(address: MultiAddress = QuicAutoAddress): SwitchBuilder =
+proc makeStandardSwitchBuilder*(
+    address: MultiAddress = QuicAutoAddress
+): SwitchBuilder =
   ## Helper that creates Switch with standard configurations.
   ## Transport is added automatically to match listen `address`.
 
@@ -34,6 +36,6 @@ proc makeStandardSwitchBuilder*(address: MultiAddress = QuicAutoAddress): Switch
   b
 
 proc makeStandardSwitch*(
-    address: MultiAddress | string = QuicAutoAddress
+    address: MultiAddress = QuicAutoAddress
 ): Switch {.raises: [LPError].} =
   return makeStandardSwitchBuilder(address).build()

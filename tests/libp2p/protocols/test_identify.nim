@@ -164,10 +164,7 @@ suite "Identify":
       stream {.threadvar.}: Stream
 
     asyncSetup:
-      let ma = @[
-        TcpAutoAddressIP4,
-        TcpAutoAddressIP6,
-      ]
+      let ma = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
       switch1 = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAddresses(ma)
         .withSignedPeerRecord(true)

@@ -25,7 +25,8 @@ import
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
+import
+  ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
 
 export switch
 
