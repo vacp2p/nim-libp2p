@@ -39,7 +39,7 @@ template startAndDeferStop(switches: seq[Switch]): untyped =
 proc connect(dialer, listener: Switch) {.async.} =
   await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
   # short wait between connects
-  await sleepAsync(5.millis)
+  await sleepAsync(50.millis)
 
 proc peerCount(s: Switch): int =
   s.connManager.getConnections().len
@@ -117,6 +117,37 @@ suite "Connection Manager Watermark/Scoring Component":
       not node.isConnected(peers[0].peerInfo.peerId)
       node.isConnected(peers[1].peerInfo.peerId)
       node.isConnected(peers[2].peerInfo.peerId)
+
+  asyncTest "silence period throttles back-to-back trims":
+    # the first trim settles the node at lowWater and starts the silence period.
+    # the second batch pushes the count back over highWater within the silence period.
+    # the silence period throttles the trim, so the count stays above lowWater.
+    const
+      lowWater = 1
+      highWater = 2
+    # long silence period so the second batch cannot trigger a second trim
+    let node = newWatermarkSwitch(lowWater, highWater, silencePeriod = 1.hours)
+    # the first batch is one over highWater, the second pushes back over it
+    let firstBatch = newSwitches(highWater + 1)
+    let secondBatch = newSwitches(highWater)
+    let all = @[node] & firstBatch & secondBatch
+
+    startAndDeferStop(all)
+
+    # the first batch triggers the only trim, settling the node at lowWater
+    for peer in firstBatch:
+      await connect(peer, node)
+    checkUntilTimeout:
+      node.peerCount == lowWater
+
+    # the second batch pushes the count back over highWater
+    for peer in secondBatch:
+      await connect(peer, node)
+
+    # the silence period is still active, so the trim never runs
+    # the count stays at the post-batch total instead of dropping to lowWater
+    await sleepAsync(200.millis)
+    check node.peerCount == lowWater + secondBatch.len
 
   asyncTest "protected peer survives trim":
     # peers[0] is the oldest peer, the first to be trimmed.
