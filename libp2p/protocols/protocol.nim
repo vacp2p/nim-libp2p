@@ -60,12 +60,10 @@ method stop*(p: LPProtocol) {.base, async: (raises: []).} =
   p.started = false
 
 func codec*(p: LPProtocol): string =
-  doAssert(p.codecs.len > 0, "Codecs sequence was empty!")
+  doAssert(p.codecs.len > 0, "codecs sequence must not be empty")
   p.codecs[0]
 
 func `codec=`*(p: LPProtocol, codec: string) =
-  # always insert as first codec
-  # if we use this abstraction
   p.codecs.insert(codec, 0)
 
 template `handler`*(p: LPProtocol): LPProtoHandler =
@@ -86,7 +84,9 @@ proc new*(
     maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
     maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
-  doAssert(codecs.len > 0, "Codecs sequence must not be empty!")
+  doAssert(codecs.len > 0, "codecs sequence must not be empty")
+  doAssert(not handler.isNil, "handler must not be set")
+
   var proto = T(
     codecs: codecs,
     handlerImpl: handler,
