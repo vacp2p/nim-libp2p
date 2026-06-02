@@ -16,7 +16,7 @@ proc newWatermarkSwitch(
     decayResolution: Duration = 1.minutes,
     maxConnections: int = 0,
 ): Switch {.raises: [LPError].} =
-  var builder = makeStandardSwitchBuilder("", TransportType.QUIC)
+  var builder = makeStandardSwitchBuilder()
     .withWatermarkPolicy(lowWater, highWater, gracePeriod, silencePeriod)
     .withPeerScoring(
       PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
@@ -26,7 +26,7 @@ proc newWatermarkSwitch(
   builder.build()
 
 proc newSwitch(): Switch {.raises: [LPError].} =
-  makeStandardSwitch("", TransportType.QUIC)
+  makeStandardSwitch()
 
 proc newSwitches(count: int): seq[Switch] {.raises: [LPError].} =
   (0 ..< count).mapIt(newSwitch())
