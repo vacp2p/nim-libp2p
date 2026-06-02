@@ -412,7 +412,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
     let senderKad = setupKad(testKadConfig(providerRejection = true))
     var receiverConfig = testKadConfig(providerRejection = true)
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
+    receiverConfig.limits.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -444,7 +444,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # so a re-advertisement is not blocked by the per-key limit check.
     let senderKad = setupKad(testKadConfig(providerRejection = true))
     var receiverConfig = testKadConfig(providerRejection = true)
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
+    receiverConfig.limits.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -471,7 +471,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     let senderKad = setupKad(testKadConfig(providerRejection = true))
 
     var closeConfig = testKadConfig(providerRejection = true)
-    closeConfig.maxProvidersPerKey = Opt.some(1)
+    closeConfig.limits.maxProvidersPerKey = Opt.some(1)
     let closeKad = setupKad(closeConfig)
 
     let farKad = setupKad(testKadConfig(providerRejection = true))
@@ -532,16 +532,16 @@ suite "KadDHT - ADD_PROVIDER Rejection":
       nodeA.providerManager.providerRecords.len == 1
       nodeB.providerManager.providerRecords.len == 1
 
-  asyncTest "providerRejection=false: receiver never sends rejection replies":
-    # A receiver with providerRejection=false (default) stores everything and
-    # never sends a reply, so the sender always sees accepted.
-    # Use a longer providerExpirationInterval so records survive the reply timeouts.
+  asyncTest "providerRejection=false: receiver enforces limit silently":
+    # The receiver enforces ``maxProvidersPerKey`` even with rejection disabled,
+    # but it does not send a rejection reply, so the sender treats the absence
+    # of a reply as accepted.
     let senderKad = setupKad(
       testKadConfig(providerRejection = true, providerExpirationInterval = 30.seconds)
     )
     var receiverConfig =
       testKadConfig(providerRejection = false, providerExpirationInterval = 30.seconds)
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
+    receiverConfig.limits.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -552,8 +552,8 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
 
-    # Second sender: receiver has no rejection enabled, so it stores again and
-    # never replies → sender treats absence of reply as accepted.
+    # Second sender: receiver is at the per-key cap and drops the record
+    # silently (no reply).
     let sender2Kad = setupKad(
       testKadConfig(providerRejection = true, providerExpirationInterval = 30.seconds)
     )
@@ -563,16 +563,17 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     let status =
       await sender2Kad.sendAddProviderAndGetStatus(receiverKad, key.toCid().toKey())
     check status.isOk()
-    # No rejection reply sent by receiver → treated as accepted by sender
+    # No reply sent by receiver → sender treats absence of reply as accepted
     check status.value() == AddProviderStatus.accepted
-    # Both providers stored (maxProvidersPerKey is ignored without rejection)
-    checkUntilTimeout:
-      receiverKad.providerManager.providerRecords.len == 2
+    # Limit enforced silently: still only one record at the receiver.
+    # sendAddProviderAndGetStatus already waited for the reply timeout, so the
+    # receiver has finished processing by the time we reach this check.
+    check receiverKad.providerManager.providerRecords.len == 1
 
   asyncTest "providerRejection=true: receiver enforces limit and rejects":
     let senderKad = setupKad(testKadConfig(providerRejection = true))
     var receiverConfig = testKadConfig(providerRejection = true)
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
+    receiverConfig.limits.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -600,7 +601,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # The sender stores the key and moves on regardless.
     let senderKad = setupKad(testKadConfig(providerRejection = false))
     var receiverConfig = testKadConfig(providerRejection = true)
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
+    receiverConfig.limits.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
