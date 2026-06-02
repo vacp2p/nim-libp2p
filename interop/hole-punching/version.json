@@ -3,6 +3,6 @@
   "containerImageID": "nim-libp2p-hp-head",
   "transports": [
     "tcp",
-    "quic-v1"
+    "quic"
   ]
 }

@@ -77,7 +77,7 @@ proc connectToRelay(
   info "AutoNAT forced to NotReachable; AutoRelay started"
 
   # Connect to relay (triggers AutoRelay reservation)
-  let relayMA = await fetchRelayMultiaddr(redisClient, config.testKey)
+  let relayMA = await fetchRelayMultiaddr(redisClient, config)
   info "Got relay address", relayMA
 
   try:
@@ -127,7 +127,7 @@ proc runDialer(config: BaseConfig) {.async.} =
   )
 
   let dcutrElapsed = Moment.now() - dcutrStart
-  info "Direct connection established via DCUtR"
+  info "Direct connection established via DCUtR", elapsed = dcutrElapsed
 
   # Ping over the direct connection
   let channel = await switches.sw.dial(listenerId, PingCodec)
@@ -137,7 +137,7 @@ proc runDialer(config: BaseConfig) {.async.} =
   let pingDelay = await Ping.new(rng = rng()).ping(channel)
   let pingRttMs = pingDelay.toMs()
 
-  printLatencyYaml(dcutrElapsed.toMs() + pingRttMs, pingRttMs)
+  printHolePunchReportJson(pingRttMs)
 
 proc runListener(config: BaseConfig) {.async.} =
   let
