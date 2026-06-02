@@ -67,9 +67,9 @@ macro importTests*(
 
   # Deterministic order so a given (sliceIdx, sliceTotal) always selects the
   # same set across runs and platforms.
-  sort(matchingFiles)
+  sort(matchingFiles, proc(a, b: string): int =
+    cmp(a.replace('\\', '/'), b.replace('\\', '/')))
 
-  var importedFiles: seq[string] = @[]
   for i, file in matchingFiles:
     if i mod sliceTotal == sliceIdx:
       imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
