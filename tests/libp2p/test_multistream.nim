@@ -652,10 +652,7 @@ suite "Multistream :: stream limits":
     await reserved.wait(5.seconds)
 
     expect LPStreamEOFError:
-      try:
-        await connector().wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector()
 
     await dialers.cancelAndWait()
     await transport2.stop()
