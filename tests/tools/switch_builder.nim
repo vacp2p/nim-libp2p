@@ -3,67 +3,34 @@
 
 {.used.}
 
-import
-  results, ../../libp2p/[errors, switch, builders, multiaddress, transports/wstransport]
+import ../../libp2p/[switch, builders, multiaddress]
 import ./[crypto, multiaddress]
 
 export builders
 
-type TransportType* {.pure.} = enum
-  QUIC
-  TCP
-  Websocket
-  Memory
-
 proc makeStandardSwitchBuilder*(
-    address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
+    address: MultiAddress = QuicAutoAddress
 ): SwitchBuilder =
-  ## Helper for common switch configurations.
-  ## When address is specified builder will create transport matching address. 
-  ## If address is not specified transport with default address is created.
+  ## Helper that creates a SwitchBuilder with standard configurations.
+  ## Transport is added automatically to match the listen `address`.
 
-  var b = SwitchBuilder.new().withRng(rng()).withNoise()
-
-  let addrs =
-    when address is MultiAddress:
-      address
-    else:
-      if address.len > 0:
-        MultiAddress.init(address).valueOr:
-          raise newException(LPError, error)
-      else:
-        case transport
-        of TransportType.QUIC:
-          QuicAutoAddress
-        of TransportType.TCP:
-          TcpAutoAddress
-        of TransportType.Websocket:
-          WsAutoAddress
-        of TransportType.Memory:
-          MultiAddress.init(MemoryAutoAddress).valueOr:
-            raise newException(LPError, error)
-
-  b = b.withAddress(addrs)
+  var b = SwitchBuilder.new().withRng(rng()).withNoise().withAddress(address)
 
   # address will decide which transport to use
-  if QUIC_V1.match(addrs):
+  if QUIC_V1.match(address):
     b = b.withQuicTransport()
-  elif TCP.match(addrs):
+  elif TCP.match(address):
     b = b.withTcpTransport().withMplex()
-  elif WebSockets.match(addrs):
-    b = b.withTransport(
-      proc(transportConfig: TransportConfig): Transport =
-        WsTransport.new(transportConfig.upgr, transportConfig.rng)
-    )
-    b = b.withMplex()
-  elif Memory.match(addrs):
+  elif WebSockets.match(address):
+    b = b.withWsTransport().withMplex()
+  elif Memory.match(address):
     b = b.withMemoryTransport().withMplex()
   else:
-    raiseAssert "could not infere transport from address"
+    raiseAssert "could not infer transport from address"
 
   b
 
 proc makeStandardSwitch*(
-    address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
+    address: MultiAddress = QuicAutoAddress
 ): Switch {.raises: [LPError].} =
-  return makeStandardSwitchBuilder(address, transport).build()
+  return makeStandardSwitchBuilder(address).build()
