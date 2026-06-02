@@ -202,23 +202,24 @@ proc discoverExternalIp(
   info "NAT discovery succeeded", externalIp = self.externalIp.get()
   true
 
+type MappedEntry = tuple[entry: (Port, MapProto), announced: Opt[MultiAddress]]
+
 proc mapOnePort(
-    self: NATService,
-    lp: ListenPort,
-    externalIp: IpAddress,
-    nextMapped: var seq[(Port, MapProto)],
-): Future[Opt[MultiAddress]] {.async: (raises: [CancelledError]).} =
+    self: NATService, lp: ListenPort, externalIp: IpAddress
+): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   let lease = uint32(self.config.leaseDuration.seconds)
   let mapRes = await self.mapper.map(lp.port, lp.port, lp.proto, lease)
   if mapRes.isErr:
     warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = mapRes.error
-    return Opt.none(MultiAddress)
+    return Opt.none(MappedEntry)
 
   let extPort = mapRes.get()
-  let entry = (extPort, lp.proto)
-  if entry notin nextMapped:
-    nextMapped.add(entry)
-  buildAnnouncedAddr(lp.multiAddr, externalIp, extPort)
+  Opt.some(
+    (
+      entry: (extPort, lp.proto),
+      announced: buildAnnouncedAddr(lp.multiAddr, externalIp, extPort),
+    )
+  )
 
 proc unmapStale(
     self: NATService, keep: seq[(Port, MapProto)]
@@ -261,9 +262,12 @@ proc setupMappings*(
     nextMapped: seq[(Port, MapProto)]
     announced: seq[MultiAddress]
   for lp in listenPorts:
-    (await self.mapOnePort(lp, externalIp, nextMapped)).withValue(annAddr):
-      if annAddr notin announced:
-        announced.add(annAddr)
+    (await self.mapOnePort(lp, externalIp)).withValue(res):
+      if res.entry notin nextMapped:
+        nextMapped.add(res.entry)
+      res.announced.withValue(annAddr):
+        if annAddr notin announced:
+          announced.add(annAddr)
 
   await self.unmapStale(nextMapped)
   self.mappedPorts = nextMapped
