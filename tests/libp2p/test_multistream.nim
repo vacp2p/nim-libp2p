@@ -552,7 +552,7 @@ suite "Multistream :: stream limits":
       let stream = await transport.accept()
       asyncSpawn acceptedOne(stream)
 
-  proc makeBlockedHandler(): LPProtoHandler =
+  proc makeBlockedHandler(entered: WaitGroup = nil): LPProtoHandler =
     let blocker = newWaitGroup(1)
     # block stream progress in order to make stream occupied while test is running.
     # if handler finishes fast we would never reach limit - it would be a race otherwise.
@@ -560,6 +560,8 @@ suite "Multistream :: stream limits":
     proc testHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
+      if entered != nil:
+        entered.done()
       try:
         await blocker.wait()
         await stream.writeLp("Hello!")
@@ -695,8 +697,15 @@ suite "Multistream :: stream limits":
     await handlerWait.cancelAndWait()
 
   asyncTest "e2e - inbound per-peer limit":
+    # Signal that both per-peer slots have actually been reserved before
+    # launching the third dialer; without this, the three streams race on
+    # reserveIncoming and the third dialer may be the one that wins a slot,
+    # hanging on the blocked handler until the test timeout.
+    let reserved = newWaitGroup(2)
     let protocol = LPProtocol.new(
-      @["/test/proto/1.0.0"], makeBlockedHandler(), maxIncomingStreamsPerPeer = 2
+      @["/test/proto/1.0.0"],
+      makeBlockedHandler(reserved),
+      maxIncomingStreamsPerPeer = 2,
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -718,6 +727,8 @@ suite "Multistream :: stream limits":
     var dialers: seq[Future[void]]
     for _ in 0 ..< 2:
       dialers.add(connector())
+
+    await reserved.wait(5.seconds)
 
     expect LPStreamEOFError:
       try:
