@@ -556,7 +556,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(
         20,
         gossip = true,
-        address = TcpAutoAddress, # use TCP becasue it's more reliable (temporarily)
+        address = TcpAutoAddress, # use TCP because it's more reliable (temporarily)
       )
       .toGossipSub()
 
