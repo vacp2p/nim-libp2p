@@ -16,36 +16,67 @@ import
     switch,
   ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[crypto, lifecycle, unittest]
 import ../utils
 
-const MaxRegistrarSetupAttempts = 1000
+const MaxRegistrarSetupAttempts = 5000
 
 proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
   bucketIndex(
     serviceId,
     r.switch.peerInfo.peerId.toKey(),
     Opt.none(XorDHasher),
+    maxBuckets = r.discoConfig.bucketsCount,
     selfIdPreHashed = true,
   )
+
+proc findPrivateKeyForBucket(
+    serviceId: ServiceId, targetBucket: int, maxB: int, maxTries = 2_000_000
+): PrivateKey =
+  for _ in 0 ..< maxTries:
+    let pk = PrivateKey.random(rng()).get()
+    let pid = PeerId.init(pk).get()
+    let b = bucketIndex(
+      serviceId,
+      pid.toKey(),
+      Opt.none(XorDHasher),
+      maxBuckets = maxB,
+      selfIdPreHashed = true,
+    )
+    if b == targetBucket:
+      return pk
+  raiseAssert "could not synthesize privkey for bucket " & $targetBucket
 
 proc setupRegistrarsInDistinctBuckets(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId
 ): tuple[queriedFirst, queriedSecond: ServiceDiscovery] =
   ## Two registrars in distinct buckets of the routing table rooted at `serviceId`.
   ## Returned in the order `lookup()` would visit them (lower bucket index first).
-  var a = setupServiceDiscoveryNode(discoConfig = conf)
-  var b = setupServiceDiscoveryNode(discoConfig = conf)
-  for _ in 0 ..< MaxRegistrarSetupAttempts:
-    if bucketOf(a, serviceId) != bucketOf(b, serviceId):
-      if bucketOf(a, serviceId) < bucketOf(b, serviceId):
-        return (a, b)
-      else:
-        return (b, a)
+  let maxB = conf.bucketsCount
+  let pkLow = findPrivateKeyForBucket(serviceId, 0, maxB)
+  var pkHigh: PrivateKey
+  for b in 1 ..< maxB:
+    try:
+      pkHigh = findPrivateKeyForBucket(serviceId, b, maxB, maxTries = 200_000)
+      break
+    except AssertionDefect:
+      continue
+  if not (pkHigh == PrivateKey()):
+    discard # have a high one
+  else:
+    pkHigh = pkLow # fallback (same bucket)
 
-    b = setupServiceDiscoveryNode(discoConfig = conf)
+  let lowNode =
+    setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pkLow))
+  let highNode =
+    setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pkHigh))
+  let bL = bucketOf(lowNode, serviceId)
+  let bH = bucketOf(highNode, serviceId)
 
-  raiseAssert "could not find registrars in distinct buckets"
+  if bH < bL:
+    return (highNode, lowNode)
+
+  return (lowNode, highNode)
 
 proc setupRegistrarsInSameBucket(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId, count: int
@@ -57,8 +88,6 @@ proc setupRegistrarsInSameBucket(
   for _ in 0 ..< MaxRegistrarSetupAttempts:
     let registrar = setupServiceDiscoveryNode(discoConfig = conf)
     let bucket = bucketOf(registrar, serviceId)
-    if bucket >= conf.bucketsCount:
-      continue
 
     if not registrarsByBucket.hasKey(bucket):
       registrarsByBucket[bucket] = @[]

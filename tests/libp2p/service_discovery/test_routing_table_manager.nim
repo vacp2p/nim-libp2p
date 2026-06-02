@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, nimcrypto/sha2, results, sets, tables
+import chronos, nimcrypto/sha2, results, sets, tables, sequtils
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -382,3 +382,30 @@ suite "ServiceRoutingTableManager - service id hashing":
       expectedBucket != doubleHashBucket
       table.buckets[expectedBucket].peers.len == 1
       table.buckets[expectedBucket].peers[0].nodeId == peer
+
+  test "service table with small bucketsCount uses scaled bucket mapping":
+    let
+      serviceId = hashServiceId("scaled-buckets-test")
+      peer = makeKey(42)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(makeKey(0))
+    check manager.addService(serviceId, mainRt, 20, 16, Interest)
+
+    manager.insertPeer(serviceId, peer)
+
+    let table = manager.getTable(serviceId).get()
+
+    let peerHash = @(sha256.digest(peer).data)
+    let rawLz = leadingZeros(xorDistance(serviceId, peerHash))
+    let expectedScaled = min((rawLz * 16) div 256, 15)
+
+    check:
+      peer in table.allKeys()
+      expectedScaled < 16
+
+    var actual = -1
+    for i, b in table.buckets:
+      if b.peers.anyIt(it.nodeId == peer):
+        actual = i
+        break
+    check actual == expectedScaled

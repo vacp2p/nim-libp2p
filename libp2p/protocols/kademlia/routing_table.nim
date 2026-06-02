@@ -41,7 +41,10 @@ proc new*(
   )
 
 proc bucketIndex*(
-    selfId, key: Key, hasher: Opt[XorDHasher], selfIdPreHashed = false
+    selfId, key: Key,
+    hasher: Opt[XorDHasher],
+    maxBuckets: int = DefaultMaxBuckets,
+    selfIdPreHashed = false,
 ): int =
   let
     selfHash =
@@ -50,7 +53,12 @@ proc bucketIndex*(
       else:
         selfId.hashFor(hasher)
     keyHash = key.hashFor(hasher)
-  return xorDistance(selfHash, keyHash).leadingZeros
+    lz = xorDistance(selfHash, keyHash).leadingZeros
+
+  if maxBuckets <= 1:
+    return 0
+
+  return min(((lz * maxBuckets) div 256), maxBuckets - 1)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -98,12 +106,9 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     return false # No self insertion
 
   let idx = bucketIndex(
-    rtable.selfId, nodeId, rtable.config.hasher, rtable.config.selfIdPreHashed
+    rtable.selfId, nodeId, rtable.config.hasher, rtable.config.maxBuckets,
+    rtable.config.selfIdPreHashed,
   )
-  if idx >= rtable.config.maxBuckets:
-    debug "Cannot insert node, max buckets have been reached",
-      nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets
-    return false
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
@@ -208,18 +213,37 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: Rng): Key =
+proc randomKeyInBucket*(
+    selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
+): Key =
+  let targetLz =
+    if maxBuckets <= 1:
+      0
+    elif maxBuckets == 256 or bucketIndex >= maxBuckets:
+      bucketIndex
+    else:
+      let M = maxBuckets
+      # lz in [lo, hi] satisfy (lz * M) div 256 == bucketIndex
+      let lo = (bucketIndex * 256 + M - 1) div M
+      let hi = min(256, ((bucketIndex + 1) * 256 + M - 1) div M - 1)
+      if lo > hi:
+        bucketIndex * (256 div max(1, M))
+      else:
+        let span = hi - lo + 1
+        var r: array[1, byte]
+        rng.generate(r)
+        lo + (int(r[0]) mod span)
+
   var raw = selfId
 
-  # zero out higher bits
-  for i in 0 ..< bucketIndex:
+  for i in 0 ..< targetLz:
     let byteIdx = i div 8
     let bitInByte = 7 - (i mod 8)
     raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
 
   # flip the target bit
-  let tgtByte = bucketIndex div 8
-  let tgtBitInByte = 7 - (bucketIndex mod 8)
+  let tgtByte = targetLz div 8
+  let tgtBitInByte = 7 - (targetLz mod 8)
   raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
 
   # randomize lower bits of the boundary byte
