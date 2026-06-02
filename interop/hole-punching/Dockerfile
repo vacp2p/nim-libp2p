@@ -15,7 +15,7 @@ COPY . nim-libp2p/
 RUN cd nim-libp2p && \
   nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 \
   --mm:refc --threads:on \
-  -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
+  -d:chronicles_log_level=TRACE -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
   -o:/app/hole-punch-client ./interop/hole-punching/hole_punching.nim
 
 FROM debian:trixie-slim

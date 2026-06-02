@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, sequtils, tables
+import std/os, chronos, chronicles, sequtils, tables
 import
   ../../libp2p/[
     builders,
@@ -158,7 +158,9 @@ proc runListener(config: BaseConfig) {.async.} =
   await sleepAsync(5.minutes)
 
 proc main() {.async.} =
-  let config = readBaseConfig()
+  var config = readBaseConfig()
+  if getEnv("MUXER").len == 0:
+    config.muxer = "yamux"
   info "Test configuration", config
   if config.isDialer:
     await runDialer(config)
