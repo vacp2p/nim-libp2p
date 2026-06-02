@@ -9,54 +9,24 @@ import ./[crypto, multiaddress]
 
 export builders
 
-type TransportType* {.pure.} = enum
-  QUIC
-  TCP
-  Websocket
-  Memory
+proc makeStandardSwitchBuilder*(address: MultiAddress = QuicAutoAddress): SwitchBuilder =
+  ## Helper that creates Switch with standard configurations.
+  ## Transport is added automatically to match listen `address`.
 
-proc makeStandardSwitchBuilder*(
-    address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
-): SwitchBuilder =
-  ## Helper for common switch configurations.
-  ## When address is specified builder will create transport matching address. 
-  ## If address is not specified transport with default address is created.
-
-  var b = SwitchBuilder.new().withRng(rng()).withNoise()
-
-  let addrs =
-    when address is MultiAddress:
-      address
-    else:
-      if address.len > 0:
-        MultiAddress.init(address).valueOr:
-          raise newException(LPError, error)
-      else:
-        case transport
-        of TransportType.QUIC:
-          QuicAutoAddress
-        of TransportType.TCP:
-          TcpAutoAddress
-        of TransportType.Websocket:
-          WsAutoAddress
-        of TransportType.Memory:
-          MultiAddress.init(MemoryAutoAddress).valueOr:
-            raise newException(LPError, error)
-
-  b = b.withAddress(addrs)
+  var b = SwitchBuilder.new().withRng(rng()).withNoise().withAddress(address)
 
   # address will decide which transport to use
-  if QUIC_V1.match(addrs):
+  if QUIC_V1.match(address):
     b = b.withQuicTransport()
-  elif TCP.match(addrs):
+  elif TCP.match(address):
     b = b.withTcpTransport().withMplex()
-  elif WebSockets.match(addrs):
+  elif WebSockets.match(address):
     b = b.withTransport(
       proc(transportConfig: TransportConfig): Transport =
         WsTransport.new(transportConfig.upgr, transportConfig.rng)
     )
     b = b.withMplex()
-  elif Memory.match(addrs):
+  elif Memory.match(address):
     b = b.withMemoryTransport().withMplex()
   else:
     raiseAssert "could not infere transport from address"
@@ -64,6 +34,6 @@ proc makeStandardSwitchBuilder*(
   b
 
 proc makeStandardSwitch*(
-    address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
+    address: MultiAddress | string = QuicAutoAddress
 ): Switch {.raises: [LPError].} =
-  return makeStandardSwitchBuilder(address, transport).build()
+  return makeStandardSwitchBuilder(address).build()
