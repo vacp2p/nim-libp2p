@@ -22,10 +22,7 @@ proc makeStandardSwitchBuilder*(
   elif TCP.match(address):
     b = b.withTcpTransport().withMplex()
   elif WebSockets.match(address):
-    b = b.withTransport(
-      proc(transportConfig: TransportConfig): Transport =
-        WsTransport.new(transportConfig.upgr, transportConfig.rng)
-    ).withMplex()
+    b = b.withWsTransport().withMplex()
   elif Memory.match(address):
     b = b.withMemoryTransport().withMplex()
   else:
