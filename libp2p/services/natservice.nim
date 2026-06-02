@@ -7,6 +7,7 @@ import std/[net, sequtils]
 import chronos, chronicles, results
 import ../[multiaddress, multicodec, wire]
 import ../switch
+import ../utils/heartbeat
 import ./nat/[portmapper, upnp_mapper, natpmp_mapper]
 
 export portmapper
@@ -64,7 +65,7 @@ proc defaultPortMapperFactory(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: 
       Opt.some(PortMapper(UpnpMapper.new()))
     of NatPmp:
       Opt.some(PortMapper(NatPmpMapper.new()))
-    else:
+    of Auto, ExplicitIp:
       Opt.none(PortMapper)
   except ResourceExhaustedError as exc:
     error "Failed to construct port mapper", mode, err = exc.msg
@@ -202,7 +203,10 @@ proc discoverExternalIp(
   true
 
 proc mapOnePort(
-    self: NATService, lp: ListenPort, externalIp: IpAddress
+    self: NATService,
+    lp: ListenPort,
+    externalIp: IpAddress,
+    nextMapped: var seq[(Port, MapProto)],
 ): Future[Opt[MultiAddress]] {.async: (raises: [CancelledError]).} =
   let lease = uint32(self.config.leaseDuration.seconds)
   let mapRes = await self.mapper.map(lp.port, lp.port, lp.proto, lease)
@@ -212,38 +216,57 @@ proc mapOnePort(
 
   let extPort = mapRes.get()
   let entry = (extPort, lp.proto)
-  if entry notin self.mappedPorts:
-    self.mappedPorts.add(entry)
+  if entry notin nextMapped:
+    nextMapped.add(entry)
   buildAnnouncedAddr(lp.multiAddr, externalIp, extPort)
 
-proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
-  for (port, proto) in self.mappedPorts:
+proc unmapStale(
+    self: NATService, keep: seq[(Port, MapProto)]
+) {.async: (raises: [CancelledError]).} =
+  ## Unmap any (extPort, proto) entries that were active in the previous
+  ## refresh cycle but are no longer part of the desired mapping set. Covers
+  ## both listenAddr removals and IGDs returning a different external port on
+  ## the next map() (e.g. when the requested external port becomes busy).
+  for entry in self.mappedPorts:
+    if entry in keep:
+      continue
+    let (port, proto) = entry
     let r = await self.mapper.unmap(port, proto)
     if r.isErr:
-      warn "Failed to unmap port", port, proto, err = r.error
+      warn "Failed to unmap stale port", port, proto, err = r.error
+
+proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
+  await self.unmapStale(@[])
   self.mappedPorts.setLen(0)
 
 proc setupMappings*(
     self: NATService, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   ## Discover the IGD if needed and request a mapping for every private listen
-  ## address; updates ``externalIp`` and ``mappedPorts`` as a side-effect.
-  let listenPorts = findMappableListenPorts(listenAddrs)
-  if listenPorts.len == 0:
-    debug "No private listen addresses to map; skipping NAT port mapping"
-    return @[]
+  ## address; updates ``externalIp`` and ``mappedPorts`` as a side-effect, and
+  ## tears down mappings that are no longer needed.
   if self.mapper.isNil:
     debug "No port mapper available; skipping NAT port mapping"
+    return @[]
+  let listenPorts = findMappableListenPorts(listenAddrs)
+  if listenPorts.len == 0:
+    debug "No private listen addresses to map; releasing any prior mappings"
+    await self.unmapAll()
     return @[]
   if self.externalIp.isNone and not await self.discoverExternalIp():
     return @[]
 
   let externalIp = self.externalIp.get()
-  var announced: seq[MultiAddress]
+  var
+    nextMapped: seq[(Port, MapProto)]
+    announced: seq[MultiAddress]
   for lp in listenPorts:
-    (await self.mapOnePort(lp, externalIp)).withValue(annAddr):
+    (await self.mapOnePort(lp, externalIp, nextMapped)).withValue(annAddr):
       if annAddr notin announced:
         announced.add(annAddr)
+
+  await self.unmapStale(nextMapped)
+  self.mappedPorts = nextMapped
   announced
 
 proc refreshLoop(
@@ -252,8 +275,7 @@ proc refreshLoop(
   ## Trigger ``peerInfo.update()`` periodically so the addressMapper re-runs
   ## and reissues mappings before the lease expires. Invalidates the cached
   ## external IP first so DHCP renewals / failovers are picked up.
-  while true:
-    await sleepAsync(self.config.refreshInterval)
+  heartbeat "NATService refresh", self.config.refreshInterval, sleepFirst = true:
     self.externalIp = Opt.none(IpAddress)
     await switch.peerInfo.update()
 
@@ -347,7 +369,7 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
       self.addressMapper = nil
     if self.mapper != nil:
       await self.unmapAll()
-      self.mapper.close()
+      await self.mapper.close()
       self.mapper = nil
     self.externalIp = Opt.none(IpAddress)
     # Mirror the explicitIp path: deliberately do not call peerInfo.update()

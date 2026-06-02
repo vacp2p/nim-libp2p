@@ -233,8 +233,6 @@ proc new*(T: typedesc[NatPmpMapper]): T {.raises: [ResourceExhaustedError].} =
     )
   mapper
 
-  mapper
-
 method discover*(
     self: NatPmpMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =

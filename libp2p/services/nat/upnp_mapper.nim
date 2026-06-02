@@ -205,8 +205,6 @@ proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
 
   mapper
 
-  mapper
-
 method discover*(
     self: UpnpMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
