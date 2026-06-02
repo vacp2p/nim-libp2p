@@ -14,8 +14,6 @@ import ./portmapper
 logScope:
   topics = "libp2p natservice natpmp"
 
-const ErrBufLen = 256
-
 type
   NatPmpReqKind = enum
     nrDiscover
@@ -39,18 +37,11 @@ type
     of nrShutdown:
       discard
 
-  NatPmpResponse = object
-    success: bool
-    errorLen: int
-    errorBuf: array[ErrBufLen, char]
-    ip: Opt[IpAddress]
-    externalPort: uint16
-
   NatPmpWorkerCtx = object
     reqSignal: ThreadSignalPtr
     respSignal: ThreadSignalPtr
     request: NatPmpRequest
-    response: NatPmpResponse
+    response: MapperResponse
 
   MappingKey = tuple[externalPort: uint16, proto: MapProto]
 
@@ -69,27 +60,12 @@ type
       ## unmap() can send the correct internal port (NAT-PMP identifies a
       ## mapping by internal port + protocol, not by external port).
 
-proc setError(resp: var NatPmpResponse, msg: string) =
-  resp.success = false
-  resp.ip.reset()
-  resp.externalPort = 0
-  let n = min(msg.len(), ErrBufLen)
-  for i in 0 ..< n:
-    resp.errorBuf[i] = msg[i]
-  resp.errorLen = n
-
-proc getError(resp: NatPmpResponse): string =
-  var s = newString(resp.errorLen)
-  for i in 0 ..< resp.errorLen:
-    s[i] = resp.errorBuf[i]
-  s
-
 proc toPmpProto(p: MapProto): NatPmpProtocol =
   case p
   of mpTcp: NatPmpProtocol.TCP
   of mpUdp: NatPmpProtocol.UDP
 
-proc ensureInit(pmp: var NatPmp, resp: var NatPmpResponse): bool =
+proc ensureInit(pmp: var NatPmp, resp: var MapperResponse): bool =
   if pmp != nil:
     return true
 
@@ -106,7 +82,7 @@ proc ensureInit(pmp: var NatPmp, resp: var NatPmpResponse): bool =
   pmp = fresh
   true
 
-proc handleDiscover(pmp: var NatPmp, resp: var NatPmpResponse) =
+proc handleDiscover(pmp: var NatPmp, resp: var MapperResponse) =
   if not ensureInit(pmp, resp):
     return
 
@@ -121,7 +97,7 @@ proc handleDiscover(pmp: var NatPmp, resp: var NatPmpResponse) =
   except ValueError as e:
     resp.setError("natpmp parseIpAddress: " & e.msg)
 
-proc handleMap(pmp: var NatPmp, req: NatPmpRequest, resp: var NatPmpResponse) =
+proc handleMap(pmp: var NatPmp, req: NatPmpRequest, resp: var MapperResponse) =
   if not ensureInit(pmp, resp):
     return
 
@@ -138,7 +114,7 @@ proc handleMap(pmp: var NatPmp, req: NatPmpRequest, resp: var NatPmpResponse) =
   resp.success = true
   resp.externalPort = uint16(r.get())
 
-proc handleUnmap(pmp: var NatPmp, req: NatPmpRequest, resp: var NatPmpResponse) =
+proc handleUnmap(pmp: var NatPmp, req: NatPmpRequest, resp: var MapperResponse) =
   if not ensureInit(pmp, resp):
     return
 
@@ -164,7 +140,7 @@ proc natpmpWorker(ctx: ptr NatPmpWorkerCtx) {.thread.} =
       break
 
     let req = ctx.request
-    ctx.response = NatPmpResponse()
+    ctx.response = MapperResponse()
 
     case req.kind
     of nrDiscover:
@@ -180,10 +156,6 @@ proc natpmpWorker(ctx: ptr NatPmpWorkerCtx) {.thread.} =
 
   if pmp != nil:
     pmp.close()
-
-template checkOpen(self: NatPmpMapper) =
-  if self.closed.load():
-    raise newException(CancelledError, "NatPmpMapper closed")
 
 proc drainPrevious(self: NatPmpMapper) {.async: (raises: []).} =
   ## Swallow a respSignal fire left over from a prior dispatch that timed
@@ -202,23 +174,24 @@ proc drainPrevious(self: NatPmpMapper) {.async: (raises: []).} =
 
 proc dispatch(
     self: NatPmpMapper, req: sink NatPmpRequest, timeout: Duration = InfiniteDuration
-): Future[NatPmpResponse] {.async: (raises: [CancelledError]).} =
+): Future[Result[MapperResponse, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   await self.lock.acquire()
   defer:
     try:
       self.lock.release()
-    except AsyncLockError:
-      discard
+    except AsyncLockError as e:
+      raiseAssert "NatPmpMapper lock release failed: " & e.msg
 
   await self.drainPrevious()
   # Close can only have run at the awaits above; synchronous code below is
   # atomic, so one check here gates every subsequent self.ctx access.
-  self.checkOpen()
+  if self.closed.load():
+    return err("NatPmpMapper closed")
 
   self.ctx.request = req
-  let fr = self.ctx.reqSignal.fireSync()
-  if fr.isErr() or not fr.get():
-    raise newException(CancelledError, "NatPmpMapper signal fire failed")
+  let fireR = self.ctx.reqSignal.fireSyncOrErr()
+  if fireR.isErr():
+    return err("NatPmpMapper signal fire failed: " & fireR.error())
 
   let waitFut = self.ctx.respSignal.wait()
   self.inflight = waitFut
@@ -235,49 +208,42 @@ proc dispatch(
     else:
       timedOut = true
   except AsyncError as e:
-    raise newException(CancelledError, "NatPmpMapper wait: " & e.msg)
+    return err("NatPmpMapper wait: " & e.msg)
 
   if timedOut:
     # Worker may fire respSignal late — let the next dispatch drain it.
     self.drainPending = waitFut
-    raise newException(CancelledError, "NatPmpMapper timeout")
+    return err("NatPmpMapper timeout")
 
-  self.ctx.response
-
-proc destroyCtx(ctx: ptr NatPmpWorkerCtx) =
-  discard ctx.reqSignal.close()
-  discard ctx.respSignal.close()
-  freeShared(ctx)
+  ok(self.ctx.response)
 
 proc newNatPmpMapper*(): NatPmpMapper {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(NatPmpWorkerCtx, 1)
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    freeShared(ctx)
+    free(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper reqSignal: " & error)
   ctx.respSignal = ThreadSignalPtr.new().valueOr:
-    discard ctx.reqSignal.close()
-    freeShared(ctx)
+    free(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper respSignal: " & error)
 
   let mapper = NatPmpMapper(ctx: ctx, lock: newAsyncLock())
   try:
     createThread(mapper.thread, natpmpWorker, ctx)
   except ValueError, ResourceExhaustedError:
-    destroyCtx(ctx)
+    free(ctx)
     raise newException(ResourceExhaustedError, "NatPmpMapper thread create failed")
   mapper
 
 method discover*(
     self: NatPmpMapper, timeout: Duration
 ): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let resp = await self.dispatch(NatPmpRequest(kind: nrDiscover), timeout)
+  let resp = ?await self.dispatch(NatPmpRequest(kind: nrDiscover), timeout)
 
   if not resp.success:
-    Result[IpAddress, string].err(resp.getError())
-  elif resp.ip.isNone():
-    Result[IpAddress, string].err("natpmp discover: missing IP in response")
-  else:
-    Result[IpAddress, string].ok(resp.ip.get())
+    return err(resp.getError())
+  if resp.ip.isNone():
+    return err("natpmp discover: missing IP in response")
+  ok(resp.ip.get())
 
 method map*(
     self: NatPmpMapper,
@@ -290,25 +256,24 @@ method map*(
   # silently passing it through would tear the mapping down instead of creating
   # one. Reject it explicitly.
   if lease == 0:
-    return Result[Port, string].err(
-      "natpmp map: lease must be > 0 (lease=0 deletes the mapping per RFC 6886)"
-    )
+    return
+      err("natpmp map: lease must be > 0 (lease=0 deletes the mapping per RFC 6886)")
 
-  let resp = await self.dispatch(
+  let resp = ?await self.dispatch(
     NatPmpRequest(
       kind: nrMap,
-      mapInternal: uint16(internalPort),
-      mapExternal: uint16(externalPort),
+      mapInternal: internalPort.uint16,
+      mapExternal: externalPort.uint16,
       mapProto: proto,
       mapLease: lease,
     )
   )
 
-  if resp.success:
-    let mapped = Port(resp.externalPort)
-    self.mappings[(uint16(mapped), proto)] = uint16(internalPort)
-    return Result[Port, string].ok(mapped)
-  Result[Port, string].err(resp.getError())
+  if not resp.success:
+    return err(resp.getError())
+
+  self.mappings[(resp.externalPort, proto)] = internalPort.uint16
+  ok(Port(resp.externalPort))
 
 method unmap*(
     self: NatPmpMapper, externalPort: Port, proto: MapProto
@@ -316,26 +281,26 @@ method unmap*(
   # NAT-PMP identifies a mapping by (internal port, protocol). The PortMapper
   # API only carries the external port through unmap(), so look up the
   # internal port we recorded when map() created the rule.
-  let key: MappingKey = (uint16(externalPort), proto)
+  let key: MappingKey = (externalPort.uint16, proto)
   if not self.mappings.hasKey(key):
-    return Result[void, string].err(
-      "natpmp unmap: no known mapping for external port " & $uint16(externalPort)
-    )
+    return
+      err("natpmp unmap: no known mapping for external port " & $externalPort.uint16)
   let internalPort = self.mappings.getOrDefault(key)
 
-  let resp = await self.dispatch(
+  let resp = ?await self.dispatch(
     NatPmpRequest(
       kind: nrUnmap,
       unmapInternal: internalPort,
-      unmapExternal: uint16(externalPort),
+      unmapExternal: externalPort.uint16,
       unmapProto: proto,
     )
   )
 
-  if resp.success:
-    self.mappings.del(key)
-    return Result[void, string].ok()
-  Result[void, string].err(resp.getError())
+  if not resp.success:
+    return err(resp.getError())
+
+  self.mappings.del(key)
+  ok()
 
 method close*(self: NatPmpMapper) {.async: (raises: []), gcsafe.} =
   # No cancellable awaits: the only await is `noCancel(lock.acquire())`, and
@@ -368,11 +333,10 @@ method close*(self: NatPmpMapper) {.async: (raises: []), gcsafe.} =
       raiseAssert "NatPmpMapper lock release failed: " & e.msg
 
   self.ctx.request = NatPmpRequest(kind: nrShutdown)
-  let fr = self.ctx.reqSignal.fireSync()
-  if fr.isErr() or not fr.get():
-    warn "NatPmpMapper shutdown signal failed",
-      err = (if fr.isErr(): fr.error() else: "timeout")
+  let fireR = self.ctx.reqSignal.fireSyncOrErr()
+  if fireR.isErr():
+    warn "NatPmpMapper shutdown signal failed", err = fireR.error()
 
   joinThread(self.thread)
 
-  destroyCtx(self.ctx)
+  free(self.ctx)

@@ -21,19 +21,33 @@ suite "NatPmpMapper":
     await m.close()
     await m.close()
 
-  asyncTest "discover after close raises CancelledError":
+  asyncTest "discover after close returns 'closed' error":
     let m = newNatPmpMapper()
     await m.close()
 
-    expect CancelledError:
-      discard await m.discover(50.milliseconds)
+    let r = await m.discover(50.milliseconds)
+    check r.isErr()
+    check r.error() == "NatPmpMapper closed"
 
-  asyncTest "map after close raises CancelledError":
+  asyncTest "map after close returns 'closed' error":
     let m = newNatPmpMapper()
     await m.close()
 
-    expect CancelledError:
-      discard await m.map(Port(9000), Port(9000), mpTcp, 3600'u32)
+    let r = await m.map(Port(9000), Port(9000), mpTcp, 3600'u32)
+    check r.isErr()
+    check r.error() == "NatPmpMapper closed"
+
+  asyncTest "unmap after close returns 'closed' error":
+    # unmap short-circuits with "no known mapping" before reaching dispatch
+    # unless a prior map() populated self.mappings. Without a real gateway we
+    # can't populate it, so this test exercises the no-mapping path — which is
+    # the closest equivalent to upnp's "unmap after close" check.
+    let m = newNatPmpMapper()
+    await m.close()
+
+    let r = await m.unmap(Port(9000), mpTcp)
+    check r.isErr()
+    check r.error() == "natpmp unmap: no known mapping for external port 9000"
 
   asyncTest "map with lease=0 is rejected before dispatch":
     # libnatpmp treats lifetime == 0 as a delete request (RFC 6886 §3.4), so
@@ -83,18 +97,15 @@ suite "NatPmpMapper":
   asyncTest "concurrent dispatches are serialized by the lock":
     # Without the lock, the second dispatch would overwrite ctx.request before
     # the worker finishes the first. Firing two discovers back-to-back must
-    # complete in submission order, even when each individual dispatch times
-    # out (no NAT-PMP gateway in CI) and unwinds with CancelledError.
+    # produce results in submission order, even when each individual dispatch
+    # times out (no NAT-PMP gateway in CI).
     let m = newNatPmpMapper()
     defer:
       await m.close()
 
     var order: seq[int]
     proc tag(i: int): Future[void] {.async: (raises: [CancelledError]).} =
-      try:
-        discard await m.discover(50.milliseconds)
-      except CancelledError:
-        discard
+      discard await m.discover(50.milliseconds)
       order.add(i)
 
     let f1 = tag(1)

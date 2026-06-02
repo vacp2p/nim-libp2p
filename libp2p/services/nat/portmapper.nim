@@ -4,17 +4,65 @@
 {.push raises: [].}
 
 import std/[net]
-import chronos, results
+import chronos, chronos/threadsync, results
+
+const ErrBufLen* = 256
 
 type
   MapProto* = enum
     mpTcp
     mpUdp
 
+  MapperResponse* = object
+    ## POD payload returned by a worker thread to the dispatch caller. All
+    ## fields are fixed-size value types so the response is safe to copy across
+    ## the thread boundary without crossing the Nim GC heap.
+    success*: bool
+    errorLen*: int
+    errorBuf*: array[ErrBufLen, char]
+    ip*: Opt[IpAddress]
+    externalPort*: uint16
+
   PortMapper* = ref object of RootObj
     ## Abstract base for a NAT port-mapping client (UPnP / NAT-PMP / mock).
     ## All operations are async because real implementations dispatch the
     ## underlying sync C calls to a dedicated worker thread.
+
+proc setError*(resp: var MapperResponse, msg: string) =
+  resp.success = false
+  resp.ip.reset()
+  resp.externalPort = 0
+  let n = min(msg.len(), ErrBufLen)
+  for i in 0 ..< n:
+    resp.errorBuf[i] = msg[i]
+  resp.errorLen = n
+
+proc getError*(resp: MapperResponse): string =
+  var s = newString(resp.errorLen)
+  for i in 0 ..< resp.errorLen:
+    s[i] = resp.errorBuf[i]
+  s
+
+proc free*[T](ctx: ptr T) =
+  ## Releases a worker ctx's `reqSignal`/`respSignal` and the shared allocation.
+  ## Tolerates partial initialization — a signal field that was never assigned
+  ## (or that was already closed in-place) is left as nil and skipped here.
+  if not ctx.reqSignal.isNil:
+    discard ctx.reqSignal.close()
+  if not ctx.respSignal.isNil:
+    discard ctx.respSignal.close()
+  freeShared(ctx)
+
+proc fireSyncOrErr*(signal: ThreadSignalPtr): Result[void, string] =
+  ## Wraps `fireSync` so both failure modes (underlying error or completion
+  ## within the internal timeout returning false) surface as a single Result —
+  ## callers branch once instead of unfolding `isErr`/`not get()` twice.
+  let fr = signal.fireSync()
+  if fr.isErr():
+    return err(fr.error())
+  if not fr.get():
+    return err("fireSync timed out")
+  ok()
 
 method discover*(
     self: PortMapper, timeout: Duration
