@@ -233,6 +233,33 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       cr.incomingRPC.len == 0
 
+  test "handleRPC: calls onIncomingRPC for unsubscribed fanout publisher that has published":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var config = cr.config()
+    config.nodeTopicOpts = proc(topic: string): TopicOpts {.gcsafe, raises: [].} =
+      TopicOpts(requestsPartial: false, supportsSendingPartial: false)
+    var ext = PartialMessageExtension.new(config)
+
+    # peer subscribes requesting partials
+    ext.subscribe(peerId, topic, true)
+
+    # node publishes to the group, establishing lastPublishedMetadata
+    let pm = MyPartialMessage(
+      groupId: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    check ext.publishPartial(topic, pm) == 1
+
+    # peer requests missing parts
+    let pmRPC = PartialMessageExtensionRPC(
+      topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+    )
+    ext.handlePartialMessage(peerId, pmRPC)
+    check:
+      cr.incomingRPC.len == 1
+      cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
+
   test "handleRPC: adds penalty when groupId or topicId is not set":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
