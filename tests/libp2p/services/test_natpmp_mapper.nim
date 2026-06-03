@@ -13,16 +13,16 @@ suite "NatPmpMapper":
     checkTrackers()
 
   asyncTest "create + close is clean (no dispatch in between)":
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     await m.close()
 
   asyncTest "double close is a no-op":
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     await m.close()
     await m.close()
 
   asyncTest "discover after close returns 'closed' error":
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     await m.close()
 
     let r = await m.discover(50.milliseconds)
@@ -30,7 +30,7 @@ suite "NatPmpMapper":
     check r.error() == "NatPmpMapper closed"
 
   asyncTest "map after close returns 'closed' error":
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     await m.close()
 
     let r = await m.map(Port(9000), Port(9000), mpTcp, 3600'u32)
@@ -42,7 +42,7 @@ suite "NatPmpMapper":
     # unless a prior map() populated self.mappings. Without a real gateway we
     # can't populate it, so this test exercises the no-mapping path — which is
     # the closest equivalent to upnp's "unmap after close" check.
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     await m.close()
 
     let r = await m.unmap(Port(9000), mpTcp)
@@ -52,7 +52,7 @@ suite "NatPmpMapper":
   asyncTest "map with lease=0 is rejected before dispatch":
     # libnatpmp treats lifetime == 0 as a delete request (RFC 6886 §3.4), so
     # the mapper rejects it outright instead of forwarding it to the worker.
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     defer:
       await m.close()
 
@@ -66,7 +66,7 @@ suite "NatPmpMapper":
     # public signature only carries the external port. The mapper records the
     # internal port on successful map(); without that record there is nothing
     # to send to the gateway.
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     defer:
       await m.close()
 
@@ -79,7 +79,7 @@ suite "NatPmpMapper":
     # continues until libnatpmp returns; close() cancels the in-flight wait
     # so dispatch can release the lock, then acquires the lock uncancellably
     # before tearing the worker down.
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     let fut = m.discover(200.milliseconds)
     # sleepAsync gives the dispatch a chance to park on respSignal before we
     # cancel — otherwise cancellation may land before there is anything in
@@ -99,7 +99,7 @@ suite "NatPmpMapper":
     # the worker finishes the first. Firing two discovers back-to-back must
     # produce results in submission order, even when each individual dispatch
     # times out (no NAT-PMP gateway in CI).
-    let m = newNatPmpMapper()
+    let m = NatPmpMapper.new()
     defer:
       await m.close()
 

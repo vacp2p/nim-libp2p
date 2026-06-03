@@ -186,7 +186,7 @@ proc dispatch(
 
   ok(self.ctx.response)
 
-proc newUpnpMapper*(): UpnpMapper {.raises: [ResourceExhaustedError].} =
+proc new*(T: typedesc[UpnpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(UpnpWorkerCtx, 1)
   initSignals(ctx, "UpnpMapper")
 
