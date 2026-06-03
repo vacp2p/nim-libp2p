@@ -74,7 +74,7 @@ suite "Identify":
       await transport2.stop()
 
     asyncTest "default agent version":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
         await msListen.handle(c)
@@ -95,7 +95,7 @@ suite "Identify":
     asyncTest "custom agent version":
       const customAgentVersion = "MY CUSTOM AGENT STRING"
       remotePeerInfo.agentVersion = customAgentVersion
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
 
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
@@ -115,7 +115,7 @@ suite "Identify":
       check id.signedPeerRecord.isNone()
 
     asyncTest "handle failed identify":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
 
       proc acceptHandler() {.async: (raises: [CancelledError]).} =
         var conn: RawConn
@@ -136,7 +136,7 @@ suite "Identify":
         discard await identifyProto2.identify(conn, pi2.peerId)
 
     asyncTest "can send signed peer record":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
       identifyProto1.sendSignedPeerRecord = true
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
@@ -168,11 +168,11 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+      switch1 = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAddresses(ma)
         .withSignedPeerRecord(true)
         .build()
-      switch2 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+      switch2 = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAddresses(ma)
         .withSignedPeerRecord(true)
         .build()
@@ -297,7 +297,7 @@ suite "Identify":
         .build()
 
       # Client switch to dial and identify
-      client = makeStandardSwitch(transport = TransportType.TCP)
+      client = makeStandardSwitch(TcpAutoAddress)
 
     await server.start()
     await client.start()
