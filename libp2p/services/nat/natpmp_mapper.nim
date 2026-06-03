@@ -66,7 +66,7 @@ proc toPmpProto(p: MapProto): NatPmpProtocol =
   of mpUdp: NatPmpProtocol.UDP
 
 proc ensureInit(pmp: var NatPmp, resp: var MapperResponse): bool =
-  if pmp != nil:
+  if not pmp.isNil:
     return true
 
   # Build the new NatPmp in a local first and only publish to `pmp` after a
@@ -154,13 +154,13 @@ proc natpmpWorker(ctx: ptr NatPmpWorkerCtx) {.thread.} =
 
     discard ctx.respSignal.fireSync()
 
-  if pmp != nil:
+  if not pmp.isNil:
     pmp.close()
 
 proc drainPrevious(self: NatPmpMapper) {.async: (raises: []).} =
   ## Swallow a respSignal fire left over from a prior dispatch that timed
   ## out, so this dispatch's wait() doesn't short-circuit on it.
-  if self.drainPending == nil:
+  if self.drainPending.isNil:
     return
   let drain = self.drainPending
   self.drainPending = nil
@@ -315,11 +315,11 @@ method close*(self: NatPmpMapper) {.async: (raises: []), gcsafe.} =
   # from a previous timeout, since joinThread further down would otherwise
   # wait for the worker to fire respSignal first.
   let inflight = self.inflight
-  if inflight != nil:
+  if not inflight.isNil:
     inflight.cancelSoon()
 
   let drain = self.drainPending
-  if drain != nil:
+  if not drain.isNil:
     drain.cancelSoon()
 
   # Wait uncancellably for any in-flight dispatch to release the lock so the

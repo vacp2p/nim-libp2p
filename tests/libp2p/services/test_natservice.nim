@@ -199,6 +199,26 @@ suite "NATService":
     check mock.countCalls(mckDiscover) == 1
     check mock.countCalls(mckMap) == 1
 
+  asyncTest "Upnp preserves already-public listenAddrs alongside mapped ones":
+    let mock = newMock(extPorts = @[Port(9000)])
+    let factory: PortMapperFactory = proc(
+        mode: NATMode
+    ): Opt[PortMapper] {.gcsafe, raises: [].} =
+      Opt.some(PortMapper(mock))
+
+    let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let
+      pub = ma("/ip4/198.51.100.5/tcp/4001")
+      priv = ma("/ip4/192.168.1.10/tcp/4242")
+      announced = await switch.peerInfo.addressMappers[0](@[pub, priv])
+    check:
+      pub in announced
+      ma("/ip4/203.0.113.7/tcp/9000") in announced
+
   asyncTest "Upnp unmaps stale extPort when IGD reassigns on refresh":
     let mock = newMock(extPorts = @[Port(9000), Port(9001)])
     let factory: PortMapperFactory = proc(
@@ -292,6 +312,16 @@ suite "NATService":
 
   asyncTest "setup raises when NatPmp config has zero discoveryTimeout":
     let cfg = natPmpConfig(discoveryTimeout = 0.seconds)
+    expect ServiceSetupError:
+      discard makeSwitch(cfg, @[TcpAutoAddress])
+
+  asyncTest "setup raises when leaseDuration is sub-second":
+    let cfg = upnpConfig(leaseDuration = 500.milliseconds)
+    expect ServiceSetupError:
+      discard makeSwitch(cfg, @[TcpAutoAddress])
+
+  asyncTest "setup raises when refreshInterval >= leaseDuration":
+    let cfg = upnpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
     expect ServiceSetupError:
       discard makeSwitch(cfg, @[TcpAutoAddress])
 

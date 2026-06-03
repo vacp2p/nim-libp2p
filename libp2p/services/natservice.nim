@@ -17,19 +17,10 @@ logScope:
 
 type
   NATMode* = enum
-    Auto
-      ## Use libp2p-native mechanisms (autonat / hole-punching). No port-mapping
-      ## is performed here.
-      ## TODO: In this skeleton it is a no-op; folded in by piece 3a.
-    ExplicitIp
-      ## Static external IP, no probing. The configured ``explicitIp`` is combined
-      ## with the bound listen addresses to produce the announced address set.
+    Auto # autonat/hole-punching
+    ExplicitIp # static external IP
     Upnp
-      ## Discover an IGD via UPnP, request port mappings for each private
-      ## listen address, and surface the public ``(extIp, extPort)`` multiaddrs
-      ## through the peerInfo addressMappers chain. Mappings are refreshed
-      ## periodically.
-    NatPmp ## Same as ``Upnp`` but using the NAT-PMP protocol.
+    NatPmp
 
   NATConfig* = object
     case mode*: NATMode
@@ -67,8 +58,8 @@ proc defaultPortMapperFactory(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: 
       Opt.some(PortMapper(NatPmpMapper.new()))
     of Auto, ExplicitIp:
       Opt.none(PortMapper)
-  except ResourceExhaustedError as exc:
-    error "Failed to construct port mapper", mode, err = exc.msg
+  except ResourceExhaustedError as e:
+    error "Failed to construct port mapper", mode, err = e.msg
     Opt.none(PortMapper)
 
 proc new*(
@@ -122,10 +113,6 @@ proc explicitIpMapped*(
       if remapped notin addrs:
         addrs.add(remapped)
   addrs
-
-# --------------------------------------------------------------------------
-# UPnP / NAT-PMP helpers
-# --------------------------------------------------------------------------
 
 type ListenPort = tuple[port: Port, proto: MapProto, multiAddr: MultiAddress]
 
@@ -191,16 +178,17 @@ proc findMappableListenPorts(listenAddrs: seq[MultiAddress]): seq[ListenPort] =
 
 proc discoverExternalIp(
     self: NATService
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  let discoverRes = await self.mapper.discover(self.config.discoveryTimeout)
-  if discoverRes.isErr:
-    warn "NAT discovery failed; not announcing mapped addresses",
-      err = discoverRes.error
+): Future[Opt[IpAddress]] {.async: (raises: [CancelledError]).} =
+  self.externalIp.withValue(externalIp):
+    return Opt.some(externalIp)
+
+  let discover = (await self.mapper.discover(self.config.discoveryTimeout)).valueOr:
+    warn "NAT discovery failed; not announcing mapped addresses", err = error
     self.externalIp = Opt.none(IpAddress)
-    return false
-  self.externalIp = Opt.some(discoverRes.get())
-  info "NAT discovery succeeded", externalIp = self.externalIp.get()
-  true
+    return Opt.none(IpAddress)
+  self.externalIp = Opt.some(discover)
+  info "NAT discovery succeeded", externalIp = discover
+  Opt.some(discover)
 
 type MappedEntry = tuple[entry: (Port, MapProto), announced: Opt[MultiAddress]]
 
@@ -208,12 +196,10 @@ proc mapOnePort(
     self: NATService, lp: ListenPort, externalIp: IpAddress
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   let lease = uint32(self.config.leaseDuration.seconds)
-  let mapRes = await self.mapper.map(lp.port, lp.port, lp.proto, lease)
-  if mapRes.isErr:
-    warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = mapRes.error
+  let extPort = (await self.mapper.map(lp.port, lp.port, lp.proto, lease)).valueOr:
+    warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
     return Opt.none(MappedEntry)
 
-  let extPort = mapRes.get()
   Opt.some(
     (
       entry: (extPort, lp.proto),
@@ -243,28 +229,33 @@ proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
 proc setupMappings*(
     self: NATService, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  ## Discover the IGD if needed and request a mapping for every private listen
-  ## address; updates ``externalIp`` and ``mappedPorts`` as a side-effect, and
-  ## tears down mappings that are no longer needed.
+  ## Request a mapping for every private listen address; updates ``externalIp``
+  ## and ``mappedPorts`` as a side-effect, and tears down mappings that are no
+  ## longer needed.
   if self.mapper.isNil:
     debug "No port mapper available; skipping NAT port mapping"
     return @[]
+
   let listenPorts = findMappableListenPorts(listenAddrs)
   if listenPorts.len == 0:
     debug "No private listen addresses to map; releasing any prior mappings"
     await self.unmapAll()
     return @[]
-  if self.externalIp.isNone and not await self.discoverExternalIp():
+
+  let externalIp = (await self.discoverExternalIp()).valueOr:
+    debug "Could not find external IP; releasing any prior mappings"
+    await self.unmapAll()
     return @[]
 
-  let externalIp = self.externalIp.get()
   var
     nextMapped: seq[(Port, MapProto)]
-    announced: seq[MultiAddress]
+    announced: seq[MultiAddress] = listenAddrs.filterIt(not it.isPrivateMA)
+
   for lp in listenPorts:
     (await self.mapOnePort(lp, externalIp)).withValue(res):
       if res.entry notin nextMapped:
         nextMapped.add(res.entry)
+
       res.announced.withValue(annAddr):
         if annAddr notin announced:
           announced.add(annAddr)
@@ -283,10 +274,6 @@ proc refreshLoop(
     self.externalIp = Opt.none(IpAddress)
     await switch.peerInfo.update()
 
-# --------------------------------------------------------------------------
-# Service lifecycle
-# --------------------------------------------------------------------------
-
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
   debug "Setting up NATService", mode = self.config.mode
 
@@ -304,10 +291,17 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
         ServiceSetupError,
         "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
       )
-    if self.config.leaseDuration <= 0.seconds:
+    # NAT-PMP treats lease=0 as a delete, so the seconds-truncated lease must
+    # be at least 1; sub-second durations would round to 0.
+    if self.config.leaseDuration < 1.seconds:
       raise newException(
         ServiceSetupError,
-        "NATService: leaseDuration must be > 0; use upnpConfig/natPmpConfig",
+        "NATService: leaseDuration must be >= 1s; use upnpConfig/natPmpConfig",
+      )
+    if self.config.refreshInterval >= self.config.leaseDuration:
+      raise newException(
+        ServiceSetupError,
+        "NATService: refreshInterval must be < leaseDuration so mappings refresh before expiry",
       )
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
@@ -345,7 +339,7 @@ method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledErro
       return announced
     self.refreshLoopFut = self.refreshLoop(switch)
 
-  if self.addressMapper != nil:
+  if not self.addressMapper.isNil:
     switch.peerInfo.addressMappers.add(self.addressMapper)
   # peerInfo.update is invoked by Switch.start once transports have bound, at
   # which point the mapper runs against the resolved listenAddrs.
@@ -357,7 +351,7 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
   of Auto:
     discard
   of ExplicitIp:
-    if self.addressMapper != nil:
+    if not self.addressMapper.isNil:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
       self.addressMapper = nil
     # Do not touch peerInfo.announcedAddrs here: those may have been set by the
@@ -365,13 +359,13 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
     # shutdown can cause observers (e.g. IdentifyPusher) to broadcast while the
     # switch is tearing down.
   of Upnp, NatPmp:
-    if self.refreshLoopFut != nil:
+    if not self.refreshLoopFut.isNil:
       await self.refreshLoopFut.cancelAndWait()
       self.refreshLoopFut = nil
-    if self.addressMapper != nil:
+    if not self.addressMapper.isNil:
       switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
       self.addressMapper = nil
-    if self.mapper != nil:
+    if not self.mapper.isNil:
       await self.unmapAll()
       await self.mapper.close()
       self.mapper = nil
