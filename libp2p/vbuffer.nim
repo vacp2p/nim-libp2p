@@ -150,7 +150,7 @@ proc peekArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   else:
     -1
 
-proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int {.inline.} =
+proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   ## Read unsigned integer from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.
@@ -159,7 +159,7 @@ proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int {.inline.} =
     vb.offset += r
   r
 
-proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int {.inline.} =
+proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
   ## Read length prefixed array from buffer ``vb`` and store result to
   ## ``value``.
   ##
@@ -169,9 +169,7 @@ proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int {.inlin
     vb.offset += r
   r
 
-proc readArray*[T: char | byte](
-    vb: var VBuffer, value: var openArray[T]
-): int {.inline.} =
+proc readArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   ## Read array from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.

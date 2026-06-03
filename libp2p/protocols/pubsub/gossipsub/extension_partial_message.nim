@@ -77,14 +77,10 @@ type
     groupState: Table[TopicGroupKey, GroupState]
     peerTopicOpts: Table[PeerTopicKey, TopicOpts]
 
-proc new(
-    T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
-): PeerTopicKey {.inline.} =
+proc new(T: typedesc[PeerTopicKey], peerId: PeerId, topic: string): PeerTopicKey =
   PeerTopicKey(key: TableKey.makeKey(peerId, topic), peerId: peerId, topic: topic)
 
-proc new(
-    T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
-): TopicGroupKey {.inline.} =
+proc new(T: typedesc[TopicGroupKey], topic: string, groupId: GroupId): TopicGroupKey =
   TopicGroupKey(key: TableKey.makeKey(topic, groupId), topic: topic, groupId: groupId)
 
 proc doAssert(config: PartialMessageExtensionConfig) =

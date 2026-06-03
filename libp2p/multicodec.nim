@@ -75,14 +75,14 @@ proc `$`*(mc: MultiCodec): string =
   doAssert(name != "")
   name
 
-proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
+proc `==`*(mc: MultiCodec, name: string): bool =
   ## Compares MultiCodec ``mc`` with string ``name``.
   let mcname = CodeCodecs.getOrDefault(int(mc), "")
   if mcname == "":
     return false
   mcname == name
 
-proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
+proc `==`*(mc: MultiCodec, code: int): bool =
   ## Compares MultiCodec ``mc`` with integer ``code``.
   (int(mc) == code)
 
@@ -90,17 +90,17 @@ proc `==`*(a, b: MultiCodec): bool =
   ## Returns ``true`` if MultiCodecs ``a`` and ``b`` are equal.
   int(a) == int(b)
 
-proc hash*(m: MultiCodec): Hash {.inline.} =
+proc hash*(m: MultiCodec): Hash =
   ## Hash procedure for tables.
   hash(int(m))
 
-proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec {.inline.} =
+proc codec*(mt: typedesc[MultiCodec], name: string): MultiCodec =
   ## Return MultiCodec from string representation ``name``.
   ## If ``name`` is not valid multicodec name, then ``InvalidMultiCodec`` will
   ## be returned.
   MultiCodec(NameCodecs.getOrDefault(name, -1))
 
-proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
+proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec =
   ## Return MultiCodec from integer representation ``code``.
   ## If ``code`` is not valid multicodec code, then ``InvalidMultiCodec`` will
   ## be returned.
@@ -110,6 +110,6 @@ proc codec*(mt: typedesc[MultiCodec], code: int): MultiCodec {.inline.} =
   else:
     MultiCodec(code)
 
-proc write*(vb: var VBuffer, mc: MultiCodec) {.inline.} =
+proc write*(vb: var VBuffer, mc: MultiCodec) =
   ## Write MultiCodec to buffer ``vb``.
   vb.writeVarint(cast[uint](mc))

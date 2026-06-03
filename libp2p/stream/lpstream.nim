@@ -121,7 +121,7 @@ method closed*(s: LPStream): bool {.base.} =
 method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
-func wasResetLocally*(s: LPStream): bool {.inline.} =
+func wasResetLocally*(s: LPStream): bool =
   s.isResetLocally
 
 method readOnce*(

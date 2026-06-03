@@ -96,7 +96,7 @@ proc b16el(length: int): int =
 proc b16dl(length: int): int =
   (length + 1) div 2
 
-proc b32ce(r: Base32Status): MultiBaseStatus {.inline.} =
+proc b32ce(r: Base32Status): MultiBaseStatus =
   if r == Base32Status.Incorrect:
     return MultiBaseStatus.Incorrect
   if r == Base32Status.Overrun:
@@ -105,7 +105,7 @@ proc b32ce(r: Base32Status): MultiBaseStatus {.inline.} =
     return MultiBaseStatus.Success
   MultiBaseStatus.Error
 
-proc b58ce(r: Base58Status): MultiBaseStatus {.inline.} =
+proc b58ce(r: Base58Status): MultiBaseStatus =
   if r == Base58Status.Incorrect:
     return MultiBaseStatus.Incorrect
   if r == Base58Status.Overrun:
@@ -114,7 +114,7 @@ proc b58ce(r: Base58Status): MultiBaseStatus {.inline.} =
     return MultiBaseStatus.Success
   MultiBaseStatus.Error
 
-proc b64ce(r: Base64Status): MultiBaseStatus {.inline.} =
+proc b64ce(r: Base64Status): MultiBaseStatus =
   if r == Base64Status.Incorrect:
     return MultiBaseStatus.Incorrect
   if r == Base64Status.Overrun:
