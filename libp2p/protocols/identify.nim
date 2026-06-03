@@ -143,16 +143,14 @@ proc new*(
 
 method init*(p: Identify) =
   proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    trace "handling identify request", stream
+
+    let pb = encodeMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
     try:
-      trace "handling identify request", stream
-      let pb = encodeMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
       await stream.writeLp(pb.buffer)
       debug "identify: info sent", stream, info = p.peerInfo
-    except CancelledError as exc:
-      trace "cancelled identify handler"
-      raise exc
-    except CatchableError as exc:
-      trace "exception in identify handler", description = exc.msg, stream
+    except LPError as e:
+      trace "identify handler failed to write message", description = e.msg, stream
     finally:
       trace "exiting identify handler", stream
       await stream.closeWithEOF()
@@ -169,14 +167,17 @@ proc identify*(
     )
 .} =
   trace "initiating identify", stream
+
   var message = await stream.readLp(maxMsgSize)
   if len(message) == 0:
     trace "identify: Empty message received!", stream
-    raise newException(IdentityInvalidMsgError, "Empty message received!")
+    raise newException(IdentityInvalidMsgError, "Empty message received")
 
   var info = decodeMsg(move(message)).valueOr:
-    raise newException(IdentityInvalidMsgError, "Incorrect message received!")
+    raise newException(IdentityInvalidMsgError, "Incorrect message received")
+
   debug "identify: info received", stream, info
+
   let
     pubkey = info.pubkey.valueOr:
       raise newException(IdentityInvalidMsgError, "No pubkey in identify")
@@ -186,6 +187,7 @@ proc identify*(
   if peer != remotePeerId:
     trace "Peer ids don't match", remote = peer, local = remotePeerId
     raise newException(IdentityNoMatchError, "Peer ids don't match")
+
   info.peerId = peer
 
   info.observedAddr.withValue(observed):
@@ -196,6 +198,7 @@ proc identify*(
       trace "Not adding address to ObservedAddrManager.", observed
     elif not self.observedAddrManager.addObservation(observed):
       trace "Observed address is not valid.", observedAddr = observed
+
   return info
 
 proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
@@ -208,32 +211,44 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
 proc init*(p: IdentifyPush) =
   proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling identify push", stream
-    try:
-      var message = await stream.readLp(maxMsgSize)
-
-      var identInfo = decodeMsg(move(message)).valueOr:
-        raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-      debug "identify push: info received", stream, identInfo
-
-      identInfo.pubkey.withValue(pubkey):
-        let receivedPeerId = PeerId.init(pubkey).tryGet()
-        if receivedPeerId != stream.peerId:
-          raise newException(IdentityNoMatchError, "Peer ids don't match")
-        identInfo.peerId = receivedPeerId
-      else:
-        identInfo.peerId = stream.peerId
-
-      trace "triggering peer event", peerInfo = stream.peerId
-      if not isNil(p.identifyHandler):
-        await p.identifyHandler(stream.peerId, identInfo)
-    except CancelledError as exc:
-      trace "cancelled identify push handler"
-      raise exc
-    except CatchableError as exc:
-      info "exception in identify push handler", description = exc.msg, stream
-    finally:
-      trace "exiting identify push handler", stream
+    defer:
       await stream.closeWithEOF()
+
+    var message =
+      try:
+        await stream.readLp(maxMsgSize)
+      except LPError as e:
+        info "failed to read message from stream", description = e.msg, stream
+        return
+
+    var identInfo = decodeMsg(move(message)).valueOr:
+      info "received invalid message", stream
+      return
+
+    debug "identify push: info received", stream, identInfo
+
+    identInfo.pubkey.withValue(pubkey):
+      let receivedPeerId = PeerId.init(pubkey).valueOr:
+        debug "could not create PeerId from pubkey", stream
+        return
+      if receivedPeerId != stream.peerId:
+        info "Peer ids don't match", stream
+        return
+      identInfo.peerId = receivedPeerId
+    else:
+      identInfo.peerId = stream.peerId
+
+    let handler = p.identifyHandler
+    if not handler.isNil:
+      trace "triggering peer event", peerInfo = stream.peerId
+      try:
+        await handler(stream.peerId, identInfo)
+      except CancelledError as e:
+        raise e
+      except CatchableError as e:
+        warn "got unexpected error", description = e.msg, stream
+        # compiler reports strange CatchableError error that should never really happen
+        discard
 
   p.handler = handle
   p.codec = IdentifyPushCodec
