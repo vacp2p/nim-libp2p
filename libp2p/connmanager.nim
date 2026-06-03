@@ -113,7 +113,7 @@ type
     connectedAt: Table[PeerId, Moment]
     protectedPeers: Table[PeerId, HashSet[string]]
     trimFut: Future[void]
-    lastTrim: Moment
+    lastTrim: Opt[Moment]
     scoring: PeerScoring
     staticTags: Table[PeerId, Table[string, int]]
     decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
@@ -709,7 +709,7 @@ proc trimConnections(c: ConnManager) {.async: (raises: []).} =
   except CancelledError:
     trace "watermark trim connection was cancelled"
 
-  c.lastTrim = Moment.now()
+  c.lastTrim = Opt.some(Moment.now())
 
 proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
   ## Schedules a trim cycle if none is running and the silence period has elapsed.
@@ -718,8 +718,9 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
     return
 
   c.watermark.withValue(wm):
-    if Moment.now() - c.lastTrim < wm.silencePeriod:
-      return
+    c.lastTrim.withValue(lastTrim):
+      if Moment.now() - lastTrim < wm.silencePeriod:
+        return
     c.trimFut = c.trimConnections()
 
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
