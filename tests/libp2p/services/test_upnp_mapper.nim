@@ -13,16 +13,16 @@ suite "UpnpMapper":
     checkTrackers()
 
   asyncTest "create + close is clean (no dispatch in between)":
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     await m.close()
 
   asyncTest "double close is a no-op":
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     await m.close()
     await m.close()
 
   asyncTest "discover after close returns 'closed' error":
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     await m.close()
 
     let r = await m.discover(50.milliseconds)
@@ -30,7 +30,7 @@ suite "UpnpMapper":
     check r.error == "UpnpMapper closed"
 
   asyncTest "map after close returns 'closed' error":
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     await m.close()
 
     let r = await m.map(Port(9000), Port(9000), mpTcp, 3600'u32)
@@ -38,7 +38,7 @@ suite "UpnpMapper":
     check r.error == "UpnpMapper closed"
 
   asyncTest "unmap after close returns 'closed' error":
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     await m.close()
 
     let r = await m.unmap(Port(9000), mpTcp)
@@ -51,7 +51,7 @@ suite "UpnpMapper":
     # drains respSignal (via noCancel) so the next dispatch doesn't read this
     # cancelled request's response, and close() waits (via noCancel) for the
     # in-flight dispatch to release the lock before tearing the worker down.
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     let fut = m.discover(200.milliseconds)
     await sleepAsync(10.milliseconds)
     fut.cancelSoon()
@@ -67,7 +67,7 @@ suite "UpnpMapper":
     # Without the lock, the second dispatch would overwrite ctx.request before
     # the worker finishes the first. Firing two discovers back-to-back must
     # produce results in submission order.
-    let m = newUpnpMapper()
+    let m = UpnpMapper.new()
     defer:
       await m.close()
 
