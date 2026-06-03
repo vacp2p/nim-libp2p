@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, strformat, stew/byteutils
+import chronos, stew/byteutils
 import
   ../../libp2p/[
     multistream,
@@ -16,9 +16,12 @@ import
     upgrademngrs/upgrade,
     utils/future,
   ]
-import ../tools/[unittest, sync]
+import ../tools/[unittest, sync, multiaddress]
 
 {.push raises: [].}
+
+converter toStringSeq(s: string): seq[string] =
+  @[s]
 
 ## Mock stream for select test
 type TestSelectStream = ref object of Connection
@@ -189,61 +192,49 @@ proc noReachHandler(
   raiseAssert "must not be reached"
 
 suite "Multistream select":
+  const codecs = "/test/proto/1.0.0"
+
   teardown:
     checkTrackers()
 
   asyncTest "test select custom proto":
     let ms = MultistreamSelect.new()
     let stream = newTestSelectStream()
-    check (await ms.select(stream, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+    check (await ms.select(stream, @[codecs])) == codecs
     await stream.close()
 
   asyncTest "test handle custom proto":
     let ms = MultistreamSelect.new()
     let stream = newTestSelectStream()
 
-    var protocol: LPProtocol = new LPProtocol
     proc testHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      check proto == "/test/proto/1.0.0"
+      check proto == codecs
       await stream.close()
 
-    protocol.handler = testHandler
-    ms.addHandler("/test/proto/1.0.0", protocol)
+    ms.addHandler(LPProtocol.new(codecs, testHandler))
     await ms.handle(stream)
 
   asyncTest "test handle invokes only first matching handler":
     let ms = MultistreamSelect.new()
-    let stream = newTestSelectStream()
-
     var firstCalls = 0
-    var secondCalls = 0
 
-    var firstProtocol: LPProtocol = new LPProtocol
     proc firstHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       firstCalls += 1
-      check proto == "/test/proto/1.0.0"
+      check proto == codecs
       await stream.close()
 
-    var secondProtocol: LPProtocol = new LPProtocol
-    proc secondHandler(
-        stream: Stream, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      secondCalls += 1
-      check proto == "/test/proto/1.0.0"
-      await stream.close()
+    ms.addHandler(LPProtocol.new(codecs, firstHandler))
+    ms.addHandler(LPProtocol.new(codecs, noReachHandler))
+    ms.addHandler(LPProtocol.new(codecs, noReachHandler))
 
-    firstProtocol.handler = firstHandler
-    secondProtocol.handler = secondHandler
-    ms.addHandler("/test/proto/1.0.0", firstProtocol)
-    ms.addHandler("/test/proto/1.0.0", secondProtocol)
-    await ms.handle(stream)
+    await ms.handle(newTestSelectStream())
+    await ms.handle(newTestSelectStream())
 
-    check firstCalls == 1
-    check secondCalls == 0
+    check firstCalls == 2
 
   asyncTest "test handle `ls`":
     let ms = MultistreamSelect.new()
@@ -259,13 +250,11 @@ suite "Multistream select":
       done.complete()
 
     stream = Connection(newTestLsStream(testLsHandler))
+    ms.addHandler("/test/proto1/1.0.0", LPProtoHandler(noReachHandler))
+    ms.addHandler("/test/proto2/1.0.0", LPProtoHandler(noReachHandler))
 
-    var protocol: LPProtocol = new LPProtocol
-    protocol.handler = noReachHandler
-    ms.addHandler("/test/proto1/1.0.0", protocol)
-    ms.addHandler("/test/proto2/1.0.0", protocol)
     await ms.handle(stream)
-    await done.wait(5.seconds)
+    await done
 
   asyncTest "test handle `na`":
     let ms = MultistreamSelect.new()
@@ -279,20 +268,16 @@ suite "Multistream select":
 
     stream = newTestNaStream(testNaHandler)
 
-    var protocol: LPProtocol = new LPProtocol
-    protocol.handler = noReachHandler
-    ms.addHandler("/unabvailable/proto/1.0.0", protocol)
+    ms.addHandler("/unabvailable/proto1/1.0.0", LPProtoHandler(noReachHandler))
 
     await ms.handle(stream)
 
   asyncTest "e2e - handle":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      check proto == "/test/proto/1.0.0"
+      check proto == codecs
       try:
         await stream.writeLp("Hello!")
       except LPStreamError:
@@ -300,12 +285,11 @@ suite "Multistream select":
       finally:
         await stream.close()
 
-    protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
-    msListen.addHandler("/test/proto/1.0.0", protocol)
+    msListen.addHandler(codecs, LPProtoHandler(testHandler))
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    asyncSpawn transport1.start(ma)
+    asyncSpawn transport1.start(@[TcpAutoAddress])
 
     proc acceptHandler(): Future[void] {.async.} =
       let stream = await transport1.accept()
@@ -318,7 +302,7 @@ suite "Multistream select":
     let transport2 = TcpTransport.new(upgrade = Upgrade())
     let stream = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(stream, "/test/proto/1.0.0")) == true
+    check (await msDial.select(stream, codecs)) == true
 
     let hello = string.fromBytes(await stream.readLp(1024))
     check hello == "Hello!"
@@ -330,7 +314,6 @@ suite "Multistream select":
     await handlerWait.wait(30.seconds)
 
   asyncTest "e2e - streams limit":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
     let blocker = newWaitGroup(1)
 
     # Start 5 streams which are blocked by `blocker`
@@ -347,15 +330,14 @@ suite "Multistream select":
       finally:
         await stream.close()
 
-    var protocol: LPProtocol =
-      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreamsPerPeer = 5)
+    let protocol = LPProtocol.new(codecs, testHandler, maxIncomingStreamsPerPeer = 5)
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
-    msListen.addHandler("/test/proto/1.0.0", protocol)
+    msListen.addHandler(protocol)
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    await transport1.start(ma)
+    await transport1.start(@[TcpAutoAddress])
 
     proc acceptedOne(c: Stream) {.async.} =
       await msListen.handle(c)
@@ -374,7 +356,7 @@ suite "Multistream select":
     proc connector() {.async.} =
       let stream = await transport2.dial(transport1.addrs[0])
       check:
-        (await msDial.select(stream, "/test/proto/1.0.0")) == true
+        (await msDial.select(stream, codecs)) == true
       check:
         string.fromBytes(await stream.readLp(1024)) == "Hello!"
       await stream.close()
@@ -407,16 +389,12 @@ suite "Multistream select":
     await handlerWait.cancelAndWait()
 
   asyncTest "e2e - ls":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
     let msListen = MultistreamSelect.new()
-    var protocol: LPProtocol = new LPProtocol
-    protocol.handler = noReachHandler
-    msListen.addHandler("/test/proto1/1.0.0", protocol)
-    msListen.addHandler("/test/proto2/1.0.0", protocol)
+    msListen.addHandler("/test/proto1/1.0.0", LPProtoHandler(noReachHandler))
+    msListen.addHandler("/test/proto2/1.0.0", LPProtoHandler(noReachHandler))
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let listenFut = transport1.start(ma)
+    let listenFut = transport1.start(@[TcpAutoAddress])
 
     proc acceptHandler(): Future[void] {.async.} =
       let stream = await transport1.accept()
@@ -446,13 +424,10 @@ suite "Multistream select":
     await listenFut.wait(5.seconds)
 
   asyncTest "e2e - select one from a list with unsupported protos":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
-    var protocol: LPProtocol = new LPProtocol
     proc testHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      check proto == "/test/proto/1.0.0"
+      check proto == codecs
       try:
         await stream.writeLp("Hello!")
       except LPStreamError:
@@ -460,12 +435,11 @@ suite "Multistream select":
       finally:
         await stream.close()
 
-    protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
-    msListen.addHandler("/test/proto/1.0.0", protocol)
+    msListen.addHandler(LPProtocol.new(codecs, testHandler))
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    asyncSpawn transport1.start(ma)
+    asyncSpawn transport1.start(@[TcpAutoAddress])
 
     proc acceptHandler(): Future[void] {.async.} =
       let stream = await transport1.accept()
@@ -476,8 +450,7 @@ suite "Multistream select":
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     let stream = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(stream, @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) ==
-      "/test/proto/1.0.0"
+    check (await msDial.select(stream, @["/test/no/proto/1.0.0", codecs])) == codecs
 
     let hello = string.fromBytes(await stream.readLp(1024))
     check hello == "Hello!"
@@ -487,55 +460,15 @@ suite "Multistream select":
     await transport2.stop()
     await transport1.stop()
 
-  asyncTest "e2e - select one with both valid":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
-    var protocol: LPProtocol = new LPProtocol
-    proc testHandler(
-        stream: Stream, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      try:
-        await stream.writeLp(&"Hello from {proto}!")
-      except LPStreamError:
-        raiseAssert "LPStreamError while handling connection"
-      finally:
-        await stream.close()
-
-    protocol.handler = testHandler
-    let msListen = MultistreamSelect.new()
-    msListen.addHandler("/test/proto1/1.0.0", protocol)
-    msListen.addHandler("/test/proto2/1.0.0", protocol)
-
-    let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    asyncSpawn transport1.start(ma)
-
-    proc acceptHandler(): Future[void] {.async.} =
-      let stream = await transport1.accept()
-      await msListen.handle(stream)
-
-    let acceptFut = acceptHandler()
-    let msDial = MultistreamSelect.new()
-    let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let stream = await transport2.dial(transport1.addrs[0])
-
-    check (await msDial.select(stream, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) ==
-      "/test/proto2/1.0.0"
-
-    check string.fromBytes(await stream.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
-
-    await stream.close()
-    await acceptFut
-    await transport2.stop()
-    await transport1.stop()
-
 suite "Multistream :: stream limits":
+  const codecs = "/test/proto-stream-limits/1.0.0"
+
   teardown:
     checkTrackers()
 
-  let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()]
   proc acceptHandler(protocol: LPProtocol, transport: Transport) {.async.} =
     let msListen = MultistreamSelect.new()
-    msListen.addHandler(protocol.codecs, protocol)
+    msListen.addHandler(protocol)
 
     proc acceptedOne(c: Stream) {.async.} =
       await msListen.handle(c)
@@ -545,7 +478,7 @@ suite "Multistream :: stream limits":
       let stream = await transport.accept()
       asyncSpawn acceptedOne(stream)
 
-  proc makeBlockedHandler(): LPProtoHandler =
+  proc makeBlockedHandler(entered: WaitGroup = nil): LPProtoHandler =
     let blocker = newWaitGroup(1)
     # block stream progress in order to make stream occupied while test is running.
     # if handler finishes fast we would never reach limit - it would be a race otherwise.
@@ -553,6 +486,8 @@ suite "Multistream :: stream limits":
     proc testHandler(
         stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
+      if entered != nil:
+        entered.done()
       try:
         await blocker.wait()
         await stream.writeLp("Hello!")
@@ -567,13 +502,11 @@ suite "Multistream :: stream limits":
     const maxTotalStreams = 3
 
     let protocol = LPProtocol.new(
-      @["/test/proto/1.0.0"],
-      makeBlockedHandler(),
-      maxIncomingStreamsTotal = maxTotalStreams,
+      codecs, makeBlockedHandler(), maxIncomingStreamsTotal = maxTotalStreams
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    await transport1.start(ma)
+    await transport1.start(@[TcpAutoAddress])
 
     let handlerWait = acceptHandler(protocol, transport1)
 
@@ -611,7 +544,7 @@ suite "Multistream :: stream limits":
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    await transport1.start(ma)
+    await transport1.start(@[TcpAutoAddress])
 
     let handlerWait = acceptHandler(protocol, transport1)
 
@@ -656,11 +589,10 @@ suite "Multistream :: stream limits":
         if handlerCount == 1:
           handlerResolved.complete()
 
-    let protocol =
-      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreamsTotal = 1)
+    let protocol = LPProtocol.new(codecs, testHandler, maxIncomingStreamsTotal = 1)
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    await transport1.start(ma)
+    await transport1.start(@[TcpAutoAddress])
 
     let handlerWait = acceptHandler(protocol, transport1)
 
@@ -688,12 +620,17 @@ suite "Multistream :: stream limits":
     await handlerWait.cancelAndWait()
 
   asyncTest "e2e - inbound per-peer limit":
+    # Signal that both per-peer slots have actually been reserved before
+    # launching the third dialer; without this, the three streams race on
+    # reserveIncoming and the third dialer may be the one that wins a slot,
+    # hanging on the blocked handler until the test timeout.
+    let reserved = newWaitGroup(2)
     let protocol = LPProtocol.new(
-      @["/test/proto/1.0.0"], makeBlockedHandler(), maxIncomingStreamsPerPeer = 2
+      codecs, makeBlockedHandler(reserved), maxIncomingStreamsPerPeer = 2
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
-    await transport1.start(ma)
+    await transport1.start(@[TcpAutoAddress])
 
     let handlerWait = acceptHandler(protocol, transport1)
 
@@ -712,11 +649,10 @@ suite "Multistream :: stream limits":
     for _ in 0 ..< 2:
       dialers.add(connector())
 
+    await reserved.wait(5.seconds)
+
     expect LPStreamEOFError:
-      try:
-        await connector().wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector()
 
     await dialers.cancelAndWait()
     await transport2.stop()

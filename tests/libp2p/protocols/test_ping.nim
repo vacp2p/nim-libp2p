@@ -59,7 +59,7 @@ suite "Ping":
     checkTrackers()
 
   asyncTest "simple ping":
-    msListen.addHandler(PingCodec, pingProto1)
+    msListen.addHandler(pingProto1)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
@@ -76,7 +76,7 @@ suite "Ping":
     check not second.isZero()
 
   asyncTest "ping callback":
-    msDial.addHandler(PingCodec, pingProto2)
+    msDial.addHandler(pingProto2)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
@@ -108,7 +108,7 @@ suite "Ping":
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
 
-    msListen.addHandler(PingCodec, fakePingProto)
+    msListen.addHandler(fakePingProto)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
