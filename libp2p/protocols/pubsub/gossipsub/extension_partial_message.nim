@@ -233,6 +233,27 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
   else:
     ext.peerTopicOpts.del(key)
 
+proc shouldHandlePartialRPC(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
+): bool =
+  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+  if nodeTopicOpts.requestsPartial:
+    return true
+
+  # We only send parts to a peer that asked for them.
+  if not ext.peerRequestsPartial(peerId, rpc.topicID):
+    return false
+
+  if nodeTopicOpts.supportsSendingPartial:
+    return true
+
+  # An unsubscribed fanout publisher has no topic opts set, but it has published
+  # to this group, so it can still fulfill parts the peer is missing.
+  # Look up without creating state.
+  let groupState =
+    ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
+  groupState != nil and groupState.hasPublished()
+
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
@@ -252,19 +273,7 @@ proc handlePartialRPC(
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
-  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
-
-  # An unsubscribed fanout publisher does not advertise topic opts, but it has
-  # published to this group and can still fulfill parts the peer is missing.
-  # Look up without creating state, so an unrelated RPC does not allocate a group.
-  let group = ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
-  let nodeCanSendPartial =
-    nodeTopicOpts.supportsSendingPartial or (group != nil and group.hasPublished())
-
-  let shouldHandlePartialRPC =
-    nodeTopicOpts.requestsPartial or
-    (nodeCanSendPartial and ext.peerRequestsPartial(peerId, rpc.topicID))
-  if shouldHandlePartialRPC:
+  if shouldHandlePartialRPC(ext, peerId, rpc):
     ext.config.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(
