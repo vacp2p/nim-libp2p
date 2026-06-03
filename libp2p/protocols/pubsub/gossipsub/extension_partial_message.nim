@@ -246,9 +246,8 @@ proc handlePartialRPC(
     debug "RPC did not pass application validation", msg = validateRes.error
     return
 
-  var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
-
   if rpc.partsMetadata.len > 0:
+    var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
@@ -257,8 +256,10 @@ proc handlePartialRPC(
 
   # An unsubscribed fanout publisher does not advertise topic opts, but it has
   # published to this group and can still fulfill parts the peer is missing.
+  # Look up without creating state, so an unrelated RPC does not allocate a group.
+  let group = ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
   let nodeCanSendPartial =
-    nodeTopicOpts.supportsSendingPartial or groupState.hasPublished()
+    nodeTopicOpts.supportsSendingPartial or (group != nil and group.hasPublished())
 
   let shouldHandlePartialRPC =
     nodeTopicOpts.requestsPartial or
