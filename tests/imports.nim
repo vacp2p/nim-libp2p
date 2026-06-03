@@ -73,6 +73,7 @@ macro importTests*(
       cmp(a.replace('\\', '/'), b.replace('\\', '/')),
   )
 
+  var importedFiles: seq[string] = @[]
   for i, file in matchingFiles:
     if i mod sliceTotal == sliceIdx:
       imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
