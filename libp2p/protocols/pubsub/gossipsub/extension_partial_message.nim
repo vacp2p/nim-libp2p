@@ -139,6 +139,9 @@ template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
 template hasPeer(gs: GroupState, peerId: PeerId): bool =
   gs.peerState.hasKey(peerId)
 
+template hasPublished(gs: GroupState): bool =
+  gs.lastPublishedMetadata.len > 0
+
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
     peerState: var PeerGroupState,
@@ -175,7 +178,7 @@ proc peersRequestingPartial(ext: PartialMessageExtension, topic: string): seq[Pe
 
 proc gossipPartsMetadata*(ext: PartialMessageExtension) =
   for tgKey, group in ext.groupState.mpairs:
-    if group.lastPublishedMetadata.len == 0:
+    if not group.hasPublished():
       # node has not published anything on this (topic, group)
       continue
 
@@ -243,18 +246,23 @@ proc handlePartialRPC(
     debug "RPC did not pass application validation", msg = validateRes.error
     return
 
+  var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
+
   if rpc.partsMetadata.len > 0:
-    var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+
+  # An unsubscribed fanout publisher does not advertise topic opts, but it has
+  # published to this group and can still fulfill parts the peer is missing.
+  let nodeCanSendPartial =
+    nodeTopicOpts.supportsSendingPartial or groupState.hasPublished()
+
   let shouldHandlePartialRPC =
-    nodeTopicOpts.requestsPartial or (
-      nodeTopicOpts.supportsSendingPartial and
-      ext.peerRequestsPartial(peerId, rpc.topicID)
-    )
+    nodeTopicOpts.requestsPartial or
+    (nodeCanSendPartial and ext.peerRequestsPartial(peerId, rpc.topicID))
   if shouldHandlePartialRPC:
     ext.config.onIncomingRPC(peerId, rpc)
 
