@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils, tables]
 import ../../libp2p/[switch, connmanager, peerinfo, stream/connection]
-import ../tools/[unittest, futures, switch_builder]
+import ../tools/[lifecycle, unittest, switch_builder]
 
 proc newWatermarkSwitch(
     lowWater: int,
@@ -25,16 +25,8 @@ proc newWatermarkSwitch(
     builder = builder.withMaxConnections(maxConnections)
   builder.build()
 
-proc newSwitch(): Switch {.raises: [LPError].} =
-  makeStandardSwitch()
-
 proc newSwitches(count: int): seq[Switch] {.raises: [LPError].} =
-  (0 ..< count).mapIt(newSwitch())
-
-template startAndDeferStop(switches: seq[Switch]): untyped =
-  await allFuturesRaising(switches.mapIt(it.start()))
-  defer:
-    await allFuturesRaising(switches.mapIt(it.stop()))
+  (0 ..< count).mapIt(makeStandardSwitch())
 
 proc connect(dialer, listener: Switch) {.async.} =
   await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
