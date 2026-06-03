@@ -223,7 +223,10 @@ proc validateRegisterMessage*(
 ): Opt[Advertisement] =
   ## Validate a REGISTER message and decode/verify the advertisement.
   ## Returns Opt.none if the message is invalid.
-  if regMsg.advertisement.len == 0:
+  if regMsg.advertisement.len == 0 or regMsg.advertisement.len > MaxXPRSize:
+    if regMsg.advertisement.len > 0:
+      error "advertisement exceeds maximum encoded XPR size",
+        len = regMsg.advertisement.len, max = MaxXPRSize
     return Opt.none(Advertisement)
 
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
@@ -232,6 +235,10 @@ proc validateRegisterMessage*(
 
   if not ad.advertisesService(serviceId):
     error "advertisement does not advertise the requested service", serviceId
+    return Opt.none(Advertisement)
+
+  if not ad.isValid():
+    error "advertisement violates XPR or ServiceInfo size limits"
     return Opt.none(Advertisement)
 
   return Opt.some(ad)
@@ -410,9 +417,25 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
-proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
+proc getCloserPeers(
+    disco: ServiceDiscovery, serviceId: ServiceId, count: int
+): seq[Peer] =
+  let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
+
+  let keys = table.randomPeersClosestFirst(
+    disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
+  )
+
+  return disco.switch.toPeers(keys)
+
+proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
   let serviceId = inMsg.key
-  let closerPeers = disco.findClosestPeers(serviceId)
+
+  # Add peer to both tables
+  discard disco.rtable.insert(peerId)
+  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+
+  let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
     msgType: MessageType.register,
@@ -486,16 +509,25 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
 
   return msg
 
-proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
+proc getAdvertisements*(
+    disco: ServiceDiscovery, peerId: PeerId, msg: Message
+): Message =
   let serviceId = msg.key
+
+  # Add peer to both tables
+  discard disco.rtable.insert(peerId)
+  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
   let cap = disco.discoConfig.fReturn
 
+  let closerPeers = disco.getCloserPeers(serviceId, cap)
+
   let response = Message(
     msgType: MessageType.getAds,
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
-    closerPeers: disco.findClosestPeers(serviceId),
+    closerPeers: closerPeers,
   )
 
   return response

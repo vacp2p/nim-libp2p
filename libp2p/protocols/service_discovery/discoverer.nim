@@ -20,6 +20,9 @@ type GetAdsResult = object
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   var validAds: seq[Advertisement] = @[]
   for adBuf in ads:
+    if adBuf.len == 0 or adBuf.len > MaxXPRSize:
+      continue
+
     let ad = Advertisement.decode(adBuf).valueOr:
       error "failed to decode advertisement", error
       continue
@@ -28,11 +31,15 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
       error "advert service mismatch", serviceId
       continue
 
+    if not ad.isValid():
+      error "advertisement violates XPR or ServiceInfo size limits", serviceId
+      continue
+
     validAds.add(ad)
   return validAds
 
 proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
-  return ok(disco.getAdvertisements(msg))
+  return ok(disco.getAdvertisements(disco.switch.peerInfo.peerId, msg))
 
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId

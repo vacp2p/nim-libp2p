@@ -25,7 +25,8 @@ import
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
+import
+  ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
 
 export switch
 
@@ -187,7 +188,8 @@ proc applyDValues*(parameters: var GossipSubParams, dValues: Opt[DValues]) =
     parameters.dLazy = values.dLazy.get
 
 proc generateNodes*(
-    num: Natural,
+    num: int,
+    address: MultiAddress = QuicAutoAddress,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     gossip: bool = false,
     triggerSelf: bool = false,
@@ -223,11 +225,10 @@ proc generateNodes*(
       Opt.none(PingPongExtensionConfig),
     preambleExtensionConfig: Opt[PreambleExtensionConfig] =
       Opt.none(PreambleExtensionConfig),
-    transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   var pubsubs: seq[PubSub]
   for i in 0 ..< num:
-    let switch = makeStandardSwitchBuilder(transport = transport)
+    let switch = makeStandardSwitchBuilder(address)
       .withSignedPeerRecord(sendSignedPeerRecord)
       .build()
     let pubsub =

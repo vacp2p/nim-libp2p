@@ -77,6 +77,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),
@@ -145,6 +146,7 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()
+  disco.advertiserMaintenanceLoop = disco.maintainAdvertiser()
 
   info "Service Discovery started"
 
@@ -165,6 +167,14 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.refreshServiceTablesLoop.isNil():
     disco.refreshServiceTablesLoop.cancelSoon()
     disco.refreshServiceTablesLoop = nil
+
+  if not disco.advertiserMaintenanceLoop.isNil():
+    disco.advertiserMaintenanceLoop.cancelSoon()
+    disco.advertiserMaintenanceLoop = nil
+
+  if not disco.localRegistrationLoop.isNil():
+    await disco.localRegistrationLoop.cancelAndWait()
+    disco.localRegistrationLoop = nil
 
   await procCall stop(KadDHT(disco))
 

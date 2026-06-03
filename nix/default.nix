@@ -33,7 +33,6 @@ pkgs.stdenv.mkDerivation {
       --skipUserCfg \
       --threads:on \
       --opt:speed \
-      -d:libp2p_autotls_support \
       -d:libp2p_mix_experimental_exit_is_dest \
       libp2p.nim
   '';

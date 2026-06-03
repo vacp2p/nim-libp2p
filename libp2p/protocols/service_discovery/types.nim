@@ -12,6 +12,10 @@ import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
+export extended_peer_record.MaxServiceDataSize
+export extended_peer_record.MaxXPRSize
+export extended_peer_record.isValid
+
 const
   DefaultSelfSPRRereshTime* = 10.minutes
 
@@ -57,10 +61,13 @@ type
   AdvertiseTask* = ref object
     fut*: Future[void]
     serviceId*: ServiceId
+    registrar*: PeerId
+    bucketIdx*: int
 
   Advertiser* = ref object
     running*: HashSet[AdvertiseTask]
     seqNo*: uint64
+    providedAdverts*: Table[ServiceId, seq[byte]]
 
   ServiceDiscoveryConfig* = object
     kRegister*: int
@@ -86,6 +93,8 @@ type
     selfSignedPeerRecordLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
+    advertiserMaintenanceLoop*: Future[void]
+    localRegistrationLoop*: Future[void]
     clientMode*: bool
 
 proc new*(
@@ -160,7 +169,11 @@ proc new*(T: typedesc[Registrar]): T =
   )
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[AdvertiseTask](), seqNo: Moment.now().epochSeconds.uint64)
+  T(
+    running: initHashSet[AdvertiseTask](),
+    seqNo: Moment.now().epochSeconds.uint64,
+    providedAdverts: initTable[ServiceId, seq[byte]](),
+  )
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
@@ -219,6 +232,12 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     peerInfo: PeerInfo = disco.switch.peerInfo
     services: seq[ServiceInfo] = disco.services.toSeq()
 
+  for svc in services:
+    if not svc.isValid():
+      return err(
+        "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
+      )
+
   let extPeerRecord = SignedExtendedPeerRecord.init(
     peerInfo.privateKey,
     ExtendedPeerRecord(
@@ -229,6 +248,9 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     ),
   ).valueOr:
     return err("Failed to create signed peer record: " & $error)
+
+  if not extPeerRecord.isValid():
+    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
 
   return ok(extPeerRecord)
 
