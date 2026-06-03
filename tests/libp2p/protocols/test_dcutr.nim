@@ -10,10 +10,10 @@ import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
 import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
-import ../../tools/[unittest, switch_builder]
+import ../../tools/[unittest, switch_builder, multiaddress]
 
 proc makeSwitch(): Switch =
-  return makeStandardSwitch(transport = TransportType.TCP)
+  return makeStandardSwitch(TcpAutoAddress)
 
 suite "Dcutr":
   teardown:

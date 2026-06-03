@@ -224,19 +224,11 @@ proc handle*(
   else:
     debug "no handlers", stream, protocol = ms
 
-proc addHandler*(
-    m: MultistreamSelect,
-    codecs: seq[string],
-    protocol: LPProtocol,
-    matcher: Matcher = nil,
-) =
-  trace "registering protocols", protos = codecs
-  m.handlers.add(HandlerHolder(protos: codecs, protocol: protocol, match: matcher))
-
-proc addHandler*(
-    m: MultistreamSelect, codec: string, protocol: LPProtocol, matcher: Matcher = nil
-) =
-  addHandler(m, @[codec], protocol, matcher)
+proc addHandler*(m: MultistreamSelect, protocol: LPProtocol, matcher: Matcher = nil) =
+  trace "registering protocols", protos = protocol.codecs
+  m.handlers.add(
+    HandlerHolder(protos: protocol.codecs, protocol: protocol, match: matcher)
+  )
 
 proc addHandler*[E](
     m: MultistreamSelect,
@@ -248,12 +240,11 @@ proc addHandler*[E](
     matcher: Matcher = nil,
 ) =
   ## helper to allow registering pure handlers
-  trace "registering proto handler", proto = codec
   let protocol = new LPProtocol
   protocol.codec = codec
   protocol.handler = handler
 
-  m.handlers.add(HandlerHolder(protos: @[codec], protocol: protocol, match: matcher))
+  m.addHandler(protocol, matcher)
 
 proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
   let futs = m.handlers.mapIt(it.protocol.start())
