@@ -771,6 +771,7 @@ suite "NATService":
         true
       except LPError:
         false
+
     check:
       tryBuild(
         NATConfig(
