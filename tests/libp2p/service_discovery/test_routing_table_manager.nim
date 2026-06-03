@@ -377,11 +377,13 @@ suite "ServiceRoutingTableManager - service id hashing":
     let
       table = manager.getTable(serviceId).get()
       preHashBucket = bucketIndex(
-        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets,
-        selfIdPreHashed = true,
+        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets, selfIdPreHashed = true
       )
       doubleHashBucket = bucketIndex(
-        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets,
+        serviceId,
+        peer,
+        Opt.none(XorDHasher),
+        DefaultMaxBuckets,
         selfIdPreHashed = false,
       )
 
@@ -407,8 +409,7 @@ suite "ServiceRoutingTableManager - service id hashing":
     # compute expectation; this ensures the test always matches the current
     # implementation rather than duplicating the lz/scale formula.
     let expectedScaled = bucketIndex(
-      serviceId, peer, Opt.none(XorDHasher), maxBuckets = 16,
-      selfIdPreHashed = true,
+      serviceId, peer, Opt.none(XorDHasher), maxBuckets = 16, selfIdPreHashed = true
     )
 
     check:
