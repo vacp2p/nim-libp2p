@@ -19,11 +19,10 @@ import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
-# The setup* procs below use the static lookup table exported from ../utils
-# (populated offline by the commented generator there). Review of call sites
-# shows only the service name "service" is ever passed to setupRegistrarsIn*
-# (the other tests use different ad-hoc names but do not call those procs).
-# Thus we use the least number of services (1) to minimize static table size.
+# The setup* procs below use the generated static lookup table exported from
+# ../utils. Review of call sites shows only the service name "service" is ever
+# passed to setupRegistrarsIn* (the other tests use different ad-hoc names but
+# do not call those procs), so the generated table contains only that service.
 proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
   bucketIndex(
     serviceId,
