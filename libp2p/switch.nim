@@ -199,16 +199,18 @@ proc mount*[T: LPProtocol](
 ) {.gcsafe, raises: [LPError].} =
   ## mount a protocol to the switch
 
-  if isNil(proto.handler):
+  if proto.handler.isNil:
     raise newException(LPError, "Protocol has to define a handle method or proc")
 
   if proto.codec.len == 0:
     raise newException(LPError, "Protocol has to define a codec string")
 
   if s.started and not proto.started:
-    raise newException(LPError, "Protocol not started")
+    raise newException(
+      LPError, "Protocol needs to be started when mounting to started Switch"
+    )
 
-  s.ms.addHandler(proto.codecs, proto, matcher)
+  s.ms.addHandler(proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
   s.peerInfo.notifyObservers()
 

@@ -257,7 +257,7 @@ suite "Circuit Relay":
     r.maxCircuitPerPeer = tmp
     await stream.close()
 
-    let dst2 = makeStandardSwitch(transport = TransportType.TCP)
+    let dst2 = makeStandardSwitch(TcpAutoAddress)
     await dst2.start()
     await srelay.connect(dst2.peerInfo.peerId, dst2.peerInfo.addrs)
 

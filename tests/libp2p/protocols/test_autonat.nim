@@ -14,13 +14,13 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest, crypto, switch_builder]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   return SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withAddresses(@[TcpAutoAddress])
     .withTcpTransport()
     .withMplex()
     .withAutonat()
@@ -29,7 +29,7 @@ proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
     .build()
 
 proc makeSwitch(): Switch =
-  return makeStandardSwitch(transport = TransportType.TCP)
+  return makeStandardSwitch(TcpAutoAddress)
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
