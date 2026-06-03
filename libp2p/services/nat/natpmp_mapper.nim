@@ -214,7 +214,7 @@ proc dispatch(
 
   ok(self.ctx.response)
 
-proc newNatPmpMapper*(): NatPmpMapper {.raises: [ResourceExhaustedError].} =
+proc new*(T: typedesc[NatPmpMapper]): T {.raises: [ResourceExhaustedError].} =
   let ctx = createShared(NatPmpWorkerCtx, 1)
   initSignals(ctx, "NatPmpMapper")
 
