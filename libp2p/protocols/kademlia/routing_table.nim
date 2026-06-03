@@ -216,10 +216,6 @@ proc isStale*(bucket: Bucket): bool =
 proc randomKeyInBucket*(
     selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
 ): Key =
-  #echo "Bucket: " & $bucketIndex & " maxBuckets: " & $maxBuckets
-
-  #echo "Key: " & selfId.toHex()
-
   let
     index = clamp(bucketIndex, 0, (maxBuckets - 1))
     buckets = max(1, maxBuckets)
@@ -227,16 +223,10 @@ proc randomKeyInBucket*(
     (byteIdx, rem) = divmod(leadingZeros, 8)
     boundBitIdx = 7 - rem
 
-  #echo "Zeros: " & $leadingZeros & " byteIdx: " & $byteIdx & " boundBitIdx " &
-  #  $boundBitIdx
-
   var key = selfId
 
   for i in byteIdx ..< IdLength:
     rng.generate(key[i])
-
-  #echo "Random Key Before: " & key.toHex()
-  #echo "Bound Byte Before: Index: " & $byteIdx & " Value: " & $key[byteIdx]
 
   # From 0 to boundBitIdx the bits should be random.
   # From boundBitIdx to 7 the bits should be the same as seflId.
@@ -249,9 +239,6 @@ proc randomKeyInBucket*(
   # The bit at the boundary should be the opposite of selfId. So that the XOR is not 0.
   if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
     key[byteIdx].flipBit(boundBitIdx)
-
-  #echo "Bound Byte After: Index: " & $byteIdx & " Value: " & $key[byteIdx]
-  #echo "Random Key After: " & key.toHex()
 
   return key
 
