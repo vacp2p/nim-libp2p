@@ -10,7 +10,6 @@ import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
   multicodec,
-  multihash,
   multibase,
   transcoder,
   vbuffer,
@@ -18,7 +17,7 @@ import
   protobuf/minprotobuf,
   errors,
   utils/[opt, shortlog, conversion, collections]
-import stew/[base58, base32, endians2]
+import stew/[base32, endians2]
 export results, vbuffer, errors, opt, shortlog, collections
 
 logScope:
@@ -222,33 +221,26 @@ proc portVB(vb: var VBuffer): bool =
 
 proc p2pStB(s: string, vb: var VBuffer): bool =
   ## P2P address stringToBuffer() implementation.
-  try:
-    var data = Base58.decode(s)
-    var mh: MultiHash
-    if MultiHash.decode(data, mh).isOk:
-      vb.writeSeq(data)
-      return true
-  except CatchableError:
-    discard
-  false
+  let pid = PeerId.init(s).valueOr:
+    return false
+  vb.writeSeq(pid.data)
+  true
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
   var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      s = Base58.encode(address)
-      return true
+    let pid = PeerId.init(address).valueOr:
+      return false
+    s = $pid
+    return true
   false
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
   var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      return true
+    return PeerId.init(address).isOk
   false
 
 proc onionStB(s: string, vb: var VBuffer): bool =
