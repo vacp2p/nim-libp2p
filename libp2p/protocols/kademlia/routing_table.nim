@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import algorithm, sequtils
+import algorithm, sequtils, math, bitops
 import chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
@@ -216,48 +216,44 @@ proc isStale*(bucket: Bucket): bool =
 proc randomKeyInBucket*(
     selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
 ): Key =
-  let targetLz =
-    if maxBuckets <= 1:
-      0
-    elif maxBuckets == 256 or bucketIndex >= maxBuckets:
-      bucketIndex
+  #echo "Bucket: " & $bucketIndex & " maxBuckets: " & $maxBuckets
+
+  #echo "Key: " & selfId.toHex()
+
+  let
+    index = clamp(bucketIndex, 0, (maxBuckets - 1))
+    buckets = max(1, maxBuckets)
+    leadingZeros = index * 256 div buckets
+    (byteIdx, rem) = divmod(leadingZeros, 8)
+    boundBitIdx = 7 - rem
+
+  #echo "Zeros: " & $leadingZeros & " byteIdx: " & $byteIdx & " boundBitIdx " &
+  #  $boundBitIdx
+
+  var key = selfId
+
+  for i in byteIdx ..< IdLength:
+    rng.generate(key[i])
+
+  #echo "Random Key Before: " & key.toHex()
+  #echo "Bound Byte Before: Index: " & $byteIdx & " Value: " & $key[byteIdx]
+
+  # From 0 to boundBitIdx the bits should be random.
+  # From boundBitIdx to 7 the bits should be the same as seflId.
+  for i in boundBitIdx .. 7:
+    if selfId[byteIdx].testBit(i):
+      key[byteIdx].setBit(i)
     else:
-      let M = maxBuckets
-      # lz in [lo, hi] satisfy (lz * M) div 256 == bucketIndex
-      let lo = (bucketIndex * 256 + M - 1) div M
-      let hi = min(256, ((bucketIndex + 1) * 256 + M - 1) div M - 1)
-      if lo > hi:
-        bucketIndex * (256 div max(1, M))
-      else:
-        let span = hi - lo + 1
-        var r: array[1, byte]
-        rng.generate(r)
-        lo + (int(r[0]) mod span)
+      key[byteIdx].clearBit(i)
 
-  var raw = selfId
+  # The bit at the boundary should be the opposite of selfId. So that the XOR is not 0.
+  if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
+    key[byteIdx].flipBit(boundBitIdx)
 
-  for i in 0 ..< targetLz:
-    let byteIdx = i div 8
-    let bitInByte = 7 - (i mod 8)
-    raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+  #echo "Bound Byte After: Index: " & $byteIdx & " Value: " & $key[byteIdx]
+  #echo "Random Key After: " & key.toHex()
 
-  # flip the target bit
-  let tgtByte = targetLz div 8
-  let tgtBitInByte = 7 - (targetLz mod 8)
-  raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
-
-  # randomize lower bits of the boundary byte
-  let lsbMask = (1'u8 shl tgtBitInByte) - 1
-  if lsbMask != 0:
-    var rb: array[1, byte]
-    rng.generate(rb)
-    raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
-
-  # randomize remaining bytes
-  if tgtByte + 1 < raw.len:
-    rng.generate(raw.toOpenArray(tgtByte + 1, raw.len - 1))
-
-  return raw
+  return key
 
 proc allKeys*(bucket: Bucket): seq[Key] {.inline.} =
   return bucket.peers.mapIt(it.nodeId)
