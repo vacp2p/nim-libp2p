@@ -2,9 +2,7 @@ module go-peer
 
 go 1.25.1
 
-require github.com/libp2p/go-libp2p v0.43.0
-
-replace github.com/libp2p/go-libp2p => ./go-libp2p
+require github.com/libp2p/go-libp2p v0.48.1-0.20260603041141-0608272b6b52
 
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
