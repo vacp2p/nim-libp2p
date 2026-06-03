@@ -16,10 +16,13 @@ type AutonatClient* = ref object of RootObj
 proc sendDial(
     stream: Stream, pid: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let pb = AutonatDial(
-    peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
+  let pb = AutonatMsg(
+    msgType: MsgType.Dial,
+    dial: Opt.some(
+      AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs)))
+    ),
   ).encode()
-  await stream.writeLp(pb.buffer)
+  await stream.writeLp(pb)
 
 method dialMe*(
     self: AutonatClient,
@@ -33,7 +36,7 @@ method dialMe*(
       autonatMsg: Opt[AutonatMsg]
   ): AutonatDialResponse {.raises: [AutonatError].} =
     autonatMsg.withValue(msg):
-      if msg.msgType == DialResponse:
+      if msg.msgType == MsgType.DialResponse:
         msg.response.withValue(res):
           if not (res.status == Ok and res.ma.isNone()):
             return res
