@@ -67,9 +67,7 @@ proc startSync*(
     let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
     if expectedIncoming.failed() and
         expectedIncoming.error of AlreadyExpectingConnectionError:
-      raise newException(
-        DcutrError, expectedIncoming.error.msg, expectedIncoming.error
-      )
+      raise newException(DcutrError, expectedIncoming.error.msg, expectedIncoming.error)
     defer:
       expectedIncoming.cancelSoon()
 

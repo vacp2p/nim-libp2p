@@ -192,6 +192,8 @@ proc getStream(
   return qs
 
 method getWrapped*(self: QuicSession): P2PConnection =
+  # QuicSession is the underlying transport connection; returning nil ends
+  # wrapper traversal for callers that walk through layered connections.
   nil
 
 # Muxer
@@ -421,19 +423,17 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
+  var endpointStops: seq[Future[void]]
   transport.dialEndpoint4.withValue(endpoint):
-    await noCancel endpoint.stop()
+    endpointStops.add(endpoint.stop())
   transport.dialEndpoint6.withValue(endpoint):
-    await noCancel endpoint.stop()
+    endpointStops.add(endpoint.stop())
+  await noCancel allFutures(endpointStops)
 
   transport.dialEndpoint4 = Opt.none(QuicEndpoint)
   transport.dialEndpoint6 = Opt.none(QuicEndpoint)
 
-  for listener in transport.listeners:
-    try:
-      await listener.stop()
-    except CatchableError as exc:
-      trace "Error shutting down Quic transport", description = exc.msg
+  await noCancel allFutures(transport.listeners.mapIt(it.stop()))
   transport.listeners = @[]
   transport.acceptFuts = @[]
 

@@ -15,13 +15,12 @@ COPY . nim-libp2p/
 RUN cd nim-libp2p && \
   nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 \
   --mm:refc --threads:on \
-  -d:chronicles_log_level=TRACE -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
-  -o:/app/hole-punch-client ./interop/hole-punching/hole_punching.nim
+  -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
+  -o:/app/peer ./interop/hole-punching/hole_punching.nim
 
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl dnsutils iproute2 jq tcpdump \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/hole-punch-client /usr/bin/hole-punch-client
-RUN ln -s /usr/bin/hole-punch-client /usr/bin/peer
-CMD ["/usr/bin/hole-punch-client"]
+RUN apt-get update && apt-get install -y iproute2 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/peer /usr/bin/peer
+COPY interop/hole-punching/run-peer.sh /usr/bin/run-peer.sh
+RUN chmod +x /usr/bin/run-peer.sh
+ENTRYPOINT ["/usr/bin/run-peer.sh"]

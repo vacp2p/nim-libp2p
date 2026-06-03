@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/os, chronos, chronicles, sequtils, tables
+import chronos, chronicles, sequtils, tables
 import
   ../../libp2p/[
     builders,
@@ -40,8 +40,8 @@ proc isDirectlyConnected(switch: Switch, peerId: PeerId): bool =
 
 type HolePunchSwitches = object
   sw: Switch
+  aux: Switch
   autonatService: AutonatService
-  autoRelayService: AutoRelayService
 
 proc createSwitches(config: BaseConfig): HolePunchSwitches =
   # Setup relay
@@ -59,25 +59,26 @@ proc createSwitches(config: BaseConfig): HolePunchSwitches =
   # Setup switches
   let switches = HolePunchSwitches(
     sw: createSwitch(config, relayClient, hpservice),
+    aux: createSwitch(config),
     autonatService: autonatService,
-    autoRelayService: autoRelayService,
   )
   switches
 
 proc connectToRelay(
     config: BaseConfig, redisClient: Redis, switches: HolePunchSwitches
 ): Future[MultiAddress] {.async.} =
-  # The Docker v2 harness already places the peer behind a NAT router. Avoid
-  # the synthetic in-process AutoNAT probe and mark the node as private before
-  # reserving through the relay.
-  switches.autonatService.networkReachability = NetworkReachability.NotReachable
-  for t in switches.sw.transports:
-    t.networkReachability = NetworkReachability.NotReachable
-  await switches.autoRelayService.start(switches.sw)
-  info "AutoNAT forced to NotReachable; AutoRelay started"
+  # Connect to aux switch for AutoNAT stub to report NotReachable
+  await switches.sw.connect(switches.aux.peerInfo.peerId, switches.aux.peerInfo.addrs)
+
+  # Wait for autonat to report NotReachable
+  pollUntil(
+    switches.autonatService.networkReachability == NetworkReachability.NotReachable,
+    errorMsg = "Timeout waiting for AutoNAT NotReachable",
+  )
+  info "AutoNAT reports NotReachable"
 
   # Connect to relay (triggers AutoRelay reservation)
-  let relayMA = await fetchRelayMultiaddr(redisClient, config)
+  let relayMA = await fetchRelayMultiaddr(redisClient, config.testKey)
   info "Got relay address", relayMA
 
   try:
@@ -100,10 +101,11 @@ proc runDialer(config: BaseConfig) {.async.} =
     redisClient = setupRedis(config.redisAddr)
     switches = createSwitches(config)
 
-  await switches.sw.start()
+  await allFutures(switches.sw.start(), switches.aux.start())
   defer:
     # Timeout the stop to avoid hanging on mplex teardown
-    discard await switches.sw.stop().withTimeout(5.seconds)
+    discard
+      await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
   let relayMA = await connectToRelay(config, redisClient, switches)
 
@@ -127,7 +129,7 @@ proc runDialer(config: BaseConfig) {.async.} =
   )
 
   let dcutrElapsed = Moment.now() - dcutrStart
-  info "Direct connection established via DCUtR", elapsed = dcutrElapsed
+  info "Direct connection established via DCUtR"
 
   # Ping over the direct connection
   let channel = await switches.sw.dial(listenerId, PingCodec)
@@ -137,17 +139,18 @@ proc runDialer(config: BaseConfig) {.async.} =
   let pingDelay = await Ping.new(rng = rng()).ping(channel)
   let pingRttMs = pingDelay.toMs()
 
-  printHolePunchReportJson(pingRttMs)
+  printLatencyYaml(dcutrElapsed.toMs() + pingRttMs, pingRttMs)
 
 proc runListener(config: BaseConfig) {.async.} =
   let
     redisClient = setupRedis(config.redisAddr)
     switches = createSwitches(config)
 
-  await switches.sw.start()
+  await allFutures(switches.sw.start(), switches.aux.start())
   defer:
     # Timeout the stop to avoid hanging on mplex teardown
-    discard await switches.sw.stop().withTimeout(5.seconds)
+    discard
+      await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
   discard await connectToRelay(config, redisClient, switches)
 
@@ -158,9 +161,7 @@ proc runListener(config: BaseConfig) {.async.} =
   await sleepAsync(5.minutes)
 
 proc main() {.async.} =
-  var config = readBaseConfig()
-  if getEnv("MUXER").len == 0:
-    config.muxer = "yamux"
+  let config = readBaseConfig()
   info "Test configuration", config
   if config.isDialer:
     await runDialer(config)

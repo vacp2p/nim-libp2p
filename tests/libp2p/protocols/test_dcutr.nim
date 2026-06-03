@@ -12,8 +12,8 @@ import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
 import ../../tools/[unittest, switch_builder, multiaddress]
 
-proc makeSwitch(): Switch =
-  return makeStandardSwitch(TcpAutoAddress)
+proc makeSwitch(address: MultiAddress = TcpAutoAddress): Switch =
+  return makeStandardSwitch(address)
 
 suite "Dcutr":
   teardown:
@@ -85,8 +85,8 @@ suite "Dcutr":
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
   asyncTest "DCUtR establishes a new QUIC connection":
-    let behindNATSwitch = makeSwitch(transport = TransportType.QUIC)
-    let publicSwitch = makeSwitch(transport = TransportType.QUIC)
+    let behindNATSwitch = makeSwitch(QuicAutoAddress)
+    let publicSwitch = makeSwitch(QuicAutoAddress)
 
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)

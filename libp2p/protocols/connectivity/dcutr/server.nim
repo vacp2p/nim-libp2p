@@ -72,9 +72,8 @@ proc new*(
       let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
       if expectedIncoming.failed() and
           expectedIncoming.error of AlreadyExpectingConnectionError:
-        raise newException(
-          DcutrError, expectedIncoming.error.msg, expectedIncoming.error
-        )
+        raise
+          newException(DcutrError, expectedIncoming.error.msg, expectedIncoming.error)
       defer:
         expectedIncoming.cancelSoon()
 
@@ -83,9 +82,8 @@ proc new*(
       let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
       if expectedOutgoing.failed() and
           expectedOutgoing.error of AlreadyExpectingConnectionError:
-        raise newException(
-          DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error
-        )
+        raise
+          newException(DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error)
       defer:
         expectedOutgoing.cancelSoon()
 

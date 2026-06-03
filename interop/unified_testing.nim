@@ -62,42 +62,24 @@ proc resolveBindIp*(ip: string): string =
 
   ($addresses[0][0].host).split(":")[0]
 
-proc readIsDialer*(): bool =
-  let mode = getEnv("MODE", getEnv("ROLE", ""))
-  if mode.len > 0:
-    return mode in ["dial", "dialer"]
-  parseBoolEnv("IS_DIALER", false)
-
-proc normalizeTransport*(transport: string): string =
-  case transport
-  of "quic":
-    "quic-v1"
-  else:
-    transport
-
-proc defaultMuxerForTransport(transport: string): string =
-  # QUIC provides security and multiplexing for direct connections, but relay
-  # circuit connections still negotiate an inner stream muxer. Rust's quic-v1
-  # hole-punch implementation uses yamux for that relay-client path.
-  if normalizeTransport(transport) == "quic-v1": "yamux" else: "mplex"
-
 proc readBaseConfig*(): BaseConfig =
-  let isDialer = readIsDialer()
+  let isDialer = parseBoolEnv("IS_DIALER", false)
   let bindIp =
     if isDialer:
       resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
     else:
       resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
   let testKey = getEnv("TEST_KEY")
-  let transport = normalizeTransport(getEnv("TRANSPORT", "tcp"))
+  if testKey.len == 0:
+    raise newException(CatchableError, "TEST_KEY env var is required")
   let config = BaseConfig(
     isDialer: isDialer,
     bindIp: bindIp,
     redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
     testKey: testKey,
-    transport: transport,
+    transport: getEnv("TRANSPORT", "tcp"),
     secureChannel: getEnv("SECURE_CHANNEL", "noise"),
-    muxer: getEnv("MUXER", defaultMuxerForTransport(transport)),
+    muxer: getEnv("MUXER", "mplex"),
     testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
   )
   config
@@ -148,9 +130,6 @@ proc pollGet*(
   return val
 
 const
-  CurrentListenerPeerIdKey* = "LISTEN_CLIENT_PEER_ID"
-  CurrentRelayTcpAddressKey* = "RELAY_TCP_ADDRESS"
-  CurrentRelayQuicAddressKey* = "RELAY_QUIC_ADDRESS"
   ListenerMultiaddrSuffix* = "_listener_multiaddr"
   ListenerPeerIdSuffix* = "_listener_peer_id"
   RelayMultiaddrSuffix* = "_relay_multiaddr"
@@ -166,30 +145,6 @@ proc fetchValue*(
 ): Future[string] {.async.} =
   await client.pollGet(makeKey(testKey, suffix), timeout)
 
-proc popValue*(
-    client: Redis,
-    key: string,
-    timeout: Duration = 30.seconds,
-    delay: Duration = 500.milliseconds,
-): Future[string] {.async.} =
-  ## Poll a Redis list until it contains a value, then consume one item.
-  var val: string
-  proc hasValue(): bool =
-    val = client.lPop(key)
-    val != redisNil and val.len > 0
-
-  pollUntil(hasValue(), timeout, delay, "Timeout waiting for Redis list: " & key)
-  return val
-
-proc publishQueueValue*(client: Redis, key, value: string) =
-  discard client.rPush(key, value)
-
-proc relayAddressKey*(transport: string): string =
-  if normalizeTransport(transport) == "quic-v1":
-    CurrentRelayQuicAddressKey
-  else:
-    CurrentRelayTcpAddressKey
-
 proc publishListenerMultiaddr*(client: Redis, testKey: string, sw: Switch) =
   let addrs = sw.peerInfo.fullAddrs.tryGet()
   if addrs.len == 0:
@@ -204,42 +159,19 @@ proc fetchListenerMultiaddr*(
 
 proc publishListenerPeerId*(client: Redis, testKey: string, sw: Switch): PeerId =
   let peerId = sw.peerInfo.peerId
-  if testKey.len == 0:
-    client.publishQueueValue(CurrentListenerPeerIdKey, $peerId)
-  else:
-    client.publishValue(testKey, ListenerPeerIdSuffix, $peerId)
+  client.publishValue(testKey, ListenerPeerIdSuffix, $peerId)
   peerId
 
 proc fetchListenerPeerId*(
     client: Redis, testKey: string, timeout: Duration = 30.seconds
 ): Future[PeerId] {.async.} =
-  let raw =
-    if testKey.len == 0:
-      await client.popValue(CurrentListenerPeerIdKey, timeout)
-    else:
-      await client.fetchValue(testKey, ListenerPeerIdSuffix, timeout)
+  let raw = await client.fetchValue(testKey, ListenerPeerIdSuffix, timeout)
   PeerId.init(raw).tryGet()
 
 proc fetchRelayMultiaddr*(
     client: Redis, testKey: string, timeout: Duration = 30.seconds
 ): Future[MultiAddress] {.async.} =
-  let raw =
-    if testKey.len == 0:
-      await client.popValue(CurrentRelayTcpAddressKey, timeout)
-    else:
-      await client.fetchValue(testKey, RelayMultiaddrSuffix, timeout)
-  MultiAddress.init(raw).tryGet()
-
-proc fetchRelayMultiaddr*(
-    client: Redis,
-    config: BaseConfig,
-    timeout: Duration = 30.seconds,
-): Future[MultiAddress] {.async.} =
-  let raw =
-    if config.testKey.len == 0:
-      await client.popValue(relayAddressKey(config.transport), timeout)
-    else:
-      await client.fetchValue(config.testKey, RelayMultiaddrSuffix, timeout)
+  let raw = await client.fetchValue(testKey, RelayMultiaddrSuffix, timeout)
   MultiAddress.init(raw).tryGet()
 
 # ---------- timing ----------
@@ -252,9 +184,6 @@ proc printLatencyYaml*(handshakePlusOneRttMs, pingRttMs: float) =
   echo &"  handshake_plus_one_rtt: {handshakePlusOneRttMs:.2f}"
   echo &"  ping_rtt: {pingRttMs:.2f}"
   echo "  unit: ms"
-
-proc printHolePunchReportJson*(pingRttMs: float) =
-  echo &"""{{"rtt_to_holepunched_peer_millis":{pingRttMs:.2f}}}"""
 
 # ---------- switch builder dispatch ----------
 
