@@ -226,10 +226,10 @@ proc containsPeer*(
 # At minimum we need:
 #   "service" -> bucket 0 with >= ~8 keys (for same-bucket K_lookup test)
 #   "service" -> at least one other bucket (e.g. 1) with >= 2 keys (for distinct tests)
-const precomputedStaticBucketKeys* = block:
-  var inner0 = initTable[int, seq[string]]()
+const serviceBucketLookupTable* = block:
+  var bucketKeysTable = initTable[int, seq[string]]()
 
-  inner0[0] = @[
+  bucketKeysTable[0] = @[
     "080112406A0C233F564BA1CB6DA689116CE39E86AEE6B1977029EC97789DF6BB9D40B276BA3BA74215B1AF35C91ECB643460AEC4F11958E8677F7772F28F848F1BF9CCE1",
     "08011240AC354633944891C4415D24DBC7D8B22946041727F0568493414305C5172272BAD7A72F15240237D5CE35820AEF77CD703B8466702607862B60F15C5106E7D837",
     "08011240F14AA4CEF941B92C3A74E8880CCA1DCCCF200E7ED0E92A643E0122A6C4F4BB4203829378B9E4B3CA01809D344F21CA1A6F432038F2130EA5F66557A434A3ECFF",
@@ -239,15 +239,15 @@ const precomputedStaticBucketKeys* = block:
     "08011240CD04A0C51250F7A2545C61FC084E160BFD01E760D7D88016111F8CE175890D605D25CDE8DFA9C3EAA70D9C8D8AD4F7F7792C63CD3C83AA8F8FEF031103A91261",
     "08011240DD6480FA1CC5CF3C86E496CAC93093F8F9CC2C85C212E4C84DDB59DA6E407AE54A0ACF94451A00CED3C59FDBCFCBBE28F780637A4B984153D4EB72A566C88DD1",
   ]
-  inner0[1] = @[
+  bucketKeysTable[1] = @[
     "0801124021B12E50EF13E4E40597DFAC04309E811969A9E76DB0130E7837AF3AA2D1E95F4726D31731A6956F8FE7CA59DFFC918A323758D6ACCE01ECDBC4F00C974BC197",
     "080112401A9447EB01AF2E716212E19EF7A217A3629226AF7A25977CCE2E11EB55CA83B58BDB4B193C2A0E0B055C07C943A610AA6DD8755CDB7BEE9061300FB1980696A9",
   ]
   var m = initTable[string, Table[int, seq[string]]]()
-  m["service"] = inner0
+  m["service"] = bucketKeysTable
   m
 
-proc getStaticPrivateKeyForBucket*(serviceName: string, bucket: int): PrivateKey =
+proc getKeyForBucket*(serviceName: string, bucket: int): PrivateKey =
   ## Returns a PrivateKey (cycling through the precomputed list for the
   ## (serviceName, bucket) pair) that is known to land in that scaled bucket
   ## under the current bucketIndex rules used by service tables.
@@ -255,6 +255,6 @@ proc getStaticPrivateKeyForBucket*(serviceName: string, bucket: int): PrivateKey
   let key = (serviceName, bucket)
   var idx = counters.getOrDefault(key, 0)
   counters[key] = idx + 1
-  let hexes = precomputedStaticBucketKeys[serviceName][bucket]
+  let hexes = serviceBucketLookupTable[serviceName][bucket]
   let h = hexes[idx mod hexes.len]
   PrivateKey.init(h).get()

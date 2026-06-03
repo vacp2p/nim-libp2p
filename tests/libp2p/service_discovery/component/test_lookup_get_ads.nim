@@ -40,22 +40,22 @@ proc setupRegistrarsInDistinctBuckets(
   ## Returned in the order `lookup()` would visit them (lower bucket index first).
 
   let svcName = "service"
-  let pk0 = getStaticPrivateKeyForBucket(svcName, 0)
+  let key0 = getKeyForBucket(svcName, 0)
   # Get a key for a higher bucket (we have entries for 1).
-  var pk1 = pk0
+  var key1 = key0
   for b in 1 ..< conf.bucketsCount:
-    if b in precomputedStaticBucketKeys[svcName] and
-        precomputedStaticBucketKeys[svcName][b].len > 0:
-      pk1 = getStaticPrivateKeyForBucket(svcName, b)
+    if b in serviceBucketLookupTable[svcName] and
+        serviceBucketLookupTable[svcName][b].len > 0:
+      key1 = getKeyForBucket(svcName, b)
       break
-  let n0 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk0))
-  let n1 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk1))
-  let bb0 = bucketOf(n0, serviceId)
-  let bb1 = bucketOf(n1, serviceId)
-  if bb0 < bb1:
-    return (n0, n1)
+  let node0 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(key0))
+  let node1 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(key1))
+  let bucket0 = bucketOf(node0, serviceId)
+  let bucket1 = bucketOf(node1, serviceId)
+  if bucket0 < bucket1:
+    return (node0, node1)
   else:
-    return (n1, n0)
+    return (node1, node0)
 
 proc setupRegistrarsInSameBucket(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId, count: int
@@ -65,15 +65,15 @@ proc setupRegistrarsInSameBucket(
   doAssert count > 0, "count must be > 0"
   let svcName = "service"
   # Find a bucket that has enough precomputed keys (will be 0 for "service").
-  var chosenB = -1
-  for b, lst in precomputedStaticBucketKeys[svcName]:
+  var chosenBucket = -1
+  for b, lst in serviceBucketLookupTable[svcName]:
     if lst.len >= count:
-      chosenB = b
+      chosenBucket = b
       break
-  if chosenB >= 0:
+  if chosenBucket >= 0:
     var nodes: seq[ServiceDiscovery]
     for i in 0 ..< count:
-      let pk = getStaticPrivateKeyForBucket(svcName, chosenB)
+      let pk = getKeyForBucket(svcName, chosenBucket)
       nodes.add(
         setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk))
       )

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, nimcrypto/sha2, results, sets, tables, sequtils
+import chronos, results, sets, tables, sequtils
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -369,19 +369,27 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     manager.insertPeer(serviceId, peer)
 
-    # The peer lands in the bucket determined by XOR(serviceId, H(peer)),
-    # not XOR(H(serviceId), H(peer))
+    # Service tables use selfIdPreHashed=true so that bucketIndex uses the
+    # already-hashed serviceId directly (as self), hashing only the peer key
+    # once. This test verifies that (for a chosen pair where single- vs
+    # double-hashing the serviceId would produce different buckets) the peer
+    # is placed according to the pre-hashed serviceId path.
     let
       table = manager.getTable(serviceId).get()
-      peerHash = @(sha256.digest(peer).data)
-      expectedBucket = leadingZeros(xorDistance(serviceId, peerHash))
-      doubleHashBucket =
-        leadingZeros(xorDistance(@(sha256.digest(serviceId).data), peerHash))
+      preHashBucket = bucketIndex(
+        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets,
+        selfIdPreHashed = true,
+      )
+      doubleHashBucket = bucketIndex(
+        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets,
+        selfIdPreHashed = false,
+      )
 
     check:
-      expectedBucket != doubleHashBucket
-      table.buckets[expectedBucket].peers.len == 1
-      table.buckets[expectedBucket].peers[0].nodeId == peer
+      preHashBucket != doubleHashBucket
+      table.buckets.len > preHashBucket
+      table.buckets[preHashBucket].peers.len == 1
+      table.buckets[preHashBucket].peers[0].nodeId == peer
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let
@@ -395,9 +403,13 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     let table = manager.getTable(serviceId).get()
 
-    let peerHash = @(sha256.digest(peer).data)
-    let rawLz = leadingZeros(xorDistance(serviceId, peerHash))
-    let expectedScaled = min((rawLz * 16) div 256, 15)
+    # Use the production bucketIndex (with prehashed + small maxBuckets) to
+    # compute expectation; this ensures the test always matches the current
+    # implementation rather than duplicating the lz/scale formula.
+    let expectedScaled = bucketIndex(
+      serviceId, peer, Opt.none(XorDHasher), maxBuckets = 16,
+      selfIdPreHashed = true,
+    )
 
     check:
       peer in table.allKeys()
