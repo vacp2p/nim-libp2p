@@ -10,6 +10,7 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	autonatv2 "github.com/libp2p/go-libp2p/p2p/protocol/autonatv2"
 )
 
 const (
@@ -77,7 +78,6 @@ func main() {
 
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
-		libp2p.EnableAutoNATv2(),
 		libp2p.ListenAddrStrings(
 			// only use IPv6 addresses, as this test case also verifies
 			// interoperability with IPv6. we do not want to accidentally
@@ -89,6 +89,23 @@ func main() {
 		log.Fatalf("Failed to create host: %v", err)
 	}
 	defer h.Close()
+
+	// libp2p.EnableAutoNATv2() doesn't expose AllowPrivateAddrs, so wire
+	// AutoNATv2 manually. A separate listenless host serves as the dialer
+	// so the server's dial-back doesn't tear down the client's request
+	// connection on h (server.dialBack does ClosePeer(p) on the dialer).
+	dialer, err := libp2p.New(libp2p.NoListenAddrs)
+	if err != nil {
+		log.Fatalf("Failed to create autonatv2 dialer host: %v", err)
+	}
+	an, err := autonatv2.New(dialer, autonatv2.AllowPrivateAddrs)
+	if err != nil {
+		log.Fatalf("Failed to create autonatv2: %v", err)
+	}
+	if err := an.Start(h); err != nil {
+		log.Fatalf("Failed to start autonatv2: %v", err)
+	}
+	defer an.Close()
 
 	fmt.Println("Peer ID:", pid.String())
 	fmt.Println("Listen addresses:", h.Addrs())
