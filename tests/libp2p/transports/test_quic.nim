@@ -198,7 +198,8 @@ suite "Quic transport":
       client.addrs.len == 0
       clientConn.localAddr.isSome()
       serverConn.observedAddr.isSome()
-      extractPort(serverConn.observedAddr.get()) == extractPort(clientConn.localAddr.get())
+      extractPort(serverConn.observedAddr.get()) ==
+        extractPort(clientConn.localAddr.get())
 
   asyncTest "server not accepting":
     let server = await createQuicTransport(isServer = true)
