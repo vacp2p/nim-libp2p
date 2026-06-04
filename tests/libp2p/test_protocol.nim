@@ -38,10 +38,14 @@ template assertNoLimits(p: LPProtocol) =
   # when there are no limits reserve and release will always succeed
 
   # this for is here to drive over any limits (default or explicit)
-  for _ in 0 .. 1000:
+  for _ in 1 .. 1000:
     check:
       p.reserveIncoming(peerId1)
       p.reserveOutgoing(peerId1)
+
+  check:
+    p.openGaugeIn() == 1000
+    p.openGaugeOut() == 1000
 
   check: # incoming
     p.canAcceptIncoming(peerId1)
@@ -73,6 +77,9 @@ suite "LPProtocol stream budget":
     peerId1 = PeerId.random(rng()).get()
     peerId2 = PeerId.random(rng()).get()
     peerId3 = PeerId.random(rng()).get()
+
+  setup:
+    clearGauges(codecs)
 
   test "LPProtocol with no limits (default values)":
     let p = LPProtocol.new(codecs, handler)
