@@ -155,10 +155,27 @@ proc askPeer(
     return Unknown
 
   trace "Asking peer for reachability"
+
+  # Until the node is confirmed reachable, the address mapper leaves only
+  # listen addresses in peerInfo.addrs, so a node behind NAT would never
+  # submit a dialable candidate (chicken-and-egg). Add the addresses
+  # observed by other peers via identify as additional candidates.
+  var observedCandidates = switch.peerStore.getMostObservedProtosAndPorts()
+  if observedCandidates.len == 0:
+    # Fallback to guessDialableAddr if no observed candidates are available
+    observedCandidates =
+      switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+
+  # Combine observed candidates with the node's current addresses to form the
+  # candidate list
+  let reqAddrs = deduplicate(switch.peerInfo.addrs & observedCandidates)
+  if reqAddrs.len == 0:
+    debug "No candidate addresses to test, not asking peer"
+    return Unknown
+
   var dialBackAddr = Opt.none(MultiAddress)
   let ans =
     try:
-      let reqAddrs = switch.peerInfo.addrs
       let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
       debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
       dialBackAddr = autonatV2Resp.addrs

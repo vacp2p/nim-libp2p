@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     builders,
     switch,
+    observedaddrmanager,
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
@@ -584,6 +585,66 @@ suite "AutonatV2 Service":
     check service.networkReachability == NetworkReachability.NotReachable
     check capturedAddr.isSome()
     check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Observed addresses must be included in dial request candidates":
+    let
+      (service, client) = newService(NetworkReachability.Reachable, expectedDials = 1)
+      switch = createSwitch(Opt.some(service))
+      switches = @[createSwitch()]
+
+    # Simulate identify reports from other peers: the same public address
+    # must be observed at least minCount (3) times to become a candidate.
+    let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
+    for _ in 0 ..< 3:
+      discard switch.peerStore.identify.observedAddrManager.addObservation(observedAddr)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    check observedAddr in client.allTestAddrs[0]
+    for ma in switch.peerInfo.addrs:
+      check ma in client.allTestAddrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dial request must fall back to the guessed dialable address when the observed IP reaches quorum but the port does not":
+    # High minConfidence keeps the node Unknown for the whole test, so the
+    # address mapper stays inactive: candidates can only come from the
+    # observed addresses.
+    # Each connection triggers identify: after 3 of them the observed IP
+    # reaches quorum (ports are ephemeral, only the IP is stable), so the
+    # ask triggered by the 4th connection must include the guessed
+    # dialable address (observed IP + listen port).
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = 4,
+        config = AutonatV2ServiceConfig.new(minConfidence = 0.9),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(4)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let expected =
+      concat(MultiAddress.init("/ip4/127.0.0.1").tryGet(), tcpPart).tryGet()
+
+    # Before the quorum (first 3 asks), only the listen addresses are sent.
+    for reqAddrs in client.allTestAddrs[0 ..< 3]:
+      check reqAddrs == switch.peerInfo.listenAddrs
+
+    # The 4th ask is the first one with the quorum reached: it must contain
+    # the guessed dialable address.
+    check expected in client.allTestAddrs[3]
+
+    # Make sure the guessed dialable address is not in the peer's listen addresses
+    check expected notin switch.peerInfo.addrs
 
     await switch.stop()
     await switches.stopAll()
