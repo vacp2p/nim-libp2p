@@ -39,7 +39,7 @@ proc push*(q: var ZeroQueue, b: sink seq[byte]) =
     q.queuedBytes += b.len.int64
     q.chunks.addLast(newChunk(b))
 
-proc popChunk(q: var ZeroQueue, count: int): Chunk {.inline.} =
+proc popChunk(q: var ZeroQueue, count: int): Chunk =
   doAssert(count > 0, "count must be positive integer")
   var first = q.chunks.popFirst()
 

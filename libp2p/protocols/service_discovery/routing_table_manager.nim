@@ -101,9 +101,7 @@ proc insertPeer*(
     cd_service_table_insertions.inc()
     manager.updateServiceTablesMetrics()
 
-proc hasService*(
-    manager: ServiceRoutingTableManager, serviceId: ServiceId
-): bool {.inline.} =
+proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service
   serviceId in manager.tables
 
@@ -115,13 +113,13 @@ proc refreshAllTables*(
   for rtable in tables:
     await kad.refreshTable(rtable)
 
-proc count*(manager: ServiceRoutingTableManager): int {.inline.} =
+proc count*(manager: ServiceRoutingTableManager): int =
   return manager.tables.len
 
-proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] {.inline.} =
+proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] =
   return manager.tables.keys.toSeq()
 
-proc clear*(manager: ServiceRoutingTableManager) {.inline.} =
+proc clear*(manager: ServiceRoutingTableManager) =
   manager.tables.clear()
   manager.serviceStatus.clear()
   manager.updateServiceTablesMetrics()

@@ -4,7 +4,7 @@
 {.used.}
 
 import nimcrypto/utils, stew/base58
-import ../../libp2p/[crypto/crypto, peerid]
+import ../../libp2p/[cid, crypto/crypto, multicodec, peerid]
 import ../tools/[unittest, crypto]
 
 ## Test vectors was made using Go implementation
@@ -231,6 +231,41 @@ suite "Peer testing suite":
           ekey2 == pubkey
           ekey3 == pubkey
           ekey4 == pubkey
+  test "CIDv1 text support":
+    const
+      legacyPeerId = "QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+      cidBase32 = "bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqxe"
+
+    let
+      pid = PeerId.init(legacyPeerId).tryGet()
+      cid = pid.toCid().tryGet()
+      cidBase58 = pid.toCidString("base58btc").tryGet()
+      fromCidBase32 = PeerId.init(cidBase32).tryGet()
+      fromCidBase58 = PeerId.init(cidBase58).tryGet()
+
+    check:
+      cid.version() == CIDv1
+      cid.contentType().tryGet() == multiCodec("libp2p-key")
+      cid.mhash().tryGet().data.buffer == pid.getBytes()
+      pid.toCidString().tryGet() == cidBase32
+      cidBase58[0] == 'z'
+      fromCidBase32 == pid
+      fromCidBase58 == pid
+      $fromCidBase32 == legacyPeerId
+      $fromCidBase58 == legacyPeerId
+
+  test "Reject invalid PeerId text forms":
+    const
+      legacyPeerId = "QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+      wrongCodecCid = "zb2rhhFAEMepUBbGyP1k8tGfz7BSciKXP6GHuUeUsJBaK6cqG"
+      malformedCid = "bafzbeie5745rpv2m6tjyuugywy4d5ewrqgqqhfnf445he3omzpjbx5xqx0"
+
+    check:
+      PeerId.init("").isErr()
+      PeerId.init(wrongCodecCid).isErr()
+      PeerId.init("z" & legacyPeerId).isErr()
+      PeerId.init(malformedCid).isErr()
+
   test "Test PeerId.random() proc":
     var randomPeer1 = PeerId.random(rng())
     check:

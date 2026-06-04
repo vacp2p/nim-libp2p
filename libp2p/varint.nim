@@ -94,7 +94,7 @@ template fromUleb(x: uint64, T: type hint64): T =
 template fromUleb(x: uint32, T: type hint32): T =
   cast[T](x)
 
-proc vsizeof*(x: SomeVarint): int {.inline.} =
+proc vsizeof*(x: SomeVarint): int =
   ## Returns number of bytes required to encode integer ``x`` as varint.
   Leb128.len(toUleb(x))
 
@@ -182,7 +182,7 @@ proc putUVarint*[T: PB | LP](
 
 proc getSVarint*(
     pbytes: openArray[byte], outsize: var int, outval: var (PBZigVarint | PBSomeSVarint)
-): VarintResult[void] {.inline.} =
+): VarintResult[void] =
   ## Decode signed integer (``int32`` or ``int64``) from buffer ``pbytes``
   ## and store it to ``outval``.
   ##
@@ -213,7 +213,7 @@ proc getSVarint*(
 
 proc putSVarint*(
     pbytes: var openArray[byte], outsize: var int, outval: (PBZigVarint | PBSomeSVarint)
-): VarintResult[void] {.inline.} =
+): VarintResult[void] =
   ## Encode signed integer ``outval`` using ProtoBuffer's zigzag encoding
   ## (``sint32`` or ``sint64``) and store it to array ``pbytes``.
   ##
@@ -234,7 +234,7 @@ template varintFatal(msg) =
 
 proc putVarint*[T: PB | LP](
     vtype: typedesc[T], pbytes: var openArray[byte], nbytes: var int, value: SomeVarint
-): VarintResult[void] {.inline.} =
+): VarintResult[void] =
   when vtype is PB:
     when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
       putSVarint(pbytes, nbytes, value)
@@ -254,7 +254,7 @@ proc putVarint*[T: PB | LP](
 
 proc getVarint*[T: PB | LP](
     vtype: typedesc[T], pbytes: openArray[byte], nbytes: var int, value: var SomeVarint
-): VarintResult[void] {.inline.} =
+): VarintResult[void] =
   when vtype is PB:
     when (type(value) is PBSomeSVarint) or (type(value) is PBZigVarint):
       getSVarint(pbytes, nbytes, value)
@@ -275,9 +275,7 @@ proc getVarint*[T: PB | LP](
 template toBytes*(vtype: typedesc[PB], value: PBSomeVarint): auto =
   toBytes(toUleb(value), Leb128)
 
-proc encodeVarint*(
-    vtype: typedesc[PB], value: PBSomeVarint
-): VarintResult[seq[byte]] {.inline.} =
+proc encodeVarint*(vtype: typedesc[PB], value: PBSomeVarint): VarintResult[seq[byte]] =
   ## Encode integer to Google ProtoBuf's `signed/unsigned varint` and returns
   ## sequence of bytes as buffer.
   var outsize = 0
@@ -296,9 +294,7 @@ proc encodeVarint*(
   else:
     err(res.error())
 
-proc encodeVarint*(
-    vtype: typedesc[LP], value: LPSomeVarint
-): VarintResult[seq[byte]] {.inline.} =
+proc encodeVarint*(vtype: typedesc[LP], value: LPSomeVarint): VarintResult[seq[byte]] =
   ## Encode integer to LibP2P `unsigned varint` and returns sequence of bytes
   ## as buffer.
   var outsize = 0

@@ -1,4 +1,14 @@
-.PHONY: all build deps cbind clean test _test_all test_multiformat_exts test_integration \
+# test_all is compiled in `TEST_ALL_SLICES` translation units. Each slice
+# imports a deterministic 1/N subset of the test files (see tests/imports.nim).
+# On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
+# of address space; the unsharded TU overran that on orc. Two slices halve the
+# memory footprint enough to fit, and the overhead is small on 64-bit targets.
+TEST_ALL_SLICES ?= 2
+TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
+TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
+
+.PHONY: all build deps cbind clean test _test_all $(TEST_ALL_SLICE_TARGETS) \
+        test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
 NIM_VERSION  ?= 2.2.10
@@ -96,10 +106,16 @@ ifeq ($(OS),Windows_NT)
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS := -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
   NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
+  # libnatpmp's Makefile only appends wingettimeofday.o to LIBOBJS when $(OS)
+  # contains mingw/cygwin/msys. The CI Windows runner passes through Windows_NT
+  # (the host env var), so that branch never matches — leaving
+  # natpmp_gettimeofday undefined at link time. Pass LIBOBJS explicitly.
+  NAT_PMP_MAKE_ARGS := LIBOBJS="natpmp.o getgateway.o wingettimeofday.o" libnatpmp.a
 else
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS := CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
   NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
+  NAT_PMP_MAKE_ARGS := libnatpmp.a
 endif
 
 # Stamp-based rebuild: the stamp records "the .a files in this package dir were
@@ -118,7 +134,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
-	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" libnatpmp.a
+	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
 	touch "$@"
 
 test: nimble.paths nat_libs
@@ -133,11 +149,16 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-_test_all: nimble.paths nat_libs
+_test_all: $(TEST_ALL_SLICE_TARGETS)
+
+$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  $(if $(CICOV),--nimcache:nimcache/test_all_$*,) \
+	  -d:sliceTotal=$(TEST_ALL_SLICES) \
+	  -d:sliceIdx=$* \
+	  -o:tests/test_all_$* \
 	  tests/test_all.nim
-	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
 
 test_multiformat_exts: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \

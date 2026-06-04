@@ -296,6 +296,11 @@ proc addProvidedService*(
 ) =
   doAssert not disco.clientMode, "not supported in client mode"
 
+  if not service.isValid():
+    error "rejecting service with oversized data",
+      service = service.id, dataLen = service.data.len, max = MaxServiceDataSize
+    return
+
   let serviceId = service.id.hashServiceId()
 
   if not disco.rtManager.addService(

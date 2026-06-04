@@ -8,7 +8,9 @@ import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
 import ../../../../libp2p/utils/future
-import ../../../tools/[lifecycle, topology, unittest, futures, sync, switch_builder]
+import
+  ../../../tools/
+    [lifecycle, topology, unittest, futures, sync, switch_builder, multiaddress]
 import ../utils
 
 const MsgIdSuccess = "msg id gen success"
@@ -554,7 +556,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(
         20,
         gossip = true,
-        transport = TransportType.TCP, # use TCP becasue it's more reliable (temporarily)
+        address = TcpAutoAddress, # use TCP because it's more reliable (temporarily)
       )
       .toGossipSub()
 

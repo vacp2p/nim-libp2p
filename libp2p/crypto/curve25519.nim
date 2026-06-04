@@ -34,7 +34,7 @@ proc intoCurve25519Key*(s: openArray[byte]): Curve25519Key =
 proc getBytes*(key: Curve25519Key): seq[byte] =
   @key
 
-proc byteswap(buf: var Curve25519Key) {.inline.} =
+proc byteswap(buf: var Curve25519Key) =
   for i in 0 ..< 16:
     let x = buf[i]
     buf[i] = buf[31 - i]
