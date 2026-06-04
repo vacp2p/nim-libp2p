@@ -209,7 +209,7 @@ proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
 proc write*(pb: var ProtoBuffer, field: int, msg: Message, anonymize: bool) =
   pb.write(field, encodeMessage(msg, anonymize))
 
-proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.inline.} =
+proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["graft"])
 
@@ -221,7 +221,7 @@ proc decodeGraft*(pb: ProtoBuffer): ProtoResult[ControlGraft] {.inline.} =
     trace "decodeGraft: topicID is missing"
   ok(control)
 
-proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.inline.} =
+proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] =
   trace "decodePeerInfoMsg: decoding message"
   var pi = PeerInfoMsg()
   if ?pb.getField(1, pi.peerId):
@@ -235,7 +235,7 @@ proc decodePeerInfoMsg*(pb: ProtoBuffer): ProtoResult[PeerInfoMsg] {.inline.} =
     trace "decodePeerInfoMsg: signedPeerRecord is missing"
   ok(pi)
 
-proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.inline.} =
+proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["prune"])
 
@@ -253,7 +253,7 @@ proc decodePrune*(pb: ProtoBuffer): ProtoResult[ControlPrune] {.inline.} =
     trace "decodePrune: read backoff", backoff = control.backoff
   ok(control)
 
-proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.inline.} =
+proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["ihave"])
 
@@ -269,7 +269,7 @@ proc decodeIHave*(pb: ProtoBuffer): ProtoResult[ControlIHave] {.inline.} =
     trace "decodeIHave: no messageIDs"
   ok(control)
 
-proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
+proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["iwant"])
 
@@ -281,7 +281,7 @@ proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
     trace "decodeIWant: no messageIDs"
   ok(control)
 
-proc decodePreamble*(pb: ProtoBuffer): ProtoResult[Preamble] {.inline.} =
+proc decodePreamble*(pb: ProtoBuffer): ProtoResult[Preamble] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["preamble"])
 
@@ -301,7 +301,7 @@ proc decodePreamble*(pb: ProtoBuffer): ProtoResult[Preamble] {.inline.} =
     trace "decodePreamble: message Length is missing"
   ok(control)
 
-proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[IMReceiving] {.inline.} =
+proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[IMReceiving] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["imreceiving"])
 
@@ -318,7 +318,7 @@ proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[IMReceiving] {.inline.} =
     trace "decodeIMReceiving: message Length is missing"
   ok(control)
 
-proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline.} =
+proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["extensions"])
 
@@ -352,7 +352,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   ok(control)
 
-proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.} =
+proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] =
   trace "decodeControl: decoding message"
   var buffer: seq[byte]
   if ?pb.getField(3, buffer):
@@ -392,7 +392,7 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.
   else:
     ok(Opt.none(ControlMessage))
 
-proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
+proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["subs"])
 
@@ -422,7 +422,7 @@ proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
 
   ok(sub)
 
-proc decodeSubscriptions*(pb: ProtoBuffer): ProtoResult[seq[SubOpts]] {.inline.} =
+proc decodeSubscriptions*(pb: ProtoBuffer): ProtoResult[seq[SubOpts]] =
   trace "decodeSubscriptions: decoding message"
   var subpbs: seq[seq[byte]]
   var subs: seq[SubOpts]
@@ -435,7 +435,7 @@ proc decodeSubscriptions*(pb: ProtoBuffer): ProtoResult[seq[SubOpts]] {.inline.}
       trace "decodeSubscription: no subscriptions found"
   ok(subs)
 
-proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
+proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["message"])
 
@@ -468,7 +468,7 @@ proc decodeMessage*(pb: ProtoBuffer): ProtoResult[Message] {.inline.} =
     trace "decodeMessage: public key is missing"
   ok(msg)
 
-proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
+proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] =
   trace "decodeMessages: decoding message"
   var msgpbs: seq[seq[byte]]
   var msgs: seq[Message]
@@ -508,7 +508,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 
 proc decodeTestExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Opt[TestExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[TestExtensionRPC]] =
   trace "TestExtensionRPC: decoding message"
 
   var testExtension: seq[byte]
@@ -519,7 +519,7 @@ proc decodeTestExtensionRPC*(
 
 proc decodePingPongExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Opt[PingPongExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PingPongExtensionRPC]] =
   trace "PingPongExtensionRPC: decoding message"
 
   var bytes: seq[byte]
@@ -539,7 +539,7 @@ proc decodePingPongExtensionRPC*(
 
 proc decodePreambleExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Opt[PreambleExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PreambleExtensionRPC]] =
   trace "PreambleExtensionRPC: decoding message"
 
   var bytes: seq[byte]
@@ -565,7 +565,7 @@ proc decodePreambleExtensionRPC*(
 
 proc decodePartialMessageExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Opt[PartialMessageExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PartialMessageExtensionRPC]] =
   trace "PartialMessageExtensionRPC: decoding message"
 
   var partialMessgeExtensionsRPCBytes: seq[byte]
@@ -602,7 +602,7 @@ proc decodePartialMessageExtensionRPC*(
 
   ok(Opt.some(pme))
 
-proc decodeRpcMsg*(msg: sink seq[byte]): ProtoResult[RPCMsg] {.inline.} =
+proc decodeRpcMsg*(msg: sink seq[byte]): ProtoResult[RPCMsg] =
   trace "decodeRpcMsg: decoding message", encodedData = msg.shortLog()
   var pb = initProtoBuffer(move(msg))
   var rpcMsg = RPCMsg()

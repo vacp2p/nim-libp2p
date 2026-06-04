@@ -91,12 +91,13 @@ proc setupServiceDiscoveryNode*(
     services: seq[ServiceInfo] = @[],
     client: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
+    kadConfig: KadDHTConfig = testKadDHTConfig(),
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey)
   let node = ServiceDiscovery.new(
     switch,
     bootstrapNodes = bootstrapNodes,
-    config = testKadDHTConfig(),
+    config = kadConfig,
     rng = rng(),
     services = services,
     client = client,
@@ -112,10 +113,15 @@ proc setupServiceDiscoveryNodes*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     xprPublishing: bool = true,
+    kadConfig: KadDHTConfig = testKadDHTConfig(),
 ): seq[ServiceDiscovery] =
   var nodes: seq[ServiceDiscovery]
   for i in 0 ..< count:
-    nodes.add(setupServiceDiscoveryNode(discoConfig, bootstrapNodes, xprPublishing))
+    nodes.add(
+      setupServiceDiscoveryNode(
+        discoConfig, bootstrapNodes, xprPublishing, kadConfig = kadConfig
+      )
+    )
   nodes
 
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =

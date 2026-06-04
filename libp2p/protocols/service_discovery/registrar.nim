@@ -52,7 +52,7 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
-proc isExpired(now, ts: Moment, expiry: Duration): bool {.inline.} =
+proc isExpired(now, ts: Moment, expiry: Duration): bool =
   now - ts > expiry
 
 proc pruneAdsForService(

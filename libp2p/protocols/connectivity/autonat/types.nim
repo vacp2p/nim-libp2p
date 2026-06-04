@@ -3,10 +3,15 @@
 
 {.push raises: [].}
 
-import stew/objects
 import results, chronos, chronicles
-import ../../../multiaddress, ../../../peerid, ../../../errors
-import ../../../protobuf/minprotobuf
+import
+  protobuf_serialization,
+  protobuf_serialization/pkg/results,
+  protobuf_serialization/std/enums,
+  ../../../multiaddress,
+  ../../../peerid,
+  ../../../errors,
+  ../../../protobuf/utils
 
 logScope:
   topics = "libp2p autonat"
@@ -19,7 +24,7 @@ type
   AutonatError* = object of LPError
   AutonatUnreachableError* = object of LPError
 
-  MsgType* = enum
+  MsgType* {.pure.} = enum
     Dial = 0
     DialResponse = 1
 
@@ -30,22 +35,22 @@ type
     BadRequest = 200
     InternalError = 300
 
-  AutonatPeerInfo* = object
-    id*: Opt[PeerId]
-    addrs*: seq[MultiAddress]
+  AutonatPeerInfo* {.proto2.} = object
+    id* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
-  AutonatDial* = object
-    peerInfo*: Opt[AutonatPeerInfo]
+  AutonatDial* {.proto2.} = object
+    peerInfo* {.fieldNumber: 1.}: Opt[AutonatPeerInfo]
 
-  AutonatDialResponse* = object
-    status*: ResponseStatus
-    text*: Opt[string]
-    ma*: Opt[MultiAddress]
+  AutonatDialResponse* {.proto2.} = object
+    status* {.fieldNumber: 1, required, ext.}: ResponseStatus
+    text* {.fieldNumber: 2.}: Opt[string]
+    ma* {.fieldNumber: 3, ext.}: Opt[MultiAddress]
 
-  AutonatMsg* = object
-    msgType*: MsgType
-    dial*: Opt[AutonatDial]
-    response*: Opt[AutonatDialResponse]
+  AutonatMsg* {.proto2.} = object
+    msgType* {.fieldNumber: 1, required, ext.}: MsgType
+    dial* {.fieldNumber: 2.}: Opt[AutonatDial]
+    response* {.fieldNumber: 3.}: Opt[AutonatDialResponse]
 
   NetworkReachability* {.pure.} = enum
     Unknown
@@ -55,87 +60,4 @@ type
 proc isReachable*(self: NetworkReachability): bool =
   self == NetworkReachability.Reachable
 
-proc encode(p: AutonatPeerInfo): ProtoBuffer =
-  var pb = initProtoBuffer()
-  p.id.withValue(id):
-    pb.write(1, id)
-  for ma in p.addrs:
-    pb.write(2, ma.data.buffer)
-  pb.finish()
-  pb
-
-proc encode*(d: AutonatDial): ProtoBuffer =
-  var pb = initProtoBuffer()
-  pb.write(1, MsgType.Dial.uint)
-  var dial = initProtoBuffer()
-  d.peerInfo.withValue(pinfo):
-    dial.write(1, encode(pinfo))
-  dial.finish()
-  pb.write(2, dial.buffer)
-  pb.finish()
-  pb
-
-proc encode*(r: AutonatDialResponse): ProtoBuffer =
-  var pb = initProtoBuffer()
-  pb.write(1, MsgType.DialResponse.uint)
-  var bufferResponse = initProtoBuffer()
-  bufferResponse.write(1, r.status.uint)
-  r.text.withValue(text):
-    bufferResponse.write(2, text)
-  r.ma.withValue(ma):
-    bufferResponse.write(3, ma)
-  bufferResponse.finish()
-  pb.write(3, bufferResponse.buffer)
-  pb.finish()
-  pb
-
-proc encode*(msg: AutonatMsg): ProtoBuffer =
-  msg.dial.withValue(dial):
-    return encode(dial)
-  msg.response.withValue(res):
-    return encode(res)
-
-proc decode*(_: typedesc[AutonatMsg], buf: sink seq[byte]): Opt[AutonatMsg] =
-  var
-    msgTypeOrd: uint32
-    pbDial: ProtoBuffer
-    pbResponse: ProtoBuffer
-    msg: AutonatMsg
-
-  let pb = initProtoBuffer(move(buf))
-
-  if ?pb.getField(1, msgTypeOrd).toOpt() and
-      not checkedEnumAssign(msg.msgType, msgTypeOrd):
-    return Opt.none(AutonatMsg)
-  if ?pb.getField(2, pbDial).toOpt():
-    var
-      pbPeerInfo: ProtoBuffer
-      dial: AutonatDial
-    let r4 = ?pbDial.getField(1, pbPeerInfo).toOpt()
-
-    var peerInfo: AutonatPeerInfo
-    if r4:
-      var pid: PeerId
-      let r5 = ?pbPeerInfo.getField(1, pid).toOpt()
-      discard ?pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
-      if r5:
-        peerInfo.id = Opt.some(pid)
-      dial.peerInfo = Opt.some(peerInfo)
-    msg.dial = Opt.some(dial)
-
-  if ?pb.getField(3, pbResponse).toOpt():
-    var
-      statusOrd: uint
-      text: string
-      ma: MultiAddress
-      response: AutonatDialResponse
-
-    if ?pbResponse.getField(1, statusOrd).optValue():
-      if not checkedEnumAssign(response.status, statusOrd):
-        return Opt.none(AutonatMsg)
-    if ?pbResponse.getField(2, text).optValue():
-      response.text = Opt.some(text)
-    if ?pbResponse.getField(3, ma).optValue():
-      response.ma = Opt.some(ma)
-    msg.response = Opt.some(response)
-  return Opt.some(msg)
+Protobuf.serializerFor([AutonatPeerInfo, AutonatDial, AutonatDialResponse, AutonatMsg])

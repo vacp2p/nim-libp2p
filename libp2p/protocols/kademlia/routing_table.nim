@@ -235,10 +235,10 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: Rng): Key =
 
   return raw
 
-proc allKeys*(bucket: Bucket): seq[Key] {.inline.} =
+proc allKeys*(bucket: Bucket): seq[Key] =
   return bucket.peers.mapIt(it.nodeId)
 
-proc allKeys*(rtable: RoutingTable): seq[Key] {.inline.} =
+proc allKeys*(rtable: RoutingTable): seq[Key] =
   rtable.buckets.mapIt(it.allKeys()).concat()
 
 proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =

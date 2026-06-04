@@ -238,12 +238,14 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
         "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
       )
 
+  let filteredAddresses = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
+
   let extPeerRecord = SignedExtendedPeerRecord.init(
     peerInfo.privateKey,
     ExtendedPeerRecord(
       peerId: peerInfo.peerId,
       seqNo: Moment.now().epochSeconds.uint64,
-      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+      addresses: filteredAddresses.mapIt(AddressInfo(address: it)),
       services: services,
     ),
   ).valueOr:

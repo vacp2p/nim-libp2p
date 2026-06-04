@@ -96,7 +96,7 @@ proc payload*(env: Envelope): seq[byte] =
 
 proc getField*(
     pb: ProtoBuffer, field: int, value: var Envelope, domain: string
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   var buffer: seq[byte]
   let res = ?pb.getField(field, buffer)
   if not (res):
@@ -128,7 +128,7 @@ proc init*[T](
 
 proc getField*[T](
     pb: ProtoBuffer, field: int, value: var SignedPayload[T]
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   if not ?getField(pb, field, value.envelope, T.payloadDomain):
     ok(false)
   else:

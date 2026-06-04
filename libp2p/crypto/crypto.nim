@@ -608,7 +608,7 @@ proc init*(t: typedesc[Signature], data: string): CryptoResult[Signature] =
   ## Create new signature from serialized hexadecimal string form.
   t.init(ncrutils.fromHex(data))
 
-proc `==`*(key1, key2: PublicKey): bool {.inline.} =
+proc `==`*(key1, key2: PublicKey): bool =
   ## Return ``true`` if two public keys ``key1`` and ``key2`` of the same
   ## scheme and equal.
   if key1.scheme == key2.scheme:
@@ -865,7 +865,7 @@ template macOpenArray*(secret: Secret, id: int): untyped =
     goffset(secret, id, secret.ivsize + secret.keysize + secret.macsize - 1),
   )
 
-proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
+proc iv*(secret: Secret, id: int): seq[byte] =
   ## Get array of bytes with with initial vector.
   var buf = newSeqUninit[byte](secret.ivsize)
   var offset =
@@ -876,7 +876,7 @@ proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
   copyMem(addr buf[0], addr secret.data[offset], secret.ivsize)
   buf
 
-proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
+proc key*(secret: Secret, id: int): seq[byte] =
   var buf = newSeqUninit[byte](secret.keysize)
   var offset =
     if id == 0:
@@ -887,7 +887,7 @@ proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
   copyMem(addr buf[0], addr secret.data[offset], secret.keysize)
   buf
 
-proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
+proc mac*(secret: Secret, id: int): seq[byte] =
   var buf = newSeqUninit[byte](secret.macsize)
   var offset =
     if id == 0:
@@ -946,30 +946,26 @@ proc selectBest*(order: int, p1, p2: string): string =
 
 ## Serialization/Deserialization helpers
 
-proc write*(
-    vb: var VBuffer, pubkey: PublicKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, pubkey: PublicKey) {.raises: [ResultError[CryptoError]].} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
   vb.writeSeq(pubkey.getBytes().tryGet())
 
 proc write*(
     vb: var VBuffer, seckey: PrivateKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+) {.raises: [ResultError[CryptoError]].} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
   vb.writeSeq(seckey.getBytes().tryGet())
 
-proc write*(
-    vb: var VBuffer, sig: PrivateKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, sig: PrivateKey) {.raises: [ResultError[CryptoError]].} =
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
 proc write*[T: PublicKey | PrivateKey](
     pb: var ProtoBuffer, field: int, key: T
-) {.inline, raises: [ResultError[CryptoError]].} =
+) {.raises: [ResultError[CryptoError]].} =
   write(pb, field, key.getBytes().tryGet())
 
-proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.inline, raises: [].} =
+proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.raises: [].} =
   write(pb, field, sig.getBytes())
 
 proc getField*[T: PublicKey | PrivateKey](
