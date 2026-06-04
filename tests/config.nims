@@ -6,6 +6,8 @@ import strutils, os
 --d:
   metrics
 --d:
+  metricsTest
+--d:
   withoutPCRE
 --d:
   libp2p_agents_metrics

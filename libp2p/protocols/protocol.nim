@@ -22,7 +22,8 @@ declareGauge(
   labels = ["protocol", "direction"],
 )
 
-export libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open
+when defined(metricsTest):
+  export libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open
 
 const
   scopeTotal = "total"
