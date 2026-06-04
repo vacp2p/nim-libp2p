@@ -1,8 +1,6 @@
 import ../config.nims
 import strutils, os
 
---d:
-  libp2p_testing
 --threads:
   on
 --d:
@@ -11,6 +9,8 @@ import strutils, os
   metricsTest
 --d:
   withoutPCRE
+--d:
+  libp2p_testing
 --d:
   libp2p_agents_metrics
 --d:
