@@ -19,14 +19,14 @@ import ./[protobuf, types, find, kademlia_metrics]
 logScope:
   topics = "kad-dht provider"
 
-proc `==`*(a, b: ProviderRecord): bool {.inline.} =
+proc `==`*(a, b: ProviderRecord): bool =
   a.provider.id == b.provider.id and a.key == b.key
 
 # for HeapQueue
-proc `<`*(a, b: ProviderRecord): bool {.inline.} =
+proc `<`*(a, b: ProviderRecord): bool =
   a.expiresAt < b.expiresAt
 
-proc `<`*(a: ProviderRecord, b: chronos.Moment): bool {.inline.} =
+proc `<`*(a: ProviderRecord, b: chronos.Moment): bool =
   a.expiresAt < b
 
 proc deleteOldest(pk: ProvidedKeys) =
@@ -39,37 +39,37 @@ proc deleteOldest(pk: ProvidedKeys) =
       oldestMoment = moment
   pk.provided.del(oldest)
 
-proc isFull*(pk: ProvidedKeys): bool {.inline.} =
+proc isFull*(pk: ProvidedKeys): bool =
   pk.provided.len() >= pk.capacity
 
-proc len*(pk: ProvidedKeys): int {.inline.} =
+proc len*(pk: ProvidedKeys): int =
   pk.provided.len()
 
-proc hasKey*(pk: ProvidedKeys, k: Key): bool {.inline.} =
+proc hasKey*(pk: ProvidedKeys, k: Key): bool =
   pk.provided.hasKey(k)
 
-proc del*(pk: ProvidedKeys, k: Key) {.inline.} =
+proc del*(pk: ProvidedKeys, k: Key) =
   pk.provided.del(k)
 
-proc pop*(pr: ProviderRecords): ProviderRecord {.inline.} =
+proc pop*(pr: ProviderRecords): ProviderRecord =
   pr.records.pop()
 
-proc len*(pr: ProviderRecords): int {.inline.} =
+proc len*(pr: ProviderRecords): int =
   pr.records.len()
 
-proc del*(pr: ProviderRecords, index: int) {.inline.} =
+proc del*(pr: ProviderRecords, index: int) =
   pr.records.del(index)
 
-proc find*(pr: ProviderRecords, record: ProviderRecord): int {.inline.} =
+proc find*(pr: ProviderRecords, record: ProviderRecord): int =
   pr.records.find(record)
 
-proc push*(pr: ProviderRecords, record: ProviderRecord) {.inline.} =
+proc push*(pr: ProviderRecords, record: ProviderRecord) =
   pr.records.push(record)
 
-proc isFull*(pr: ProviderRecords): bool {.inline.} =
+proc isFull*(pr: ProviderRecords): bool =
   pr.records.len() >= pr.capacity
 
-proc `[]`*(pr: ProviderRecords, i: int): ProviderRecord {.inline.} =
+proc `[]`*(pr: ProviderRecords, i: int): ProviderRecord =
   pr.records[i]
 
 proc removeProviderRecord(pm: ProviderManager, record: ProviderRecord) =
