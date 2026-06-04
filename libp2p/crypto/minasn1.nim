@@ -100,20 +100,20 @@ template isEmpty*(ab: Asn1Buffer): bool =
 template isEnough*(ab: Asn1Buffer, length: int64): bool =
   len(ab.buffer) >= ab.offset + length
 
-proc len*[T: Asn1Buffer | Asn1Composite](abc: T): int {.inline.} =
+proc len*[T: Asn1Buffer | Asn1Composite](abc: T): int =
   len(abc.buffer) - abc.offset
 
-proc len*(field: Asn1Field): int {.inline.} =
+proc len*(field: Asn1Field): int =
   field.length
 
 template getPtr*(field: untyped): pointer =
   cast[pointer](addr field.buffer[field.offset])
 
-proc extend*[T: Asn1Buffer | Asn1Composite](abc: var T, length: int) {.inline.} =
+proc extend*[T: Asn1Buffer | Asn1Composite](abc: var T, length: int) =
   ## Extend buffer or composite's internal buffer by ``length`` octets.
   abc.buffer.setLen(len(abc.buffer) + length)
 
-proc code*(tag: Asn1Tag): byte {.inline.} =
+proc code*(tag: Asn1Tag): byte =
   ## Converts Nim ``tag`` enum to ASN.1 tag code.
   case tag
   of Asn1Tag.NoSupport: 0x00'u8
@@ -641,7 +641,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
     else:
       return err(Asn1Error.NoSupport)
 
-proc getBuffer*(field: Asn1Field): Asn1Buffer {.inline.} =
+proc getBuffer*(field: Asn1Field): Asn1Buffer =
   ## Return ``field`` as Asn1Buffer to enter composite types.
   Asn1Buffer(buffer: field.buffer, offset: field.offset, length: field.length)
 
@@ -827,6 +827,6 @@ proc write*[T: Asn1Buffer | Asn1Composite](abc: var T, value: Asn1Composite) =
     discard asn1EncodeContextTag(abc.toOpenArray(), value.buffer, value.idx)
   abc.offset += length
 
-proc finish*[T: Asn1Buffer | Asn1Composite](abc: var T) {.inline.} =
+proc finish*[T: Asn1Buffer | Asn1Composite](abc: var T) =
   ## Finishes buffer or composite and prepares it for writing.
   abc.offset = 0

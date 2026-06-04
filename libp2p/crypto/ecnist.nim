@@ -72,25 +72,25 @@ type
 
 const EcSupportedCurvesCint* = @[cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)]
 
-proc `-`(x: uint32): uint32 {.inline.} =
+proc `-`(x: uint32): uint32 =
   (0xFFFF_FFFF'u32 - x) + 1'u32
 
-proc GT(x, y: uint32): uint32 {.inline.} =
+proc GT(x, y: uint32): uint32 =
   var z = cast[uint32](y - x)
   (z xor ((x xor y) and (x xor z))) shr 31
 
-proc CMP(x, y: uint32): int32 {.inline.} =
+proc CMP(x, y: uint32): int32 =
   cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
 
-proc EQ0(x: int32): uint32 {.inline.} =
+proc EQ0(x: int32): uint32 =
   var q = cast[uint32](x)
   not (q or -q) shr 31
 
-proc NEQ(x, y: uint32): uint32 {.inline.} =
+proc NEQ(x, y: uint32): uint32 =
   var q = cast[uint32](x xor y)
   ((q or -q) shr 31)
 
-proc LT0(x: int32): uint32 {.inline.} =
+proc LT0(x: int32): uint32 =
   cast[uint32](x) shr 31
 
 proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
@@ -124,13 +124,13 @@ proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   discard impl.order(curve, orderlen)
   impl.mul(addr ckey[0], uint(len(ckey)), addr x[0], uint(len(x)), curve)
 
-proc getOffset(pubkey: EcPublicKey): int {.inline.} =
+proc getOffset(pubkey: EcPublicKey): int =
   let o = cast[uint](pubkey.key.q) - cast[uint](addr pubkey.buffer[0])
   if o + cast[uint](pubkey.key.qlen) > uint(len(pubkey.buffer)):
     return -1
   cast[int](o)
 
-proc getOffset(seckey: EcPrivateKey): int {.inline.} =
+proc getOffset(seckey: EcPrivateKey): int =
   let o = cast[uint](seckey.key.x) - cast[uint](addr seckey.buffer[0])
   if o + cast[uint](seckey.key.xlen) > uint(len(seckey.buffer)):
     return -1
@@ -182,7 +182,7 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
       return true
   false
 
-proc copy*[T: EcPKI](src: T): T {.inline.} =
+proc copy*[T: EcPKI](src: T): T =
   ## Returns copy of EC `private key`, `public key` or `signature`
   ## object ``src``.
   var dst: T
@@ -703,7 +703,7 @@ proc init*(sig: var EcSignature, data: openArray[byte]): Result[void, Asn1Error]
   else:
     err(Asn1Error.Incorrect)
 
-proc init*[T: EcPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
+proc init*[T: EcPKI](sospk: var T, data: string): Result[void, Asn1Error] =
   ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
   ## ASN.1 DER hexadecimal string representation ``data``.
   ##
@@ -816,7 +816,7 @@ proc initRaw*(sig: var EcSignature, data: openArray[byte]): bool =
     return true
   false
 
-proc initRaw*[T: EcPKI](sospk: var T, data: string): bool {.inline.} =
+proc initRaw*[T: EcPKI](sospk: var T, data: string): bool =
   ## Initialize EC `private key`, `public key` or `signature` ``sospk`` from
   ## raw hexadecimal string representation ``data``.
   ##
@@ -852,7 +852,7 @@ proc initRaw*(t: typedesc[EcSignature], data: openArray[byte]): EcResult[EcSigna
   else:
     ok(res)
 
-proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T {.inline.} =
+proc initRaw*[T: EcPKI](t: typedesc[T], data: string): T =
   ## Initialize EC `private key`, `public key` or `signature` from raw
   ## hexadecimal string representation ``data`` and return constructed object.
   t.initRaw(ncrutils.fromHex(data))
@@ -959,7 +959,7 @@ proc sign*[T: byte | char](
 
 proc verify*[T: byte | char](
     sig: EcSignature, message: openArray[T], pubkey: EcPublicKey
-): bool {.inline.} =
+): bool =
   ## Verify ECDSA signature ``sig`` using public key ``pubkey`` and data
   ## ``message``.
   ##

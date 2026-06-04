@@ -17,9 +17,11 @@ import
   protobuf_serialization,
   ./crypto/crypto,
   ./multicodec,
+  ./multibase,
   ./multihash,
   ./vbuffer,
   ./protobuf/minprotobuf
+import ./cid except orError
 
 export results, opt, shortlog, collections
 
@@ -154,8 +156,8 @@ func init*(pid: var PeerId, data: openArray[byte]): bool =
     return true
   false
 
-func init*(pid: var PeerId, data: string): bool =
-  ## Initialize peer id from base58 encoded string representation.
+func initLegacy(pid: var PeerId, data: string): bool =
+  ## Initialize peer id from legacy raw base58btc multihash text.
   ##
   ## Returns ``true`` if peer was successfully initialiazed.
   var p = newSeqUninit[byte](len(data) + 4)
@@ -169,6 +171,32 @@ func init*(pid: var PeerId, data: string): bool =
       return true
   false
 
+proc initCidV1(pid: var PeerId, data: string): bool =
+  ## Initialize peer id from CIDv1 libp2p-key multibase text.
+  let cid = Cid.init(data).valueOr:
+    return false
+  if cid.version() != CIDv1:
+    return false
+  let content = cid.contentType().valueOr:
+    return false
+  if content != multiCodec("libp2p-key"):
+    return false
+  let mh = cid.mhash().valueOr:
+    return false
+  init(pid, mh.data.buffer)
+
+proc init*(pid: var PeerId, data: string): bool =
+  ## Initialize peer id from legacy raw base58btc multihash text or CIDv1
+  ## ``libp2p-key`` multibase text.
+  ##
+  ## Returns ``true`` if peer was successfully initialiazed.
+  if len(data) == 0:
+    return false
+  if data.startsWith("1") or data.startsWith("Qm"):
+    initLegacy(pid, data)
+  else:
+    initCidV1(pid, data)
+
 func init*(t: typedesc[PeerId], data: openArray[byte]): Result[PeerId, cstring] =
   ## Create new peer id from raw binary representation ``data``.
   var res: PeerId
@@ -177,13 +205,26 @@ func init*(t: typedesc[PeerId], data: openArray[byte]): Result[PeerId, cstring] 
   else:
     ok(res)
 
-func init*(t: typedesc[PeerId], data: string): Result[PeerId, cstring] =
-  ## Create new peer id from base58 encoded string representation ``data``.
+proc init*(t: typedesc[PeerId], data: string): Result[PeerId, cstring] =
+  ## Create new peer id from legacy raw base58btc multihash text or CIDv1
+  ## ``libp2p-key`` multibase text.
   var res: PeerId
   if not init(res, data):
     err("peerid: incorrect PeerId string")
   else:
     ok(res)
+
+proc toCid*(pid: PeerId): Result[Cid, cstring] =
+  ## Return ``pid`` as a CIDv1 ``libp2p-key`` content identifier.
+  let mh = ?MultiHash.init(pid.data)
+  Cid.init(CIDv1, multiCodec("libp2p-key"), mh).mapErr do(_: auto) -> cstring:
+    cstring("peerid: could not create CID")
+
+proc toCidString*(pid: PeerId, encoding = "base32"): Result[string, cstring] =
+  ## Return ``pid`` as CIDv1 ``libp2p-key`` text using multibase ``encoding``.
+  let cid = ?pid.toCid()
+  MultiBase.encode(encoding, cid.data.buffer).mapErr do(_: auto) -> cstring:
+    cstring("peerid: could not encode CID")
 
 func init*(t: typedesc[PeerId], pubkey: PublicKey): Result[PeerId, cstring] =
   ## Create new peer id from public key ``pubkey``.
@@ -230,9 +271,7 @@ func write*(pb: var ProtoBuffer, field: int, pid: PeerId) =
   ## Write PeerId value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
   write(pb, field, pid.data)
 
-func getField*(
-    pb: ProtoBuffer, field: int, pid: var PeerId
-): ProtoResult[bool] {.inline.} =
+func getField*(pb: ProtoBuffer, field: int, pid: var PeerId): ProtoResult[bool] =
   ## Read ``PeerId`` from ProtoBuf's message and validate it
   var buffer: seq[byte]
   let res = ?pb.getField(field, buffer)

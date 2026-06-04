@@ -44,9 +44,7 @@ type RandomRecordsResult* = object
   records*: ptr Libp2pExtendedPeerRecord
   recordsLen*: csize_t
 
-proc allocServiceInfoArrayFromSeq(
-    services: seq[ServiceInfo]
-): ptr Libp2pServiceInfo {.inline.} =
+proc allocServiceInfoArrayFromSeq(services: seq[ServiceInfo]): ptr Libp2pServiceInfo =
   if services.len == 0:
     return nil
   let ret =

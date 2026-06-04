@@ -29,28 +29,38 @@ type Autonat* = ref object of LPProtocol
 proc sendResponseError(
     stream: Stream, status: ResponseStatus, text: string = ""
 ) {.async: (raises: [CancelledError]).} =
-  let pb = AutonatDialResponse(
-    status: status,
-    text:
-      if text == "":
-        Opt.none(string)
-      else:
-        Opt.some(text),
-    ma: Opt.none(MultiAddress),
+  let pb = AutonatMsg(
+    msgType: MsgType.DialResponse,
+    response: Opt.some(
+      AutonatDialResponse(
+        status: status,
+        text:
+          if text == "":
+            Opt.none(string)
+          else:
+            Opt.some(text),
+        ma: Opt.none(MultiAddress),
+      )
+    ),
   ).encode()
   try:
-    await stream.writeLp(pb.buffer)
+    await stream.writeLp(pb)
   except LPStreamError as exc:
     trace "autonat failed to send response error", description = exc.msg, stream
 
 proc sendResponseOk(
     stream: Stream, ma: MultiAddress
 ) {.async: (raises: [CancelledError]).} =
-  let pb = AutonatDialResponse(
-    status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
+  let pb = AutonatMsg(
+    msgType: MsgType.DialResponse,
+    response: Opt.some(
+      AutonatDialResponse(
+        status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
+      )
+    ),
   ).encode()
   try:
-    await stream.writeLp(pb.buffer)
+    await stream.writeLp(pb)
   except LPStreamError as exc:
     trace "autonat failed to send response ok", description = exc.msg, stream
 

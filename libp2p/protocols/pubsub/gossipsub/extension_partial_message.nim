@@ -77,14 +77,10 @@ type
     groupState: Table[TopicGroupKey, GroupState]
     peerTopicOpts: Table[PeerTopicKey, TopicOpts]
 
-proc new(
-    T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
-): PeerTopicKey {.inline.} =
+proc new(T: typedesc[PeerTopicKey], peerId: PeerId, topic: string): PeerTopicKey =
   PeerTopicKey(key: TableKey.makeKey(peerId, topic), peerId: peerId, topic: topic)
 
-proc new(
-    T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
-): TopicGroupKey {.inline.} =
+proc new(T: typedesc[TopicGroupKey], topic: string, groupId: GroupId): TopicGroupKey =
   TopicGroupKey(key: TableKey.makeKey(topic, groupId), topic: topic, groupId: groupId)
 
 proc doAssert(config: PartialMessageExtensionConfig) =
@@ -139,6 +135,9 @@ template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
 template hasPeer(gs: GroupState, peerId: PeerId): bool =
   gs.peerState.hasKey(peerId)
 
+template hasPublished(gs: GroupState): bool =
+  gs.lastPublishedMetadata.len > 0
+
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
     peerState: var PeerGroupState,
@@ -175,7 +174,7 @@ proc peersRequestingPartial(ext: PartialMessageExtension, topic: string): seq[Pe
 
 proc gossipPartsMetadata*(ext: PartialMessageExtension) =
   for tgKey, group in ext.groupState.mpairs:
-    if group.lastPublishedMetadata.len == 0:
+    if not group.hasPublished():
       # node has not published anything on this (topic, group)
       continue
 
@@ -230,6 +229,27 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
   else:
     ext.peerTopicOpts.del(key)
 
+proc shouldHandlePartialRPC(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
+): bool =
+  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+  if nodeTopicOpts.requestsPartial:
+    return true
+
+  # We only send parts to a peer that asked for them.
+  if not ext.peerRequestsPartial(peerId, rpc.topicID):
+    return false
+
+  if nodeTopicOpts.supportsSendingPartial:
+    return true
+
+  # An unsubscribed fanout publisher has no topic opts set, but it has published
+  # to this group, so it can still fulfill parts the peer is missing.
+  # Look up without creating state.
+  let groupState =
+    ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
+  groupState != nil and groupState.hasPublished()
+
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
@@ -249,13 +269,7 @@ proc handlePartialRPC(
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
-  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
-  let shouldHandlePartialRPC =
-    nodeTopicOpts.requestsPartial or (
-      nodeTopicOpts.supportsSendingPartial and
-      ext.peerRequestsPartial(peerId, rpc.topicID)
-    )
-  if shouldHandlePartialRPC:
+  if shouldHandlePartialRPC(ext, peerId, rpc):
     ext.config.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(

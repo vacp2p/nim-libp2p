@@ -8,10 +8,10 @@ type BytesView* = object
 proc init*(t: typedesc[BytesView], data: sink seq[byte]): BytesView =
   BytesView(data: data, rpos: 0)
 
-func len*(v: BytesView): int {.inline.} =
+func len*(v: BytesView): int =
   v.data.len - v.rpos
 
-func consume*(v: var BytesView, n: int) {.inline.} =
+func consume*(v: var BytesView, n: int) =
   doAssert v.data.len >= v.rpos + n
   v.rpos += n
 

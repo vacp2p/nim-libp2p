@@ -85,10 +85,6 @@ jobs:
         run: |
           nimble setup
           cd interop/autonatv2/go-peer
-          git clone https://github.com/libp2p/go-libp2p
-          cd go-libp2p
-          git apply ../disable-filtering-of-private-ip-addresses.patch
-          cd ..
           go mod tidy
           go run testautonatv2.go &
           cd ../nim-peer

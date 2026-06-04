@@ -1,4 +1,14 @@
-.PHONY: all build deps cbind clean test _test_all test_multiformat_exts test_integration \
+# test_all is compiled in `TEST_ALL_SLICES` translation units. Each slice
+# imports a deterministic 1/N subset of the test files (see tests/imports.nim).
+# On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
+# of address space; the unsharded TU overran that on orc. Two slices halve the
+# memory footprint enough to fit, and the overhead is small on 64-bit targets.
+TEST_ALL_SLICES ?= 2
+TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
+TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
+
+.PHONY: all build deps cbind clean test _test_all $(TEST_ALL_SLICE_TARGETS) \
+        test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
 NIM_VERSION  ?= 2.2.10
@@ -139,11 +149,16 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-_test_all: nimble.paths nat_libs
+_test_all: $(TEST_ALL_SLICE_TARGETS)
+
+$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  $(if $(CICOV),--nimcache:nimcache/test_all_$*,) \
+	  -d:sliceTotal=$(TEST_ALL_SLICES) \
+	  -d:sliceIdx=$* \
+	  -o:tests/test_all_$* \
 	  tests/test_all.nim
-	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
 
 test_multiformat_exts: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
