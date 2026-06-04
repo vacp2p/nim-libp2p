@@ -6,6 +6,8 @@ import chronos, results, sets
 import
   ../../../libp2p/[
     extended_peer_record,
+    peeraddrpolicy,
+    protocols/kademlia,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
   ]
@@ -200,3 +202,29 @@ suite "Advertiser - record creation":
 
     let recordBig = discoBig.record()
     check recordBig.isErr()
+
+  test "record creation filters addresses using kadConfig.addressPolicy":
+    let
+      publicAddr = makeMultiAddress("1.1.1.1")
+      privateAddr = makeMultiAddress("192.168.1.1")
+      mixed = @[privateAddr, publicAddr]
+
+    let policyConf = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
+    let disco = setupServiceDiscoveryNode(
+      services = @[makeServiceInfo("service")], kadConfig = policyConf
+    )
+    disco.switch.peerInfo.addrs = mixed
+
+    let rec = disco.record()
+    check rec.isOk()
+    let xprAddrs = rec.get().data.addresses
+    check:
+      xprAddrs.len == 1
+      xprAddrs[0].address == publicAddr
+
+    # default policy (no filtering) keeps all addresses
+    let discoDef = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    discoDef.switch.peerInfo.addrs = mixed
+    let recDef = discoDef.record()
+    check recDef.isOk()
+    check recDef.get().data.addresses.len == 2
