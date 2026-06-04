@@ -122,7 +122,7 @@ func contains*[K](t: TimedCache[K], k: K): bool =
   let tmp = TimedEntry[K](key: k)
   tmp in t.entries
 
-func len*[K](t: TimedCache[K]): int {.inline.} =
+func len*[K](t: TimedCache[K]): int =
   ## Returns the number of entries in the cache.
   t.entries.len
 

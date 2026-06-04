@@ -54,7 +54,7 @@ func publicKey*(cert: P2pCertificate): PublicKey =
 func peerId*(cert: P2pCertificate): PeerId =
   return PeerId.init(cert.publicKey()).tryGet()
 
-func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
+func makeSignatureMessage(pubKey: seq[byte]): seq[byte] =
   ## Creates message used for certificate signature.
   ##
   let P2P_SIGNING_PREFIX = "libp2p-tls-handshake:".toBytes()
@@ -65,7 +65,7 @@ func makeSignatureMessage(pubKey: seq[byte]): seq[byte] {.inline.} =
 
   return msg
 
-func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
+func makeIssuerDN(identityKeyPair: KeyPair): string =
   let issuerDN =
     try:
       $(PeerId.init(identityKeyPair.pubkey).tryGet())
@@ -73,7 +73,7 @@ func makeIssuerDN(identityKeyPair: KeyPair): string {.inline.} =
       raiseAssert "pubkey must be set"
   return issuerDN
 
-proc makeASN1Time(time: Time): string {.inline.} =
+proc makeASN1Time(time: Time): string =
   let str =
     try:
       let f = initTimeFormat("yyyyMMddHHmmss")

@@ -5,7 +5,7 @@
 
 import std/[sequtils, net], stew/byteutils
 import protobuf_serialization
-import ../../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
+import ../../../libp2p/[multicodec, multiaddress, peerid, protobuf/minprotobuf]
 import ../../tools/[unittest, multiaddress]
 
 {.push raises: [].}
@@ -312,6 +312,21 @@ suite "MultiAddress test suite":
       check:
         hex(a) == PathExpects[i]
         $a == PathVectors[i]
+
+  test "p2p and ipfs accept CIDv1 peer id text":
+    const legacyPeerId = "QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+    let
+      pid = PeerId.init(legacyPeerId).tryGet()
+      cidBase32 = pid.toCidString().tryGet()
+
+    for item in [("p2p", multiCodec("p2p")), ("ipfs", multiCodec("ipfs"))]:
+      let
+        proto = item[0]
+        ma = MultiAddress.init("/" & proto & "/" & cidBase32).tryGet()
+        part = ma.getPart(item[1]).tryGet()
+      check:
+        part.protoAddress().tryGet() == pid.getBytes()
+        $ma == "/" & proto & "/" & legacyPeerId
 
   test "MultiAddress pattern matching test vectors":
     for item in PatternVectors:

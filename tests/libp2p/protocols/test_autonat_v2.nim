@@ -16,21 +16,19 @@ import
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
   ]
-import ../../tools/[unittest, crypto, switch_builder]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
-  var srcBuilder = makeStandardSwitchBuilder(transport = TransportType.TCP)
+  var srcBuilder = makeStandardSwitchBuilder(TcpAutoAddress)
   if srcAddrs.len > 0:
     srcBuilder = srcBuilder.withAddresses(srcAddrs)
 
   let
     src = srcBuilder.build()
-    dst = makeStandardSwitchBuilder(transport = TransportType.TCP)
-      .withAutonatV2Server(config)
-      .build()
+    dst = makeStandardSwitchBuilder(TcpAutoAddress).withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)

@@ -50,7 +50,7 @@ proc newTooManyChannels(): ref TooManyChannels =
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
 
-proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []), inline.} =
+proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## remove the local channel from the internal tables
   ##
   try:
