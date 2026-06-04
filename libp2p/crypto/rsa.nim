@@ -247,11 +247,11 @@ proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   pubkey.key.elen = key.pubk.elen
   pubkey
 
-proc seckey*(pair: RsaKeyPair): RsaPrivateKey {.inline.} =
+proc seckey*(pair: RsaKeyPair): RsaPrivateKey =
   ## Get RSA private key from pair ``pair``.
   cast[RsaPrivateKey](pair).copy()
 
-proc pubkey*(pair: RsaKeyPair): RsaPublicKey {.inline.} =
+proc pubkey*(pair: RsaKeyPair): RsaPublicKey =
   ## Get RSA public key from pair ``pair``.
   cast[RsaPrivateKey](pair).getPublicKey()
 
@@ -575,7 +575,7 @@ proc init*(sig: var RsaSignature, data: openArray[byte]): Result[void, Asn1Error
   else:
     err(Asn1Error.Incorrect)
 
-proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
+proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] =
   ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
@@ -611,7 +611,7 @@ proc init*(t: typedesc[RsaSignature], data: openArray[byte]): RsaResult[RsaSigna
   else:
     ok(res)
 
-proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
+proc init*[T: RsaPKI](t: typedesc[T], data: string): T =
   ## Initialize RSA `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
   t.init(ncrutils.fromHex(data))
@@ -785,7 +785,7 @@ proc sign*[T: byte | char](
 
 proc verify*[T: byte | char](
     sig: RsaSignature, message: openArray[T], pubkey: RsaPublicKey
-): bool {.inline.} =
+): bool =
   ## Verify RSA signature ``sig`` using public key ``pubkey`` and data
   ## ``message``.
   ##

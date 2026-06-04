@@ -10,7 +10,6 @@ import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
   multicodec,
-  multihash,
   multibase,
   transcoder,
   vbuffer,
@@ -18,7 +17,7 @@ import
   protobuf/minprotobuf,
   errors,
   utils/[opt, shortlog, conversion, collections]
-import stew/[base58, base32, endians2]
+import stew/[base32, endians2]
 export results, vbuffer, errors, opt, shortlog, collections
 
 logScope:
@@ -222,33 +221,26 @@ proc portVB(vb: var VBuffer): bool =
 
 proc p2pStB(s: string, vb: var VBuffer): bool =
   ## P2P address stringToBuffer() implementation.
-  try:
-    var data = Base58.decode(s)
-    var mh: MultiHash
-    if MultiHash.decode(data, mh).isOk:
-      vb.writeSeq(data)
-      return true
-  except CatchableError:
-    discard
-  false
+  let pid = PeerId.init(s).valueOr:
+    return false
+  vb.writeSeq(pid.data)
+  true
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
   var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      s = Base58.encode(address)
-      return true
+    let pid = PeerId.init(address).valueOr:
+      return false
+    s = $pid
+    return true
   false
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
   var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      return true
+    return PeerId.init(address).isOk
   false
 
 proc onionStB(s: string, vb: var VBuffer): bool =
@@ -660,9 +652,7 @@ proc getParts[U, V](ma: MultiAddress, slice: HSlice[U, V]): MaResult[MultiAddres
     ?res.append(?ma[i])
   ok(res)
 
-proc `[]`*(
-    ma: MultiAddress, i: int | BackwardsIndex
-): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, i: int | BackwardsIndex): MaResult[MultiAddress] =
   ## Returns part with index ``i`` of MultiAddress ``ma``.
   when i is BackwardsIndex:
     let maLength = ?len(ma)
@@ -670,7 +660,7 @@ proc `[]`*(
   else:
     ma.getPart(i)
 
-proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] =
   ## Returns parts with slice ``slice`` of MultiAddress ``ma``.
   ma.getParts(slice)
 
@@ -722,7 +712,7 @@ proc len*(ma: MultiAddress): MaResult[int] =
     counter.inc()
   ok(counter)
 
-proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
+proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] =
   ## Returns ``true``, if address with MultiCodec ``codec`` present in
   ## MultiAddress ``ma``.
   for item in ma.items:
@@ -731,7 +721,7 @@ proc contains*(ma: MultiAddress, codec: MultiCodec): MaResult[bool] {.inline.} =
       return ok(true)
   ok(false)
 
-proc `[]`*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] {.inline.} =
+proc `[]`*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
   ## Returns partial MultiAddress with MultiCodec ``codec`` and present in
   ## MultiAddress ``ma``.
   for item in ma.items:
@@ -788,13 +778,11 @@ proc hex*(value: MultiAddress): string =
   ## Return hexadecimal string representation of MultiAddress ``value``.
   $(value.data)
 
-proc write*(vb: var VBuffer, ma: MultiAddress) {.inline.} =
+proc write*(vb: var VBuffer, ma: MultiAddress) =
   ## Write MultiAddress value ``ma`` to buffer ``vb``.
   vb.writeArray(ma.data.buffer)
 
-proc encode*(
-    mbtype: typedesc[MultiBase], encoding: string, ma: MultiAddress
-): string {.inline.} =
+proc encode*(mbtype: typedesc[MultiBase], encoding: string, ma: MultiAddress): string =
   ## Get MultiBase encoded representation of ``ma`` using encoding
   ## ``encoding``.
   MultiBase.encode(encoding, ma.data.buffer)
@@ -859,7 +847,7 @@ proc init*(
 
 proc init*(
     mtype: typedesc[MultiAddress], protocol: MultiCodec, value: PeerId
-): MaResult[MultiAddress] {.inline.} =
+): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from protocol id ``protocol`` and peer id
   ## ``value``.
   init(mtype, protocol, value.data)
@@ -906,7 +894,7 @@ proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byt
       return ok(?ritem.protoAddress())
   err("Multiaddress codec has not been found")
 
-proc getProtocol(name: string): MAProtocol {.inline.} =
+proc getProtocol(name: string): MAProtocol =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
     CodeAddresses.getOrDefault(mc)
@@ -1165,12 +1153,12 @@ proc `$`*(pat: MaPattern): string =
 proc bytes*(value: MultiAddress): seq[byte] =
   value.data.buffer
 
-proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
+proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) =
   write(pb, field, value.data.buffer)
 
 proc getField*(
     pb: ProtoBuffer, field: int, value: var MultiAddress
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   var buffer: seq[byte]
   let res = ?pb.getField(field, buffer)
   if not (res):
@@ -1182,7 +1170,7 @@ proc getField*(
 
 proc getRepeatedField*(
     pb: ProtoBuffer, field: int, value: var seq[MultiAddress]
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   ## Read repeated field from protobuf message. ``field`` is field number.
   ## If the message is malformed, an error is returned. If field is not present
   ## in message, then ``ok(false)`` is returned and value is empty. If field is

@@ -164,15 +164,15 @@ proc toBytes*(sig: SkSignature, data: var openArray[byte]): int =
   ## Secp256k1 signature.
   secp256k1.SkSignature(sig).toDer(data)
 
-proc getBytes*(key: SkPrivateKey): seq[byte] {.inline.} =
+proc getBytes*(key: SkPrivateKey): seq[byte] =
   ## Serialize Secp256k1 `private key` and return it.
   @(SkSecretKey(key).toRaw())
 
-proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
+proc getBytes*(key: SkPublicKey): seq[byte] =
   ## Serialize Secp256k1 `public key` and return it.
   @(secp256k1.SkPublicKey(key).toRawCompressed())
 
-proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
+proc getBytes*(sig: SkSignature): seq[byte] =
   ## Serialize Secp256k1 `signature` and return it.
   var buf = newSeqUninit[byte](72)
   let length = toBytes(sig, buf)

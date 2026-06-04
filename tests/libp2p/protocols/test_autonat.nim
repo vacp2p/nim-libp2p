@@ -39,9 +39,16 @@ proc makeAutonatServicePrivate(): Switch =
     try:
       discard await stream.readLp(1024)
       await stream.writeLp(
-        AutonatDialResponse(
-          status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
-        ).encode().buffer
+        AutonatMsg(
+          msgType: MsgType.DialResponse,
+          response: Opt.some(
+            AutonatDialResponse(
+              status: DialError,
+              text: Opt.some("dial failed"),
+              ma: Opt.none(MultiAddress),
+            )
+          ),
+        ).encode()
       )
     except LPStreamError:
       raiseAssert "Unexpected LPStreamError in autonat private service handler"
@@ -97,15 +104,20 @@ suite "Autonat":
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
-    let buffer = AutonatDial(
-      peerInfo: Opt.some(
-        AutonatPeerInfo(
-          id: Opt.some(src.peerInfo.peerId),
-          # we ask to be dialed in the does nothing listener instead
-          addrs: doesNothingListener.addrs,
+    let buffer = AutonatMsg(
+      msgType: MsgType.Dial,
+      dial: Opt.some(
+        AutonatDial(
+          peerInfo: Opt.some(
+            AutonatPeerInfo(
+              id: Opt.some(src.peerInfo.peerId),
+              # we ask to be dialed in the does nothing listener instead
+              addrs: doesNothingListener.addrs,
+            )
+          )
         )
-      )
-    ).encode().buffer
+      ),
+    ).encode()
     await stream.writeLp(buffer)
     let response = AutonatMsg.decode(await stream.readLp(1024)).get().response.get()
     check:
