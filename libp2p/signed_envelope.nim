@@ -8,7 +8,7 @@
 import std/sugar
 import pkg/stew/byteutils, pkg/results
 import multicodec, crypto/crypto, protobuf/minprotobuf, vbuffer
-
+import protobuf_serialization, protobuf_serialization/pkg/results
 export crypto
 
 type
@@ -18,12 +18,12 @@ type
     EnvelopeInvalidSignature
     EnvelopeWrongType
 
-  Envelope* = object
-    publicKey*: PublicKey
-    domain*: string
-    payloadType*: seq[byte]
-    payload: seq[byte]
-    signature*: Signature
+  Envelope* {.proto2.} = object
+    publicKey* {.fieldNumber: 1, ext, required.}: PublicKey
+    payloadType* {.fieldNumber: 2.}: seq[byte]
+    payload {.fieldNumber: 3, required}: seq[byte]
+    domain* {.fieldNumber: 4, required.}: string
+    signature* {.fieldNumber: 5, ext, required.}: Signature
 
 proc mapProtobufError(e: ProtoError): EnvelopeError =
   case e
