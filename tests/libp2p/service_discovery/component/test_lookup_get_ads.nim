@@ -7,7 +7,6 @@ import
   ../../../../libp2p/[
     crypto/crypto,
     peerid,
-    protocols/kademlia/routing_table,
     protocols/kademlia/types,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
@@ -18,68 +17,6 @@ import
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
-
-# The setup* procs below use the static lookup table exported from ../utils
-# (populated offline by the commented generator there). Review of call sites
-# shows only the service name "service" is ever passed to setupRegistrarsIn*
-# (the other tests use different ad-hoc names but do not call those procs).
-# Thus we use the least number of services (1) to minimize static table size.
-proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
-  bucketIndex(
-    serviceId,
-    r.switch.peerInfo.peerId.toKey(),
-    Opt.none(XorDHasher),
-    maxBuckets = r.discoConfig.bucketsCount,
-    selfIdPreHashed = true,
-  )
-
-proc setupRegistrarsInDistinctBuckets(
-    conf: ServiceDiscoveryConfig, serviceId: ServiceId
-): tuple[queriedFirst, queriedSecond: ServiceDiscovery] =
-  ## Two registrars in distinct buckets of the routing table rooted at `serviceId`.
-  ## Returned in the order `lookup()` would visit them (lower bucket index first).
-
-  let svcName = "service"
-  let key0 = getKeyForBucket(svcName, 0)
-  # Get a key for a higher bucket (we have entries for 1).
-  var key1 = key0
-  for b in 1 ..< conf.bucketsCount:
-    if b in serviceBucketLookupTable[svcName] and
-        serviceBucketLookupTable[svcName][b].len > 0:
-      key1 = getKeyForBucket(svcName, b)
-      break
-  let node0 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(key0))
-  let node1 = setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(key1))
-  let bucket0 = bucketOf(node0, serviceId)
-  let bucket1 = bucketOf(node1, serviceId)
-  if bucket0 < bucket1:
-    return (node0, node1)
-  else:
-    return (node1, node0)
-
-proc setupRegistrarsInSameBucket(
-    conf: ServiceDiscoveryConfig, serviceId: ServiceId, count: int
-): seq[ServiceDiscovery] =
-  ## Registrars that land in one service routing table bucket.
-
-  doAssert count > 0, "count must be > 0"
-  let svcName = "service"
-  # Find a bucket that has enough precomputed keys (will be 0 for "service").
-  var chosenBucket = -1
-  for b, lst in serviceBucketLookupTable[svcName]:
-    if lst.len >= count:
-      chosenBucket = b
-      break
-  if chosenBucket >= 0:
-    var nodes: seq[ServiceDiscovery]
-    for i in 0 ..< count:
-      let pk = getKeyForBucket(svcName, chosenBucket)
-      nodes.add(
-        setupServiceDiscoveryNode(discoConfig = conf, privateKey = Opt.some(pk))
-      )
-    # Optional sanity: all should report the same bucket (the chosen one).
-    return nodes
-  raiseAssert "static table not populated with enough keys for " & svcName
 
 suite "Service Discovery Component - Lookup Get Ads":
   teardown:
@@ -167,27 +104,25 @@ suite "Service Discovery Component - Lookup Get Ads":
     )
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
 
-    let serviceName = "service"
+    let (queriedFirst, queriedSecond, serviceName) =
+      setupRegistrarsInDistinctBuckets(conf)
     let serviceId = serviceName.hashServiceId()
-    let registrars = setupRegistrarsInDistinctBuckets(conf, serviceId)
 
-    startAndDeferStop(
-      @[discovererNode, registrars.queriedFirst, registrars.queriedSecond]
-    )
-    await connect(discovererNode, registrars.queriedFirst)
-    await connect(discovererNode, registrars.queriedSecond)
+    startAndDeferStop(@[discovererNode, queriedFirst, queriedSecond])
+    await connect(discovererNode, queriedFirst)
+    await connect(discovererNode, queriedSecond)
 
     # The first-queried registrar fills the result on its own.
     var firstBucketAds: seq[Advertisement]
     for _ in 0 ..< fLookup:
       firstBucketAds.add(makeAdvertisement(serviceName))
-    registrars.queriedFirst.registrar.cache[serviceId] = firstBucketAds
+    queriedFirst.registrar.cache[serviceId] = firstBucketAds
 
     # The other should never be queried, so should not appear in the result.
     let otherKey = randomKey()
     let otherAd = makeAdvertisement(serviceName, privateKey = otherKey)
     let otherPeerId = PeerId.init(otherKey).get()
-    registrars.queriedSecond.registrar.cache[serviceId] = @[otherAd]
+    queriedSecond.registrar.cache[serviceId] = @[otherAd]
 
     let found = await discovererNode.lookup(serviceId)
     check:
@@ -201,9 +136,8 @@ suite "Service Discovery Component - Lookup Get Ads":
     )
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
 
-    let serviceName = "service"
+    let (registrars, serviceName) = setupRegistrarsInSameBucket(conf, kLookup + 2)
     let serviceId = serviceName.hashServiceId()
-    let registrars = setupRegistrarsInSameBucket(conf, serviceId, kLookup + 2)
 
     startAndDeferStop(@[discovererNode] & registrars)
     for registrar in registrars:
@@ -220,21 +154,19 @@ suite "Service Discovery Component - Lookup Get Ads":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, fLookup = 1)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
 
-    let serviceName = "service"
+    let (queriedFirst, queriedSecond, serviceName) =
+      setupRegistrarsInDistinctBuckets(conf)
     let serviceId = serviceName.hashServiceId()
-    let registrars = setupRegistrarsInDistinctBuckets(conf, serviceId)
 
-    startAndDeferStop(
-      @[discovererNode, registrars.queriedFirst, registrars.queriedSecond]
-    )
-    await connect(discovererNode, registrars.queriedFirst)
-    await connect(discovererNode, registrars.queriedSecond)
+    startAndDeferStop(@[discovererNode, queriedFirst, queriedSecond])
+    await connect(discovererNode, queriedFirst)
+    await connect(discovererNode, queriedSecond)
 
     let firstBucketKey = randomKey()
     let firstBucketAd = makeAdvertisement(serviceName, privateKey = firstBucketKey)
     let secondBucketAd = makeAdvertisement(serviceName)
-    registrars.queriedFirst.registrar.cache[serviceId] = @[firstBucketAd]
-    registrars.queriedSecond.registrar.cache[serviceId] = @[secondBucketAd]
+    queriedFirst.registrar.cache[serviceId] = @[firstBucketAd]
+    queriedSecond.registrar.cache[serviceId] = @[secondBucketAd]
 
     let found = await discovererNode.lookup(serviceId)
     check:
