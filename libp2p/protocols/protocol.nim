@@ -22,7 +22,7 @@ declareGauge(
   labels = ["protocol", "direction"],
 )
 
-when defined(metricsTest):
+when defined(libp2p_testing):
   export libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open
 
 const

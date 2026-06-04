@@ -1,6 +1,8 @@
 import ../config.nims
 import strutils, os
 
+--d:
+  libp2p_testing
 --threads:
   on
 --d:
