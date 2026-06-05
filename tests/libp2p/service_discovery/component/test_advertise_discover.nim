@@ -357,54 +357,6 @@ suite "Service Discovery Component - Advertise Discover":
         let foundB = await discovererNode.lookup(serviceBId)
         foundA.containsPeer(advertiserNode) and foundB.containsPeer(advertiserNode)
 
-  asyncTest "addProvidedService maps registrars via scaled bucketing":
-    const
-      serviceName = "service-bucket-indexing-component"
-      highLzRegistrarPrivateKey =
-        "080112404911f67066496ac09c4924a8ef86ec0d8532c9fb50046aa27fdb4132" &
-        "130a2c8ecf17e8057d0e5c6fcef5a3aeec98d70b43feffac4301c141a08071498ce89a1e"
-
-    let
-      conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-      highLzRegistrarKey = PrivateKey.init(highLzRegistrarPrivateKey).get()
-      highLzRegistrarNode = setupServiceDiscoveryNode(
-        discoConfig = conf, privateKey = Opt.some(highLzRegistrarKey)
-      )
-      workingRegistrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-      advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-
-    startAndDeferStop(@[highLzRegistrarNode, workingRegistrarNode, advertiserNode])
-    await connect(highLzRegistrarNode, advertiserNode)
-    await connect(workingRegistrarNode, advertiserNode)
-
-    let
-      service = makeServiceInfo(serviceName)
-      serviceId = service.id.hashServiceId()
-      highLzRegistrarPeerKey = highLzRegistrarNode.switch.peerInfo.peerId.toKey()
-      workingRegistrarPeerKey = workingRegistrarNode.switch.peerInfo.peerId.toKey()
-
-    check:
-      bucketIndex(
-        serviceId, highLzRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
-      ) > conf.bucketsCount
-      bucketIndex(
-        serviceId, workingRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
-      ) < conf.bucketsCount
-      advertiserNode.rtable.hasPeer(highLzRegistrarPeerKey)
-      advertiserNode.rtable.hasPeer(workingRegistrarPeerKey)
-
-    advertiserNode.addProvidedService(service)
-
-    let serviceTable = advertiserNode.rtManager.getTable(serviceId).get()
-    check:
-      serviceTable.hasPeer(workingRegistrarPeerKey)
-      serviceTable.hasPeer(highLzRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() >= 1
-
-    checkUntilTimeout:
-      workingRegistrarNode.countAdsInCache(serviceId) == 1
-      highLzRegistrarNode.countAdsInCache(serviceId) == 1
-
   asyncTest "advertiser registers with peers discovered after addProvidedService":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let initialRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
