@@ -18,21 +18,25 @@ template handleKeyError(body: untyped): float64 =
   except exceptions.KeyError:
     0.0
 
-template rejectionCounter(proto: LPProtocol, dir: string, scope: string): float64 =
+template rejectionCounterIn(proto: LPProtocol, scope: string): float64 =
   handleKeyError:
-    libp2p_protocol_stream_cap_rejections_total.value([proto.codecs[0], dir, scope])
+    libp2p_protocol_stream_cap_rejections_total.value([proto.codecs[0], dirIn, scope])
+
+template rejectionCounterOut(proto: LPProtocol, scope: string): float64 =
+  handleKeyError:
+    libp2p_protocol_stream_cap_rejections_total.value([proto.codecs[0], dirOut, scope])
 
 template openGaugeIn(proto: LPProtocol): float64 =
   handleKeyError:
-    libp2p_protocol_streams_open.value([proto.codecs[0], "in"])
+    libp2p_protocol_streams_open.value([proto.codecs[0], dirIn])
 
 template openGaugeOut(proto: LPProtocol): float64 =
   handleKeyError:
-    libp2p_protocol_streams_open.value([proto.codecs[0], "out"])
+    libp2p_protocol_streams_open.value([proto.codecs[0], dirOut])
 
 template clearGauges(codecs: seq[string]) =
-  libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], "in"])
-  libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], "out"])
+  libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], dirIn])
+  libp2p_protocol_streams_open.set(0, labelValues = [codecs[0], dirOut])
 
 template assertNoLimits(p: LPProtocol) =
   # when there are no limits reserve and release will always succeed
@@ -126,9 +130,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveIncoming(peerId1) # make rejection
-      p.rejectionCounter("in", "per_peer") == 1
+      p.rejectionCounterIn(scopePerPeer) == 1
       not p.reserveIncoming(peerId1) # make rejection, again
-      p.rejectionCounter("in", "per_peer") == 2
+      p.rejectionCounterIn(scopePerPeer) == 2
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
@@ -162,9 +166,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveIncoming(peerId3) # make rejection
-      p.rejectionCounter("in", "total") == 1
+      p.rejectionCounterIn(scopeTotal) == 1
       not p.reserveIncoming(peerId3) # make rejection, again
-      p.rejectionCounter("in", "total") == 2
+      p.rejectionCounterIn(scopeTotal) == 2
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
@@ -200,9 +204,9 @@ suite "LPProtocol stream budget":
     check:
       p.canOpenOutgoing(peerId2)
       not p.reserveOutgoing(peerId1) # make rejection
-      p.rejectionCounter("out", "per_peer") == 1
+      p.rejectionCounterOut(scopePerPeer) == 1
       not p.reserveOutgoing(peerId1) # make rejection, again
-      p.rejectionCounter("out", "per_peer") == 2
+      p.rejectionCounterOut(scopePerPeer) == 2
       p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
@@ -239,9 +243,9 @@ suite "LPProtocol stream budget":
 
     check:
       not p.reserveOutgoing(peerId1) # make rejection
-      p.rejectionCounter("out", "total") == 1
+      p.rejectionCounterOut(scopeTotal) == 1
       not p.reserveOutgoing(peerId2) # make rejection, again
-      p.rejectionCounter("out", "total") == 2
+      p.rejectionCounterOut(scopeTotal) == 2
       p.openGaugeOut() == 2
 
     p.releaseOutgoing(peerId1)
@@ -498,35 +502,35 @@ suite "LPProtocol stream budget":
     check:
       p1.reserveIncoming(peerId1)
       not p1.reserveIncoming(peerId1)
-      p1.rejectionCounter("in", "total") == 1
+      p1.rejectionCounterIn(scopeTotal) == 1
       not p1.reserveIncoming(peerId1)
-      p1.rejectionCounter("in", "total") == 2
+      p1.rejectionCounterIn(scopeTotal) == 2
 
       # other p1 counters are not changed
-      p1.rejectionCounter("in", "per_peer") == 0
-      p1.rejectionCounter("out", "total") == 0
-      p1.rejectionCounter("out", "per_peer") == 0
+      p1.rejectionCounterIn(scopePerPeer) == 0
+      p1.rejectionCounterOut(scopeTotal) == 0
+      p1.rejectionCounterOut(scopePerPeer) == 0
 
       # p2 counters are not changed
-      p2.rejectionCounter("in", "total") == 0
-      p2.rejectionCounter("in", "per_peer") == 0
-      p2.rejectionCounter("out", "total") == 0
-      p2.rejectionCounter("out", "per_peer") == 0
+      p2.rejectionCounterIn(scopeTotal) == 0
+      p2.rejectionCounterIn(scopePerPeer) == 0
+      p2.rejectionCounterOut(scopeTotal) == 0
+      p2.rejectionCounterOut(scopePerPeer) == 0
 
     check:
       p2.reserveIncoming(peerId1)
       not p2.reserveIncoming(peerId1)
-      p2.rejectionCounter("in", "total") == 1
+      p2.rejectionCounterIn(scopeTotal) == 1
       not p2.reserveIncoming(peerId1)
-      p2.rejectionCounter("in", "total") == 2
+      p2.rejectionCounterIn(scopeTotal) == 2
 
       # other p2 counters are not changed
-      p2.rejectionCounter("in", "per_peer") == 0
-      p2.rejectionCounter("out", "total") == 0
-      p2.rejectionCounter("out", "per_peer") == 0
+      p2.rejectionCounterIn(scopePerPeer) == 0
+      p2.rejectionCounterOut(scopeTotal) == 0
+      p2.rejectionCounterOut(scopePerPeer) == 0
 
       # p1 counters keep old state
-      p2.rejectionCounter("in", "total") == 2
-      p2.rejectionCounter("in", "per_peer") == 0
-      p2.rejectionCounter("out", "total") == 0
-      p2.rejectionCounter("out", "per_peer") == 0
+      p2.rejectionCounterIn(scopeTotal) == 2
+      p2.rejectionCounterIn(scopePerPeer) == 0
+      p2.rejectionCounterOut(scopeTotal) == 0
+      p2.rejectionCounterOut(scopePerPeer) == 0
