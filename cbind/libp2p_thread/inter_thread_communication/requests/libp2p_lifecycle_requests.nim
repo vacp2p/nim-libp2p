@@ -289,7 +289,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     switchBuilder = switchBuilder.withAutonat()
 
   if config.autonatV2 == 1:
-    switchBuilder = switchBuilder.withAutonatV2()
+    switchBuilder = switchBuilder.withNAT(autonatConfig(AutonatV2))
 
   if config.autonatV2Server == 1:
     switchBuilder = switchBuilder.withAutonatV2Server()

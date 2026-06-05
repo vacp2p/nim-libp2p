@@ -7,15 +7,25 @@ import std/[net, sequtils]
 import chronos, chronicles, results
 import ../[multiaddress, multicodec, wire]
 import ../switch
+import ../crypto/crypto
 import ../utils/heartbeat
 import ./nat/[portmapper, upnp_mapper, natpmp_mapper]
+import ../protocols/connectivity/autonat/[client, service]
+import ../protocols/connectivity/autonatv2/[client, service]
+import ../protocols/connectivity/relay/client as relayclient
+import ./[autorelayservice, hpservice]
 
 export portmapper
+export OnReservationHandler, AutonatV2ServiceConfig
 
 logScope:
   topics = "libp2p natservice"
 
 type
+  AutonatVersion* = enum
+    AutonatV1
+    AutonatV2
+
   NATMode* = enum
     Auto # autonat/hole-punching
     ExplicitIp # static external IP
@@ -23,6 +33,13 @@ type
     NatPmp
 
   NATConfig* = object
+    ## Hole-punching uses AutoNAT v1; pairing it with ``autonat = some(AutonatV2)`` is rejected at setup.
+    autonat*: Opt[AutonatVersion]
+    enableHolePunching*: bool
+    maxNumRelays*: int
+    onReservation*: OnReservationHandler
+    autonatV1ScheduleInterval*: Opt[Duration]
+    autonatV2ServiceConfig*: Opt[AutonatV2ServiceConfig]
     case mode*: NATMode
     of ExplicitIp:
       explicitIp*: IpAddress
@@ -37,12 +54,19 @@ type
 
   NATService* = ref object of Service
     config: NATConfig
+    rng: Rng
     addressMapper: AddressMapper
     portMapperFactory: PortMapperFactory
     mapper: PortMapper
     refreshLoopFut: Future[void]
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
+    # AutoNAT / hole-punching sub-services. Populated by setup() based on config.
+    autonatService*: AutonatService
+    autonatV2Service*: AutonatV2Service
+    autonatV2Client*: AutonatV2Client
+    autoRelayService*: AutoRelayService
+    hpService*: HPService
 
 const
   DefaultRefreshInterval* = 30.minutes
@@ -65,9 +89,12 @@ proc defaultPortMapperFactory(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: 
 proc new*(
     T: typedesc[NATService],
     config: NATConfig,
+    rng: Rng,
     portMapperFactory: PortMapperFactory = nil,
 ): T =
-  T(config: config, portMapperFactory: portMapperFactory)
+  ## ``rng`` is forwarded to the AutoNAT / AutoRelay sub-services when
+  ## ``config.autonat`` or ``config.enableHolePunching`` is set.
+  T(config: config, rng: rng, portMapperFactory: portMapperFactory)
 
 proc upnpConfig*(
     refreshInterval = DefaultRefreshInterval,
@@ -91,6 +118,34 @@ proc natPmpConfig*(
     refreshInterval: refreshInterval,
     discoveryTimeout: discoveryTimeout,
     leaseDuration: leaseDuration,
+  )
+
+proc autonatConfig*(
+    version: AutonatVersion,
+    scheduleInterval = Opt.none(Duration),
+    v2ServiceConfig = Opt.none(AutonatV2ServiceConfig),
+): NATConfig =
+  ## Probe-only AutoNAT (no port-mapping, no hole-punching).
+  NATConfig(
+    mode: Auto,
+    autonat: Opt.some(version),
+    autonatV1ScheduleInterval: scheduleInterval,
+    autonatV2ServiceConfig: v2ServiceConfig,
+  )
+
+proc holePunchingConfig*(
+    maxNumRelays: int = 1,
+    onReservation: OnReservationHandler = nil,
+    scheduleInterval = Opt.none(Duration),
+): NATConfig =
+  ## AutoNAT v1 + AutoRelay + DCUtR. Hole-punching with v2 is not supported.
+  NATConfig(
+    mode: Auto,
+    autonat: Opt.some(AutonatV1),
+    enableHolePunching: true,
+    maxNumRelays: maxNumRelays,
+    onReservation: onReservation,
+    autonatV1ScheduleInterval: scheduleInterval,
   )
 
 proc explicitIpMapped*(
@@ -274,35 +329,89 @@ proc refreshLoop(
     self.externalIp = Opt.none(IpAddress)
     await switch.peerInfo.update()
 
-method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  debug "Setting up NATService", mode = self.config.mode
+proc validatePortMapperConfig(cfg: NATConfig) {.raises: [ServiceSetupError].} =
+  if cfg.refreshInterval <= 0.seconds:
+    raise newException(
+      ServiceSetupError,
+      "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
+    )
+  if cfg.discoveryTimeout <= 0.seconds:
+    raise newException(
+      ServiceSetupError,
+      "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
+    )
+  # NAT-PMP treats lease=0 as a delete, so the seconds-truncated lease must be
+  # at least 1; sub-second durations would round to 0.
+  if cfg.leaseDuration < 1.seconds:
+    raise newException(
+      ServiceSetupError,
+      "NATService: leaseDuration must be >= 1s; use upnpConfig/natPmpConfig",
+    )
+  if cfg.refreshInterval >= cfg.leaseDuration:
+    raise newException(
+      ServiceSetupError,
+      "NATService: refreshInterval must be < leaseDuration so mappings refresh before expiry",
+    )
 
-  case self.config.mode
-  of Auto, ExplicitIp:
-    discard
-  of Upnp, NatPmp:
-    if self.config.refreshInterval <= 0.seconds:
-      raise newException(
-        ServiceSetupError,
-        "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
-      )
-    if self.config.discoveryTimeout <= 0.seconds:
-      raise newException(
-        ServiceSetupError,
-        "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
-      )
-    # NAT-PMP treats lease=0 as a delete, so the seconds-truncated lease must
-    # be at least 1; sub-second durations would round to 0.
-    if self.config.leaseDuration < 1.seconds:
-      raise newException(
-        ServiceSetupError,
-        "NATService: leaseDuration must be >= 1s; use upnpConfig/natPmpConfig",
-      )
-    if self.config.refreshInterval >= self.config.leaseDuration:
-      raise newException(
-        ServiceSetupError,
-        "NATService: refreshInterval must be < leaseDuration so mappings refresh before expiry",
-      )
+proc setupHolePunching(
+    self: NATService, switch: Switch
+) {.raises: [ServiceSetupError].} =
+  if self.config.autonat == Opt.some(AutonatV2):
+    raise newException(
+      ServiceSetupError,
+      "NATService: enableHolePunching currently requires AutoNAT v1; " &
+        "set NATConfig.autonat to none or some(AutonatV1).",
+    )
+  let maxNumRelays = if self.config.maxNumRelays > 0: self.config.maxNumRelays else: 1
+  self.autonatService = AutonatService.new(
+    AutonatClient(), self.rng, scheduleInterval = self.config.autonatV1ScheduleInterval
+  )
+  self.autoRelayService = AutoRelayService.new(
+    maxNumRelays, RelayClient.new(), self.config.onReservation, self.rng
+  )
+  self.hpService = HPService.new(self.autonatService, self.autoRelayService)
+  self.hpService.setup(switch)
+
+proc setupAutonatV1(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
+  self.autonatService = AutonatService.new(
+    AutonatClient(), self.rng, scheduleInterval = self.config.autonatV1ScheduleInterval
+  )
+  self.autonatService.setup(switch)
+
+proc setupAutonatV2(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
+  let serviceConfig =
+    self.config.autonatV2ServiceConfig.get(AutonatV2ServiceConfig.new())
+  self.autonatV2Client = AutonatV2Client.new(self.rng)
+  self.autonatV2Service = AutonatV2Service.new(
+    self.rng, client = self.autonatV2Client, config = serviceConfig
+  )
+  self.autonatV2Client.setup(switch)
+  try:
+    switch.mount(self.autonatV2Client)
+  except LPError as e:
+    raise newException(
+      ServiceSetupError, "NATService failed to mount AutonatV2Client: " & e.msg
+    )
+  self.autonatV2Service.setup(switch)
+
+proc setupAutonat(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
+  if self.config.enableHolePunching:
+    self.setupHolePunching(switch)
+  elif self.config.autonat == Opt.some(AutonatV1):
+    self.setupAutonatV1(switch)
+  elif self.config.autonat == Opt.some(AutonatV2):
+    self.setupAutonatV2(switch)
+
+method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
+  debug "Setting up NATService",
+    mode = self.config.mode,
+    autonat = self.config.autonat,
+    enableHolePunching = self.config.enableHolePunching
+
+  if self.config.mode in {Upnp, NatPmp}:
+    validatePortMapperConfig(self.config)
+
+  self.setupAutonat(switch)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Starting NATService", mode = self.config.mode
@@ -311,7 +420,6 @@ method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledErro
   # stop()/start() cycle re-creates them after we tear them down in stop().
   case self.config.mode
   of Auto:
-    # TODO: wire autonat / hole-punching in here.
     discard
   of ExplicitIp:
     self.addressMapper = proc(
@@ -344,6 +452,13 @@ method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledErro
   # peerInfo.update is invoked by Switch.start once transports have bound, at
   # which point the mapper runs against the resolved listenAddrs.
 
+  if self.hpService != nil:
+    await self.hpService.start(switch)
+  elif self.autonatService != nil:
+    await self.autonatService.start(switch)
+  elif self.autonatV2Service != nil:
+    await self.autonatV2Service.start(switch)
+
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Stopping NATService"
 
@@ -372,3 +487,10 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
     self.externalIp = Opt.none(IpAddress)
     # Mirror the explicitIp path: deliberately do not call peerInfo.update()
     # during shutdown.
+
+  if self.hpService != nil:
+    await self.hpService.stop(switch)
+  elif self.autonatService != nil:
+    await self.autonatService.stop(switch)
+  elif self.autonatV2Service != nil:
+    await self.autonatV2Service.stop(switch)

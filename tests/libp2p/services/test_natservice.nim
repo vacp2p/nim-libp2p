@@ -377,3 +377,107 @@ suite "NATService":
     let res = await switch.peerInfo.addressMappers[0](@[ma("/ip6/fc00::1/tcp/4242")])
     check res == @[ma("/ip6/fc00::1/tcp/4242")] # fall-through, no map()
     check mock.countCalls(mckMap) == 0
+
+  proc findNat(switch: Switch): NATService =
+    for s in switch.services:
+      if s of NATService:
+        return NATService(s)
+    nil
+
+  asyncTest "autonat v1 spins up the AutonatService":
+    let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatService != nil
+      nat.autonatV2Service == nil
+      nat.hpService == nil
+
+  asyncTest "autonat v2 spins up the AutonatV2 service + client":
+    let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatV2Service != nil
+      nat.autonatV2Client != nil
+      nat.autonatService == nil
+      nat.hpService == nil
+
+  asyncTest "enableHolePunching composes the full HP stack":
+    let switch = makeSwitch(holePunchingConfig(maxNumRelays = 2), @[TcpAutoAddress])
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.hpService != nil
+      nat.autonatService != nil
+      nat.autoRelayService != nil
+      nat.autonatV2Service == nil
+
+  test "enableHolePunching with AutonatV2 is rejected at setup":
+    let cfg =
+      NATConfig(mode: Auto, enableHolePunching: true, autonat: Opt.some(AutonatV2))
+    expect ServiceSetupError:
+      discard makeSwitch(cfg, @[TcpAutoAddress])
+
+  asyncTest "Upnp combined with autonat v1 wires both subsystems":
+    # NATConfig keeps mode (port-mapping) and autonat orthogonal: enabling
+    # both must spin up the UPnP addressMapper *and* the AutonatService.
+    let mock = newMock()
+    let factory: PortMapperFactory = proc(
+        mode: NATMode
+    ): Opt[PortMapper] {.gcsafe, raises: [].} =
+      Opt.some(PortMapper(mock))
+
+    var cfg = upnpConfig()
+    cfg.autonat = Opt.some(AutonatV1)
+
+    let switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatService != nil
+      # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
+      switch.peerInfo.addressMappers.len == 2
+
+  asyncTest "autonat v1 survives stop/start cycle":
+    let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
+    await switch.start()
+    await switch.stop()
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatService != nil
+
+  asyncTest "autonat v2 survives stop/start cycle":
+    let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
+    await switch.start()
+    await switch.stop()
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatV2Service != nil
+      nat.autonatV2Client != nil
