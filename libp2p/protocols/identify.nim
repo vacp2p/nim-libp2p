@@ -99,6 +99,8 @@ proc makeIdentifyMsg(
     agentVersion: Opt.some(if pi.agentVersion == "": AgentVersion else: pi.agentVersion),
     signedPeerRecord:
       if sign:
+        ## Optionally populate signedPeerRecord field.
+        ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
         pi.signedPeerRecord.envelope.encode().valueOr:
           info "failed to encode signed peer record", msg = $error
           @[]
@@ -107,6 +109,10 @@ proc makeIdentifyMsg(
   )
 
 proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
+  var spr = Envelope.decode(msg.signedPeerRecord, PeerRecord.payloadDomain).toOpt()
+  if spr.isSome and msg.publicKey.isSome and (spr.get().publicKey != msg.publicKey.get()):
+    spr = Opt.none(Envelope)
+
   IdentifyInfo(
     peerId: peer,
     pubkey: msg.publicKey,
@@ -115,8 +121,7 @@ proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
     observedAddr: msg.observedAddr,
     protoVersion: msg.protoVersion,
     agentVersion: msg.agentVersion,
-    signedPeerRecord:
-      Envelope.decode(msg.signedPeerRecord, PeerRecord.payloadDomain).toOpt(),
+    signedPeerRecord: spr,
   )
 
 proc new*(
@@ -138,10 +143,8 @@ method init*(p: Identify) =
     trace "handling identify request", stream
 
     let msg = makeIdentifyMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
-    var bytes = msg.encode()
-
     try:
-      await stream.writeLp(move bytes)
+      await stream.writeLp(msg.encode())
       debug "identify: info sent", stream, info = p.peerInfo
     except LPError as e:
       trace "identify handler failed to write message", description = e.msg, stream
@@ -251,5 +254,4 @@ proc push*(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
   let msg = makeIdentifyMsg(peerInfo, stream.observedAddr, true)
-  var bytes = msg.encode()
-  await stream.writeLp(move bytes)
+  await stream.writeLp(msg.encode())
