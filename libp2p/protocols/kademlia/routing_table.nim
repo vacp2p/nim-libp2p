@@ -40,25 +40,20 @@ proc new*(
     selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
   )
 
-proc bucketIndex*(
-    selfId, key: Key,
-    hasher: Opt[XorDHasher],
-    maxBuckets: int = DefaultMaxBuckets,
-    selfIdPreHashed = false,
-): int =
+proc bucketIndex*(rtable: RoutingTable, key: Key): int =
   let
     selfHash =
-      if selfIdPreHashed:
-        selfId
+      if rtable.config.selfIdPreHashed:
+        rtable.selfId
       else:
-        selfId.hashFor(hasher)
-    keyHash = key.hashFor(hasher)
+        rtable.selfId.hashFor(rtable.config.hasher)
+    keyHash = key.hashFor(rtable.config.hasher)
     lz = xorDistance(selfHash, keyHash).leadingZeros
 
-  if maxBuckets <= 1:
+  if rtable.config.maxBuckets <= 1:
     return 0
 
-  return min(((lz * maxBuckets) div 256), maxBuckets - 1)
+  return min(((lz * rtable.config.maxBuckets) div 256), rtable.config.maxBuckets - 1)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -105,10 +100,7 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
-  let idx = bucketIndex(
-    rtable.selfId, nodeId, rtable.config.hasher, rtable.config.maxBuckets,
-    rtable.config.selfIdPreHashed,
-  )
+  let idx = rtable.bucketIndex(nodeId)
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
@@ -225,11 +217,11 @@ proc randomKeyInBucket*(
 
   var key = selfId
 
+  # For the boundary byte, from 0 to boundBitIdx the bits should be random.
   for i in byteIdx ..< IdLength:
     rng.generate(key[i])
 
-  # From 0 to boundBitIdx the bits should be random.
-  # From boundBitIdx to 7 the bits should be the same as seflId.
+  # For the boundary byte, from boundBitIdx to 7 the bits should be the same as seflId.
   for i in boundBitIdx .. 7:
     if selfId[byteIdx].testBit(i):
       key[byteIdx].setBit(i)
@@ -240,7 +232,7 @@ proc randomKeyInBucket*(
   if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
     key[byteIdx].flipBit(boundBitIdx)
 
-  return key
+  key
 
 proc allKeys*(bucket: Bucket): seq[Key] =
   return bucket.peers.mapIt(it.nodeId)

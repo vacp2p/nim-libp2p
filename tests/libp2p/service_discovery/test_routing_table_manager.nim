@@ -369,29 +369,21 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     manager.insertPeer(serviceId, peer)
 
-    # Service tables use selfIdPreHashed=true so that bucketIndex uses the
-    # already-hashed serviceId directly (as self), hashing only the peer key
-    # once. This test verifies that (for a chosen pair where single- vs
-    # double-hashing the serviceId would produce different buckets) the peer
-    # is placed according to the pre-hashed serviceId path.
     let
-      table = manager.getTable(serviceId).get()
-      preHashBucket = bucketIndex(
-        serviceId, peer, Opt.none(XorDHasher), DefaultMaxBuckets, selfIdPreHashed = true
-      )
-      doubleHashBucket = bucketIndex(
-        serviceId,
-        peer,
-        Opt.none(XorDHasher),
-        DefaultMaxBuckets,
-        selfIdPreHashed = false,
-      )
+      serviceTable = manager.getTable(serviceId).get()
+      preHashBucket = serviceTable.bucketIndex(peer)
+
+    var nonServiceTable = serviceTable
+
+    # Service table always have this set to true
+    nonServiceTable.config.selfIdPreHashed = false
+
+    let doubleHashBucket = nonServiceTable.bucketIndex(peer)
 
     check:
       preHashBucket != doubleHashBucket
-      table.buckets.len > preHashBucket
-      table.buckets[preHashBucket].peers.len == 1
-      table.buckets[preHashBucket].peers[0].nodeId == peer
+      serviceTable.buckets[preHashBucket].peers.len == 1
+      serviceTable.buckets[preHashBucket].peers[0].nodeId == peer
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let
@@ -404,13 +396,7 @@ suite "ServiceRoutingTableManager - service id hashing":
     manager.insertPeer(serviceId, peer)
 
     let table = manager.getTable(serviceId).get()
-
-    # Use the production bucketIndex (with prehashed + small maxBuckets) to
-    # compute expectation; this ensures the test always matches the current
-    # implementation rather than duplicating the lz/scale formula.
-    let expectedScaled = bucketIndex(
-      serviceId, peer, Opt.none(XorDHasher), maxBuckets = 16, selfIdPreHashed = true
-    )
+    let expectedScaled = table.bucketIndex(peer)
 
     check:
       peer in table.allKeys()

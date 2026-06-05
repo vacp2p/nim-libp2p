@@ -21,7 +21,7 @@ suite "KadDHT Routing Table":
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
-    let idx = bucketIndex(selfId, other, Opt.none(XorDHasher))
+    let idx = rt.bucketIndex(other)
     check:
       rt.buckets.len > idx
       rt.buckets[idx].peers.len == 1
@@ -161,8 +161,10 @@ suite "KadDHT Routing Table":
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
+    var rt =
+      RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
     var rid = randomKeyInBucket(selfId, TargetBucket, rng())
-    let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
+    let idx = rt.bucketIndex(rid)
     check:
       idx == TargetBucket
       rid != selfId
