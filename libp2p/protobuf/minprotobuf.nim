@@ -101,7 +101,7 @@ template getPtr*(pb: ProtoBuffer): pointer =
 template getLen*(pb: ProtoBuffer): int =
   len(pb.buffer) - pb.offset
 
-proc vsizeof*(field: ProtoField): int {.inline.} =
+proc vsizeof*(field: ProtoField): int =
   ## Returns number of bytes required to store protobuf's field ``field``.
   case field.kind
   of ProtoFieldKind.Varint:
@@ -258,7 +258,7 @@ proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]
     copyMem(addr pb.buffer[pb.offset], addr value[0], len(value))
     pb.offset += len(value)
 
-proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) {.inline.} =
+proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) =
   ## Encode Protobuf's sub-message ``value`` and store it to protobuf's buffer
   ## ``pb`` with field number ``field``.
   write(pb, field, value.buffer)
@@ -562,7 +562,7 @@ proc getField*[T: seq[byte] | string](
 
 proc getField*(
     pb: ProtoBuffer, field: int, output: var ProtoBuffer
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   var buffer: seq[byte]
   if ?pb.getField(field, buffer):
     output = initProtoBuffer(buffer)
@@ -570,9 +570,7 @@ proc getField*(
   else:
     ok(false)
 
-proc getField*(
-    pb: ProtoBuffer, field: int, output: var bool
-): ProtoResult[bool] {.inline.} =
+proc getField*(pb: ProtoBuffer, field: int, output: var bool): ProtoResult[bool] =
   var boolValue: uint64
   if ?pb.getField(field, boolValue):
     output = bool(boolValue)
@@ -581,9 +579,7 @@ proc getField*(
     output = false
     ok(false)
 
-proc getField*(
-    pb: ProtoBuffer, field: int, output: var Opt[bool]
-): ProtoResult[bool] {.inline.} =
+proc getField*(pb: ProtoBuffer, field: int, output: var Opt[bool]): ProtoResult[bool] =
   var boolValue: uint64
   if ?pb.getField(field, boolValue):
     output = Opt.some(bool(boolValue))
@@ -594,7 +590,7 @@ proc getField*(
 
 proc getRequiredField*[T](
     pb: ProtoBuffer, field: int, output: var T
-): ProtoResult[void] {.inline.} =
+): ProtoResult[void] =
   if ?pb.getField(field, output):
     ok()
   else:
@@ -680,7 +676,7 @@ proc getRepeatedField*[T: ProtoScalar](
 
 proc getRequiredRepeatedField*[T](
     pb: ProtoBuffer, field: int, output: var seq[T]
-): ProtoResult[void] {.inline.} =
+): ProtoResult[void] =
   if ?pb.getRepeatedField(field, output):
     ok()
   else:

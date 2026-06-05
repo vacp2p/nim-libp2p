@@ -5,7 +5,7 @@ chronos;https://github.com/status-im/nim-chronos@#45f43a9ad8bd8bcf5903b42f365c1c
 faststreams;https://github.com/status-im/nim-faststreams@#50889cd16ec8771106cdd0eeea460039e8571e06
 httputils;https://github.com/status-im/nim-http-utils@#f142cb2e8bd812dd002a6493b6082827bb248592
 json_serialization;https://github.com/status-im/nim-json-serialization@#a6dcf03e04e179127a5fcb7e495d19a821d56c17
-metrics;https://github.com/status-im/nim-metrics@#a1296caf3ebb5f30f51a5feae7749a30df2824c2
+metrics;https://github.com/status-im/nim-metrics@#b4b70a88fe1755d281366cbc3f22d7515240d192
 nimcrypto;https://github.com/cheatfate/nimcrypto@#721fb99ee099b632eb86dfad1f0d96ee87583774
 lsquic;https://github.com/vacp2p/nim-lsquic@#800697e9bcbce574c86bda389d91432c40c051e7
 results;https://github.com/arnetheduck/nim-results@#df8113dda4c2d74d460a8fa98252b0b771bf1f27
@@ -18,3 +18,4 @@ websock;https://github.com/status-im/nim-websock@#387a8eb7e961e8fdd3b1a717d36bc5
 zlib;https://github.com/status-im/nim-zlib@#e680f269fb01af2c34a2ba879ff281795a5258fe
 protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#38d24eb3bd93e605fb88199da71d36b1ec0ad60d
 nat_traversal;https://github.com/status-im/nim-nat-traversal@#860e18c37667b5dd005b94c63264560c35d88004
+npeg;https://github.com/zevv/npeg@#409f6796d0e880b3f0222c964d1da7de6e450811

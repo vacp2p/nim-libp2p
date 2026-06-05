@@ -270,11 +270,11 @@ proc repr*(cid: Cid): string =
   s.add($(cid.mhash()))
   s
 
-proc write*(vb: var VBuffer, cid: Cid) {.inline.} =
+proc write*(vb: var VBuffer, cid: Cid) =
   ## Write CID value ``cid`` to buffer ``vb``.
   vb.writeArray(cid.data.buffer)
 
-proc hash*(cid: Cid): Hash {.inline.} =
+proc hash*(cid: Cid): Hash =
   hash(cid.data.buffer)
 
 proc `$`*(cid: Cid): string =

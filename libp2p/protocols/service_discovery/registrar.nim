@@ -52,7 +52,7 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
-proc isExpired(now, ts: Moment, expiry: Duration): bool {.inline.} =
+proc isExpired(now, ts: Moment, expiry: Duration): bool =
   now - ts > expiry
 
 proc pruneAdsForService(
@@ -248,11 +248,8 @@ proc processRetryTicket*(
     regMsg: RegisterMessage,
     ad: Advertisement,
     t_wait: Duration,
+    now: Moment,
 ): Duration {.raises: [].} =
-  ## Process a retry ticket if present.
-  ## Returns t_wait unchanged when there is no ticket or the ticket is invalid/expired/outside window.
-  ## Returns t_wait - totalWaitSoFar when the ticket is valid and the retry is within the window;
-  ## a non-positive result means the peer has waited long enough and may be accepted.
   let ticketMsg = regMsg.ticket.valueOr:
     return t_wait
 
@@ -266,15 +263,40 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
-  let now = Moment.now()
-  let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
-  let windowEnd = windowStart + disco.discoConfig.registrationWindow
+  let
+    windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
+    windowEnd = windowStart + disco.discoConfig.registrationWindow
 
-  if now >= windowStart and now <= windowEnd:
+  if now in windowStart .. windowEnd:
     let totalWaitSoFar = now - ticketMsg.tInit
     return t_wait - totalWaitSoFar
 
   return t_wait
+
+proc isValidTicket(
+    disco: ServiceDiscovery, regMsg: RegisterMessage, now: Moment
+): Opt[bool] {.raises: [].} =
+  let ticket = regMsg.ticket.valueOr:
+    return Opt.none(bool)
+
+  if ticket.advertisement != regMsg.advertisement:
+    return Opt.some(false)
+
+  let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
+    error "Failed to get registrar public key", error
+    return Opt.some(false)
+
+  if not ticket.verify(registrarPubKey):
+    return Opt.some(false)
+
+  let
+    windowStart = ticket.tMod + ticket.tWaitFor
+    windowEnd = windowStart + disco.discoConfig.registrationWindow
+
+  if now notin windowStart .. windowEnd:
+    return Opt.some(false)
+
+  return Opt.some(true)
 
 proc sendRegisterResponse*(
     stream: Stream,
@@ -411,12 +433,6 @@ proc acceptAdvertisement*(
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
 
-proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
-  ticket.withValue(t):
-    return t.tInit
-  else:
-    default
-
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
@@ -468,10 +484,22 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     return msg
 
   let now = Moment.now()
+
+  disco.isValidTicket(regMsg, now).withValue(valid):
+    if not valid:
+      error "invalid ticket in register message"
+
+      cd_register_requests.inc(
+        labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+      )
+
+      return msg
+
   var tWait = disco.registrar.waitingTime(
     disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
   )
-  tWait = disco.processRetryTicket(regMsg, ad, tWait)
+
+  tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
 
   if tWait <= ZeroDuration:
     disco.acceptAdvertisement(now, serviceId, ad)
@@ -486,12 +514,15 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-  var ticket = Ticket(
-    advertisement: regMsg.advertisement,
-    tInit: regMsg.ticket.tInitOrDefault(now),
-    tMod: now,
-    tWaitFor: tWait,
-  )
+  var ticket =
+    Ticket(advertisement: regMsg.advertisement, tInit: now, tMod: now, tWaitFor: tWait)
+
+  regMsg.ticket.withValue(t):
+    let
+      windowStart = t.tMod + t.tWaitFor
+      windowEnd = windowStart + disco.discoConfig.registrationWindow
+    if now in windowStart .. windowEnd:
+      ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
     error "failed to sign ticket"

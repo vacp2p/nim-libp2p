@@ -44,10 +44,10 @@ type
   EdError* = enum
     EdIncorrectError
 
-proc `-`(x: uint32): uint32 {.inline.} =
+proc `-`(x: uint32): uint32 =
   (0xFFFF_FFFF'u32 - x) + 1'u32
 
-proc `-`(x: uint8): uint8 {.inline.} =
+proc `-`(x: uint8): uint8 =
   (0xFF'u8 - x) + 1'u8
 
 proc fe0(h: var Fe) =
@@ -2150,22 +2150,22 @@ proc geDoubleScalarMultVartime(
     geP1P1toP2(r, t)
     dec(k)
 
-proc GT(x, y: uint32): uint32 {.inline.} =
+proc GT(x, y: uint32): uint32 =
   var z = cast[uint32](y - x)
   (z xor ((x xor y) and (x xor z))) shr 31
 
-proc CMP(x, y: uint32): int32 {.inline.} =
+proc CMP(x, y: uint32): int32 =
   cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
 
-proc EQ0(x: int32): uint32 {.inline.} =
+proc EQ0(x: int32): uint32 =
   var q = cast[uint32](x)
   not (q or -q) shr 31
 
-proc NEQ(x, y: uint32): uint32 {.inline.} =
+proc NEQ(x, y: uint32): uint32 =
   var q = cast[uint32](x xor y)
   (q or -q) shr 31
 
-proc LT0(x: int32): uint32 {.inline.} =
+proc LT0(x: int32): uint32 =
   cast[uint32](x) shr 31
 
 proc checkScalar*(scalar: openArray[byte]): uint32 =

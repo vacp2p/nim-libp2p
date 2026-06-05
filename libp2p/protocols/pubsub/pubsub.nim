@@ -201,7 +201,7 @@ type
     knownTopics*: HashSet[string]
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
 
-proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
+proc topicLabel*(p: PubSub, topic: string): string =
   ## returns value to be used for `topic` labels.
   ## 
 
