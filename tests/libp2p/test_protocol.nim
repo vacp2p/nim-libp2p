@@ -43,7 +43,6 @@ template assertNoLimits(p: LPProtocol) =
 
   # this for is here to drive over any limits (default or explicit)
   for _ in 0 ..< 1000:
-``
     check:
       p.reserveIncoming(peerId1)
       p.reserveOutgoing(peerId1)
