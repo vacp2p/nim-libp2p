@@ -7,7 +7,6 @@ import
   ../../../../libp2p/[
     crypto/crypto,
     peerid,
-    protocols/kademlia/routing_table,
     protocols/kademlia/types,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
