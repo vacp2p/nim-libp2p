@@ -506,7 +506,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: NatPmp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -529,7 +529,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: Upnp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -560,7 +560,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: Upnp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -584,7 +584,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: Upnp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -617,7 +617,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: Upnp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -646,7 +646,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: Upnp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -671,7 +671,7 @@ suite "NATService (setupMappings)":
     let
       cfg = NATConfig(
         mode: NatPmp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
@@ -693,7 +693,7 @@ suite "NATService (setupMappings)":
       factory = recordingFactory(mapper)
       cfg = NATConfig(
         mode: NatPmp,
-        refreshInterval: 1.hours,
+        refreshInterval: 30.minutes,
         discoveryTimeout: DefaultDiscoveryTimeout,
         leaseDuration: DefaultLeaseDuration,
       )
