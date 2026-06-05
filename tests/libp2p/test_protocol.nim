@@ -530,7 +530,7 @@ suite "LPProtocol stream budget":
       p2.rejectionCounterOut(scopePerPeer) == 0
 
       # p1 counters keep old state
-      p2.rejectionCounterIn(scopeTotal) == 2
-      p2.rejectionCounterIn(scopePerPeer) == 0
-      p2.rejectionCounterOut(scopeTotal) == 0
-      p2.rejectionCounterOut(scopePerPeer) == 0
+      p1.rejectionCounterIn(scopeTotal) == 2
+      p1.rejectionCounterIn(scopePerPeer) == 0
+      p1.rejectionCounterOut(scopeTotal) == 0
+      p1.rejectionCounterOut(scopePerPeer) == 0
