@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, tables
+import chronos, results
 import
   ../../../../libp2p/
     [protocols/service_discovery/advertiser, protocols/service_discovery/types, switch]
@@ -31,7 +31,7 @@ suite "Service Discovery Component - Register":
     check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
     check regResp.get().ticket.isSome()
 
-  asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Wait":
+  asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Rejected":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -59,7 +59,7 @@ suite "Service Discovery Component - Register":
       registrarNode.switch.peerInfo.peerId, serviceId, adBytes, Opt.some(ticket)
     )
     check regResp.isOk()
-    check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
+    check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
 
   asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -180,28 +180,22 @@ suite "Service Discovery Component - Register":
       cachedAd.data.seqNo == 2
       cachedAd.data.addresses[0].address == addrB
 
-  asyncTest "REGISTER with invalid-signature ticket copies tInit into response ticket":
-    # TODO: vacp2p/nim-libp2p#2542 service-disco: invalid retry tickets are not rejected
-    #       and preserve forged tInit in registrar-signed tickets
-    #
-    # An invalid ticket's tInit is preserved in the registrar-signed response.
-    # After cache occupancy rises, the old tInit gives unearned waiting-time credit,
-    # resulting in Confirmed while an honest peer still gets Wait.
+  asyncTest "REGISTER with invalid-signature ticket is rejected":
     let conf =
       ServiceDiscoveryConfig.new(advertCacheCap = 10, registrationWindow = 5.secs)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let maliciousNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let maloryNode = setupServiceDiscoveryNode(discoConfig = conf)
     let legitimateNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, maliciousNode, legitimateNode])
-    await connect(registrarNode, maliciousNode)
+    startAndDeferStop(@[registrarNode, maloryNode, legitimateNode])
+    await connect(registrarNode, maloryNode)
     await connect(registrarNode, legitimateNode)
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
-    let maliciousAdBytes = makeAdvertisement(
-        serviceName, maliciousNode.switch.peerInfo.privateKey
+    let maloryAdBytes = makeAdvertisement(
+        serviceName, maloryNode.switch.peerInfo.privateKey
       )
       .encode()
       .get()
@@ -211,63 +205,31 @@ suite "Service Discovery Component - Register":
       .encode()
       .get()
 
-    # Ticket signed by the malicious key, not the registrar key.
-    # Moment.init at Second precision because protobuf truncates to whole seconds.
     let oldTInit = Moment.init(Moment.now().epochSeconds - 3600, Second)
     var invalidTicket = Ticket(
-      advertisement: maliciousAdBytes,
+      advertisement: maloryAdBytes,
       tInit: oldTInit,
       tMod: Moment.now(),
       tWaitFor: 0.secs,
       signature: @[],
     )
-    check invalidTicket.sign(maliciousNode.switch.peerInfo.privateKey).isOk()
+    check invalidTicket.sign(maloryNode.switch.peerInfo.privateKey).isOk()
 
-    let maliciousResp1 = await maliciousNode.sendRegister(
-      registrarPeerId, serviceId, maliciousAdBytes, Opt.some(invalidTicket)
+    let maliciousResp = await maloryNode.sendRegister(
+      registrarPeerId, serviceId, maloryAdBytes, Opt.some(invalidTicket)
     )
     check:
-      maliciousResp1.isOk()
-      maliciousResp1.get().status == kad_protobuf.RegistrationStatus.Wait
-    let maliciousTicket = maliciousResp1.get().ticket.get()
+      maliciousResp.isOk()
+      maliciousResp.get().status == kad_protobuf.RegistrationStatus.Rejected
+      maliciousResp.get().ticket.isNone()
+    check registrarNode.countAdsInCache(serviceId) == 0
 
-    # The response ticket is registrar-signed but carries the unvalidated tInit.
-    check maliciousTicket.tInit == oldTInit
+    let maloryResp =
+      await maloryNode.sendRegister(registrarPeerId, serviceId, maloryAdBytes)
+    check maloryResp.isOk()
+    check maloryResp.get().status == kad_protobuf.RegistrationStatus.Wait
 
-    # Legitimate peer sends a normal REGISTER with no ticket.
-    let legitimateResp1 =
+    let legitimateResp =
       await legitimateNode.sendRegister(registrarPeerId, serviceId, legitimateAdBytes)
-    check:
-      legitimateResp1.isOk()
-      legitimateResp1.get().status == kad_protobuf.RegistrationStatus.Wait
-    let legitimateTicket = legitimateResp1.get().ticket.get()
-
-    # Both get the same tWaitFor because cache state has not changed.
-    check maliciousTicket.tWaitFor == legitimateTicket.tWaitFor
-
-    # Fill the registrar cache so t_wait rises significantly.
-    let now = Moment.now()
-    for i in 0 ..< 8:
-      let fillerName = "filler-" & $i
-      let fillerSid = fillerName.hashServiceId()
-      let fillerAd = makeAdvertisement(fillerName)
-      registrarNode.registrar.cache[fillerSid] = @[fillerAd]
-      registrarNode.registrar.cacheTimestamps[fillerAd.toAdvertisementKey()] = now
-
-    await sleepAsync(maliciousTicket.tWaitFor + 500.millis)
-
-    # Malicious peer retries: totalWaitSoFar = now - oldTInit far exceeds the new t_wait.
-    let maliciousResp2 = await maliciousNode.sendRegister(
-      registrarPeerId, serviceId, maliciousAdBytes, Opt.some(maliciousTicket)
-    )
-    check:
-      maliciousResp2.isOk()
-      maliciousResp2.get().status == kad_protobuf.RegistrationStatus.Confirmed
-
-    # Legitimate peer retries: real totalWaitSoFar is only a few seconds.
-    let legitimateResp2 = await legitimateNode.sendRegister(
-      registrarPeerId, serviceId, legitimateAdBytes, Opt.some(legitimateTicket)
-    )
-    check:
-      legitimateResp2.isOk()
-      legitimateResp2.get().status == kad_protobuf.RegistrationStatus.Wait
+    check legitimateResp.isOk()
+    check legitimateResp.get().status == kad_protobuf.RegistrationStatus.Wait
