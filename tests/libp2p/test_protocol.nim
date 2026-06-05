@@ -42,7 +42,8 @@ template assertNoLimits(p: LPProtocol) =
   # when there are no limits reserve and release will always succeed
 
   # this for is here to drive over any limits (default or explicit)
-  for _ in 1 .. 1000:
+  for _ in 0 ..< 1000:
+``
     check:
       p.reserveIncoming(peerId1)
       p.reserveOutgoing(peerId1)
