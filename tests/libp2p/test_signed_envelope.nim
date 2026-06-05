@@ -20,6 +20,7 @@ suite "Signed envelope":
       reencodedEnvelope = decodedEnvelope.encode().tryGet()
       redecodedEnvelope = Envelope.decode(reencodedEnvelope, "domain").tryGet()
 
+    check buffer == envelope.encode2()
     check:
       decodedEnvelope == envelope
       wrongDomain.error == EnvelopeInvalidSignature

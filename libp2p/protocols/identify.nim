@@ -53,7 +53,7 @@ type
     protoVersion* {.fieldNumber: 5.}: Opt[string]
     agentVersion* {.fieldNumber: 6.}: Opt[string]
     delta* {.fieldNumber: 7.}: Opt[Delta]
-    signedPeerRecord* {.fieldNumber: 8.}: Opt[Envelope]
+    signedPeerRecord* {.fieldNumber: 8.}: seq[byte]
 
   IdentifyInfo* = object
     peerId*: PeerId
@@ -85,13 +85,12 @@ chronicles.expandIt(IdentifyMsg):
   observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
   agent_version = it.agentVersion.get("None")
-  signedPeerRecord = if it.signedPeerRecord.isSome: "Some" else: "None"
-    # it is unnecessary to log full signedPeerRecord as it contains the same data as message
+  signedPeerRecord = if it.signedPeerRecord.len > 0: "Some" else: "None"
 
-func makeIdentifyMsg(
+proc makeIdentifyMsg(
     pi: PeerInfo, observedAddr: Opt[MultiAddress], sign: bool
 ): IdentifyMsg =
-  return IdentifyMsg(
+  IdentifyMsg(
     publicKey: Opt.some(pi.publicKey),
     listenAddrs: pi.addrs,
     protocols: pi.protocols,
@@ -100,12 +99,14 @@ func makeIdentifyMsg(
     agentVersion: Opt.some(if pi.agentVersion == "": AgentVersion else: pi.agentVersion),
     signedPeerRecord:
       if sign:
-        pi.signedPeerRecord.envelope.toOpt()
+        pi.signedPeerRecord.envelope.encode().valueOr:
+          info "failed to encode signed peer record", msg = $error
+          @[]
       else:
-        Opt.none(Envelope),
+        @[],
   )
 
-func makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
+proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
   IdentifyInfo(
     peerId: peer,
     pubkey: msg.publicKey,
@@ -113,7 +114,9 @@ func makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
     protos: msg.protocols,
     observedAddr: msg.observedAddr,
     protoVersion: msg.protoVersion,
-    agentVersion: msg.agentVersion, # signedPeerRecord
+    agentVersion: msg.agentVersion,
+    signedPeerRecord:
+      Envelope.decode(msg.signedPeerRecord, PeerRecord.payloadDomain).toOpt(),
   )
 
 proc new*(
