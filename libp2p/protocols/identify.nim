@@ -110,7 +110,9 @@ proc makeIdentifyMsg(
 
 proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
   var spr = Envelope.decode(msg.signedPeerRecord, PeerRecord.payloadDomain).toOpt()
-  if spr.isSome and msg.publicKey.isSome and (spr.get().publicKey != msg.publicKey.get()):
+  if spr.isSome and msg.publicKey.isSome and (
+    spr.get().publicKey != msg.publicKey.get()
+  ):
     spr = Opt.none(Envelope)
 
   IdentifyInfo(
