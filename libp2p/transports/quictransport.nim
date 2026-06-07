@@ -518,11 +518,14 @@ method accept*(
 proc listenerEndpointFor(
     self: QuicTransport, address: TransportAddress
 ): Opt[QuicEndpoint] {.raises: [TransportOsError].} =
+  var matchedEndpoint = Opt.none(QuicEndpoint)
   for endpoint in self.listeners:
     if endpoint.localAddress().family == address.family:
-      return Opt.some(endpoint)
+      if matchedEndpoint.isSome():
+        return Opt.none(QuicEndpoint)
+      matchedEndpoint = Opt.some(endpoint)
 
-  Opt.none(QuicEndpoint)
+  matchedEndpoint
 
 proc dialOnlyEndpointFor(
     self: QuicTransport, family: AddressFamily

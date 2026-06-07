@@ -59,15 +59,10 @@ proc startSync*(
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
 
-    # The receiver may dial us while our own simultaneous dial is in flight. If
-    # one of those connections fills the per-peer connection limit first, allow
-    # the other expected DCUtR connection through instead of failing the punch.
+    # Expected DCUtR connections bypass ConnManager limits.
     debug "Dcutr initiator registering expected incoming connection",
       remotePeerId = stream.peerId
-    let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
-    if expectedIncoming.failed() and
-        expectedIncoming.error of AlreadyExpectingConnectionError:
-      raise newException(DcutrError, expectedIncoming.error.msg, expectedIncoming.error)
+    let expectedIncoming = switch.connManager.expectDcutrConnection(stream.peerId, In)
     defer:
       expectedIncoming.cancelSoon()
 

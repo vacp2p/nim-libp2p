@@ -182,6 +182,32 @@ suite "Quic transport":
       extractPort(clientConn.localAddr.get()) == clientListenPort
       extractPort(serverConn.observedAddr.get()) == clientListenPort
 
+  asyncTest "dial uses dial-only endpoint with multiple listener matches":
+    let key = PrivateKey.random(ECDSA, rng()).tryGet()
+    let client = QuicTransport.new(Upgrade(), key)
+    await client.start(@[QuicAutoAddress, QuicAutoAddress])
+    let server = await createQuicTransport(isServer = true)
+    defer:
+      await allFutures(client.stop(), server.stop())
+
+    var clientListenPorts: seq[int]
+    for addr in client.addrs:
+      clientListenPorts.add(extractPort(addr))
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    defer:
+      await allFutures(clientConn.close(), serverConn.close())
+
+    check:
+      client.addrs.len == 2
+      clientConn.localAddr.isSome()
+      serverConn.observedAddr.isSome()
+      extractPort(serverConn.observedAddr.get()) ==
+        extractPort(clientConn.localAddr.get())
+      extractPort(serverConn.observedAddr.get()) notin clientListenPorts
+
   asyncTest "dial without listener uses dial-only endpoint":
     let server = await createQuicTransport(isServer = true)
     let client = await createQuicTransport()

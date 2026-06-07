@@ -12,8 +12,10 @@ import results
 
 import
   ../../../multiaddress,
+  ../../../connmanager,
   ../../../dial,
   ../../../errors,
+  ../../../muxers/muxer,
   ../../../stream/connection,
   ../../../protobuf/utils
 
@@ -35,6 +37,18 @@ type
   DcutrError* = object of LPError
 
 Protobuf.serializerFor([DcutrMsg])
+
+proc expectDcutrConnection*(
+    connManager: ConnManager, peerId: PeerId, dir: Direction
+): Future[Muxer].Raising([AlreadyExpectingConnectionError, CancelledError]) {.
+    raises: [DcutrError]
+.} =
+  let expected = connManager.expectConnection(peerId, dir)
+  if expected.failed() and expected.error() of AlreadyExpectingConnectionError:
+    let err = expected.error()
+    raise newException(DcutrError, err.msg, err)
+
+  expected
 
 proc send*(
     stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
@@ -58,7 +72,8 @@ proc waitExpectedConnection*[T](
     elif fut.cancelled():
       expected.cancelSoon()
     else:
-      expected.fail(newException(DialFailedError, "expected connection failed"))
+      let err = fut.error()
+      expected.fail(newException(DialFailedError, err.msg, err))
 
   expected
 

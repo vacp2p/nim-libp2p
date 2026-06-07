@@ -62,28 +62,17 @@ proc new*(
           addrs = connectMsg.addrs
         return
 
-      # During DCUtR both peers dial at nearly the same time, so this side can
-      # transiently see the existing connection plus one incoming and one
-      # outgoing connection. Register both possible over-limit directions
-      # before sending Connect so the peer's Sync-triggered dial cannot race
-      # the conn-manager cap.
+      # Expected DCUtR connections bypass ConnManager limits.
       debug "Dcutr receiver registering expected incoming connection",
         remotePeerId = stream.peerId
-      let expectedIncoming = switch.connManager.expectConnection(stream.peerId, In)
-      if expectedIncoming.failed() and
-          expectedIncoming.error of AlreadyExpectingConnectionError:
-        raise
-          newException(DcutrError, expectedIncoming.error.msg, expectedIncoming.error)
+      let expectedIncoming = switch.connManager.expectDcutrConnection(stream.peerId, In)
       defer:
         expectedIncoming.cancelSoon()
 
       debug "Dcutr receiver registering expected outgoing connection",
         remotePeerId = stream.peerId
-      let expectedOutgoing = switch.connManager.expectConnection(stream.peerId, Out)
-      if expectedOutgoing.failed() and
-          expectedOutgoing.error of AlreadyExpectingConnectionError:
-        raise
-          newException(DcutrError, expectedOutgoing.error.msg, expectedOutgoing.error)
+      let expectedOutgoing =
+        switch.connManager.expectDcutrConnection(stream.peerId, Out)
       defer:
         expectedOutgoing.cancelSoon()
 
