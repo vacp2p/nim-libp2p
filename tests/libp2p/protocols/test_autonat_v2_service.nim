@@ -604,7 +604,16 @@ suite "AutonatV2 Service":
     await switch.startAndConnect(switches)
     await client.finished
 
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let guessed = concat(MultiAddress.init("/ip4/8.8.8.8").tryGet(), tcpPart).tryGet()
+    check guessed in client.allTestAddrs[0]
+    # Ensure that the guessed IP is preferred over the observed IP when both are dialable.
+    check client.allTestAddrs[0].find(guessed) <
+      client.allTestAddrs[0].find(observedAddr)
+
+    # Observed address is kept as a fallback
     check observedAddr in client.allTestAddrs[0]
+
     for ma in switch.peerInfo.addrs:
       check ma in client.allTestAddrs[0]
 

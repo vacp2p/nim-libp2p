@@ -158,13 +158,12 @@ proc askPeer(
 
   # Until the node is confirmed reachable, the address mapper leaves only
   # listen addresses in peerInfo.addrs, so a node behind NAT would never
-  # submit a dialable candidate (chicken-and-egg). Add the addresses
-  # observed by other peers via identify as additional candidates.
-  var observedCandidates = switch.peerStore.getMostObservedProtosAndPorts()
-  if observedCandidates.len == 0:
-    # Fallback to guessDialableAddr if no observed candidates are available
-    observedCandidates =
-      switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+  # submit a dialable candidate (chicken-and-egg).
+  # Add first the guessDialableAddr that uses the listen port
+  # and the observed address as a fallback.
+  var observedCandidates =
+    switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+  observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
 
   # Combine observed candidates with the node's current addresses to form the
   # candidate list
