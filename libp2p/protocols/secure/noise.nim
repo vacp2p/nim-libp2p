@@ -536,11 +536,12 @@ method handshake*(
         remoteSig: Signature
 
       remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).valueOr:
-        raise (ref NoiseHandshakeError)(msg: error)
+        raise newException(NoiseHandshakeError, error)
 
       if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
-        raise
-          (ref NoiseHandshakeError)(msg: "NoiseHandshakePayloadMsg fields must be set")
+        raise newException(
+          NoiseHandshakeError, "NoiseHandshakePayloadMsg fields must be set"
+        )
 
       if not remotePubKey.init(remoteMsg.identityKey.get()):
         raise (ref NoiseHandshakeError)(
