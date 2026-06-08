@@ -10,7 +10,6 @@ import std/strutils
 import results, chronos, chronicles
 import protobuf_serialization, protobuf_serialization/pkg/results
 import
-  ../protobuf/utils,
   ../peerinfo,
   ../stream/connection,
   ../peerid,
@@ -18,7 +17,7 @@ import
   ../multiaddress,
   ../multicodec,
   ../protocols/protocol,
-  ../utils/opt,
+  ../utils/[opt, protobuf],
   ../errors,
   ../observedaddrmanager
 
@@ -172,7 +171,7 @@ proc identify*(
     raise newException(IdentityInvalidMsgError, "Empty message received")
 
   var identifyMsg = IdentifyMsg.decode(move message).valueOr:
-    raise newException(IdentityInvalidMsgError, "Incorrect message received")
+    raise newException(IdentityInvalidMsgError, error)
 
   debug "identify: info received", stream, identifyMsg
 
@@ -218,7 +217,7 @@ proc init*(p: IdentifyPush) =
         return
 
     let identifyMsg = IdentifyMsg.decode(move message).valueOr:
-      info "failed to decode identify message", stream
+      info "failed to decode identify message", error, stream
       return
 
     debug "identify push: info received", stream, identifyMsg

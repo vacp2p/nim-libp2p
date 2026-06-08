@@ -17,10 +17,10 @@ macro serializerFor*(_: type Protobuf, Types: untyped): untyped =
       proc `decodeName`(buf2: seq[byte]): `T` {.raises: [SerializationError].} =
         decode(Protobuf, buf2, `T`)
 
-      proc decode*(_: type `T`, buf: seq[byte]): Opt[`T`] =
+      proc decode*(_: type `T`, buf: seq[byte]): Result[`T`, string] =
         try:
-          Opt.some(`decodeName`(buf))
-        except SerializationError:
-          Opt.none(`T`)
+          ok(`decodeName`(buf))
+        except SerializationError as e:
+          err("failed to decode " & $(`T`) & " from protobuf bytes. " & e.msg)
 
   stmts
