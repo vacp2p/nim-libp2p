@@ -34,6 +34,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
+    closeFuts: seq[Future[void]] # per-connection onClose tasks
 
   TcpTransportError* = object of transport.TransportError
 
@@ -79,7 +80,8 @@ proc connHandler*(
 
   self.clients[dir].add(client)
 
-  asyncSpawn onClose()
+  self.closeFuts.keepItIf(not it.finished())
+  self.closeFuts.add(onClose())
 
   return conn
 
@@ -176,6 +178,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       if acceptFut.completed():
         await acceptFut.value().closeWait()
     self.acceptFuts = @[]
+
+    await noCancel self.closeFuts.cancelAndWait()
+    self.closeFuts = @[]
 
     if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
       # Future updates could consider turning this warn into an assert since

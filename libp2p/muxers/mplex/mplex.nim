@@ -99,7 +99,7 @@ proc newStreamInternal*(
   m.channels[initiator][id] = channel
 
   # All the errors are handled inside `cleanupChann()` procedure.
-  asyncSpawn m.cleanupChann(channel)
+  channel.cleanupFut = m.cleanupChann(channel)
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
@@ -158,7 +158,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         if m.streamHandler != nil:
           # Launch handler task
           # All the errors are handled inside `handleStream()` procedure.
-          asyncSpawn m.handleStream(channel)
+          channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
           warn "attempting to send a packet larger than allowed",

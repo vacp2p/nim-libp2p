@@ -118,6 +118,9 @@ type
     staticTags: Table[PeerId, Table[string, int]]
     decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
     decayLoopFut: Future[void]
+    onCloseFuts: seq[Future[void]] # per-muxer onClose tasks
+    peerEventFuts: seq[Future[void]] # peer-event handler dispatches
+    slotMonitorFuts: seq[Future[void]] # per-slot semaphore monitor tasks
 
   ConnectionSlot* = object
     connManager: ConnManager
@@ -454,7 +457,8 @@ proc storeMuxer*(
     if c.muxerStore.countPeers() > c.watermark.get().highWater:
       c.triggerTrim()
 
-  asyncSpawn c.onClose(muxer)
+  c.onCloseFuts.keepItIf(not it.finished())
+  c.onCloseFuts.add(c.onClose(muxer))
 
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
@@ -467,8 +471,11 @@ proc storeMuxer*(
   await connectedEvent
 
   if isNewPeer:
-    asyncSpawn c.triggerPeerEvents(
-      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
+    c.peerEventFuts.keepItIf(not it.finished())
+    c.peerEventFuts.add(
+      c.triggerPeerEvents(
+        peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
+      )
     )
 
   trace "Stored muxer",
@@ -524,7 +531,8 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     finally:
       cs.release()
 
-  asyncSpawn semaphoreMonitor()
+  cs.connManager.slotMonitorFuts.keepItIf(not it.finished())
+  cs.connManager.slotMonitorFuts.add(semaphoreMonitor())
 
 proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
   cs.trackConnection(mux.connection)
@@ -733,6 +741,13 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   if not c.trimFut.isNil:
     await c.trimFut.cancelAndWait()
+
+  await c.peerEventFuts.cancelAndWait()
+  c.peerEventFuts = @[]
+  await c.slotMonitorFuts.cancelAndWait()
+  c.slotMonitorFuts = @[]
+  await c.onCloseFuts.cancelAndWait()
+  c.onCloseFuts = @[]
 
   let expected = c.expectedConnectionsOverLimit
   c.expectedConnectionsOverLimit.clear()

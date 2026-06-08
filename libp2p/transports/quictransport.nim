@@ -200,6 +200,7 @@ method getWrapped*(self: QuicSession): P2PConnection =
 type QuicMuxer* = ref object of Muxer
   session: QuicSession
   handleFut: Future[void]
+  handlerFuts: seq[Future[void]] # per-stream streamHandler invocations
 
 proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
@@ -245,7 +246,8 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   while not (m.session.atEof or m.session.closed):
     try:
       let stream = await m.session.getStream(Direction.In)
-      asyncSpawn handleStream(stream)
+      m.handlerFuts.keepItIf(not it.finished())
+      m.handlerFuts.add(handleStream(stream))
     except ConnectionClosedError:
       break # stop handling, connection was closed
     except CancelledError:
@@ -263,6 +265,8 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
     await m.session.close()
     if not isNil(m.handleFut):
       m.handleFut.cancelSoon()
+    await noCancel m.handlerFuts.cancelAndWait()
+    m.handlerFuts = @[]
   except CatchableError:
     discard
 
@@ -284,6 +288,7 @@ type QuicTransport* = ref object of Transport
   connections: HashSet[P2PConnection]
   rng: Rng
   certGenerator: CertGenerator
+  closeFuts: seq[Future[void]] # per-session onClose tasks
 
 proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
   if certificatesDer.len != 1:
@@ -423,6 +428,9 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
+  await noCancel transport.closeFuts.cancelAndWait()
+  transport.closeFuts = @[]
+
   var endpointStops: seq[Future[void]]
   transport.dialEndpoint4.withValue(endpoint):
     endpointStops.add(endpoint.stop())
@@ -469,7 +477,8 @@ proc wrapConnection(
     transport.connections.excl(session)
     trace "Cleaned up client"
 
-  asyncSpawn onClose()
+  transport.closeFuts.keepItIf(not it.finished())
+  transport.closeFuts.add(onClose())
 
   return session
 

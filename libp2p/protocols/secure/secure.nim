@@ -27,6 +27,7 @@ type
   SecureConn* = ref object of Connection
     stream*: RawConn
     buf: ZeroQueue
+    cleanupFut: Future[void]
 
 func shortLog*(conn: SecureConn): auto =
   try:
@@ -68,6 +69,8 @@ method initStream*(s: SecureConn) =
 
 method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Closing secure conn", s, dir = s.dir
+  if not s.cleanupFut.isNil:
+    s.cleanupFut.cancelSoon()
   if s.stream != nil:
     await s.stream.close()
 
@@ -75,6 +78,8 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
 
 method resetImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Resetting secure conn", s, dir = s.dir
+  if not s.cleanupFut.isNil:
+    s.cleanupFut.cancelSoon()
   if s.stream != nil:
     await s.stream.reset()
 
@@ -139,7 +144,7 @@ proc handleConn(
 
   if sconn != nil:
     # All the errors are handled inside `cleanup()` procedure.
-    asyncSpawn cleanup()
+    sconn.cleanupFut = cleanup()
 
   sconn
 

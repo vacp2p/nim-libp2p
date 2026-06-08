@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sets]
+import std/[tables, sets, sequtils]
 import chronos, chronicles, metrics
 import chronos/ratelimit
 import "."/[types]
@@ -140,7 +140,8 @@ proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
       peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score = peer.score
-    asyncSpawn(g.disconnectPeer(peer))
+    g.pendingTasks.keepItIf(not it.finished())
+    g.pendingTasks.add(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
 
 proc updateScores*(g: GossipSub) = # avoid async

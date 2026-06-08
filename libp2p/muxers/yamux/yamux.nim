@@ -154,6 +154,9 @@ type
     closedRemotely: AsyncEvent
     closedLocally: bool
     receivedData: AsyncEvent
+    cleanupFut: Future[void] # tracks the muxer-side cleanup task
+    handlerFut: Future[void] # tracks the muxer's streamHandler invocation
+    sendLoopFut: Future[void] # tracks the singleton sendLoop
 
 proc `$`(channel: YamuxChannel): string =
   var str = if channel.conn.dir == Out: "=> " else: "<= "
@@ -390,8 +393,8 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
     except CancelledError:
-      ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
-      ## Therefore, no one owns that sendLoop's future and no one can cancel it.
+      ## sendLoopFut is owned by the channel; cancellation is not propagated from
+      ## outside in the current code, so this branch is defensive only.
       discard
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
@@ -431,7 +434,8 @@ method write*(
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
 
-  asyncSpawn channel.sendLoop()
+  if not channel.isSending:
+    channel.sendLoopFut = channel.sendLoop()
 
   return resFut
 
@@ -521,7 +525,7 @@ proc createStream(
   when defined(libp2p_agents_metrics):
     stream.shortAgent = m.connection.shortAgent
   m.channels[id] = stream
-  asyncSpawn m.cleanupChannel(stream)
+  stream.cleanupFut = m.cleanupChannel(stream)
   trace "created channel", id, pid = m.connection.peerId
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
@@ -603,7 +607,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               await newStream.reset()
               continue
             await newStream.open()
-            asyncSpawn m.handleStream(newStream)
+            newStream.handlerFut = m.handleStream(newStream)
         elif header.streamId notin m.channels:
           # Flush the data
           m.flushed.withValue(header.streamId, flushed):
@@ -634,7 +638,8 @@ method handle*(m: Yamux) {.async: (raises: []).} =
 
         if header.msgType == WindowUpdate:
           channel.sendWindow += int(header.length)
-          asyncSpawn channel.sendLoop()
+          if not channel.isSending:
+            channel.sendLoopFut = channel.sendLoop()
         else:
           if header.length.int > channel.recvWindow.int:
             # check before allocating the buffer

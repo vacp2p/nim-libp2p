@@ -52,6 +52,7 @@ type
     muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
+    upgradeFuts: seq[Future[void]] # in-flight per-connection upgradeMonitor tasks
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
@@ -297,7 +298,8 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       conn.transportDir = Direction.In
 
       debug "Accepted an incoming connection", conn
-      asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
+      s.upgradeFuts.keepItIf(not it.finished())
+      s.upgradeFuts.add(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
     except CatchableError as exc:
@@ -321,6 +323,9 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     raise exc
   except CatchableError as exc:
     debug "Cannot cancel accepts", description = exc.msg
+
+  await s.upgradeFuts.cancelAndWait()
+  s.upgradeFuts = @[]
 
   for service in s.services:
     await service.stop(s)

@@ -314,7 +314,9 @@ method onPubSubPeerEvent*(
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
   of PubSubPeerEventKind.DisconnectionRequested:
-    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
+    # this should unsubscribePeer the peer too
+    p.pendingTasks.keepItIf(not it.finished())
+    p.pendingTasks.add(p.disconnectPeer(peer))
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -715,7 +717,8 @@ method rpcHandler*(
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
+    g.pendingTasks.keepItIf(not it.finished())
+    g.pendingTasks.add(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
@@ -1083,6 +1086,8 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
+  g.pendingTasks.cancelSoon()
+  g.pendingTasks = @[]
   newFutureCompleted[void]()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
