@@ -265,7 +265,9 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
     await m.session.close()
     if not isNil(m.handleFut):
       m.handleFut.cancelSoon()
-    await noCancel m.handlerFuts.cancelAndWait()
+    # Drain rather than cancel: the session is already closed above, so the
+    # handlers wind down on their own and shouldn't be interrupted mid-stream
+    await noCancel allFutures(m.handlerFuts)
     m.handlerFuts = @[]
   except CatchableError:
     discard
