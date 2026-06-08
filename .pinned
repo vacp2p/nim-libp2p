@@ -16,6 +16,6 @@ testutils;https://github.com/status-im/nim-testutils@#e85cb6ff9c328a6e12441e81ff
 unittest2;https://github.com/status-im/nim-unittest2@#26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189
 websock;https://github.com/status-im/nim-websock@#387a8eb7e961e8fdd3b1a717d36bc53b55e4dc5d
 zlib;https://github.com/status-im/nim-zlib@#e680f269fb01af2c34a2ba879ff281795a5258fe
-protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#63a13aa8dd8840eaf4d65090afbb93293fa426f5
+protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#f45476a3c1f4e7bff73845e6450d686be040ddeb
 nat_traversal;https://github.com/status-im/nim-nat-traversal@#860e18c37667b5dd005b94c63264560c35d88004
 npeg;https://github.com/zevv/npeg@#409f6796d0e880b3f0222c964d1da7de6e450811
