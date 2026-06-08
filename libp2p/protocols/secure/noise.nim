@@ -356,6 +356,7 @@ proc handshakeXXOutbound(
     hs.ss.mixHash(p.commonPrologue)
     hs.s = p.noiseKeys
     var remoteP2psecret: seq[byte]
+
     block: # -> e
       let ebytes = write_e()
       # IK might use this btw!
