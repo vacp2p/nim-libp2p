@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import algorithm, sequtils
+import algorithm, sequtils, math, bitops
 import chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
@@ -40,17 +40,20 @@ proc new*(
     selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
   )
 
-proc bucketIndex*(
-    selfId, key: Key, hasher: Opt[XorDHasher], selfIdPreHashed = false
-): int =
+proc bucketIndex*(rtable: RoutingTable, key: Key): int =
   let
     selfHash =
-      if selfIdPreHashed:
-        selfId
+      if rtable.config.selfIdPreHashed:
+        rtable.selfId
       else:
-        selfId.hashFor(hasher)
-    keyHash = key.hashFor(hasher)
-  return xorDistance(selfHash, keyHash).leadingZeros
+        rtable.selfId.hashFor(rtable.config.hasher)
+    keyHash = key.hashFor(rtable.config.hasher)
+    lz = xorDistance(selfHash, keyHash).leadingZeros
+
+  if rtable.config.maxBuckets <= 1:
+    return 0
+
+  return min(((lz * rtable.config.maxBuckets) div 256), rtable.config.maxBuckets - 1)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -97,13 +100,7 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
-  let idx = bucketIndex(
-    rtable.selfId, nodeId, rtable.config.hasher, rtable.config.selfIdPreHashed
-  )
-  if idx >= rtable.config.maxBuckets:
-    debug "Cannot insert node, max buckets have been reached",
-      nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets
-    return false
+  let idx = rtable.bucketIndex(nodeId)
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
@@ -208,32 +205,34 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: Rng): Key =
-  var raw = selfId
+proc randomKeyInBucket*(
+    selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
+): Key =
+  let
+    index = clamp(bucketIndex, 0, (maxBuckets - 1))
+    buckets = max(1, maxBuckets)
+    leadingZeros = index * 256 div buckets
+    (byteIdx, rem) = divmod(leadingZeros, 8)
+    boundBitIdx = 7 - rem
 
-  # zero out higher bits
-  for i in 0 ..< bucketIndex:
-    let byteIdx = i div 8
-    let bitInByte = 7 - (i mod 8)
-    raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+  var key = selfId
 
-  # flip the target bit
-  let tgtByte = bucketIndex div 8
-  let tgtBitInByte = 7 - (bucketIndex mod 8)
-  raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
+  # For the boundary byte, from 0 to boundBitIdx the bits should be random.
+  for i in byteIdx ..< IdLength:
+    rng.generate(key[i])
 
-  # randomize lower bits of the boundary byte
-  let lsbMask = (1'u8 shl tgtBitInByte) - 1
-  if lsbMask != 0:
-    var rb: array[1, byte]
-    rng.generate(rb)
-    raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
+  # For the boundary byte, from boundBitIdx to 7 the bits should be the same as seflId.
+  for i in boundBitIdx .. 7:
+    if selfId[byteIdx].testBit(i):
+      key[byteIdx].setBit(i)
+    else:
+      key[byteIdx].clearBit(i)
 
-  # randomize remaining bytes
-  if tgtByte + 1 < raw.len:
-    rng.generate(raw.toOpenArray(tgtByte + 1, raw.len - 1))
+  # The bit at the boundary should be the opposite of selfId. So that the XOR is not 0.
+  if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
+    key[byteIdx].flipBit(boundBitIdx)
 
-  return raw
+  key
 
 proc allKeys*(bucket: Bucket): seq[Key] =
   return bucket.peers.mapIt(it.nodeId)

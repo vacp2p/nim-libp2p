@@ -7,7 +7,6 @@ import
   ../../../../libp2p/[
     crypto/crypto,
     peerid,
-    protocols/kademlia/routing_table,
     protocols/kademlia/types,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
@@ -356,67 +355,6 @@ suite "Service Discovery Component - Advertise Discover":
         let foundA = await discovererNode.lookup(serviceAId)
         let foundB = await discovererNode.lookup(serviceBId)
         foundA.containsPeer(advertiserNode) and foundB.containsPeer(advertiserNode)
-
-  asyncTest "addProvidedService drops a known registrar at Kad bucketIndex 16":
-    # TODO: nim-libp2p#2499 service-disco: valid service-table peers are dropped when Kad bucketIndex is 16 or higher
-    # Precomputed private key to pin the registrar identity and service name.
-    # Their service table bucket index is 18 for this serviceId.
-    # A ServiceDiscovery service table accepts indexes 0 through 15.
-    const
-      serviceName = "service-bucket-indexing-component"
-      droppedRegistrarPrivateKey =
-        "080112404911f67066496ac09c4924a8ef86ec0d8532c9fb50046aa27fdb4132" &
-        "130a2c8ecf17e8057d0e5c6fcef5a3aeec98d70b43feffac4301c141a08071498ce89a1e"
-
-    let
-      conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-      droppedRegistrarKey = PrivateKey.init(droppedRegistrarPrivateKey).get()
-      droppedRegistrarNode = setupServiceDiscoveryNode(
-        discoConfig = conf, privateKey = Opt.some(droppedRegistrarKey)
-      )
-      workingRegistrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-      advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-
-    startAndDeferStop(@[droppedRegistrarNode, workingRegistrarNode, advertiserNode])
-    await connect(droppedRegistrarNode, advertiserNode)
-    await connect(workingRegistrarNode, advertiserNode)
-
-    # The advertiser knows both registrars in the main Kad routing table.
-    # The droppedRegistrar sits just outside the service table bucket range.
-    # The workingRegistrar sits inside the service table bucket range.
-    let
-      service = makeServiceInfo(serviceName)
-      serviceId = service.id.hashServiceId()
-      droppedRegistrarPeerKey = droppedRegistrarNode.switch.peerInfo.peerId.toKey()
-      workingRegistrarPeerKey = workingRegistrarNode.switch.peerInfo.peerId.toKey()
-
-    check:
-      bucketIndex(
-        serviceId, droppedRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
-      ) > conf.bucketsCount
-      bucketIndex(
-        serviceId, workingRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
-      ) < conf.bucketsCount
-      advertiserNode.rtable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.rtable.hasPeer(workingRegistrarPeerKey)
-
-    # addProvidedService seeds the service table from the main Kad routing table.
-    advertiserNode.addProvidedService(service)
-
-    # The in-range registrar is kept and receives the ad.
-    # The out-of-range registrar is absent from the service table.
-    # Only the remote task is tracked in running (local registration uses a dedicated loop).
-    let serviceTable = advertiserNode.rtManager.getTable(serviceId).get()
-    check:
-      serviceTable.hasPeer(workingRegistrarPeerKey)
-      not serviceTable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() == 1
-        # only the remote task (local registration is a separate dedicated loop)
-      droppedRegistrarNode.countAdsInCache(serviceId) == 0
-
-    checkUntilTimeout:
-      workingRegistrarNode.countAdsInCache(serviceId) == 1
-      droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
   asyncTest "advertiser registers with peers discovered after addProvidedService":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
