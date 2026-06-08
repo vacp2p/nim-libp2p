@@ -118,15 +118,15 @@ method setup*(p: IdentifyPusher, switch: Switch) {.raises: [ServiceSetupError].}
   p.connManager = switch.connManager
   p.peerInfo = switch.peerInfo
 
-  proc onIncomingPush(peerId: PeerId, info: IdentifyInfo) {.async.} =
+  proc onIncomingPush(info: IdentifyInfo) {.async.} =
     if not p.started:
       return
 
     p.peerStore.updatePeerInfo(info)
     if IdentifyPushCodec in info.protos:
-      p.pushPeers.incl(peerId)
+      p.pushPeers.incl(info.peerId)
     else:
-      p.pushPeers.excl(peerId)
+      p.pushPeers.excl(info.peerId)
 
   p.identifyPush = IdentifyPush.new(onIncomingPush)
 
