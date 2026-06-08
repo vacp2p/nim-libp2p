@@ -5,6 +5,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
+import protobuf_serialization
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -1003,3 +1004,77 @@ proc getField*(pb: ProtoBuffer, field: int, value: var Signature): ProtoResult[b
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
+
+## protobuf_serialization extension
+
+func supportsPacked*(T: type PublicKey, ProtoType: type ProtobufExt): bool =
+  false
+
+func computeFieldSize*(
+    field: int, value: PublicKey, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  let bytes = value.getBytes().expect("failed to get key bytes")
+  computeFieldSize(field, bytes, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: PublicKey,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  let bytes = value.getBytes().expect("failed to get key bytes")
+  writeField(stream, field, bytes, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var PublicKey,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    var key = PublicKey()
+    if key.init(data):
+      value = key
+      return true
+    raise (ref ProtobufValueError)(msg: "Invalid PublicKey")
+
+  false
+
+func supportsPacked*(T: type Signature, ProtoType: type ProtobufExt): bool =
+  false
+
+func computeFieldSize*(
+    field: int, value: Signature, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  let bytes = value.getBytes()
+  computeFieldSize(field, bytes, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: Signature,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  let bytes = value.getBytes()
+  writeField(stream, field, bytes, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var Signature,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    var sig = Signature()
+    if sig.init(data):
+      value = sig
+      return true
+    raise (ref ProtobufValueError)(msg: "Invalid Signature")
+
+  false
