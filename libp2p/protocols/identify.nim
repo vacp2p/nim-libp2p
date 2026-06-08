@@ -70,7 +70,8 @@ type
     sendSignedPeerRecord*: bool
     observedAddrManager*: ObservedAddrManager
 
-  IdentifyPushHandler* = proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
+  IdentifyPushHandler* =
+    proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
