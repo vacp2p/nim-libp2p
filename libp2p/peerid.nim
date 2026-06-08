@@ -287,10 +287,7 @@ func getField*(pb: ProtoBuffer, field: int, pid: var PeerId): ProtoResult[bool] 
 
 ## protobuf_serialization extension
 
-func supportsPacked*(T: type PeerId, ProtoType: type ProtobufExt): bool =
-  false
-func supportsPacked*(T: type seq[PeerId], ProtoType: type ProtobufExt): bool =
-  false
+Protobuf.extensionDefaults(PeerId, defaultSeq = true, packed = false)
 
 func computeFieldSize*(
     field: int, value: PeerId, ProtoType: type ProtobufExt, skipDefault: static bool
