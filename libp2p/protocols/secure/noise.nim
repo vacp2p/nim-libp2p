@@ -85,7 +85,7 @@ type
   NoiseOversizedPayloadError* = object of NoiseError
   NoiseNonceMaxError* = object of NoiseError # drop connection on purpose
 
-  NoiseHandshakePayloadMsg* {.proto2.}  = object
+  NoiseHandshakePayloadMsg* {.proto2.} = object
     identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
     identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
 
@@ -539,7 +539,8 @@ method handshake*(
         raise (ref NoiseHandshakeError)(msg: error)
 
       if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
-        raise (ref NoiseHandshakeError)(msg: "NoiseHandshakePayloadMsg fields must be set")
+        raise
+          (ref NoiseHandshakeError)(msg: "NoiseHandshakePayloadMsg fields must be set")
 
       if not remotePubKey.init(remoteMsg.identityKey.get()):
         raise (ref NoiseHandshakeError)(
