@@ -70,8 +70,7 @@ type
     sendSignedPeerRecord*: bool
     observedAddrManager*: ObservedAddrManager
 
-  IdentifyPushHandler* =
-    proc(peer: PeerId, newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
+  IdentifyPushHandler* = proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
@@ -239,7 +238,7 @@ proc init*(p: IdentifyPush) =
     if not handler.isNil:
       trace "triggering peer event", peerInfo = stream.peerId
       try:
-        await handler(stream.peerId, makeIdentifyInfo(peerId, identifyMsg))
+        await handler(makeIdentifyInfo(peerId, identifyMsg))
       except CancelledError as e:
         raise e
       except CatchableError as e:
