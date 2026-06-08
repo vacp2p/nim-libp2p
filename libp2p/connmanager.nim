@@ -746,8 +746,6 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   c.peerEventFuts = @[]
   await c.slotMonitorFuts.cancelAndWait()
   c.slotMonitorFuts = @[]
-  await c.onCloseFuts.cancelAndWait()
-  c.onCloseFuts = @[]
 
   let expected = c.expectedConnectionsOverLimit
   c.expectedConnectionsOverLimit.clear()
@@ -766,5 +764,10 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
     if muxers.len > 0:
       await allFutures(muxers.mapIt(closeMuxer(it)))
       await c.onPeerDisconnected(peerId)
+
+  # Muxers are closed above, so the onClose tasks can now run their cleanup to
+  # completion rather than being cancelled mid-flight
+  discard await allFinished(c.onCloseFuts)
+  c.onCloseFuts = @[]
 
   trace "Closed ConnManager"

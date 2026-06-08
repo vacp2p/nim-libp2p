@@ -7,6 +7,7 @@ import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
 import ../../utils/zeroqueue
+import ../../utils/future
 
 export muxer
 
@@ -555,6 +556,17 @@ method close*(m: Yamux) {.async: (raises: []).} =
   except LPStreamError as exc:
     trace "failed to send goAway", description = exc.msg
   await m.connection.close()
+
+  # Cancel the per-channel tasks now that the muxer is torn down so they don't
+  # outlive the connection (cancelAndWait no-ops on already-finished futures)
+  var channelFuts: seq[Future[void]]
+  for channel in channels:
+    channelFuts.add(channel.cleanupFut)
+    if not channel.handlerFut.isNil:
+      channelFuts.add(channel.handlerFut)
+    if not channel.sendLoopFut.isNil:
+      channelFuts.add(channel.sendLoopFut)
+  await noCancel channelFuts.cancelAndWait()
 
   m.isClosed = true
   trace "Closed yamux"

@@ -62,6 +62,8 @@ proc new*(
       except AsyncTimeoutError:
         await stream.close()
       except CancelledError:
+        # Cancelled by close/reset - the connection is already being torn down,
+        # so there's no timeout-driven close left to perform
         discard
 
     rc.durationCheckFut = checkDurationConnection()

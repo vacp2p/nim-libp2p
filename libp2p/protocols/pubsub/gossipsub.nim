@@ -480,6 +480,10 @@ proc isLargeMessage(dataLen: int, msgId: MessageId): bool =
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
+  # Always drop our validationSeen bookkeeping for this message, even when the
+  # task is cancelled before the explicit pop below - otherwise the entry leaks
+  defer:
+    g.validationSeen.del(saltedId)
   try:
     template topic(): string =
       msg.topic

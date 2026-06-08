@@ -179,7 +179,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
         await acceptFut.value().closeWait()
     self.acceptFuts = @[]
 
-    await noCancel self.closeFuts.cancelAndWait()
+    discard await noCancel allFinished(self.closeFuts)
     self.closeFuts = @[]
 
     if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
