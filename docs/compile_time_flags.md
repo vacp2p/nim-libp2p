@@ -18,6 +18,12 @@ Specify gossipsub specific topics to measure in the metrics:
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
+The compile-time flag `libp2p_testing` is used in test builds to expose code to tests without making it available to end users.
+It is by default added to `tests/config.nims`.
+```bash
+-d:libp2p_testing
+```
+
 ## Flags that extend `MultiFormats`
 
 | Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |
