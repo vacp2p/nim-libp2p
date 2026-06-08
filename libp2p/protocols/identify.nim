@@ -53,7 +53,7 @@ type
     protoVersion* {.fieldNumber: 5.}: Opt[string]
     agentVersion* {.fieldNumber: 6.}: Opt[string]
     delta* {.fieldNumber: 7.}: Opt[Delta]
-    signedPeerRecord* {.fieldNumber: 8.}: seq[byte]
+    signedPeerRecord* {.fieldNumber: 8.}: Opt[seq[byte]]
 
   IdentifyInfo* = object
     peerId*: PeerId
@@ -85,11 +85,18 @@ chronicles.expandIt(IdentifyMsg):
   observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
   agent_version = it.agentVersion.get("None")
-  signedPeerRecord = if it.signedPeerRecord.len > 0: "Some" else: "None"
+  signedPeerRecord = if it.signedPeerRecord.isSome: "Some" else: "None"
 
 proc makeIdentifyMsg(
     pi: PeerInfo, observedAddr: Opt[MultiAddress], sign: bool
 ): IdentifyMsg =
+  var spr: Opt[seq[byte]]
+  ## Optionally populate signedPeerRecord field.
+  ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
+  if sign:
+    pi.signedPeerRecord.envelope.encode().withValue(value):
+      spr = Opt.some(value)
+
   IdentifyMsg(
     publicKey: Opt.some(pi.publicKey),
     listenAddrs: pi.addrs,
@@ -97,23 +104,15 @@ proc makeIdentifyMsg(
     observedAddr: observedAddr,
     protoVersion: Opt.some(ProtoVersion),
     agentVersion: Opt.some(if pi.agentVersion == "": AgentVersion else: pi.agentVersion),
-    signedPeerRecord:
-      if sign:
-        ## Optionally populate signedPeerRecord field.
-        ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
-        pi.signedPeerRecord.envelope.encode().valueOr:
-          info "failed to encode signed peer record", msg = $error
-          @[]
-      else:
-        @[],
+    signedPeerRecord: spr,
   )
 
 proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
-  var spr = Envelope.decode(msg.signedPeerRecord, PeerRecord.payloadDomain).toOpt()
-  if spr.isSome and msg.publicKey.isSome and (
-    spr.get().publicKey != msg.publicKey.get()
-  ):
-    spr = Opt.none(Envelope)
+  var spr = Opt.none(Envelope)
+  msg.signedPeerRecord.withValue(sprBytes):
+    SignedPeerRecord.decode(sprBytes).toOpt().withValue(signedPeerRecord):
+      if signedPeerRecord.data.peerId == peer:
+        spr = Opt.some(signedPeerRecord.envelope)
 
   IdentifyInfo(
     peerId: peer,
