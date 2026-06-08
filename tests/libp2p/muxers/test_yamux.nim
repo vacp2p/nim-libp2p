@@ -4,7 +4,7 @@
 {.used.}
 
 import sugar
-import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux, utils/future]
+import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux]
 import ../../tools/unittest
 
 include ../../../libp2p/muxers/yamux/yamux
