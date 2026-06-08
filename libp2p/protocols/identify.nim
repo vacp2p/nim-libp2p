@@ -90,7 +90,7 @@ chronicles.expandIt(IdentifyMsg):
 proc makeIdentifyMsg(
     pi: PeerInfo, observedAddr: Opt[MultiAddress], sign: bool
 ): IdentifyMsg =
-  var spr: Opt[seq[byte]]
+  var spr = Opt.none(seq[byte])
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sign:
