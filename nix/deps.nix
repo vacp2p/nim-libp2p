@@ -82,8 +82,8 @@
 
   metrics = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-metrics";
-    rev = "a1296caf3ebb5f30f51a5feae7749a30df2824c2";
-    sha256 = "02vxqy20g8012ks939ac25ksc25k727q84si0p2cmihy5bw1a3qm";
+    rev = "b4b70a88fe1755d281366cbc3f22d7515240d192";
+    sha256 = "0y85na0ah53zk4la8jxjwml9l6269bv21daqn8ylcsd2wg463qs6";
     fetchSubmodules = true;
   };
 

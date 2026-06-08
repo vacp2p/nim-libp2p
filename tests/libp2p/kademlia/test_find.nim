@@ -205,9 +205,7 @@ suite "KadDHT Find":
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
     # Make kads[1]'s bucket stale to trigger refresh
-    let bucketIdx = bucketIndex(
-      kads[0].rtable.selfId, kads[1].rtable.selfId, kads[0].rtable.config.hasher
-    )
+    let bucketIdx = kads[0].rtable.bucketIndex(kads[1].rtable.selfId)
     makeBucketStale(kads[0].rtable.buckets[bucketIdx])
 
     check kads[0].rtable.buckets[bucketIdx].isStale()

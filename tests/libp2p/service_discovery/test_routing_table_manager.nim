@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, nimcrypto/sha2, results, sets, tables
+import chronos, results, sets, tables, sequtils
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -369,16 +369,42 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     manager.insertPeer(serviceId, peer)
 
-    # The peer lands in the bucket determined by XOR(serviceId, H(peer)),
-    # not XOR(H(serviceId), H(peer))
     let
-      table = manager.getTable(serviceId).get()
-      peerHash = @(sha256.digest(peer).data)
-      expectedBucket = leadingZeros(xorDistance(serviceId, peerHash))
-      doubleHashBucket =
-        leadingZeros(xorDistance(@(sha256.digest(serviceId).data), peerHash))
+      serviceTable = manager.getTable(serviceId).get()
+      preHashBucket = serviceTable.bucketIndex(peer)
+
+    var nonServiceTable = serviceTable
+
+    # Service table always have this set to true
+    nonServiceTable.config.selfIdPreHashed = false
+
+    let doubleHashBucket = nonServiceTable.bucketIndex(peer)
 
     check:
-      expectedBucket != doubleHashBucket
-      table.buckets[expectedBucket].peers.len == 1
-      table.buckets[expectedBucket].peers[0].nodeId == peer
+      preHashBucket != doubleHashBucket
+      serviceTable.buckets[preHashBucket].peers.len == 1
+      serviceTable.buckets[preHashBucket].peers[0].nodeId == peer
+
+  test "service table with small bucketsCount uses scaled bucket mapping":
+    let
+      serviceId = hashServiceId("scaled-buckets-test")
+      peer = makeKey(42)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(makeKey(0))
+    check manager.addService(serviceId, mainRt, 20, 16, Interest)
+
+    manager.insertPeer(serviceId, peer)
+
+    let table = manager.getTable(serviceId).get()
+    let expectedScaled = table.bucketIndex(peer)
+
+    check:
+      peer in table.allKeys()
+      expectedScaled < 16
+
+    var actual = -1
+    for i, b in table.buckets:
+      if b.peers.anyIt(it.nodeId == peer):
+        actual = i
+        break
+    check actual == expectedScaled
