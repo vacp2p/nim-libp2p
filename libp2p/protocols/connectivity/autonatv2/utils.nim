@@ -21,6 +21,8 @@ proc asNetworkReachability*(self: DialResponse): NetworkReachability =
       return Unknown
     if status == EDialRefused:
       return Unknown
+  else:
+    return Unknown
 
   # if got here it means a dial was attempted
   let dialStatus = self.dialStatus.valueOr:

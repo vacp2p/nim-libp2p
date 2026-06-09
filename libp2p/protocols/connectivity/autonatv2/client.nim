@@ -34,14 +34,17 @@ proc handleDialBack(
   debug "Handling DialBack",
     stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
-  if not self.expectedNonces.hasKey(dialBack.nonce.get()):
-    error "Not expecting this nonce", nonce = dialBack.nonce
+  let nonce = dialBack.nonce.valueOr:
+    error "DialBack missing nonce"
+    return
+
+  if not self.expectedNonces.hasKey(nonce):
+    error "Not expecting this nonce", nonce = nonce
     return
 
   stream.localAddr.withValue(localAddr):
-    debug "Setting expectedNonces",
-      nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
-    self.expectedNonces[dialBack.nonce.get()] = Opt.some(localAddr)
+    debug "Setting expectedNonces", nonce = nonce, localAddr = Opt.some(localAddr)
+    self.expectedNonces[nonce] = Opt.some(localAddr)
   else:
     error "Unable to get localAddr from connection"
     return
@@ -90,7 +93,10 @@ proc handleDialDataRequest*(
   debug "Received DialDataRequest",
     numBytes = req.numBytes, maxAcceptedNumBytes = MaxAcceptedDialDataRequest
 
-  if req.numBytes.get(0) > MaxAcceptedDialDataRequest:
+  if req.numBytes.isNone:
+    raise newException(AutonatV2Error, "Rejecting DialDataRequest: numBytes is not set")
+
+  if req.numBytes.get() > MaxAcceptedDialDataRequest:
     raise newException(
       AutonatV2Error, "Rejecting DialDataRequest: numBytes is greater than the maximum"
     )
@@ -102,7 +108,7 @@ proc handleDialDataRequest*(
     )
   )
   let messagesToSend =
-    (req.numBytes.get(0) + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
+    (req.numBytes.get() + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
     debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
