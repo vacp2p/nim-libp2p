@@ -10,7 +10,7 @@ logScope:
   topics = "libp2p autorelay"
 
 type
-  OnReservationHandler = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
+  OnReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
 
   AutoRelayService* = ref object of Service
     running: bool

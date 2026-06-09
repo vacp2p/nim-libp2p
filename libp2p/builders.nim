@@ -18,17 +18,13 @@ import
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
   protocols/connectivity/[
     autonat/server,
-    autonat/client,
-    autonat/service,
     autonatv2/server,
     autonatv2/service,
-    autonatv2/client,
     relay/relay,
     relay/client,
     relay/rtransport,
   ],
-  services/
-    [autorelayservice, hpservice, identify_pusher, natservice, wildcardresolverservice],
+  services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -40,9 +36,11 @@ import
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
-  natservice.PortMapperFactory, natservice.NATService, natservice.upnpConfig,
-  natservice.natPmpConfig
+  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig,
+  natservice.PortMappingMode, natservice.AutonatVersion, natservice.PortMapperFactory,
+  natservice.NATService, natservice.upnpConfig, natservice.natPmpConfig,
+  natservice.explicitIpConfig, natservice.autonatConfig, natservice.holePunchingConfig,
+  natservice.AutonatV2ServiceConfig, natservice.AutonatV2Service, natservice.natService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -65,10 +63,6 @@ type
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
 
-  HolePunchingConfig = object
-    maxNumRelays: int
-    onReservationHandler: RelayReservationHandler
-
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
     addresses: seq[MultiAddress]
@@ -89,9 +83,6 @@ type
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
     autonatV2ServerConfig: Opt[AutonatV2Config]
-    autonatV2Config: Opt[AutonatV2ServiceConfig]
-    autonatV2Client: AutonatV2Client
-    holePunchingConfig: Opt[HolePunchingConfig]
     natConfig: Opt[NATConfig]
     natPortMapperFactory: PortMapperFactory
     autotlsConfig: Opt[AutotlsConfig]
@@ -117,8 +108,6 @@ proc new*(T: type[SwitchBuilder]): T =
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
     autonatV2ServerConfig: Opt.none(AutonatV2Config),
-    autonatV2Config: Opt.none(AutonatV2ServiceConfig),
-    holePunchingConfig: Opt.none(HolePunchingConfig),
     natConfig: Opt.none(NATConfig),
     autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
@@ -353,33 +342,33 @@ proc withAutonatV2Server*(
   b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withAutonatV2*(
-    b: SwitchBuilder,
-    serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
-): SwitchBuilder =
-  b.autonatV2Config = Opt.some(serviceConfig)
-  b
-
 proc withNAT*(
     b: SwitchBuilder, config: NATConfig, portMapperFactory: PortMapperFactory = nil
 ): SwitchBuilder =
-  ## Enable a NAT traversal service.
-  ## TODO: wire in autonat / hole-punching.
-  ## ``portMapperFactory`` is intended for tests; when ``nil``, NATService picks
-  ## the production UPnP / NAT-PMP backend matching ``config.mode``.
-  b.natConfig = Opt.some(config)
-  b.natPortMapperFactory = portMapperFactory
+  ## Build ``config`` with the `*Config` helpers; call once per distinct concern,
+  ## setting the same concern twice is a programmer error.
+  var merged = b.natConfig.get(NATConfig())
+  merged.mergeInto(config)
+  b.natConfig = Opt.some(merged)
+  if not portMapperFactory.isNil():
+    b.natPortMapperFactory = portMapperFactory
   b
+
+proc withAutonatV2*(
+    b: SwitchBuilder,
+    serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
+): SwitchBuilder {.
+    deprecated:
+      "use withNAT(autonatConfig(AutonatV2, v2ServiceConfig = Opt.some(serviceConfig)))"
+.} =
+  b.withNAT(autonatConfig(AutonatV2, v2ServiceConfig = Opt.some(serviceConfig)))
 
 proc withHolePunching*(
     b: SwitchBuilder, maxNumRelays: int, onReservationHandler: RelayReservationHandler
-): SwitchBuilder =
-  b.holePunchingConfig = Opt.some(
-    HolePunchingConfig(
-      maxNumRelays: maxNumRelays, onReservationHandler: onReservationHandler
-    )
-  )
-  b
+): SwitchBuilder {.
+    deprecated: "use withNAT(holePunchingConfig(maxNumRelays, onReservationHandler))"
+.} =
+  b.withNAT(holePunchingConfig(maxNumRelays, onReservationHandler))
 
 proc withAutotls*(
     b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
@@ -533,23 +522,8 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.autonatV2Config.withValue(serviceConfig):
-    b.autonatV2Client = AutonatV2Client.new(b.rng)
-    switch.services.add(
-      AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
-    )
-
-  b.holePunchingConfig.withValue(config):
-    let
-      autonatService = AutonatService.new(AutonatClient(), b.rng)
-      autoRelayService = AutoRelayService.new(
-        config.maxNumRelays, RelayClient.new(), config.onReservationHandler, b.rng
-      )
-
-    switch.services.add(HPService.new(autonatService, autoRelayService))
-
   b.natConfig.withValue(natCfg):
-    switch.services.add(NATService.new(natCfg, b.natPortMapperFactory))
+    switch.services.add(NATService.new(natCfg, b.rng, b.natPortMapperFactory))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())
@@ -560,10 +534,6 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
-
-  if not b.autonatV2Client.isNil:
-    b.autonatV2Client.setup(switch)
-    switch.mount(b.autonatV2Client)
 
   b.rdvConfig.withValue(rdvCfg):
     let rend = RendezVous.new(b.rng, rdvCfg)
