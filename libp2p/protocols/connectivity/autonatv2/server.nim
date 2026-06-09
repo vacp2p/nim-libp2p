@@ -119,7 +119,7 @@ proc handleDialDataResponses(
     if not msg.dialDataResp.isSome:
       raise newException(AutonatV2Error, "Expecting DialDataResponse")
 
-    let data = msg.dialDataResp.get().data.get()
+    let data = msg.dialDataResp.get().data.get(@[])
     dataReceived += data.len.uint64
     debug "received data",
       dataReceived = data.len.uint64, totalDataReceived = dataReceived

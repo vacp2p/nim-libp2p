@@ -47,4 +47,3 @@ proc new*(
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest
   autonatV2
-
