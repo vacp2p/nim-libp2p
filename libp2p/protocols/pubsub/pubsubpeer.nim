@@ -678,15 +678,11 @@ proc send*(
   if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
       var ownedEncodedSplitMsg = encodedSplitMsg
-      p.sendFuts.keepItIf(not it.finished())
-      p.sendFuts.add(
-        p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream)
-      )
+      p.trackSend(p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream))
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    p.sendFuts.keepItIf(not it.finished())
-    p.sendFuts.add(p.sendEncoded(move(encoded), priority, useCustomStream))
+    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -738,6 +734,9 @@ proc startSendNonHighPriorityTask(p: PubSubPeer) =
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
 proc stopSendNonHighPriorityTask*(p: PubSubPeer) =
+  ## Shuts down all background tasks owned by this peer: the persistent
+  ## connector loop, any in-flight send futures, and the non-high-priority
+  ## sender task. Despite the name, this is the peer-wide teardown hook.
   if not p.connectFut.isNil:
     p.connectFut.cancelSoon()
     p.connectFut = nil

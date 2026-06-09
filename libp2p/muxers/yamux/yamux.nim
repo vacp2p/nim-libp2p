@@ -567,7 +567,8 @@ method close*(m: Yamux) {.async: (raises: []).} =
       channelFuts.add(channel.handlerFut)
     if not channel.sendLoopFut.isNil:
       channelFuts.add(channel.sendLoopFut)
-  await noCancel allFutures(channelFuts)
+  # allFinished ensures we wait for every task even if some fail.
+  discard await noCancel allFinished(channelFuts)
 
   m.isClosed = true
   trace "Closed yamux"

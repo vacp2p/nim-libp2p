@@ -508,8 +508,8 @@ proc validateAndRelay(
 
     let validation = await g.validate(msg)
 
-    var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(saltedId, seenPeers)
+    # Entry is removed by the defer above; just read it here.
+    let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(
       (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]

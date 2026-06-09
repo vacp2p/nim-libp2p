@@ -247,7 +247,8 @@ method close*(m: Mplex) {.async: (raises: []).} =
     channelFuts.add(chann.cleanupFut)
     if not chann.handlerFut.isNil:
       channelFuts.add(chann.handlerFut)
-  await noCancel allFutures(channelFuts)
+  # allFinished ensures we wait for every task even if some fail.
+  discard await noCancel allFinished(channelFuts)
 
   m.channels[false].clear()
   m.channels[true].clear()

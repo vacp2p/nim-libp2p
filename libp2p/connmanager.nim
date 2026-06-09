@@ -766,8 +766,9 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
       await c.onPeerDisconnected(peerId)
 
   # Muxers are closed above, so the onClose tasks can now run their cleanup to
-  # completion rather than being cancelled mid-flight
-  discard await allFinished(c.onCloseFuts)
+  # completion rather than being cancelled mid-flight. noCancel keeps the drain
+  # alive even if ConnManager.close itself is cancelled.
+  discard await noCancel allFinished(c.onCloseFuts)
   c.onCloseFuts = @[]
 
   trace "Closed ConnManager"
