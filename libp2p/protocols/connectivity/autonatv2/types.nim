@@ -58,22 +58,22 @@ type
 
   DialRequest* {.proto2.} = object
     addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
-    nonce* {.fieldNumber: 2, required, pint.}: Nonce
+    nonce* {.fieldNumber: 2, pint.}: Opt[Nonce]
 
   DialResponse* {.proto2.} = object
-    status* {.fieldNumber: 1, required, ext.}: ResponseStatus
+    status* {.fieldNumber: 1, ext.}: Opt[ResponseStatus]
     addrIdx* {.fieldNumber: 2, pint.}: Opt[AddrIdx]
     dialStatus* {.fieldNumber: 3, ext.}: Opt[DialStatus]
 
   DialBack* {.proto2.} = object
-    nonce* {.fieldNumber: 1, required, pint.}: Nonce
+    nonce* {.fieldNumber: 1, pint.}: Opt[Nonce]
 
   DialBackResponse* {.proto2.} = object
-    status* {.fieldNumber: 1, required, ext.}: DialBackStatus
+    status* {.fieldNumber: 1, ext.}: Opt[DialBackStatus]
 
   DialDataRequest* {.proto2.} = object
-    addrIdx* {.fieldNumber: 1, required, pint.}: AddrIdx
-    numBytes* {.fieldNumber: 2, required, pint.}: NumBytes
+    addrIdx* {.fieldNumber: 1, pint.}: Opt[AddrIdx]
+    numBytes* {.fieldNumber: 2, pint.}: Opt[NumBytes]
 
   DialDataResponse* {.proto2.} = object
     data* {.fieldNumber: 1.}: Opt[seq[byte]]

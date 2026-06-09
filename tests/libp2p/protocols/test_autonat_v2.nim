@@ -62,21 +62,23 @@ suite "AutonatV2":
           MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
           MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
         ],
-        nonce: 42,
+        nonce: Opt.some(42.uint64),
       )
     )
 
     # DialResponse
     checkEncodeDecode(
       DialResponse(
-        status: ResponseStatus.Ok,
+        status: Opt.some(ResponseStatus.Ok),
         addrIdx: Opt.some(1.uint32),
         dialStatus: Opt.some(DialStatus.Ok),
       )
     )
 
     # DialDataRequest
-    checkEncodeDecode(DialDataRequest(addrIdx: 42, numBytes: 128))
+    checkEncodeDecode(
+      DialDataRequest(addrIdx: Opt.some(42.AddrIdx), numBytes: Opt.some(128.uint64))
+    )
 
     # DialDataResponse
     checkEncodeDecode(DialDataResponse(data: Opt.some(@[1'u8, 2, 3, 4, 5])))
@@ -90,7 +92,7 @@ suite "AutonatV2":
               MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
               MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
             ],
-            nonce: 42,
+            nonce: Opt.some(42.uint64),
           )
         )
       )
@@ -101,7 +103,7 @@ suite "AutonatV2":
       AutonatV2Msg(
         dialResp: Opt.some(
           DialResponse(
-            status: ResponseStatus.Ok,
+            status: Opt.some(ResponseStatus.Ok),
             addrIdx: Opt.some(1.uint32),
             dialStatus: Opt.some(DialStatus.Ok),
           )
@@ -111,7 +113,11 @@ suite "AutonatV2":
 
     # AutonatV2Msg - DialDataRequest
     checkEncodeDecode(
-      AutonatV2Msg(dialDataReq: Opt.some(DialDataRequest(addrIdx: 42, numBytes: 128)))
+      AutonatV2Msg(
+        dialDataReq: Opt.some(
+          DialDataRequest(addrIdx: Opt.some(42.AddrIdx), numBytes: Opt.some(128.uint64))
+        )
+      )
     )
 
     # AutonatV2Msg - DialDataResponse
@@ -122,35 +128,45 @@ suite "AutonatV2":
     )
 
     # DialBack
-    checkEncodeDecode(DialBack(nonce: 123456))
+    checkEncodeDecode(DialBack(nonce: Opt.some(123456.uint64)))
 
     # DialBackResponse
-    checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
+    checkEncodeDecode(DialBackResponse(status: Opt.some(DialBackStatus.Ok)))
 
   asyncTest "asNetworkReachability":
-    check asNetworkReachability(DialResponse(status: EInternalError)) == Unknown
-    check asNetworkReachability(DialResponse(status: ERequestRejected)) == Unknown
-    check asNetworkReachability(DialResponse(status: EDialRefused)) == Unknown
+    check asNetworkReachability(DialResponse(status: Opt.some(EInternalError))) ==
+      Unknown
+    check asNetworkReachability(DialResponse(status: Opt.some(ERequestRejected))) ==
+      Unknown
+    check asNetworkReachability(DialResponse(status: Opt.some(EDialRefused))) == Unknown
     check asNetworkReachability(
-      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.none(DialStatus))
+      DialResponse(
+        status: Opt.some(ResponseStatus.Ok), dialStatus: Opt.none(DialStatus)
+      )
     ) == Unknown
     check asNetworkReachability(
-      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(Unused))
+      DialResponse(status: Opt.some(ResponseStatus.Ok), dialStatus: Opt.some(Unused))
     ) == Unknown
     check asNetworkReachability(
-      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialError))
+      DialResponse(
+        status: Opt.some(ResponseStatus.Ok), dialStatus: Opt.some(EDialError)
+      )
     ) == NotReachable
     check asNetworkReachability(
-      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialBackError))
+      DialResponse(
+        status: Opt.some(ResponseStatus.Ok), dialStatus: Opt.some(EDialBackError)
+      )
     ) == NotReachable
     check asNetworkReachability(
-      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(DialStatus.Ok))
+      DialResponse(
+        status: Opt.some(ResponseStatus.Ok), dialStatus: Opt.some(DialStatus.Ok)
+      )
     ) == Reachable
 
   asyncTest "asAutonatV2Response":
     let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4000").get()]
     let errorDialResp = DialResponse(
-      status: ResponseStatus.Ok,
+      status: Opt.some(ResponseStatus.Ok),
       addrIdx: Opt.none(AddrIdx),
       dialStatus: Opt.none(DialStatus),
     )
@@ -160,7 +176,7 @@ suite "AutonatV2":
       )
 
     let correctDialResp = DialResponse(
-      status: ResponseStatus.Ok,
+      status: Opt.some(ResponseStatus.Ok),
       addrIdx: Opt.some(0.AddrIdx),
       dialStatus: Opt.some(DialStatus.Ok),
     )
@@ -192,7 +208,7 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
-          status: ResponseStatus.Ok,
+          status: Opt.some(ResponseStatus.Ok),
           dialStatus: Opt.some(DialStatus.Ok),
           addrIdx: Opt.some(0.AddrIdx),
         ),
@@ -215,7 +231,7 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
-          status: ResponseStatus.Ok,
+          status: Opt.some(ResponseStatus.Ok),
           dialStatus: Opt.some(DialStatus.Ok),
           addrIdx: Opt.some(0.AddrIdx),
         ),
@@ -236,7 +252,7 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: NotReachable,
         dialResp: DialResponse(
-          status: ResponseStatus.Ok,
+          status: Opt.some(ResponseStatus.Ok),
           dialStatus: Opt.some(DialStatus.EDialError),
           addrIdx: Opt.some(0.AddrIdx),
         ),
@@ -261,7 +277,7 @@ suite "AutonatV2":
       AutonatV2Response(
         reachability: NotReachable,
         dialResp: DialResponse(
-          status: ResponseStatus.Ok,
+          status: Opt.some(ResponseStatus.Ok),
           dialStatus: Opt.some(DialStatus.EDialError),
           addrIdx: Opt.some(0.AddrIdx),
         ),
@@ -287,13 +303,15 @@ suite "AutonatV2":
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
 
     # 1. invalid autonatv2msg
-    autonatV2Mock.response = DialBackResponse(status: DialBackStatus.Ok).encode()
+    autonatV2Mock.response =
+      DialBackResponse(status: Opt.some(DialBackStatus.Ok)).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 2. msg that is not DialResponse or DialDataRequest
-    autonatV2Mock.response =
-      AutonatV2Msg(dialReq: Opt.some(DialRequest(addrs: @[], nonce: 0))).encode()
+    autonatV2Mock.response = AutonatV2Msg(
+      dialReq: Opt.some(DialRequest(addrs: @[], nonce: Opt.some(0.uint64)))
+    ).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
@@ -301,7 +319,7 @@ suite "AutonatV2":
     autonatV2Mock.response = AutonatV2Msg(
       dialResp: Opt.some(
         DialResponse(
-          status: ResponseStatus.Ok,
+          status: Opt.some(ResponseStatus.Ok),
           addrIdx: Opt.some(1000.AddrIdx),
           dialStatus: Opt.some(DialStatus.Ok),
         )

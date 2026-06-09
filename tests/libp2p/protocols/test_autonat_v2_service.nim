@@ -77,7 +77,7 @@ proc newService(
         AutonatV2Response(
           reachability: Reachable,
           dialResp: DialResponse(
-            status: ResponseStatus.Ok,
+            status: Opt.some(ResponseStatus.Ok),
             dialStatus: Opt.some(DialStatus.Ok),
             addrIdx: Opt.some(0.AddrIdx),
           ),
@@ -89,7 +89,7 @@ proc newService(
         AutonatV2Response(
           reachability: NotReachable,
           dialResp: DialResponse(
-            status: ResponseStatus.Ok,
+            status: Opt.some(ResponseStatus.Ok),
             dialStatus: Opt.some(DialStatus.EDialError),
             addrIdx: Opt.some(0.AddrIdx),
           ),
@@ -101,7 +101,7 @@ proc newService(
         AutonatV2Response(
           reachability: Unknown,
           dialResp: DialResponse(
-            status: ResponseStatus.Ok,
+            status: Opt.some(ResponseStatus.Ok),
             dialStatus: Opt.some(DialStatus.EDialError),
             addrIdx: Opt.some(0.AddrIdx),
           ),
@@ -194,7 +194,7 @@ suite "AutonatV2 Service":
         client.response = AutonatV2Response(
           reachability: Reachable,
           dialResp: DialResponse(
-            status: ResponseStatus.Ok,
+            status: Opt.some(ResponseStatus.Ok),
             dialStatus: Opt.some(DialStatus.Ok),
             addrIdx: Opt.some(0.AddrIdx),
           ),
@@ -276,7 +276,7 @@ suite "AutonatV2 Service":
           client.response = AutonatV2Response(
             reachability: Unknown,
             dialResp: DialResponse(
-              status: ResponseStatus.Ok,
+              status: Opt.some(ResponseStatus.Ok),
               dialStatus: Opt.some(DialStatus.EDialError),
               addrIdx: Opt.some(0.AddrIdx),
             ),

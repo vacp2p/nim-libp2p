@@ -34,20 +34,20 @@ proc handleDialBack(
   debug "Handling DialBack",
     stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
-  if not self.expectedNonces.hasKey(dialBack.nonce):
+  if not self.expectedNonces.hasKey(dialBack.nonce.get()):
     error "Not expecting this nonce", nonce = dialBack.nonce
     return
 
   stream.localAddr.withValue(localAddr):
     debug "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
-    self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
+    self.expectedNonces[dialBack.nonce.get()] = Opt.some(localAddr)
   else:
     error "Unable to get localAddr from connection"
     return
 
   trace "Sending DialBackResponse"
-  await stream.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode())
+  await stream.writeLp(DialBackResponse(status: Opt.some(DialBackStatus.Ok)).encode())
 
 proc new*(
     T: typedesc[AutonatV2Client],
@@ -90,7 +90,7 @@ proc handleDialDataRequest*(
   debug "Received DialDataRequest",
     numBytes = req.numBytes, maxAcceptedNumBytes = MaxAcceptedDialDataRequest
 
-  if req.numBytes > MaxAcceptedDialDataRequest:
+  if req.numBytes.get(0) > MaxAcceptedDialDataRequest:
     raise newException(
       AutonatV2Error, "Rejecting DialDataRequest: numBytes is greater than the maximum"
     )
@@ -102,7 +102,7 @@ proc handleDialDataRequest*(
     )
   )
   let messagesToSend =
-    (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
+    (req.numBytes.get(0) + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
     debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
@@ -157,7 +157,9 @@ method sendDialRequest*(
 
     # send dialRequest
     await stream.writeLp(
-      AutonatV2Msg(dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: nonce))).encode()
+      AutonatV2Msg(
+        dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: Opt.some(nonce)))
+      ).encode()
     )
     let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
       raise newException(AutonatV2Error, error)
