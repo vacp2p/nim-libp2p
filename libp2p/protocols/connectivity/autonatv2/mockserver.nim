@@ -28,17 +28,11 @@ proc new*(
     try:
       let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
         return
-
-      if not msg.dialDataReq.isSome:
-        discard
     except LPStreamError:
       return
 
     try:
-      # return mocked message
       await stream.writeLp(autonatV2.response)
-    except CancelledError as exc:
-      raise exc
     except LPStreamRemoteClosedError:
       discard
     except LPStreamError:
