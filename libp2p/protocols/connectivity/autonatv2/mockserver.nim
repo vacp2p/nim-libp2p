@@ -30,7 +30,7 @@ proc new*(
         return
 
       if not msg.dialDataReq.isSome:
-        return
+        discard
     except LPStreamError:
       return
 
@@ -47,3 +47,4 @@ proc new*(
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest
   autonatV2
+
