@@ -193,15 +193,17 @@ proc portMapping(self: NATService): PortMappingConfig =
 proc mergeInto*(dst: var NATConfig, src: NATConfig) =
   ## Fold ``src``'s set concerns into ``dst``; setting one concern twice is a
   ## programmer error (build-time misuse), so it fails fast with a Defect.
-  template mergeField(field: untyped) =
-    src.field.withValue(v):
-      doAssert dst.field.isNone(),
-        "withNAT: " & astToStr(field) & " configured more than once"
-      dst.field = Opt.some(v)
-
-  mergeField(portMapping)
-  mergeField(reachability)
-  mergeField(holePunching)
+  src.portMapping.withValue(v):
+    doAssert dst.portMapping.isNone(), "withNAT: portMapping configured more than once"
+    dst.portMapping = Opt.some(v)
+  src.reachability.withValue(v):
+    doAssert dst.reachability.isNone(),
+      "withNAT: reachability configured more than once"
+    dst.reachability = Opt.some(v)
+  src.holePunching.withValue(v):
+    doAssert dst.holePunching.isNone(),
+      "withNAT: holePunching configured more than once"
+    dst.holePunching = Opt.some(v)
 
 proc explicitIpMapped*(
     listenAddrs: seq[MultiAddress], explicitIp: IpAddress
