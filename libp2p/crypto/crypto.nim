@@ -1007,8 +1007,7 @@ proc getField*(pb: ProtoBuffer, field: int, value: var Signature): ProtoResult[b
 
 ## protobuf_serialization extension
 
-func supportsPacked*(T: type PublicKey, ProtoType: type ProtobufExt): bool =
-  false
+Protobuf.extensionDefaults(PublicKey, packed = false)
 
 func computeFieldSize*(
     field: int, value: PublicKey, ProtoType: type ProtobufExt, skipDefault: static bool
@@ -1043,8 +1042,7 @@ proc readFieldInto*(
 
   false
 
-func supportsPacked*(T: type Signature, ProtoType: type ProtobufExt): bool =
-  false
+Protobuf.extensionDefaults(Signature, packed = false)
 
 func computeFieldSize*(
     field: int, value: Signature, ProtoType: type ProtobufExt, skipDefault: static bool
