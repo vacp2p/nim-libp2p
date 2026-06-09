@@ -36,7 +36,11 @@ import
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut, natservice
+  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig,
+  natservice.PortMappingMode, natservice.AutonatVersion, natservice.PortMapperFactory,
+  natservice.NATService, natservice.upnpConfig, natservice.natPmpConfig,
+  natservice.explicitIpConfig, natservice.autonatConfig, natservice.holePunchingConfig,
+  natservice.AutonatV2ServiceConfig, natservice.AutonatV2Service, natservice.natService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -338,26 +342,15 @@ proc withAutonatV2Server*(
   b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc mergeInto(dst: var NATConfig, src: NATConfig) =
-  template mergeField(field: untyped) =
-    src.field.withValue(v):
-      doAssert dst.field.isNone,
-        "withNAT: " & astToStr(field) & " configured more than once"
-      dst.field = Opt.some(v)
-
-  mergeField(portMapping)
-  mergeField(reachability)
-  mergeField(holePunching)
-
 proc withNAT*(
     b: SwitchBuilder, config: NATConfig, portMapperFactory: PortMapperFactory = nil
 ): SwitchBuilder =
-  ## Build ``config`` with `upnpConfig`/`natPmpConfig`/`explicitIpConfig`/`autonatConfig`/`holePunchingConfig`.
-  ## May be called repeatedly for distinct concerns; setting one concern twice is a programmer error.
+  ## Build ``config`` with the `*Config` helpers; call once per distinct concern,
+  ## setting the same concern twice is a programmer error.
   var merged = b.natConfig.get(NATConfig())
   merged.mergeInto(config)
   b.natConfig = Opt.some(merged)
-  if not portMapperFactory.isNil:
+  if not portMapperFactory.isNil():
     b.natPortMapperFactory = portMapperFactory
   b
 

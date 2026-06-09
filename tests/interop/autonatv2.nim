@@ -48,12 +48,9 @@ proc autonatInteropTest*(
         confidence.get() >= 0.3:
       awaiter.completeOnce()
 
-  var v2Service = Opt.none(AutonatV2Service)
-  for s in switch.services:
-    if s of NATService:
-      v2Service = NATService(s).autonatV2Service
-      break
-  let v2 = v2Service.valueOr:
+  let nat = switch.natService().valueOr:
+    raiseAssert "expected NATService to be configured"
+  let v2 = nat.autonatV2Service.valueOr:
     raiseAssert "expected AutonatV2 service to be configured"
   v2.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 

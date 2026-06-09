@@ -113,10 +113,8 @@ proc makeSwitch(
     .build()
 
 proc findNatService(switch: Switch): NATService =
-  for s in switch.services:
-    if s of NATService:
-      return NATService(s)
-  raiseAssert "NATService not found in switch.services"
+  switch.natService().valueOr:
+    raiseAssert "NATService not found in switch.services"
 
 suite "NATService":
   teardown:
@@ -425,12 +423,18 @@ suite "NATService":
       nat.autonatV2Service.isNone()
 
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
-    let cfg = NATConfig(
-      holePunching: holePunchingConfig().holePunching,
-      reachability: autonatConfig(AutonatV2).reachability,
-    )
+    # The realistic path: two withNAT calls for the conflicting concerns.
     expect ServiceSetupError:
-      discard makeSwitch(cfg, @[TcpAutoAddress])
+      discard SwitchBuilder
+        .new()
+        .withRng(rng())
+        .withAddresses(@[TcpAutoAddress], false)
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withNAT(holePunchingConfig())
+        .withNAT(autonatConfig(AutonatV2))
+        .build()
 
   asyncTest "Upnp combined with autonat v1 wires both subsystems":
     # NATConfig keeps mode (port-mapping) and autonat orthogonal: enabling
