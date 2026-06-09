@@ -1007,72 +1007,47 @@ proc getField*(pb: ProtoBuffer, field: int, value: var Signature): ProtoResult[b
 
 ## protobuf_serialization extension
 
-Protobuf.extensionDefaults(PublicKey, packed = false)
+# PublicKey.getBytes() can fail (Result); Signature.getBytes() cannot. A key
+# that can't emit its own bytes is a violated invariant, hence ``expect``.
+func toProtoBytes(value: PublicKey): seq[byte] =
+  value.getBytes().expect("failed to get key bytes")
 
-func computeFieldSize*(
-    field: int, value: PublicKey, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  let bytes = value.getBytes().expect("failed to get key bytes")
-  computeFieldSize(field, bytes, pbytes, skipDefault)
+func toProtoBytes(value: Signature): seq[byte] =
+  value.getBytes()
 
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: PublicKey,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  let bytes = value.getBytes().expect("failed to get key bytes")
-  writeField(stream, field, bytes, pbytes, skipDefault)
+template genProtobufExt(T: typedesc, invalidMsg: string) =
+  ## Wire up the protobuf_serialization extension hooks for a key/signature type
+  ## that serializes as its raw byte encoding.
+  Protobuf.extensionDefaults(T, packed = false)
 
-proc readFieldInto*(
-    stream: InputStream,
-    value: var PublicKey,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var data = default(seq[byte])
+  func computeFieldSize*(
+      field: int, value: T, ProtoType: type ProtobufExt, skipDefault: static bool
+  ): int =
+    computeFieldSize(field, value.toProtoBytes(), pbytes, skipDefault)
 
-  if readFieldInto(stream, data, header, pbytes):
-    var key = PublicKey()
-    if key.init(data):
-      value = key
-      return true
-    raise (ref ProtobufValueError)(msg: "Invalid PublicKey")
+  proc writeField*(
+      stream: OutputStream,
+      field: int,
+      value: T,
+      ProtoType: type ProtobufExt,
+      skipDefault: static bool = false,
+  ) {.raises: [IOError].} =
+    writeField(stream, field, value.toProtoBytes(), pbytes, skipDefault)
 
-  false
+  proc readFieldInto*(
+      stream: InputStream,
+      value: var T,
+      header: FieldHeader,
+      ProtoType: type ProtobufExt,
+  ): bool {.raises: [SerializationError, IOError].} =
+    var data = default(seq[byte])
+    if readFieldInto(stream, data, header, pbytes):
+      var parsed = T()
+      if parsed.init(data):
+        value = parsed
+        return true
+      raise (ref ProtobufValueError)(msg: invalidMsg)
+    false
 
-Protobuf.extensionDefaults(Signature, packed = false)
-
-func computeFieldSize*(
-    field: int, value: Signature, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  let bytes = value.getBytes()
-  computeFieldSize(field, bytes, pbytes, skipDefault)
-
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: Signature,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  let bytes = value.getBytes()
-  writeField(stream, field, bytes, pbytes, skipDefault)
-
-proc readFieldInto*(
-    stream: InputStream,
-    value: var Signature,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var data = default(seq[byte])
-
-  if readFieldInto(stream, data, header, pbytes):
-    var sig = Signature()
-    if sig.init(data):
-      value = sig
-      return true
-    raise (ref ProtobufValueError)(msg: "Invalid Signature")
-
-  false
+genProtobufExt(PublicKey, "Invalid PublicKey")
+genProtobufExt(Signature, "Invalid Signature")

@@ -16,8 +16,14 @@ import
   transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
-  protocols/connectivity/
-    [autonat/server, autonatv2/server, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[
+    autonat/server,
+    autonatv2/server,
+    autonatv2/service,
+    relay/relay,
+    relay/client,
+    relay/rtransport,
+  ],
   services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
@@ -43,6 +49,8 @@ type
     autotls*: Opt[AutotlsService]
     connManager*: ConnManager
     rng*: Rng
+
+  RelayReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -330,14 +338,44 @@ proc withAutonatV2Server*(
   b.autonatV2ServerConfig = Opt.some(config)
   b
 
+proc mergeInto(dst: var NATConfig, src: NATConfig) =
+  src.portMapping.withValue(v):
+    doAssert dst.portMapping.isNone, "withNAT: portMapping configured more than once"
+    dst.portMapping = Opt.some(v)
+  src.reachability.withValue(v):
+    doAssert dst.reachability.isNone, "withNAT: reachability configured more than once"
+    dst.reachability = Opt.some(v)
+  src.holePunching.withValue(v):
+    doAssert dst.holePunching.isNone, "withNAT: holePunching configured more than once"
+    dst.holePunching = Opt.some(v)
+
 proc withNAT*(
     b: SwitchBuilder, config: NATConfig, portMapperFactory: PortMapperFactory = nil
 ): SwitchBuilder =
-  ## Enable NAT traversal. Build ``config`` with `upnpConfig`, `natPmpConfig`, `autonatConfig`, or `holePunchingConfig`.
-  ## ``portMapperFactory`` is intended for tests; when ``nil``, NATService picks the production backend.
-  b.natConfig = Opt.some(config)
-  b.natPortMapperFactory = portMapperFactory
+  ## Build ``config`` with `upnpConfig`/`natPmpConfig`/`explicitIpConfig`/`autonatConfig`/`holePunchingConfig`.
+  ## May be called repeatedly for distinct concerns; setting one concern twice is a programmer error.
+  var merged = b.natConfig.get(NATConfig())
+  merged.mergeInto(config)
+  b.natConfig = Opt.some(merged)
+  if not portMapperFactory.isNil:
+    b.natPortMapperFactory = portMapperFactory
   b
+
+proc withAutonatV2*(
+    b: SwitchBuilder,
+    serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
+): SwitchBuilder {.
+    deprecated:
+      "use withNAT(autonatConfig(AutonatV2, v2ServiceConfig = Opt.some(serviceConfig)))"
+.} =
+  b.withNAT(autonatConfig(AutonatV2, v2ServiceConfig = Opt.some(serviceConfig)))
+
+proc withHolePunching*(
+    b: SwitchBuilder, maxNumRelays: int, onReservationHandler: RelayReservationHandler
+): SwitchBuilder {.
+    deprecated: "use withNAT(holePunchingConfig(maxNumRelays, onReservationHandler))"
+.} =
+  b.withNAT(holePunchingConfig(maxNumRelays, onReservationHandler))
 
 proc withAutotls*(
     b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()

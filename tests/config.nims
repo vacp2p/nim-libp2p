@@ -8,8 +8,6 @@ import strutils, os
 --d:
   withoutPCRE
 --d:
-  libp2p_testing
---d:
   libp2p_agents_metrics
 --d:
   libp2p_protobuf_metrics

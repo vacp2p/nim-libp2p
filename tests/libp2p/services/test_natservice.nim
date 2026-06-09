@@ -8,6 +8,7 @@ import chronos, results
 import ../../../libp2p/[builders, switch, multiaddress, multicodec, peerinfo, wire]
 import ../../../libp2p/services/natservice
 import ../../../libp2p/services/nat/portmapper
+import ../../../libp2p/protocols/connectivity/dcutr/core
 import ../../tools/[unittest, crypto, multiaddress]
 
 type
@@ -150,7 +151,7 @@ suite "NATService":
   asyncTest "ExplicitIp announces the explicit IP with bound ports":
     let
       explicitIp = parseIpAddress("203.0.113.7")
-      cfg = NATConfig(mode: ExplicitIp, explicitIp: explicitIp)
+      cfg = explicitIpConfig(explicitIp)
       switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
@@ -163,9 +164,9 @@ suite "NATService":
 
     check switch.peerInfo.addrs == @[expected]
 
-  asyncTest "Auto is a no-op on announced addresses":
+  asyncTest "empty NATConfig is a no-op on announced addresses":
     let
-      cfg = NATConfig(mode: Auto)
+      cfg = NATConfig()
       switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
@@ -179,7 +180,7 @@ suite "NATService":
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
     let mock = newMock()
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -202,7 +203,7 @@ suite "NATService":
   asyncTest "Upnp preserves already-public listenAddrs alongside mapped ones":
     let mock = newMock(extPorts = @[Port(9000)])
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -222,7 +223,7 @@ suite "NATService":
   asyncTest "Upnp unmaps stale extPort when IGD reassigns on refresh":
     let mock = newMock(extPorts = @[Port(9000), Port(9001)])
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -244,7 +245,7 @@ suite "NATService":
   asyncTest "Upnp unmaps everything when private listenAddrs disappear":
     let mock = newMock(extPorts = @[Port(7000)])
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -261,7 +262,7 @@ suite "NATService":
   asyncTest "Upnp falls back to listenAddrs when discovery fails":
     let mock = newMock(discoverErr = Opt.some("no IGD"))
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -277,7 +278,7 @@ suite "NATService":
 
   asyncTest "Upnp inactive when factory returns none":
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.none(PortMapper)
 
@@ -293,7 +294,7 @@ suite "NATService":
   asyncTest "stop unmaps active mappings and closes the mapper":
     let mock = newMock(extPorts = @[Port(5555)])
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -326,10 +327,10 @@ suite "NATService":
       discard makeSwitch(cfg, @[TcpAutoAddress])
 
   asyncTest "factory receives the configured mode":
-    var seenMode = Auto
+    var seenMode = Upnp
     let mock = newMock()
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       seenMode = mode
       Opt.some(PortMapper(mock))
@@ -344,7 +345,7 @@ suite "NATService":
   asyncTest "map failure leaves no stale entry; announced falls through":
     let mock = newMock(extPorts = @[Port(8000)], mapErr = Opt.some("mapping refused"))
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -365,7 +366,7 @@ suite "NATService":
     # IPv6 listenAddr (even ULA fc00::/7) must be filtered out before map().
     let mock = newMock()
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
@@ -384,6 +385,9 @@ suite "NATService":
         return NATService(s)
     nil
 
+  proc dcutrMounted(switch: Switch): bool =
+    switch.ms.handlers.anyIt(DcutrCodec in it.protos)
+
   asyncTest "autonat v1 spins up the AutonatService":
     let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
     await switch.start()
@@ -393,11 +397,12 @@ suite "NATService":
     let nat = findNat(switch)
     check:
       nat != nil
-      nat.autonatService != nil
       nat.autonatV2Service == nil
-      nat.hpService == nil
+      not dcutrMounted(switch)
+      # AutonatService registers exactly one reachability addressMapper.
+      switch.peerInfo.addressMappers.len == 1
 
-  asyncTest "autonat v2 spins up the AutonatV2 service + client":
+  asyncTest "autonat v2 spins up the AutonatV2 service":
     let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
     await switch.start()
     defer:
@@ -407,11 +412,9 @@ suite "NATService":
     check:
       nat != nil
       nat.autonatV2Service != nil
-      nat.autonatV2Client != nil
-      nat.autonatService == nil
-      nat.hpService == nil
+      not dcutrMounted(switch)
 
-  asyncTest "enableHolePunching composes the full HP stack":
+  asyncTest "holePunchingConfig composes the full HP stack":
     let switch = makeSwitch(holePunchingConfig(maxNumRelays = 2), @[TcpAutoAddress])
     await switch.start()
     defer:
@@ -420,14 +423,15 @@ suite "NATService":
     let nat = findNat(switch)
     check:
       nat != nil
-      nat.hpService != nil
-      nat.autonatService != nil
-      nat.autoRelayService != nil
+      # HPService mounts DCUtR and drives AutoNAT v1, not v2.
+      dcutrMounted(switch)
       nat.autonatV2Service == nil
 
-  test "enableHolePunching with AutonatV2 is rejected at setup":
-    let cfg =
-      NATConfig(mode: Auto, enableHolePunching: true, autonat: Opt.some(AutonatV2))
+  test "hole-punching paired with AutonatV2 reachability is rejected at setup":
+    let cfg = NATConfig(
+      holePunching: holePunchingConfig().holePunching,
+      reachability: autonatConfig(AutonatV2).reachability,
+    )
     expect ServiceSetupError:
       discard makeSwitch(cfg, @[TcpAutoAddress])
 
@@ -436,12 +440,12 @@ suite "NATService":
     # both must spin up the UPnP addressMapper *and* the AutonatService.
     let mock = newMock()
     let factory: PortMapperFactory = proc(
-        mode: NATMode
+        mode: PortMappingMode
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
     var cfg = upnpConfig()
-    cfg.autonat = Opt.some(AutonatV1)
+    cfg.reachability = autonatConfig(AutonatV1).reachability
 
     let switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
     await switch.start()
@@ -451,7 +455,7 @@ suite "NATService":
     let nat = findNat(switch)
     check:
       nat != nil
-      nat.autonatService != nil
+      nat.autonatV2Service == nil
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
       switch.peerInfo.addressMappers.len == 2
 
@@ -466,7 +470,8 @@ suite "NATService":
     let nat = findNat(switch)
     check:
       nat != nil
-      nat.autonatService != nil
+      nat.autonatV2Service == nil
+      switch.peerInfo.addressMappers.len == 1
 
   asyncTest "autonat v2 survives stop/start cycle":
     let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
@@ -480,7 +485,90 @@ suite "NATService":
     check:
       nat != nil
       nat.autonatV2Service != nil
-      nat.autonatV2Client != nil
+
+  asyncTest "deprecated withAutonatV2 still wires the v2 service":
+    {.push warning[Deprecated]: off.}
+    let switch = SwitchBuilder
+      .new()
+      .withRng(rng())
+      .withAddresses(@[TcpAutoAddress], false)
+      .withTcpTransport()
+      .withMplex()
+      .withNoise()
+      .withAutonatV2()
+      .build()
+    {.pop.}
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatV2Service != nil
+      not dcutrMounted(switch)
+
+  asyncTest "deprecated withHolePunching still composes the HP stack":
+    {.push warning[Deprecated]: off.}
+    let switch = SwitchBuilder
+      .new()
+      .withRng(rng())
+      .withAddresses(@[TcpAutoAddress], false)
+      .withTcpTransport()
+      .withMplex()
+      .withNoise()
+      .withHolePunching(2, nil)
+      .build()
+    {.pop.}
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      dcutrMounted(switch)
+      nat.autonatV2Service == nil
+
+  asyncTest "withNAT can be called once per distinct concern":
+    let mock = newMock()
+    let factory: PortMapperFactory = proc(
+        mode: PortMappingMode
+    ): Opt[PortMapper] {.gcsafe, raises: [].} =
+      Opt.some(PortMapper(mock))
+
+    let switch = SwitchBuilder
+      .new()
+      .withRng(rng())
+      .withAddresses(@[TcpAutoAddress], false)
+      .withTcpTransport()
+      .withMplex()
+      .withNoise()
+      .withNAT(upnpConfig(), factory)
+      .withNAT(autonatConfig(AutonatV1))
+      .build()
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let nat = findNat(switch)
+    check:
+      nat != nil
+      nat.autonatV2Service == nil
+      # UPnP addressMapper + AutoNAT v1 mapper both registered.
+      switch.peerInfo.addressMappers.len == 2
+
+  test "withNAT configuring the same concern twice is a programmer error":
+    expect AssertionDefect:
+      discard SwitchBuilder
+        .new()
+        .withRng(rng())
+        .withAddresses(@[TcpAutoAddress], false)
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .withNAT(autonatConfig(AutonatV1))
+        .withNAT(autonatConfig(AutonatV2))
 
 type RecordingPortMapper = ref object of PortMapper
   externalIp: IpAddress
@@ -537,7 +625,7 @@ proc newRecordingOk(externalIp: IpAddress): RecordingPortMapper =
   )
 
 proc recordingFactory(m: RecordingPortMapper): PortMapperFactory =
-  return proc(mode: NATMode): Opt[PortMapper] {.gcsafe, raises: [].} =
+  return proc(mode: PortMappingMode): Opt[PortMapper] {.gcsafe, raises: [].} =
     Opt.some(PortMapper(m))
 
 proc recordingFactoryFail(): PortMapperFactory =
@@ -572,12 +660,7 @@ suite "NATService (setupMappings)":
 
     let
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 50.milliseconds,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig(refreshInterval = 50.milliseconds)
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
     await switch.start()
@@ -608,12 +691,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.99")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: NatPmp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
@@ -631,12 +709,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.1")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
@@ -662,12 +735,7 @@ suite "NATService (setupMappings)":
       userAddr = MultiAddress.init("/ip4/198.51.100.7/tcp/4242").tryGet()
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
     switch.peerInfo.announcedAddrs = @[userAddr]
@@ -686,12 +754,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.10")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
@@ -719,12 +782,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.20")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
@@ -748,12 +806,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.30")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: Upnp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
@@ -773,12 +826,7 @@ suite "NATService (setupMappings)":
 
   asyncTest "NatPmp discovery failure leaves announced empty":
     let
-      cfg = NATConfig(
-        mode: NatPmp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], recordingFactoryFail())
       svc = findNatService(switch)
 
@@ -795,12 +843,7 @@ suite "NATService (setupMappings)":
       externalIp = parseIpAddress("203.0.113.40")
       mapper = newRecordingOk(externalIp)
       factory = recordingFactory(mapper)
-      cfg = NATConfig(
-        mode: NatPmp,
-        refreshInterval: 30.minutes,
-        discoveryTimeout: DefaultDiscoveryTimeout,
-        leaseDuration: DefaultLeaseDuration,
-      )
+      cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
 
