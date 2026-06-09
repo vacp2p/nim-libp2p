@@ -11,7 +11,6 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../protobuf/minprotobuf,
   ./types
 
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =

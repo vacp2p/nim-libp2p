@@ -6,9 +6,7 @@
 import results
 import chronos, chronicles
 import
-  ../../../../libp2p/[
-    switch, muxers/muxer, dialer, multiaddress, multicodec, peerid, protobuf/minprotobuf
-  ],
+  ../../../../libp2p/[switch, muxers/muxer, dialer, multiaddress, multicodec, peerid],
   ../../protocol,
   ./types,
   ./server
@@ -28,9 +26,7 @@ proc new*(
       await stream.close()
 
     try:
-      let msg = AutonatV2Msg.decode(
-        initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
-      ).valueOr:
+      let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
         return
       if msg.msgType != MsgType.DialRequest:
         return
