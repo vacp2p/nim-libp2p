@@ -159,7 +159,7 @@ proc waitingTime*(
   # Bound & Quantize W
   w = max(0.0, w)
   w = min(w, float64(uint32.high))
-  w = ceil(w)
+  w = round(w)
 
   var waitDuration = w.int64.secs
 
@@ -218,85 +218,50 @@ proc updateLowerBounds*(
       registrar.boundIp[ipKey] = now + waitDuration
       registrar.timestampIp[ipKey] = now
 
-proc validateRegisterMessage*(
+proc isValidAdvertisement*(
     regMsg: RegisterMessage, serviceId: ServiceId
-): Opt[Advertisement] =
-  ## Validate a REGISTER message and decode/verify the advertisement.
-  ## Returns Opt.none if the message is invalid.
-  if regMsg.advertisement.len == 0 or regMsg.advertisement.len > MaxXPRSize:
-    if regMsg.advertisement.len > 0:
-      error "advertisement exceeds maximum encoded XPR size",
-        len = regMsg.advertisement.len, max = MaxXPRSize
-    return Opt.none(Advertisement)
-
+): Result[Advertisement, string] =
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
-    error "invalid advertisement received", error
-    return Opt.none(Advertisement)
-
-  if not ad.advertisesService(serviceId):
-    error "advertisement does not advertise the requested service", serviceId
-    return Opt.none(Advertisement)
+    return err("cannot decode advertisement " & $error)
 
   if not ad.isValid():
-    error "advertisement violates XPR or ServiceInfo size limits"
-    return Opt.none(Advertisement)
+    return err("invalid oversized advertisement")
 
-  return Opt.some(ad)
+  if not ad.advertisesService(serviceId):
+    return err("advertisement & message service mismatch")
 
-proc processRetryTicket*(
-    disco: ServiceDiscovery,
-    regMsg: RegisterMessage,
-    ad: Advertisement,
-    t_wait: Duration,
-    now: Moment,
-): Duration {.raises: [].} =
-  let ticketMsg = regMsg.ticket.valueOr:
-    return t_wait
+  return ok(ad)
 
-  if ticketMsg.advertisement != regMsg.advertisement:
-    return t_wait
-
-  let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
-    error "Failed to get registrar public key", error
-    return t_wait
-
-  if not ticketMsg.verify(registrarPubKey):
-    return t_wait
-
-  let
-    windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
-    windowEnd = windowStart + disco.discoConfig.registrationWindow
-
-  if now in windowStart .. windowEnd:
-    let totalWaitSoFar = now - ticketMsg.tInit
-    return t_wait - totalWaitSoFar
-
-  return t_wait
+proc updateWaitAfterRetry*(
+    disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
+) =
+  ticketOpt.withValue(ticket):
+    let totalWaitSoFar = now - ticket.tInit
+    wait -= totalWaitSoFar
 
 proc isValidTicket(
     disco: ServiceDiscovery, regMsg: RegisterMessage, now: Moment
-): Opt[bool] {.raises: [].} =
+): Result[Opt[Ticket], string] {.raises: [].} =
   let ticket = regMsg.ticket.valueOr:
-    return Opt.none(bool)
+    return ok(Opt.none(Ticket))
 
   if ticket.advertisement != regMsg.advertisement:
-    return Opt.some(false)
+    return err("message & ticket advertisement mismatch")
 
   let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
-    error "Failed to get registrar public key", error
-    return Opt.some(false)
+    return err("failed to get registrar public key")
 
   if not ticket.verify(registrarPubKey):
-    return Opt.some(false)
+    return err("ticket fails verification")
 
   let
     windowStart = ticket.tMod + ticket.tWaitFor
     windowEnd = windowStart + disco.discoConfig.registrationWindow
 
   if now notin windowStart .. windowEnd:
-    return Opt.some(false)
+    return err("ticket outside valid time window")
 
-  return Opt.some(true)
+  return ok(Opt.some(ticket))
 
 proc sendRegisterResponse*(
     stream: Stream,
@@ -474,8 +439,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
-    error "invalid register message"
+  let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
+    error "invalid advertisement", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -485,21 +450,20 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   let now = Moment.now()
 
-  disco.isValidTicket(regMsg, now).withValue(valid):
-    if not valid:
-      error "invalid ticket in register message"
+  let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
+    error "invalid ticket", error
 
-      cd_register_requests.inc(
-        labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
-      )
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
 
-      return msg
+    return msg
 
   var tWait = disco.registrar.waitingTime(
     disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
   )
 
-  tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
+  disco.updateWaitAfterRetry(ticketOpt, now, tWait)
 
   if tWait <= ZeroDuration:
     disco.acceptAdvertisement(now, serviceId, ad)
