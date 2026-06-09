@@ -97,11 +97,7 @@ proc unmappedPorts(m: MockPortMapper): seq[Port] =
     if c.kind == mckUnmap:
       result.add(c.externalPort)
 
-proc makeSwitch(
-    config: NATConfig,
-    listenAddrs: seq[MultiAddress],
-    portMapperFactory: PortMapperFactory = nil,
-): Switch {.raises: [LPError].} =
+proc standardBuilder(listenAddrs: seq[MultiAddress]): SwitchBuilder =
   SwitchBuilder
     .new()
     .withRng(rng())
@@ -109,8 +105,13 @@ proc makeSwitch(
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withNAT(config, portMapperFactory)
-    .build()
+
+proc makeSwitch(
+    config: NATConfig,
+    listenAddrs: seq[MultiAddress],
+    portMapperFactory: PortMapperFactory = nil,
+): Switch {.raises: [LPError].} =
+  standardBuilder(listenAddrs).withNAT(config, portMapperFactory).build()
 
 proc findNatService(switch: Switch): NATService =
   switch.natService().valueOr:
@@ -425,13 +426,7 @@ suite "NATService":
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
     # The realistic path: two withNAT calls for the conflicting concerns.
     expect ServiceSetupError:
-      discard SwitchBuilder
-        .new()
-        .withRng(rng())
-        .withAddresses(@[TcpAutoAddress], false)
-        .withTcpTransport()
-        .withMplex()
-        .withNoise()
+      discard standardBuilder(@[TcpAutoAddress])
         .withNAT(holePunchingConfig())
         .withNAT(autonatConfig(AutonatV2))
         .build()
@@ -486,15 +481,7 @@ suite "NATService":
 
   asyncTest "deprecated withAutonatV2 still wires the v2 service":
     {.push warning[Deprecated]: off.}
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withAutonatV2()
-      .build()
+    let switch = standardBuilder(@[TcpAutoAddress]).withAutonatV2().build()
     {.pop.}
     await switch.start()
     defer:
@@ -507,15 +494,7 @@ suite "NATService":
 
   asyncTest "deprecated withHolePunching still composes the HP stack":
     {.push warning[Deprecated]: off.}
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withHolePunching(2, nil)
-      .build()
+    let switch = standardBuilder(@[TcpAutoAddress]).withHolePunching(2, nil).build()
     {.pop.}
     await switch.start()
     defer:
@@ -533,13 +512,7 @@ suite "NATService":
     ): Opt[PortMapper] {.gcsafe, raises: [].} =
       Opt.some(PortMapper(mock))
 
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
+    let switch = standardBuilder(@[TcpAutoAddress])
       .withNAT(upnpConfig(), factory)
       .withNAT(autonatConfig(AutonatV1))
       .build()
@@ -555,13 +528,7 @@ suite "NATService":
 
   test "withNAT configuring the same concern twice is a programmer error":
     expect AssertionDefect:
-      discard SwitchBuilder
-        .new()
-        .withRng(rng())
-        .withAddresses(@[TcpAutoAddress], false)
-        .withTcpTransport()
-        .withMplex()
-        .withNoise()
+      discard standardBuilder(@[TcpAutoAddress])
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
 
