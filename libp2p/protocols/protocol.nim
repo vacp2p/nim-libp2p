@@ -28,9 +28,10 @@ const
   dirIn = "in"
   dirOut = "out"
 
-export
-  libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open, scopeTotal,
-  scopePerPeer, dirIn, dirOut
+when defined(libp2p_testing):
+  export
+    libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open,
+    scopeTotal, scopePerPeer, dirIn, dirOut
 
 type
   LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.

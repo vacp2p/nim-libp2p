@@ -73,10 +73,9 @@ type
     refreshLoopFut: Future[void]
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
-    # Exactly one reachability path is live at a time (AutoNAT v1 / v2 / HP),
-    # so a single ``Service`` ref is enough to start/stop it polymorphically.
+    # One reachability path runs at a time (AutoNAT v1 / v2 / HP); a single
+    # ``Service`` ref starts/stops it polymorphically.
     reachability: Service
-    autonatV2Service*: AutonatV2Service
 
 const
   DefaultRefreshInterval* = 30.minutes
@@ -101,12 +100,16 @@ proc defaultPortMapperFactory(
 proc new*(
     T: typedesc[NATService],
     config: NATConfig,
-    rng: Rng = nil,
+    rng: Rng,
     portMapperFactory: PortMapperFactory = nil,
 ): T =
-  ## ``rng`` is only required when ``config.reachability`` or
-  ## ``config.holePunching`` is set; pure port-mapping configs may omit it.
   T(config: config, rng: rng, portMapperFactory: portMapperFactory)
+
+proc autonatV2Service*(self: NATService): Opt[AutonatV2Service] =
+  ## The live AutoNAT v2 service when reachability uses AutonatV2, else none.
+  if self.reachability of AutonatV2Service:
+    return Opt.some(AutonatV2Service(self.reachability))
+  Opt.none(AutonatV2Service)
 
 proc upnpConfig*(
     refreshInterval = DefaultRefreshInterval,
@@ -430,7 +433,6 @@ proc setupAutonatV2(
       ServiceSetupError, "NATService failed to mount AutonatV2Client: " & e.msg
     )
   autonatV2Service.setup(switch)
-  self.autonatV2Service = autonatV2Service
   self.reachability = autonatV2Service
 
 proc setupReachability(

@@ -112,6 +112,12 @@ proc makeSwitch(
     .withNAT(config, portMapperFactory)
     .build()
 
+proc findNatService(switch: Switch): NATService =
+  for s in switch.services:
+    if s of NATService:
+      return NATService(s)
+  raiseAssert "NATService not found in switch.services"
+
 suite "NATService":
   teardown:
     checkTrackers()
@@ -379,12 +385,6 @@ suite "NATService":
     check res == @[ma("/ip6/fc00::1/tcp/4242")] # fall-through, no map()
     check mock.countCalls(mckMap) == 0
 
-  proc findNat(switch: Switch): NATService =
-    for s in switch.services:
-      if s of NATService:
-        return NATService(s)
-    nil
-
   proc dcutrMounted(switch: Switch): bool =
     switch.ms.handlers.anyIt(DcutrCodec in it.protos)
 
@@ -394,10 +394,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
       not dcutrMounted(switch)
       # AutonatService registers exactly one reachability addressMapper.
       switch.peerInfo.addressMappers.len == 1
@@ -408,10 +407,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service != nil
+      nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
 
   asyncTest "holePunchingConfig composes the full HP stack":
@@ -420,12 +418,11 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
       # HPService mounts DCUtR and drives AutoNAT v1, not v2.
       dcutrMounted(switch)
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
 
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
     let cfg = NATConfig(
@@ -452,10 +449,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
       switch.peerInfo.addressMappers.len == 2
 
@@ -467,10 +463,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
       switch.peerInfo.addressMappers.len == 1
 
   asyncTest "autonat v2 survives stop/start cycle":
@@ -481,10 +476,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service != nil
+      nat.autonatV2Service.isSome()
 
   asyncTest "deprecated withAutonatV2 still wires the v2 service":
     {.push warning[Deprecated]: off.}
@@ -502,10 +496,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service != nil
+      nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
 
   asyncTest "deprecated withHolePunching still composes the HP stack":
@@ -524,11 +517,10 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
       dcutrMounted(switch)
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
 
   asyncTest "withNAT can be called once per distinct concern":
     let mock = newMock()
@@ -551,10 +543,9 @@ suite "NATService":
     defer:
       await switch.stop()
 
-    let nat = findNat(switch)
+    let nat = findNatService(switch)
     check:
-      nat != nil
-      nat.autonatV2Service == nil
+      nat.autonatV2Service.isNone()
       # UPnP addressMapper + AutoNAT v1 mapper both registered.
       switch.peerInfo.addressMappers.len == 2
 
@@ -635,12 +626,6 @@ proc recordingFactoryFail(): PortMapperFactory =
     unmapResult: Result[void, string].ok(),
   )
   recordingFactory(mapper)
-
-proc findNatService(switch: Switch): NATService =
-  for s in switch.services:
-    if s of NATService:
-      return NATService(s)
-  raiseAssert "NATService not found in switch.services"
 
 proc loopbackAddr(): MultiAddress =
   MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()

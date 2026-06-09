@@ -48,13 +48,14 @@ proc autonatInteropTest*(
         confidence.get() >= 0.3:
       awaiter.completeOnce()
 
-  var natService: NATService
+  var v2Service = Opt.none(AutonatV2Service)
   for s in switch.services:
     if s of NATService:
-      natService = NATService(s)
+      v2Service = NATService(s).autonatV2Service
       break
-  doAssert natService != nil and natService.autonatV2Service != nil
-  natService.autonatV2Service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+  let v2 = v2Service.valueOr:
+    raiseAssert "expected AutonatV2 service to be configured"
+  v2.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await switch.start()
   defer:
@@ -65,7 +66,7 @@ proc autonatInteropTest*(
   # to prevent waiting indefinitely
   await awaiter.wait(timeout)
 
-  echo "Network reachability: ", natService.autonatV2Service.networkReachability
+  echo "Network reachability: ", v2.networkReachability
 
   # if awaiter has completed then autonat tests has passed.
   return awaiter.completed()

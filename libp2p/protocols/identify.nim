@@ -45,7 +45,7 @@ type
     addedProtocols* {.fieldNumber: 1.}: seq[string]
     removedProtocols* {.fieldNumber: 2.}: seq[string]
 
-  IdentifyMsg* {.proto2.} = object
+  IdentifyMsg {.proto2.} = object
     publicKey* {.fieldNumber: 1, ext.}: Opt[PublicKey]
     listenAddrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
     protocols* {.fieldNumber: 3.}: seq[string]
@@ -91,8 +91,8 @@ proc makeIdentifyMsg(
     pi: PeerInfo, observedAddr: Opt[MultiAddress], sign: bool
 ): IdentifyMsg =
   var spr = Opt.none(seq[byte])
-  # Optionally populate signedPeerRecord field. See for reference:
-  # https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto
+  ## Optionally populate signedPeerRecord field.
+  ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sign:
     pi.signedPeerRecord.envelope.encode().withValue(value):
       spr = Opt.some(value)
