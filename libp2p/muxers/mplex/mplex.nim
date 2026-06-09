@@ -10,7 +10,6 @@ import
   ../../stream/connection,
   ../../stream/bufferstream,
   ../../utils/shortlog,
-  ../../utils/future,
   ../../peerinfo,
   ./coder,
   ./lpchannel
@@ -239,14 +238,16 @@ method close*(m: Mplex) {.async: (raises: []).} =
   for chann in channs:
     await chann.reset()
 
-  # Cancel the per-channel tasks tracked by the muxer so they don't outlive the
-  # connection (cancelAndWait no-ops on already-finished futures)
+  # Wait for the per-channel tasks tracked by the muxer to finish so they don't
+  # outlive the connection. The channels and connection were torn down above, so
+  # they complete on their own; cancelling them would surface a spurious
+  # CancelledError inside a running stream handler.
   var channelFuts: seq[Future[void]]
   for chann in channs:
     channelFuts.add(chann.cleanupFut)
     if not chann.handlerFut.isNil:
       channelFuts.add(chann.handlerFut)
-  await noCancel channelFuts.cancelAndWait()
+  await noCancel allFutures(channelFuts)
 
   m.channels[false].clear()
   m.channels[true].clear()

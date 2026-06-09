@@ -7,7 +7,6 @@ import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
 import ../../utils/zeroqueue
-import ../../utils/future
 
 export muxer
 
@@ -557,8 +556,10 @@ method close*(m: Yamux) {.async: (raises: []).} =
     trace "failed to send goAway", description = exc.msg
   await m.connection.close()
 
-  # Cancel the per-channel tasks now that the muxer is torn down so they don't
-  # outlive the connection (cancelAndWait no-ops on already-finished futures)
+  # Wait for the per-channel tasks to finish now that the muxer is torn down so
+  # they don't outlive the connection. The channels and connection were torn
+  # down above, so they complete on their own; cancelling them would surface a
+  # spurious CancelledError inside a running stream handler.
   var channelFuts: seq[Future[void]]
   for channel in channels:
     channelFuts.add(channel.cleanupFut)
@@ -566,7 +567,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
       channelFuts.add(channel.handlerFut)
     if not channel.sendLoopFut.isNil:
       channelFuts.add(channel.sendLoopFut)
-  await noCancel channelFuts.cancelAndWait()
+  await noCancel allFutures(channelFuts)
 
   m.isClosed = true
   trace "Closed yamux"
