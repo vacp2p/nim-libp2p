@@ -187,11 +187,6 @@ method sendDialRequest*(
   if dialResp.isNone:
     return AutonatV2Response(
       reachability: Unknown,
-      dialResp: DialResponse(
-        status: Opt.none(ResponseStatus),
-        addrIdx: Opt.none(AddrIdx),
-        dialStatus: Opt.none(DialStatus),
-      ),
       addrs: Opt.none(MultiAddress),
     )
 
