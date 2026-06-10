@@ -593,7 +593,11 @@ suite "AutonatV2 Service":
 
   asyncTest "Observed addresses must be included in dial request candidates":
     let
-      (service, client) = newService(NetworkReachability.Reachable, expectedDials = 1)
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = 1,
+        config = AutonatV2ServiceConfig.new(enableDialableCandidates = true),
+      )
       switch = createSwitch(Opt.some(service))
       switches = @[createSwitch()]
 
@@ -633,7 +637,9 @@ suite "AutonatV2 Service":
       (service, client) = newService(
         NetworkReachability.Reachable,
         expectedDials = ObservedAddrQuorum + 1,
-        config = AutonatV2ServiceConfig.new(minConfidence = 0.9),
+        config = AutonatV2ServiceConfig.new(
+          minConfidence = 0.9, enableDialableCandidates = true
+        ),
       )
       switch = createSwitch(Opt.some(service))
       switches = createSwitches(ObservedAddrQuorum + 1)
@@ -655,6 +661,31 @@ suite "AutonatV2 Service":
 
     # Make sure the guessed dialable address is not in the peer's listen addresses
     check expected notin switch.peerInfo.addrs
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dialable candidates are not added when disabled":
+    # Same setup as the mirror test above (node kept Unknown via high
+    # minConfidence, so the address mapper stays inactive), but with
+    # enableDialableCandidates left to its default of false. The node then
+    # advertises only its listen addresses, so every dial request must be
+    # exactly the listen addresses: no guessed or observed candidate is added,
+    # even after the observed IP reaches quorum.
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = ObservedAddrQuorum + 1,
+        config = AutonatV2ServiceConfig.new(minConfidence = 0.9),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(ObservedAddrQuorum + 1)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    for reqAddrs in client.allTestAddrs:
+      check reqAddrs == switch.peerInfo.listenAddrs
 
     await switch.stop()
     await switches.stopAll()

@@ -38,6 +38,7 @@ type
     maxQueueSize: int
     minConfidence: float
     enableAddressMapper: bool
+    enableDialableCandidates: bool
 
   AutonatV2Service* = ref object of Service
     config*: AutonatV2ServiceConfig
@@ -65,6 +66,7 @@ proc new*(
     maxQueueSize: int = 10,
     minConfidence: float = 0.3,
     enableAddressMapper = true,
+    enableDialableCandidates = false,
 ): T =
   return T(
     scheduleInterval: scheduleInterval,
@@ -73,6 +75,7 @@ proc new*(
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
     enableAddressMapper: enableAddressMapper,
+    enableDialableCandidates: enableDialableCandidates,
   )
 
 proc new*(
@@ -156,21 +159,23 @@ proc askPeer(
 
   trace "Asking peer for reachability"
 
-  # Until the node is confirmed reachable, the address mapper leaves only
-  # listen addresses in peerInfo.addrs, so a node behind NAT would never
-  # submit a dialable candidate (chicken-and-egg).
-  # Add first the guessDialableAddr that uses the listen port
-  # and the observed address as a fallback.
-  var observedCandidates =
-    switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
-  observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
+  var reqAddrs = switch.peerInfo.addrs
+  if self.config.enableDialableCandidates:
+    # Until the node is confirmed reachable, the address mapper leaves only
+    # listen addresses in peerInfo.addrs, so a node behind NAT would never
+    # submit a dialable candidate (chicken-and-egg).
+    # Add first the guessDialableAddr that uses the listen port
+    # and the observed address as a fallback.
+    var observedCandidates =
+      switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+    observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
 
-  # Combine observed candidates with the node's current addresses to form the
-  # candidate list
-  let reqAddrs = deduplicate(switch.peerInfo.addrs & observedCandidates)
-  if reqAddrs.len == 0:
-    debug "No candidate addresses to test, not asking peer"
-    return Unknown
+    # Combine observed candidates with the node's current addresses to form the
+    # candidate list
+    reqAddrs = deduplicate(reqAddrs & observedCandidates)
+    if reqAddrs.len == 0:
+      debug "No candidate addresses to test, not asking peer"
+      return Unknown
 
   var dialBackAddr = Opt.none(MultiAddress)
   let ans =
