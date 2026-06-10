@@ -17,7 +17,7 @@ import
   ../../../errors,
   ../../../muxers/muxer,
   ../../../stream/connection,
-  ../../../protobuf/utils
+  ../../../utils/protobuf
 
 export multiaddress
 

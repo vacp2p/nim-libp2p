@@ -8,7 +8,7 @@ import
   protobuf_serialization,
   protobuf_serialization/pkg/results,
   protobuf_serialization/std/enums,
-  ../../protobuf/utils
+  ../../utils/protobuf
 
 export results
 

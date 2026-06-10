@@ -1038,7 +1038,7 @@ proc readFieldInto*(
     if key.init(data):
       value = key
       return true
-    raise (ref ProtobufValueError)(msg: "Invalid PublicKey")
+    raise newException(ProtobufValueError, "Invalid PublicKey")
 
   false
 
@@ -1073,6 +1073,6 @@ proc readFieldInto*(
     if sig.init(data):
       value = sig
       return true
-    raise (ref ProtobufValueError)(msg: "Invalid Signature")
+    raise newException(ProtobufValueError, "Invalid Signature")
 
   false

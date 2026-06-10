@@ -138,7 +138,7 @@ proc isValid*(xpr: SignedExtendedPeerRecord): bool =
     if not svc.isValid():
       return false
   let encoded = xpr.encode()
-  if encoded.isErr or encoded.get().len > MaxXPRSize:
+  if encoded.isErr or encoded.get().len == 0 or encoded.get().len > MaxXPRSize:
     return false
   true
 
