@@ -187,6 +187,14 @@ method sendDialRequest*(
     self.expectedNonces.del(nonce)
 
   if dialResp.isNone:
-    return AutonatV2Response(reachability: Unknown, addrs: Opt.none(MultiAddress))
+    return AutonatV2Response(
+      reachability: Unknown,
+      dialResp: DialResponse(
+        status: Opt.none(ResponseStatus),
+        addrIdx: Opt.none(AddrIdx),
+        dialStatus: Opt.none(DialStatus),
+      ),
+      addrs: Opt.none(MultiAddress),
+    )
 
   return dialResp.get().asAutonatV2Response(testAddrs)

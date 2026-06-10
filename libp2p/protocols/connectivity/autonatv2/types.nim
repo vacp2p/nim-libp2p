@@ -9,6 +9,7 @@ import
   protobuf_serialization/pkg/results,
   protobuf_serialization/std/enums
 import ../../../[multiaddress, peerid]
+import ../../../errors
 import ../../../utils/protobuf
 from ../autonat/types import NetworkReachability
 
