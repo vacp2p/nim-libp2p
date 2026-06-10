@@ -10,6 +10,7 @@ import
     wire,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/types,
+    services/natservice,
   ]
 import ../tools/crypto
 
@@ -24,8 +25,12 @@ proc autonatInteropTest*(
     .withRng(rng())
     .withAddresses(@[MultiAddress.init(ourAddr).get()])
     .withAutonatV2Server()
-    .withAutonatV2(
-      serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
+    .withNAT(
+      autonatConfig(
+        AutonatV2,
+        v2ServiceConfig =
+          Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))),
+      )
     )
     .withTcpTransport()
     .withYamux()
@@ -43,8 +48,11 @@ proc autonatInteropTest*(
         confidence.get() >= 0.3:
       awaiter.completeOnce()
 
-  let service = cast[AutonatV2Service](switch.services[1])
-  service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+  let nat = switch.natService().valueOr:
+    raiseAssert "expected NATService to be configured"
+  let v2 = nat.autonatV2Service.valueOr:
+    raiseAssert "expected AutonatV2 service to be configured"
+  v2.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await switch.start()
   defer:
@@ -55,7 +63,7 @@ proc autonatInteropTest*(
   # to prevent waiting indefinitely
   await awaiter.wait(timeout)
 
-  echo "Network reachability: ", service.networkReachability
+  echo "Network reachability: ", v2.networkReachability
 
   # if awaiter has completed then autonat tests has passed.
   return awaiter.completed()
