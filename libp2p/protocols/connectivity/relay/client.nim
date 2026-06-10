@@ -46,7 +46,7 @@ proc sendStopError(
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   try:
     let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
-    await stream.writeLp(encode(msg).buffer)
+    await stream.writeLp(encode(msg))
   except CancelledError as e:
     raise e
   except LPStreamError as e:
@@ -61,10 +61,9 @@ proc handleRelayedConnect(
     src = msg.peer.valueOr:
       await sendStopError(stream, MalformedMessage)
       return
-    limitDuration = msg.limit.duration
-    limitData = msg.limit.data
+    limitDuration = msg.limit.get(Limit()).duration
+    limitData = msg.limit.get(Limit()).data
     msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(Ok))
-    pb = encode(msg)
 
   trace "incoming relay connection", src
 
@@ -72,7 +71,7 @@ proc handleRelayedConnect(
     await sendStopError(stream, StatusV2.ConnectionFailed)
     await stream.close()
     return
-  await stream.writeLp(pb.buffer)
+  await stream.writeLp(encode(msg))
   # This sound redundant but the callback could, in theory, be set to nil during
   # stream.writeLp so it's safer to double check
   if cl.onNewConnection != nil:
@@ -89,8 +88,8 @@ proc reserve*(
   let
     pb = encode(HopMessage(msgType: HopMessageType.Reserve))
     msg =
-      try:
-        await stream.writeLp(pb.buffer)
+     try:
+        await stream.writeLp(pb)
         HopMessage.decode(await stream.readLp(RelayClientMsgSize)).tryGet()
       except CancelledError as exc:
         raise exc
@@ -119,8 +118,8 @@ proc reserve*(
       raise newException(ReservationError, "Invalid voucher PeerId")
     rsvp.voucher = Opt.some(svoucher.data)
 
-  rsvp.limitDuration = msg.limit.duration
-  rsvp.limitData = msg.limit.data
+  rsvp.limitDuration = msg.limit.get(Limit()).duration
+  rsvp.limitData = msg.limit.get(Limit()).data
   rsvp
 
 proc dialPeerV1*(
@@ -134,12 +133,11 @@ proc dialPeerV1*(
       ),
       dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
     )
-    pb = encode(msg)
 
   trace "Dial peer", msgSend = msg
 
   try:
-    await stream.writeLp(pb.buffer)
+    await stream.writeLp(encode(msg))
   except CancelledError as exc:
     raise exc
   except LPStreamError as exc:
@@ -188,15 +186,15 @@ proc dialPeerV2*(
     dstPeerId: PeerId,
     dstAddrs: seq[MultiAddress],
 ): Future[RawConn] {.async: (raises: [RelayV2DialError, CancelledError]).} =
-  let
-    p = Peer(peerId: dstPeerId, addrs: dstAddrs)
-    pb = encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
+  let p = Peer(peerId: dstPeerId, addrs: dstAddrs)
 
   trace "Dial peer", p
 
   let msgRcvFromRelay =
     try:
-      await relayConn.writeLp(pb.buffer)
+      await relayConn.writeLp(
+        encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
+      )
       HopMessage.decode(await relayConn.readLp(RelayClientMsgSize)).tryGet()
     except CancelledError as exc:
       raise exc
@@ -210,8 +208,8 @@ proc dialPeerV2*(
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
     trace "Relay stop failed", description = msgRcvFromRelay.status
     raise newException(RelayV2DialError, "Relay stop failure")
-  relayConn.limitDuration = msgRcvFromRelay.limit.duration
-  relayConn.limitData = msgRcvFromRelay.limit.data
+  relayConn.limitDuration = msgRcvFromRelay.limit.get(Limit()).duration
+  relayConn.limitData = msgRcvFromRelay.limit.get(Limit()).data
   return relayConn
 
 proc handleStopStreamV2(

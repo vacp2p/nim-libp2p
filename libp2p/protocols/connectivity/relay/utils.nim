@@ -17,10 +17,8 @@ const
 proc sendStatus*(stream: Stream, code: StatusV1) {.async: (raises: [CancelledError]).} =
   trace "send relay/v1 status", status = $code & "(" & $ord(code) & ")"
   try:
-    let
-      msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
-      pb = encode(msg)
-    await stream.writeLp(pb.buffer)
+    let msg = RelayMessage(msgType: Opt.some(RelayType.Status), status: Opt.some(code))
+    await stream.writeLp(encode(msg))
   except CancelledError as e:
     raise e
   except LPStreamError as e:
@@ -30,19 +28,15 @@ proc sendHopStatus*(
     stream: Stream, code: StatusV2
 ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "send hop relay/v2 status", status = $code & "(" & $ord(code) & ")"
-  let
-    msg = HopMessage(msgType: HopMessageType.Status, status: Opt.some(code))
-    pb = encode(msg)
-  stream.writeLp(pb.buffer)
+  let msg = HopMessage(msgType: HopMessageType.Status, status: Opt.some(code))
+  stream.writeLp(encode(msg))
 
 proc sendStopStatus*(
     stream: Stream, code: StatusV2
 ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "send stop relay/v2 status", status = $code & " (" & $ord(code) & ")"
-  let
-    msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
-    pb = encode(msg)
-  stream.writeLp(pb.buffer)
+  let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
+  stream.writeLp(encode(msg))
 
 proc bridge*(
     srcStream: Stream, dstStream: Stream

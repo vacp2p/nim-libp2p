@@ -93,7 +93,7 @@ proc createReserveResponse(
     msg = HopMessage(
       msgType: HopMessageType.Status,
       reservation: Opt.some(rsrv),
-      limit: r.limit,
+      limit: Opt.some(r.limit),
       status: Opt.some(Ok),
     )
   return ok(msg)
@@ -127,7 +127,7 @@ proc handleReserve(
       return
 
   r.rsvp[pid] = expire
-  await stream.writeLp(encode(msg).buffer)
+  await stream.writeLp(encode(msg))
 
 proc handleConnect(
     r: Relay, srcStream: Stream, msg: HopMessage
@@ -175,9 +175,9 @@ proc handleConnect(
     let stopMsg = StopMessage(
       msgType: StopMessageType.Connect,
       peer: Opt.some(Peer(peerId: src, addrs: @[])),
-      limit: r.limit,
+      limit: Opt.some(r.limit),
     )
-    await dstStream.writeLp(encode(stopMsg).buffer)
+    await dstStream.writeLp(encode(stopMsg))
     let msg = StopMessage.decode(await dstStream.readLp(r.msgSize)).valueOr:
       raise newException(SendStopError, "Malformed message")
     if msg.msgType != StopMessageType.Status:
@@ -186,7 +186,7 @@ proc handleConnect(
     if msg.status.get(UnexpectedMessage) != Ok:
       raise newException(SendStopError, "Relay stop failure")
     await srcStream.writeLp(
-      encode(HopMessage(msgType: HopMessageType.Status, status: Opt.some(Ok))).buffer
+      encode(HopMessage(msgType: HopMessageType.Status, status: Opt.some(Ok)))
     )
 
   try:
@@ -286,7 +286,7 @@ proc handleHop*(
 
   let msgRcvFromDstOpt =
     try:
-      await dstStream.writeLp(encode(msgToSend).buffer)
+      await dstStream.writeLp(encode(msgToSend))
       RelayMessage.decode(await dstStream.readLp(r.msgSize))
     except CancelledError as exc:
       raise exc
