@@ -10,6 +10,10 @@ import results
 import ../../multiaddress
 import stew/[endians2, objects]
 import ../../crypto/crypto
+import protobuf_serialization
+import protobuf_serialization/pkg/results
+import protobuf_serialization/std/enums
+import ../../utils/protobuf
 
 type
   Record* = object
@@ -64,15 +68,15 @@ type
 
   # Register message for Service Discovery
   # Field 21 in the main Message
-  RegisterMessage* = object
-    advertisement*: seq[byte] # field 1 - Encoded advertisement
-    status*: Opt[RegistrationStatus] # field 2 - Registration status (response only)
-    ticket*: Opt[Ticket] # field 3 - Optional ticket
+  RegisterMessage* {.proto2.} = object
+    advertisement* {.fieldNumber: 1, required.}: seq[byte] # field 1 - Encoded advertisement
+    status* {.fieldNumber: 2, ext.}: Opt[RegistrationStatus] # field 2 - Registration status (response only)
+    ticket* {.fieldNumber: 3, ext.}: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Service Discovery
   # Field 22 in the main Message
-  GetAdsMessage* = object
-    advertisements*: seq[seq[byte]] # field 1 - List of encoded advertisements
+  GetAdsMessage* {.proto2.} = object
+    advertisements* {.fieldNumber: 1.}: seq[seq[byte]] # field 1 - List of encoded advertisements
 
   Message* = object
     msgType*: MessageType
@@ -132,26 +136,59 @@ proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   pb.finish()
   return pb
 
-proc encode*(regMsg: RegisterMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  pb.write(1, regMsg.advertisement)
+proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
+  var
+    ticket = Ticket()
+    tInit: uint64 = 0
+    tMod: uint64 = 0
+    tWaitFor: uint32 = 0
 
-  regMsg.status.withValue(statusVal):
-    pb.write(2, uint32(ord(statusVal)))
+  discard ?pb.getField(1, ticket.advertisement)
+  discard ?pb.getField(2, tInit)
+  discard ?pb.getField(3, tMod)
+  discard ?pb.getField(4, tWaitFor)
+  discard ?pb.getField(5, ticket.signature)
 
-  regMsg.ticket.withValue(ticketVal):
-    pb.write(3, ticketVal.encode())
+  ticket.tInit = Moment.init(cast[int64](tInit), Second)
+  ticket.tMod = Moment.init(cast[int64](tMod), Second)
+  ticket.tWaitFor = tWaitFor.secs
 
-  pb.finish()
-  return pb
+  return ok(ticket)
 
-proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  for ad in getAdsMsg.advertisements:
-    pb.write(1, ad)
+Protobuf.extensionDefaults(Ticket, defaultWriteSeq = false)
 
-  pb.finish()
-  return pb
+func computeFieldSize*(
+    field: int,
+    value: Ticket,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool,
+): int =
+  computeFieldSize(field, value.encode().buffer, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: Ticket,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.encode().buffer, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var Ticket,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+  if readFieldInto(stream, data, header, pbytes):
+    value = Ticket.decode(initProtoBuffer(data)).valueOr:
+      raise (ref ProtobufValueError)(msg: "Invalid Ticket")
+    true
+  else:
+    false
+
+Protobuf.serializerFor([RegisterMessage, GetAdsMessage])
 
 proc encode*(
     msg: Message, hideConnectionStatus: bool = true
@@ -224,51 +261,6 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
   return ok(p)
 
-proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  var
-    ticket = Ticket()
-    tInit: uint64 = 0
-    tMod: uint64 = 0
-    tWaitFor: uint32 = 0
-
-  discard ?pb.getField(1, ticket.advertisement)
-  discard ?pb.getField(2, tInit)
-  discard ?pb.getField(3, tMod)
-  discard ?pb.getField(4, tWaitFor)
-  discard ?pb.getField(5, ticket.signature)
-
-  #TODO make this nicer?
-  ticket.tInit = Moment.init(cast[int64](tInit), Second)
-  ticket.tMod = Moment.init(cast[int64](tMod), Second)
-  ticket.tWaitFor = tWaitFor.secs
-
-  return ok(ticket)
-
-proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var regMsg = RegisterMessage(
-    advertisement: @[], status: Opt.none(RegistrationStatus), ticket: Opt.none(Ticket)
-  )
-
-  discard ?pb.getField(1, regMsg.advertisement)
-
-  var statusVal: uint32
-  if ?pb.getField(2, statusVal):
-    regMsg.status = Opt.some(?decodeEnum[RegistrationStatus](statusVal))
-
-  var ticketBuf: seq[byte]
-  if ?pb.getField(3, ticketBuf):
-    let ticket = ?Ticket.decode(initProtoBuffer(ticketBuf))
-    regMsg.ticket = Opt.some(ticket)
-
-  return ok(regMsg)
-
-proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var getAdsMsg = GetAdsMessage()
-
-  discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
-
-  return ok(getAdsMsg)
-
 proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   var
     m: Message
@@ -302,13 +294,15 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   # Decode Register message (field 21)
   var regBuf: seq[byte]
   if ?pb.getField(21, regBuf):
-    let regMsg = ?RegisterMessage.decode(initProtoBuffer(regBuf))
+    let regMsg = RegisterMessage.decode(regBuf).valueOr:
+      return err(ProtoError.IncorrectBlob)
     m.register = Opt.some(regMsg)
 
   # Decode GetAds message (field 22)
   var getAdsBuf: seq[byte]
   if ?pb.getField(22, getAdsBuf):
-    let getAdsMsg = ?GetAdsMessage.decode(initProtoBuffer(getAdsBuf))
+    let getAdsMsg = GetAdsMessage.decode(getAdsBuf).valueOr:
+      return err(ProtoError.IncorrectBlob)
     m.getAds = Opt.some(getAdsMsg)
 
   return ok(m)

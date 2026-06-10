@@ -8,7 +8,6 @@ import
   ../../[
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
-import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
