@@ -81,7 +81,7 @@ suite "Circuit Relay V2":
       let stream =
         await cl2.switch.dial(rel.peerInfo.peerId, rel.peerInfo.addrs, RelayV2HopCodec)
       let pb = encode(HopMessage(msgType: HopMessageType.Reserve))
-      await stream.writeLp(pb.buffer)
+      await stream.writeLp(pb)
       let msg = HopMessage.decode(await stream.readLp(RelayMsgSize)).get()
       check:
         msg.msgType == HopMessageType.Status
