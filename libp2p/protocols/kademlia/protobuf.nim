@@ -66,6 +66,13 @@ type
     tWaitFor*: Duration # field 4 - Remaining wait time in seconds
     signature*: seq[byte] # field 5 - Ed25519 signature
 
+  TicketMsg {.proto2.} = object
+    advertisement {.fieldNumber: 1, required.}: seq[byte]
+    tInit {.fieldNumber: 2, pint, required.}: uint64
+    tMod {.fieldNumber: 3, pint, required.}: uint64
+    tWaitFor {.fieldNumber: 4, pint, required.}: uint32
+    signature {.fieldNumber: 5.}: Opt[seq[byte]]
+
   # Register message for Service Discovery
   # Field 21 in the main Message
   RegisterMessage* {.proto2.} = object
@@ -125,35 +132,26 @@ proc encode*(
   pb.finish()
   return pb
 
-proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  pb.write(1, ticket.advertisement)
-  pb.write(2, cast[uint64](ticket.tInit.epochSeconds))
-  pb.write(3, cast[uint64](ticket.tMod.epochSeconds))
-  pb.write(4, cast[uint32](ticket.tWaitFor.seconds))
-  if ticket.signature.len > 0:
-    pb.write(5, ticket.signature)
-  pb.finish()
-  return pb
+proc toMsg(t: Ticket): TicketMsg =
+  TicketMsg(
+    advertisement: t.advertisement,
+    tInit: t.tInit.epochSeconds.uint64,
+    tMod: t.tMod.epochSeconds.uint64,
+    tWaitFor: t.tWaitFor.seconds.uint32,
+    signature:
+      if t.signature.len > 0: Opt.some(t.signature) else: Opt.none(seq[byte]),
+  )
 
-proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  var
-    ticket = Ticket()
-    tInit: uint64 = 0
-    tMod: uint64 = 0
-    tWaitFor: uint32 = 0
+proc toTicket(m: TicketMsg): Ticket =
+  Ticket(
+    advertisement: m.advertisement,
+    tInit: Moment.init(cast[int64](m.tInit), Second),
+    tMod: Moment.init(cast[int64](m.tMod), Second),
+    tWaitFor: m.tWaitFor.secs,
+    signature: m.signature.get(@[]),
+  )
 
-  discard ?pb.getField(1, ticket.advertisement)
-  discard ?pb.getField(2, tInit)
-  discard ?pb.getField(3, tMod)
-  discard ?pb.getField(4, tWaitFor)
-  discard ?pb.getField(5, ticket.signature)
-
-  ticket.tInit = Moment.init(cast[int64](tInit), Second)
-  ticket.tMod = Moment.init(cast[int64](tMod), Second)
-  ticket.tWaitFor = tWaitFor.secs
-
-  return ok(ticket)
+Protobuf.serializerFor([TicketMsg])
 
 Protobuf.extensionDefaults(Ticket, defaultWriteSeq = false)
 
@@ -163,7 +161,7 @@ func computeFieldSize*(
     ProtoType: type ProtobufExt,
     skipDefault: static bool,
 ): int =
-  computeFieldSize(field, value.encode().buffer, pbytes, skipDefault)
+  computeFieldSize(field, value.toMsg().encode(), pbytes, skipDefault)
 
 proc writeField*(
     stream: OutputStream,
@@ -172,7 +170,7 @@ proc writeField*(
     ProtoType: type ProtobufExt,
     skipDefault: static bool = false,
 ) {.raises: [IOError].} =
-  writeField(stream, field, value.encode().buffer, pbytes, skipDefault)
+  writeField(stream, field, value.toMsg().encode(), pbytes, skipDefault)
 
 proc readFieldInto*(
     stream: InputStream,
@@ -182,8 +180,9 @@ proc readFieldInto*(
 ): bool {.raises: [SerializationError, IOError].} =
   var data = default(seq[byte])
   if readFieldInto(stream, data, header, pbytes):
-    value = Ticket.decode(initProtoBuffer(data)).valueOr:
+    let ticketMsg = TicketMsg.decode(data).valueOr:
       raise (ref ProtobufValueError)(msg: "Invalid Ticket")
+    value = ticketMsg.toTicket()
     true
   else:
     false
