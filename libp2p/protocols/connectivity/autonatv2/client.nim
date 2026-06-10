@@ -39,7 +39,8 @@ proc handleDialBack(
     return
 
   stream.localAddr.withValue(localAddr):
-    debug "Setting expectedNonces", nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
+    debug "Setting expectedNonces",
+      nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
     self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
   else:
     error "Unable to get localAddr from connection"
@@ -96,9 +97,8 @@ proc handleDialDataRequest*(
 
   # send required data
   var msg = AutonatV2Msg(
-    dialDataResp: Opt.some(
-      DialDataResponse(data: newSeq[byte](MaxDialDataResponsePayload))
-    )
+    dialDataResp:
+      Opt.some(DialDataResponse(data: newSeq[byte](MaxDialDataResponsePayload)))
   )
   let messagesToSend =
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
@@ -156,9 +156,7 @@ method sendDialRequest*(
 
     # send dialRequest
     await stream.writeLp(
-      AutonatV2Msg(
-        dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: nonce))
-      ).encode()
+      AutonatV2Msg(dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: nonce))).encode()
     )
     let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
       raise newException(AutonatV2Error, error)

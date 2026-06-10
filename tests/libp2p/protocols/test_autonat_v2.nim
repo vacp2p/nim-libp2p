@@ -76,9 +76,7 @@ suite "AutonatV2":
     )
 
     # DialDataRequest
-    checkEncodeDecode(
-      DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64)
-    )
+    checkEncodeDecode(DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64))
 
     # DialDataResponse
     checkEncodeDecode(DialDataResponse(data: @[1'u8, 2, 3, 4, 5]))
@@ -114,17 +112,14 @@ suite "AutonatV2":
     # AutonatV2Msg - DialDataRequest
     checkEncodeDecode(
       AutonatV2Msg(
-        dialDataReq: Opt.some(
-          DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64)
-        )
+        dialDataReq:
+          Opt.some(DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64))
       )
     )
 
     # AutonatV2Msg - DialDataResponse
     checkEncodeDecode(
-      AutonatV2Msg(
-        dialDataResp: Opt.some(DialDataResponse(data: @[1'u8, 2, 3, 4, 5]))
-      )
+      AutonatV2Msg(dialDataResp: Opt.some(DialDataResponse(data: @[1'u8, 2, 3, 4, 5])))
     )
 
     # DialBack
@@ -134,33 +129,23 @@ suite "AutonatV2":
     checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
 
   asyncTest "asNetworkReachability":
-    check asNetworkReachability(DialResponse(status: EInternalError)) ==
-      Unknown
-    check asNetworkReachability(DialResponse(status: ERequestRejected)) ==
-      Unknown
+    check asNetworkReachability(DialResponse(status: EInternalError)) == Unknown
+    check asNetworkReachability(DialResponse(status: ERequestRejected)) == Unknown
     check asNetworkReachability(DialResponse(status: EDialRefused)) == Unknown
     check asNetworkReachability(
-      DialResponse(
-        status: ResponseStatus.Ok, dialStatus: Opt.none(DialStatus)
-      )
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.none(DialStatus))
     ) == Unknown
     check asNetworkReachability(
       DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(Unused))
     ) == Unknown
     check asNetworkReachability(
-      DialResponse(
-        status: ResponseStatus.Ok, dialStatus: Opt.some(EDialError)
-      )
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialError))
     ) == NotReachable
     check asNetworkReachability(
-      DialResponse(
-        status: ResponseStatus.Ok, dialStatus: Opt.some(EDialBackError)
-      )
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(EDialBackError))
     ) == NotReachable
     check asNetworkReachability(
-      DialResponse(
-        status: ResponseStatus.Ok, dialStatus: Opt.some(DialStatus.Ok)
-      )
+      DialResponse(status: ResponseStatus.Ok, dialStatus: Opt.some(DialStatus.Ok))
     ) == Reachable
 
   asyncTest "asAutonatV2Response":
@@ -303,15 +288,13 @@ suite "AutonatV2":
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
 
     # 1. invalid autonatv2msg
-    autonatV2Mock.response =
-      DialBackResponse(status: DialBackStatus.Ok).encode()
+    autonatV2Mock.response = DialBackResponse(status: DialBackStatus.Ok).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 2. msg that is not DialResponse or DialDataRequest
-    autonatV2Mock.response = AutonatV2Msg(
-      dialReq: Opt.some(DialRequest(addrs: @[], nonce: 0.uint64))
-    ).encode()
+    autonatV2Mock.response =
+      AutonatV2Msg(dialReq: Opt.some(DialRequest(addrs: @[], nonce: 0.uint64))).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 

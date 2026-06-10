@@ -54,9 +54,8 @@ proc sendDialResponse(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   await stream.writeLp(
     AutonatV2Msg(
-      dialResp: Opt.some(
-        DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus)
-      )
+      dialResp:
+        Opt.some(DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus))
     ).encode()
   )
 
@@ -131,11 +130,8 @@ proc amplificationAttackPrevention(
   # send DialDataRequest
   await stream.writeLp(
     AutonatV2Msg(
-      dialDataReq: Opt.some(
-        DialDataRequest(
-          addrIdx: addrIdx, numBytes: self.config.dialDataSize
-        )
-      )
+      dialDataReq:
+        Opt.some(DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize))
     ).encode()
   )
 
@@ -248,10 +244,12 @@ proc handleDialRequest(
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
-  debug "Sending DialBack", nonce = req.nonce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
+  debug "Sending DialBack",
+    nonce = req.nonce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
 
   try:
-    let dialStatus = await dialBackConn.dialBack(req.nonce).wait(self.config.dialTimeout)
+    let dialStatus =
+      await dialBackConn.dialBack(req.nonce).wait(self.config.dialTimeout)
     await stream.sendDialResponse(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )
