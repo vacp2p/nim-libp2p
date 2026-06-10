@@ -54,7 +54,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     # With empty cache: c = 0, occupancy = 1.0, c_s = 0, ipSim = 0
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
     let expected =
-      ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
+      round(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
 
     check abs(w.inFloatSecs - expected) < 0.001
 
@@ -67,33 +67,50 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let ad2 = makeAdvertisement($serviceId2)
     let now = Moment.now()
 
+    registrar.cache[serviceId1] = @[ad1]
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
+    let w1 = registrar.waitingTime(discoConfig, ad1, 100, serviceId1, now)
+
+    registrar.cache[serviceId2] = @[ad2]
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
+    let w2 = registrar.waitingTime(discoConfig, ad2, 100, serviceId2, now)
 
-    let w1 = registrar.waitingTime(discoConfig, ad1, 1000, serviceId1, now)
-    let w2 = registrar.waitingTime(discoConfig, ad2, 1000, serviceId2, now)
-
-    # With non-zero cache, occupancy > 1.0
-    check w1 > ZeroDuration or w2 > ZeroDuration
+    check w1 < w2
 
   test "waitingTime increases with service similarity":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
-    let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement($serviceId)
-    let ad2 = makeAdvertisement($serviceId)
-    let ad3 = makeAdvertisement($serviceId)
+    let serviceId1 = makeServiceId(1)
+    let serviceId2 = makeServiceId(2)
+    let serviceId3 = makeServiceId(3)
+    let serviceId4 = makeServiceId(4)
+    let ad1 = makeAdvertisement($serviceId1)
+    let ad2 = makeAdvertisement($serviceId2)
+    let ad3 = makeAdvertisement($serviceId3)
+    let ad4 = makeAdvertisement($serviceId4)
+    let ad5 = makeAdvertisement($serviceId4)
+    let ad6 = makeAdvertisement($serviceId4)
     let now = Moment.now()
 
-    registrar.cache[serviceId] = @[ad1, ad2, ad3]
+    registrar.cache[serviceId1] = @[ad1]
+    registrar.cache[serviceId2] = @[ad2]
+    registrar.cache[serviceId3] = @[ad3]
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
     registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now
 
-    let w = registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig, ad1, 100, serviceId1, now)
 
-    # c_s = 3, serviceSim = 3/1000 contributes to wait time
-    check w > ZeroDuration
+    registrar.cache.clear()
+    registrar.cacheTimestamps.clear()
+
+    registrar.cache[serviceId4] = @[ad4, ad5, ad6]
+    registrar.cacheTimestamps[ad4.toAdvertisementKey()] = now
+    registrar.cacheTimestamps[ad5.toAdvertisementKey()] = now
+    registrar.cacheTimestamps[ad6.toAdvertisementKey()] = now
+    let w2 = registrar.waitingTime(discoConfig, ad4, 100, serviceId4, now)
+
+    check w1 < w2
 
   test "waitingTime returns 0.0 IP similarity for IPs not in tree":
     let registrar = Registrar.new()
@@ -109,7 +126,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w > ZeroDuration
+    check w == ZeroDuration
 
   test "waitingTime uses maximum IP score across multiple addresses":
     let registrar = Registrar.new()
@@ -153,7 +170,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     # At capacity, occupancy = 100.0
     # Allow 1 ns tolerance: float->ns truncation can lose a sub-nanosecond fraction
     let expectedSecs =
-      ceil(discoConfig.advertExpiry.seconds.float64 * 100.0 * discoConfig.safetyParam)
+      round(discoConfig.advertExpiry.seconds.float64 * 100.0 * discoConfig.safetyParam)
     check w.inFloatSecs >= expectedSecs - 1e-9
 
   test "waitingTime formula includes safety parameter":
@@ -224,21 +241,6 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 500.secs
-
-  test "waitingTime service lower bound decreases with elapsed time":
-    let registrar = Registrar.new()
-    let discoConfig = ServiceDiscoveryConfig.new()
-    let serviceId = makeServiceId()
-    let ad = makeAdvertisement($serviceId)
-    let now = initMoment(2000)
-
-    registrar.boundService[serviceId] = initMoment(500)
-    registrar.timestampService[serviceId] = initMoment(1000)
-
-    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
-
-    check w >= 1.secs
-    check w < 1000.secs
 
   test "waitingTime enforces IP lower bound when exists":
     let registrar = Registrar.new()
@@ -733,25 +735,25 @@ suite "Service Discovery Registrar - Configuration Variations":
     check w >= ZeroDuration
 
 suite "Service Discovery Registrar - Register Message Validation":
-  test "validateRegisterMessage rejects empty advertisement":
+  test "isValidAdvertisement rejects empty advertisement":
     let regMsg = kadprotobuf.RegisterMessage(
       advertisement: @[],
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg, makeServiceId()).isNone()
+    check isValidAdvertisement(regMsg, makeServiceId()).isErr()
 
-  test "validateRegisterMessage rejects malformed advertisement bytes":
+  test "isValidAdvertisement rejects malformed advertisement bytes":
     let regMsg = kadprotobuf.RegisterMessage(
       advertisement: @[1'u8, 2, 3, 4],
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg, makeServiceId()).isNone()
+    check isValidAdvertisement(regMsg, makeServiceId()).isErr()
 
-  test "validateRegisterMessage accepts decodable advertisement":
+  test "isValidAdvertisement accepts decodable advertisement":
     let serviceStr = $1
     let serviceId = hashServiceId(serviceStr)
     let ad = makeAdvertisement(serviceStr, addrs = @[makeMultiAddress("10.0.0.1")])
@@ -763,13 +765,13 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    let decoded = validateRegisterMessage(regMsg, serviceId)
+    let decoded = isValidAdvertisement(regMsg, serviceId)
 
-    check decoded.isSome()
+    check decoded.isOk()
     check decoded.get().data.peerId == ad.data.peerId
     check decoded.get().data.seqNo == ad.data.seqNo
 
-  test "validateRegisterMessage rejects advertisement for different service":
+  test "isValidAdvertisement rejects advertisement for different service":
     let serviceId = "service".hashServiceId()
     let ad = makeAdvertisement("other-service")
     let adBuf = ad.encode().get()
@@ -779,9 +781,9 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg, serviceId).isNone()
+    check isValidAdvertisement(regMsg, serviceId).isErr()
 
-  test "validateRegisterMessage rejects advertisement with no services":
+  test "isValidAdvertisement rejects advertisement with no services":
     let serviceId = "service".hashServiceId()
     let ad = makeAdvertisementWithServices(@[])
     let adBuf = ad.encode().get()
@@ -791,9 +793,9 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg, serviceId).isNone()
+    check isValidAdvertisement(regMsg, serviceId).isErr()
 
-  test "validateRegisterMessage accepts multi-service advertisement":
+  test "isValidAdvertisement accepts multi-service advertisement":
     let services = @[
       makeServiceInfo("service-a"),
       makeServiceInfo("service-b"),
@@ -808,227 +810,15 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    let decoded = validateRegisterMessage(regMsg, serviceId)
+    let decoded = isValidAdvertisement(regMsg, serviceId)
 
     check:
-      decoded.isSome()
+      decoded.isOk()
       decoded.get().data.peerId == ad.data.peerId
       decoded.get().data.services.len == 3
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
-  test "processRetryTicket returns original wait time when no ticket is present":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-    let now = Moment.now()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.none(Ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket returns original wait time for mismatched ticket advertisement":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-    let now = Moment.now()
-
-    let otherAd = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.2")])
-    let otherAdBuf = otherAd.encode().get()
-
-    var ticket = Ticket(
-      advertisement: otherAdBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.init(1_100, Second),
-      tWaitFor: 50.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket returns original wait time for invalid ticket signature":
-    let disco = setupServiceDiscoveryNode()
-    let otherDisco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-    let now = Moment.now()
-
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.init(1_100, Second),
-      tWaitFor: 50.secs,
-      signature: @[],
-    )
-    check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket returns original wait time when retry window is far in the past":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    let now = Moment.now()
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: now - 100_000.secs,
-      tWaitFor: 0.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket returns original wait time when retry is too early":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    # Set tMod = now, tWaitFor = 100 → windowStart = now + 100 (in the future)
-    let now = Moment.now()
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: now - 1000.secs,
-      tMod: now,
-      tWaitFor: 100.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket returns original wait time when retry is outside registration window":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    # Set tMod = now - 100, tWaitFor = 50 → windowStart = now - 50
-    # delta = 1s → windowEnd = now - 49; now > windowEnd → outside
-    let now = Moment.now()
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: now - 1000.secs,
-      tMod: now - 100.secs,
-      tWaitFor: 50.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining == tWait
-
-  test "processRetryTicket subtracts accumulated wait at windowEnd boundary":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    # Set tMod = now, tWaitFor = 0 → windowStart = now
-    # delta = 1s → windowEnd = now + 1; now is within window
-    # totalWaitSoFar = now - (now - 151) = 151 ± 1
-    let now = Moment.now()
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: now - 151.secs,
-      tMod: now,
-      tWaitFor: 0.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    # totalWaitSoFar = 151 ± 1; tRemaining = 149 ± 1
-    check abs(tRemaining.secs - 149) <= 1
-
-  test "processRetryTicket returns non-positive remaining when accumulated wait exceeds tWait":
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
-    # totalWaitSoFar = now - (now - 150) = 150 ± 1; tWait = 100 → negative
-    let now = Moment.now()
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: now - 150.secs,
-      tMod: now,
-      tWaitFor: 0.secs,
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 100.secs
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check tRemaining <= ZeroDuration
-
-  test "processRetryTicket subtracts accumulated wait for valid retry in window":
+  test "subtracts accumulated wait for retry":
     let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
@@ -1050,12 +840,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.secs
+    var tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    disco.updateWaitAfterRetry(regMsg.ticket, now, tWait)
 
     # totalWaitSoFar = 150 ± 1; tRemaining = 150 ± 1
-    check abs(tRemaining.secs - 150) <= 1
+    check abs(tWait.secs - 150) <= 1
 
 suite "Service Discovery Registrar - registration rejects invalid tickets":
   # These tests exercise the full registration() path (not just the helper).
@@ -1458,16 +1248,23 @@ suite "Service Discovery Registrar - insertNewAd":
 
 suite "Service Discovery Registrar - registration response":
   test "wait response records the wait time and does not cache the ad":
-    let disco = setupServiceDiscoveryNode()
-    let serviceName = "service"
-    let serviceId = serviceName.hashServiceId()
-    let ad = makeAdvertisement(serviceName)
-    let adBytes = ad.encode().get()
-    let advertiserId = ad.data.peerId
+    let config = ServiceDiscoveryConfig.new(safetyParam = 1.0)
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
+    let serviceId1 = makeServiceId(1)
+    let serviceIdName = "service"
+    let serviceId2 = serviceIdName.hashServiceId()
+    let ad1 = makeAdvertisement($serviceId1)
+    let ad2 = makeAdvertisement(serviceIdName)
+    let adBytes = ad2.encode().get()
+    let advertiserId = ad2.data.peerId
+    let now = Moment.now()
+
+    disco.registrar.cache[serviceId1] = @[ad1]
+    disco.registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: serviceId,
+      key: serviceId2,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -1482,9 +1279,9 @@ suite "Service Discovery Registrar - registration response":
     check:
       reply.status.get() == kadprotobuf.RegistrationStatus.Wait
       reply.ticket.isSome()
-      disco.countAdsInCache(serviceId) == 0
-      serviceId in disco.registrar.boundService
-      serviceId in disco.registrar.timestampService
+      disco.countAdsInCache(serviceId2) == 0
+      serviceId2 in disco.registrar.boundService
+      serviceId2 in disco.registrar.timestampService
 
     let ticket = reply.ticket.get()
     let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().get()

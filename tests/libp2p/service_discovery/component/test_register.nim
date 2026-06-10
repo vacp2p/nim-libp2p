@@ -14,7 +14,7 @@ suite "Service Discovery Component - Register":
   teardown:
     checkTrackers()
 
-  asyncTest "first REGISTER with no ticket returns Wait":
+  asyncTest "first REGISTER with no ticket returns Confirm":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -28,8 +28,7 @@ suite "Service Discovery Component - Register":
       registrarNode.switch.peerInfo.peerId, serviceId, adBytes
     )
     check regResp.isOk()
-    check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
-    check regResp.get().ticket.isSome()
+    check regResp.get().status == kad_protobuf.RegistrationStatus.Confirmed
 
   asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Rejected":
     let registrarNode = setupServiceDiscoveryNode()
@@ -61,23 +60,6 @@ suite "Service Discovery Component - Register":
     check regResp.isOk()
     check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
 
-  asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode])
-    await connect(registrarNode, advertiserNode)
-
-    let serviceName = "test-confirm-service"
-    let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(serviceName).encode().get()
-
-    let regResp = await advertiserNode.sendRegister(
-      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
-    )
-    check regResp.isOk()
-    check regResp.get().status == kad_protobuf.RegistrationStatus.Confirmed
-
   asyncTest "back-to-back REGISTERs return identical waits":
     # Anti-grinding: tMod + tWaitFor (eligibility moment) must never move earlier across retries.
     let registrarNode = setupServiceDiscoveryNode()
@@ -94,6 +76,10 @@ suite "Service Discovery Component - Register":
       .get()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
+    let response: RegistrationResponse =
+      (await advertiserNode.sendRegister(registrarPeerId, serviceId, adBytes)).get()
+    check response.status == kad_protobuf.RegistrationStatus.Confirmed
+
     proc requestTicket(): Future[Ticket] {.async.} =
       let response: RegistrationResponse =
         (await advertiserNode.sendRegister(registrarPeerId, serviceId, adBytes)).get()
@@ -101,11 +87,11 @@ suite "Service Discovery Component - Register":
       check response.ticket.isSome()
       return response.ticket.get()
 
-    let first = await requestTicket()
     let second = await requestTicket()
+    let third = await requestTicket()
     check:
-      second.tWaitFor == first.tWaitFor
-      second.tMod >= first.tMod
+      third.tWaitFor == second.tWaitFor
+      third.tMod >= second.tMod
 
   asyncTest "REGISTER preserves registrar cache seqNo semantics":
     # Use a non-zero subsecond expiry: the waiting-time formula rounds it down
@@ -227,7 +213,7 @@ suite "Service Discovery Component - Register":
     let maloryResp =
       await maloryNode.sendRegister(registrarPeerId, serviceId, maloryAdBytes)
     check maloryResp.isOk()
-    check maloryResp.get().status == kad_protobuf.RegistrationStatus.Wait
+    check maloryResp.get().status == kad_protobuf.RegistrationStatus.Confirmed
 
     let legitimateResp =
       await legitimateNode.sendRegister(registrarPeerId, serviceId, legitimateAdBytes)

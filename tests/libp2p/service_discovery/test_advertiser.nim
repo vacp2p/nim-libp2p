@@ -121,6 +121,7 @@ suite "Advertiser - removeProvidedService":
     disco.addProvidedService(s2)
 
     await disco.removeProvidedService(s1.id)
+    disco.unregisterInterest(s1.id) # local registrar has interest too
 
     check:
       not disco.rtManager.hasService(sid1)
@@ -144,6 +145,7 @@ suite "Advertiser - removeProvidedService":
     disco.addProvidedService(s2)
 
     await disco.removeProvidedService(s1.id)
+    disco.unregisterInterest(s1.id) # local registrar has interest too
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
