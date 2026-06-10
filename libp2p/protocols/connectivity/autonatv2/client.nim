@@ -34,23 +34,19 @@ proc handleDialBack(
   debug "Handling DialBack",
     stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
-  let nonce = dialBack.nonce.valueOr:
-    error "DialBack missing nonce"
-    return
-
-  if not self.expectedNonces.hasKey(nonce):
-    error "Not expecting this nonce", nonce = nonce
+  if not self.expectedNonces.hasKey(dialBack.nonce):
+    error "Not expecting this nonce", nonce = dialBack.nonce
     return
 
   stream.localAddr.withValue(localAddr):
-    debug "Setting expectedNonces", nonce = nonce, localAddr = Opt.some(localAddr)
-    self.expectedNonces[nonce] = Opt.some(localAddr)
+    debug "Setting expectedNonces", nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
+    self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
   else:
     error "Unable to get localAddr from connection"
     return
 
   trace "Sending DialBackResponse"
-  await stream.writeLp(DialBackResponse(status: Opt.some(DialBackStatus.Ok)).encode())
+  await stream.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode())
 
 proc new*(
     T: typedesc[AutonatV2Client],
@@ -93,10 +89,7 @@ proc handleDialDataRequest*(
   debug "Received DialDataRequest",
     numBytes = req.numBytes, maxAcceptedNumBytes = MaxAcceptedDialDataRequest
 
-  if req.numBytes.isNone:
-    raise newException(AutonatV2Error, "Rejecting DialDataRequest: numBytes is not set")
-
-  if req.numBytes.get() > MaxAcceptedDialDataRequest:
+  if req.numBytes > MaxAcceptedDialDataRequest:
     raise newException(
       AutonatV2Error, "Rejecting DialDataRequest: numBytes is greater than the maximum"
     )
@@ -104,11 +97,11 @@ proc handleDialDataRequest*(
   # send required data
   var msg = AutonatV2Msg(
     dialDataResp: Opt.some(
-      DialDataResponse(data: Opt.some(newSeq[byte](MaxDialDataResponsePayload)))
+      DialDataResponse(data: newSeq[byte](MaxDialDataResponsePayload))
     )
   )
   let messagesToSend =
-    (req.numBytes.get() + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
+    (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
     debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
@@ -164,7 +157,7 @@ method sendDialRequest*(
     # send dialRequest
     await stream.writeLp(
       AutonatV2Msg(
-        dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: Opt.some(nonce)))
+        dialReq: Opt.some(DialRequest(addrs: testAddrs, nonce: nonce))
       ).encode()
     )
     let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:

@@ -55,7 +55,7 @@ proc sendDialResponse(
   await stream.writeLp(
     AutonatV2Msg(
       dialResp: Opt.some(
-        DialResponse(status: Opt.some(status), addrIdx: addrIdx, dialStatus: dialStatus)
+        DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus)
       )
     ).encode()
   )
@@ -91,7 +91,7 @@ proc dialBack(
 .} =
   try:
     # send dial back
-    await stream.writeLp(DialBack(nonce: Opt.some(nonce)).encode())
+    await stream.writeLp(DialBack(nonce: nonce).encode())
 
     # receive DialBackResponse
     discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
@@ -121,13 +121,9 @@ proc handleDialDataResponses(
       raise newException(AutonatV2Error, "Expecting DialDataResponse")
 
     let resp = msg.dialDataResp.get()
-    if resp.data.isNone:
-      raise newException(AutonatV2Error, "DialDataResponse missing data")
-
-    let data = resp.data.get()
-    dataReceived += data.len.uint64
+    dataReceived += resp.data.len.uint64
     debug "received data",
-      dataReceived = data.len.uint64, totalDataReceived = dataReceived
+      dataReceived = resp.data.len.uint64, totalDataReceived = dataReceived
 
 proc amplificationAttackPrevention(
     self: AutonatV2, stream: Stream, addrIdx: AddrIdx
@@ -137,7 +133,7 @@ proc amplificationAttackPrevention(
     AutonatV2Msg(
       dialDataReq: Opt.some(
         DialDataRequest(
-          addrIdx: Opt.some(addrIdx), numBytes: Opt.some(self.config.dialDataSize)
+          addrIdx: addrIdx, numBytes: self.config.dialDataSize
         )
       )
     ).encode()
@@ -252,14 +248,10 @@ proc handleDialRequest(
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
-  let nounce = req.nonce.valueOr:
-    error "handleDialRequest missing nonce"
-    return
-
-  debug "Sending DialBack", nonce = nounce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
+  debug "Sending DialBack", nonce = req.nonce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
 
   try:
-    let dialStatus = await dialBackConn.dialBack(nounce).wait(self.config.dialTimeout)
+    let dialStatus = await dialBackConn.dialBack(req.nonce).wait(self.config.dialTimeout)
     await stream.sendDialResponse(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )

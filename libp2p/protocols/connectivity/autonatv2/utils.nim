@@ -14,14 +14,7 @@ import
   ./types
 
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
-  self.status.withValue(status):
-    if status == EInternalError:
-      return Unknown
-    if status == ERequestRejected:
-      return Unknown
-    if status == EDialRefused:
-      return Unknown
-  else:
+  if self.status in [EInternalError, ERequestRejected, EDialRefused]:
     return Unknown
 
   # if got here it means a dial was attempted
