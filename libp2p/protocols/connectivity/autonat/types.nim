@@ -11,7 +11,7 @@ import
   ../../../multiaddress,
   ../../../peerid,
   ../../../errors,
-  ../../../protobuf/utils
+  ../../../utils/protobuf
 
 logScope:
   topics = "libp2p autonat"
