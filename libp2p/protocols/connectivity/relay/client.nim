@@ -88,7 +88,7 @@ proc reserve*(
   let
     pb = encode(HopMessage(msgType: HopMessageType.Reserve))
     msg =
-     try:
+      try:
         await stream.writeLp(pb)
         HopMessage.decode(await stream.readLp(RelayClientMsgSize)).tryGet()
       except CancelledError as exc:
@@ -125,14 +125,13 @@ proc reserve*(
 proc dialPeerV1*(
     cl: RelayClient, stream: Stream, dstPeerId: PeerId, dstAddrs: seq[MultiAddress]
 ): Future[RawConn] {.async: (raises: [CancelledError, RelayV1DialError]).} =
-  var
-    msg = RelayMessage(
-      msgType: Opt.some(RelayType.Hop),
-      srcPeer: Opt.some(
-        RelayPeer(peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)
-      ),
-      dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
-    )
+  var msg = RelayMessage(
+    msgType: Opt.some(RelayType.Hop),
+    srcPeer: Opt.some(
+      RelayPeer(peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)
+    ),
+    dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
+  )
 
   trace "Dial peer", msgSend = msg
 
