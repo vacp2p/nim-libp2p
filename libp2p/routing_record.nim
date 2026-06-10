@@ -8,7 +8,7 @@
 import std/[sequtils, times]
 import pkg/results
 import multiaddress, multicodec, peerid, signed_envelope
-import protobuf_serialization, protobuf_serialization/pkg/results
+import protobuf_serialization
 import utils/protobuf
 
 export peerid, multiaddress, signed_envelope
