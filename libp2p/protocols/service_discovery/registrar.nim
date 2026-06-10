@@ -221,14 +221,18 @@ proc updateLowerBounds*(
 proc isValidAdvertisement*(
     regMsg: RegisterMessage, serviceId: ServiceId
 ): Result[Advertisement, string] =
-  let ad = Advertisement.decode(regMsg.advertisement).valueOr:
-    return err("cannot decode advertisement " & $error)
+  if regMsg.advertisement.len > MaxXPRSize:
+    return err("oversized")
 
-  if not ad.isValid():
-    return err("invalid oversized advertisement")
+  let ad = Advertisement.decode(regMsg.advertisement).valueOr:
+    return err("cannot decode: " & $error)
+
+  for svc in ad.data.services:
+    if not svc.isValid():
+      return err("oversized service data")
 
   if not ad.advertisesService(serviceId):
-    return err("advertisement & message service mismatch")
+    return err("message & advertisement service mismatch")
 
   return ok(ad)
 
