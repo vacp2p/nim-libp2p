@@ -187,6 +187,7 @@ method sendDialRequest*(
   if dialResp.isNone:
     return AutonatV2Response(
       reachability: Unknown,
+      dialResp: DialResponse(status: ResponseStatus.EInternalError),
       addrs: Opt.none(MultiAddress),
     )
 
