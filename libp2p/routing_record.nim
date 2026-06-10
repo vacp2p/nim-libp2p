@@ -20,7 +20,7 @@ type
   PeerRecord* {.proto2.} = object
     peerId* {.fieldNumber: 1, required, ext.}: PeerId
     seqNo* {.fieldNumber: 2, required, pint.}: uint64
-    addresses* {.fieldNumber: 3, required.}: seq[AddressInfo]
+    addresses* {.fieldNumber: 3.}: seq[AddressInfo]
 
 Protobuf.serializerFor([AddressInfo, PeerRecord])
 
