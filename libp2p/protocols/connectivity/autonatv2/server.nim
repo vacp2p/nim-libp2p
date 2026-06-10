@@ -120,7 +120,11 @@ proc handleDialDataResponses(
     if not msg.dialDataResp.isSome:
       raise newException(AutonatV2Error, "Expecting DialDataResponse")
 
-    let data = msg.dialDataResp.get().data.get(@[])
+    let resp = msg.dialDataResp.get()
+    if resp.data.isNone:
+      raise newException(AutonatV2Error, "DialDataResponse missing data")
+
+    let data = resp.data.get()
     dataReceived += data.len.uint64
     debug "received data",
       dataReceived = data.len.uint64, totalDataReceived = dataReceived
@@ -248,12 +252,14 @@ proc handleDialRequest(
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
-  debug "Sending DialBack",
-    nonce = req.nonce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
+  let nounce = req.nonce.valueOr:
+    error "handleDialRequest missing nonce"
+    return
+
+  debug "Sending DialBack", nonce = nounce, addrIdx = addrIdx, addr = req.addrs[addrIdx]
 
   try:
-    let dialStatus =
-      await dialBackConn.dialBack(req.nonce.get()).wait(self.config.dialTimeout)
+    let dialStatus = await dialBackConn.dialBack(nounce).wait(self.config.dialTimeout)
     await stream.sendDialResponse(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )

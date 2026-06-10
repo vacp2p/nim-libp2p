@@ -56,29 +56,29 @@ type
     EDialBackError = 101
     Ok = 200
 
-  DialRequest* {.proto2.} = object
+  DialRequest* {.proto3.} = object
     addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
     nonce* {.fieldNumber: 2, pint.}: Opt[Nonce]
 
-  DialResponse* {.proto2.} = object
+  DialResponse* {.proto3.} = object
     status* {.fieldNumber: 1, ext.}: Opt[ResponseStatus]
     addrIdx* {.fieldNumber: 2, pint.}: Opt[AddrIdx]
     dialStatus* {.fieldNumber: 3, ext.}: Opt[DialStatus]
 
-  DialBack* {.proto2.} = object
+  DialBack* {.proto3.} = object
     nonce* {.fieldNumber: 1, pint.}: Opt[Nonce]
 
-  DialBackResponse* {.proto2.} = object
+  DialBackResponse* {.proto3.} = object
     status* {.fieldNumber: 1, ext.}: Opt[DialBackStatus]
 
-  DialDataRequest* {.proto2.} = object
+  DialDataRequest* {.proto3.} = object
     addrIdx* {.fieldNumber: 1, pint.}: Opt[AddrIdx]
     numBytes* {.fieldNumber: 2, pint.}: Opt[NumBytes]
 
-  DialDataResponse* {.proto2.} = object
+  DialDataResponse* {.proto3.} = object
     data* {.fieldNumber: 1.}: Opt[seq[byte]]
 
-  AutonatV2Msg* {.proto2.} = object
+  AutonatV2Msg* {.proto3.} = object
     dialReq* {.fieldNumber: 1.}: Opt[DialRequest]
     dialResp* {.fieldNumber: 2.}: Opt[DialResponse]
     dialDataReq* {.fieldNumber: 3.}: Opt[DialDataRequest]
