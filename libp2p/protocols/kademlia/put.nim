@@ -66,15 +66,13 @@ proc dispatchPutVal*(
   let encoded = msg.encode()
 
   kad_messages_sent.inc(labelValues = [$MessageType.putValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -157,11 +155,9 @@ proc handlePutValue*(
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send find-node RPC reply", stream = stream, err = exc.msg
     return

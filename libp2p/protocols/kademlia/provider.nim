@@ -124,10 +124,10 @@ proc dispatchAddProvider(
   let encoded = msg.encode(kad.config.hideConnectionStatus)
   kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
+    encoded.len.int64, labelValues = [$MessageType.addProvider]
   )
   let writeRes = catch:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   if writeRes.isErr:
     return err(writeRes.error.msg)
 
@@ -234,7 +234,7 @@ proc sendAddProviderResponse(
   let response =
     Message(msgType: MessageType.addProvider, providerStatus: Opt.some(status))
   try:
-    await stream.writeLp(response.encode(kad.config.hideConnectionStatus).buffer)
+    await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
     debug "Failed to send add-provider response",
       stream = stream, err = exc.msg, status = status
@@ -304,14 +304,14 @@ proc dispatchGetProviders*(
 
   kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+    encoded.len.int64, labelValues = [$MessageType.getProviders]
   )
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -383,9 +383,9 @@ proc handleGetProviders*(
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+    encoded.len.int64, labelValues = [$MessageType.getProviders]
   )
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send get-providers RPC reply", stream = stream, err = exc.msg

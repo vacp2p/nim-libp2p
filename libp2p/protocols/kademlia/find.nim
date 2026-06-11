@@ -176,15 +176,13 @@ proc dispatchFindNode*(
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.findNode])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -363,11 +361,9 @@ method handleFindNode*(
   let response =
     Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
   let encoded = response.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply",
       stream = stream, err = exc.msg

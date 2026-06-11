@@ -27,15 +27,13 @@ proc dispatchGetVal*(
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -178,11 +176,9 @@ method handleGetValue*(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
     let encoded = response.encode(kad.config.hideConnectionStatus)
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-    )
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
     try:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return
@@ -200,11 +196,9 @@ method handleGetValue*(
     closerPeers: kad.findClosestPeers(key),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return

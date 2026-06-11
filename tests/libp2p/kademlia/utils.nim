@@ -232,7 +232,7 @@ proc sendAddProviderAndGetStatus*(
     providerPeers: @[sender.switch.peerInfo.toPeer()],
   )
   let writeRes = catch:
-    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus))
   if writeRes.isErr:
     return err(writeRes.error.msg)
   let readFut = stream.readLp(MaxMsgSize)
