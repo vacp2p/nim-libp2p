@@ -214,7 +214,7 @@ proc handleHopStreamV2*(
     await sendHopStatus(stream, MalformedMessage)
     return
   trace "relayv2 handle stream", hopMsg = msg
-  
+
   if msg.msgType.isNone:
     trace "relayv2 mesage type not set"
     await sendHopStatus(stream, MalformedMessage)

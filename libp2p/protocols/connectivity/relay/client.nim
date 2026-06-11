@@ -45,7 +45,8 @@ proc sendStopError(
 ) {.async: (raises: [CancelledError]).} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   try:
-    let msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(code))
+    let msg =
+      StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(code))
     await stream.writeLp(encode(msg))
   except CancelledError as e:
     raise e
@@ -96,7 +97,7 @@ proc reserve*(
       except CatchableError as exc:
         trace "error writing or reading reservation message", description = exc.msg
         raise newException(ReservationError, exc.msg)
-  
+
   if msg.msgType.isNone or msg.msgType.get() != HopMessageType.Status:
     raise newException(ReservationError, "Unexpected relay response type")
   if msg.status.get(UnexpectedMessage) != Ok:
@@ -202,7 +203,8 @@ proc dialPeerV2*(
       raise
         newException(RelayV2DialError, "Exception decoding HopMessage: " & exc.msg, exc)
 
-  if msgRcvFromRelay.msgType.isNone or msgRcvFromRelay.msgType != Opt.some(HopMessageType.Status):
+  if msgRcvFromRelay.msgType.isNone or
+      msgRcvFromRelay.msgType != Opt.some(HopMessageType.Status):
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
     trace "Relay stop failed", description = msgRcvFromRelay.status

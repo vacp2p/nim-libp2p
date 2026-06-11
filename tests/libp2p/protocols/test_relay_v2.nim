@@ -84,7 +84,7 @@ suite "Circuit Relay V2":
       await stream.writeLp(pb)
       let msg = HopMessage.decode(await stream.readLp(RelayMsgSize)).get()
       check:
-        msg.msgType ==  Opt.some(HopMessageType.Status)
+        msg.msgType == Opt.some(HopMessageType.Status)
         msg.status == Opt.some(StatusV2.ReservationRefused)
 
     asyncTest "Too many reservations + Reconnect":
