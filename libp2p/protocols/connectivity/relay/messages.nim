@@ -16,12 +16,14 @@ import
 
 type
   RelayType* {.pure.} = enum
+    uset = 0 # needed for protobuf
     Hop = 1
     Stop = 2
     Status = 3
     CanHop = 4
 
   StatusV1* {.pure.} = enum
+    uset = 0 # needed for protobuf
     Success = 100
     HopSrcAddrTooLong = 220
     HopDstAddrTooLong = 221
@@ -39,26 +41,22 @@ type
     StopRelayRefused = 390
     MalformedMessage = 400
 
-  RelayPeer* {.proto2.} = object
-    peerId* {.fieldNumber: 1, required, ext.}: PeerId
+  RelayPeer* {.proto3.} = object
+    peerId* {.fieldNumber: 1, ext.}: PeerId
     addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
-  RelayMessage* {.proto2.} = object
+  RelayMessage* {.proto3.} = object
     msgType* {.fieldNumber: 1, ext.}: Opt[RelayType]
     srcPeer* {.fieldNumber: 2.}: Opt[RelayPeer]
     dstPeer* {.fieldNumber: 3.}: Opt[RelayPeer]
     status* {.fieldNumber: 4, ext.}: Opt[StatusV1]
 
-Protobuf.serializerFor([RelayPeer, RelayMessage])
+  Voucher* {.proto3.} = object
+    relayPeerId* {.fieldNumber: 1, ext.}: PeerId
+    reservingPeerId* {.fieldNumber: 2, ext.}: PeerId
+    expiration* {.fieldNumber: 3, pint.}: uint64
 
-# Voucher
-
-type Voucher* {.proto2.} = object
-  relayPeerId* {.fieldNumber: 1, required, ext.}: PeerId
-  reservingPeerId* {.fieldNumber: 2, required, ext.}: PeerId
-  expiration* {.fieldNumber: 3, required, pint.}: uint64
-
-Protobuf.serializerFor([Voucher])
+Protobuf.serializerFor([RelayPeer, RelayMessage, Voucher])
 
 proc init*(
     T: typedesc[Voucher],
@@ -85,20 +83,21 @@ proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
 # Circuit Relay V2 Messages
 
 type
-  Peer* {.proto2.} = object
-    peerId* {.fieldNumber: 1, required, ext.}: PeerId
+  Peer* {.proto3.} = object
+    peerId* {.fieldNumber: 1, ext.}: PeerId
     addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
-  Reservation* {.proto2.} = object
-    expire* {.fieldNumber: 1, required, pint.}: uint64
+  Reservation* {.proto3.} = object
+    expire* {.fieldNumber: 1, pint.}: uint64
     addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
     svoucher* {.fieldNumber: 3.}: Opt[seq[byte]]
 
-  Limit* {.proto2.} = object
-    duration* {.fieldNumber: 1, required, pint.}: uint32
-    data* {.fieldNumber: 2, required, pint.}: uint64
+  Limit* {.proto3.} = object
+    duration* {.fieldNumber: 1, pint.}: uint32
+    data* {.fieldNumber: 2, pint.}: uint64
 
   StatusV2* = enum
+    uset = 0 # needed for protobuf
     Ok = 100
     ReservationRefused = 200
     ResourceLimitExceeded = 201
@@ -113,8 +112,8 @@ type
     Connect = 1
     Status = 2
 
-  HopMessage* {.proto2.} = object
-    msgType* {.fieldNumber: 1, required, ext.}: HopMessageType
+  HopMessage* {.proto3.} = object
+    msgType* {.fieldNumber: 1, ext.}: HopMessageType
     peer* {.fieldNumber: 2.}: Opt[Peer]
     reservation* {.fieldNumber: 3.}: Opt[Reservation]
     limit* {.fieldNumber: 4.}: Opt[Limit]
@@ -124,12 +123,10 @@ type
     Connect = 0
     Status = 1
 
-  StopMessage* {.proto2.} = object
-    msgType* {.fieldNumber: 1, required, ext.}: StopMessageType
+  StopMessage* {.proto3.} = object
+    msgType* {.fieldNumber: 1, ext.}: StopMessageType
     peer* {.fieldNumber: 2.}: Opt[Peer]
     limit* {.fieldNumber: 3.}: Opt[Limit]
     status* {.fieldNumber: 4, ext.}: Opt[StatusV2]
 
-Protobuf.serializerFor([Peer, Reservation, Limit])
-
-Protobuf.serializerFor([HopMessage, StopMessage])
+Protobuf.serializerFor([Peer, Reservation, Limit, HopMessage, StopMessage])
