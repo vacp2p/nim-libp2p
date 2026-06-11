@@ -36,17 +36,13 @@ proc normalizeTransport(transport: string): string =
   else:
     transport
 
-proc defaultSecureChannel(transport: string): string =
-  if transport == "quic-v1":
-    "null"
-  else:
-    "noise"
+proc defaultSecureChannel(_: string): string =
+  # Circuit-relayed connections still need an inner security upgrade over QUIC.
+  "noise"
 
-proc defaultMuxer(transport: string): string =
-  if transport == "quic-v1":
-    "null"
-  else:
-    "yamux"
+proc defaultMuxer(_: string): string =
+  # Circuit-relayed connections still need an inner stream muxer over QUIC.
+  "yamux"
 
 proc readHolePunchConfig(): BaseConfig =
   let
