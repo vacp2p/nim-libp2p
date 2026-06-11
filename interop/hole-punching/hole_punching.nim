@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/[os, strformat]
+
 import chronos, chronicles, sequtils, tables
 import
   ../../libp2p/[
@@ -20,6 +22,97 @@ import ../unified_testing
 
 logScope:
   topics = "hp interop peer"
+
+const
+  ListenMode = "listen"
+  DialMode = "dial"
+  ListenClientPeerIdKey = "LISTEN_CLIENT_PEER_ID"
+  RelayTcpAddressKey = "RELAY_TCP_ADDRESS"
+  RelayQuicAddressKey = "RELAY_QUIC_ADDRESS"
+
+proc normalizeTransport(transport: string): string =
+  if transport == "quic":
+    "quic-v1"
+  else:
+    transport
+
+proc defaultSecureChannel(transport: string): string =
+  if transport == "quic-v1":
+    "null"
+  else:
+    "noise"
+
+proc defaultMuxer(transport: string): string =
+  if transport == "quic-v1":
+    "null"
+  else:
+    "yamux"
+
+proc readHolePunchConfig(): BaseConfig =
+  let
+    mode = getEnv("MODE")
+    isDialer =
+      case mode
+      of DialMode:
+        true
+      of ListenMode:
+        false
+      of "":
+        parseBoolEnv("IS_DIALER", false)
+      else:
+        raise newException(CatchableError, "unsupported MODE: " & mode)
+    transport = normalizeTransport(getEnv("TRANSPORT", "tcp"))
+    bindIp =
+      if isDialer:
+        resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
+      else:
+        resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
+
+  BaseConfig(
+    isDialer: isDialer,
+    bindIp: bindIp,
+    redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
+    testKey: getEnv("TEST_KEY", ""),
+    transport: transport,
+    secureChannel: getEnv("SECURE_CHANNEL", defaultSecureChannel(transport)),
+    muxer: getEnv("MUXER", defaultMuxer(transport)),
+    testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
+  )
+
+proc relayAddressKey(config: BaseConfig): string =
+  case config.transport
+  of "tcp":
+    RelayTcpAddressKey
+  of "quic-v1":
+    RelayQuicAddressKey
+  else:
+    raise newException(CatchableError, "unsupported transport: " & config.transport)
+
+proc popRedisListValue(client: Redis, key: string, timeout: Duration): string =
+  try:
+    client.bLPop(@[key], timeout.seconds.int)[1]
+  except Exception as e:
+    raise newException(CatchableError, "Exception calling bLPop for " & key & ": " & e.msg, e)
+
+proc fetchHolePunchRelayMultiaddr(
+    client: Redis, config: BaseConfig, timeout: Duration = 30.seconds
+): Future[MultiAddress] {.async.} =
+  let raw = client.popRedisListValue(relayAddressKey(config), timeout)
+  MultiAddress.init(raw).tryGet()
+
+proc publishHolePunchListenerPeerId(client: Redis, sw: Switch): PeerId =
+  let peerId = sw.peerInfo.peerId
+  discard client.rPush(ListenClientPeerIdKey, $peerId)
+  peerId
+
+proc fetchHolePunchListenerPeerId(
+    client: Redis, timeout: Duration = 30.seconds
+): Future[PeerId] {.async.} =
+  let raw = client.popRedisListValue(ListenClientPeerIdKey, timeout)
+  PeerId.init(raw).tryGet()
+
+proc printRttJson(rttMs: float) =
+  echo &"""{{"rtt_to_holepunched_peer_millis":{rttMs:.2f}}}"""
 
 proc createSwitch(
     config: BaseConfig, relayClient: Relay = nil, hpService: Service = nil
@@ -78,7 +171,7 @@ proc connectToRelay(
   info "AutoNAT reports NotReachable"
 
   # Connect to relay (triggers AutoRelay reservation)
-  let relayMA = await fetchRelayMultiaddr(redisClient, config.testKey)
+  let relayMA = await fetchHolePunchRelayMultiaddr(redisClient, config)
   info "Got relay address", relayMA
 
   try:
@@ -109,7 +202,7 @@ proc runDialer(config: BaseConfig) {.async.} =
 
   let relayMA = await connectToRelay(config, redisClient, switches)
 
-  let listenerId = await fetchListenerPeerId(redisClient, config.testKey)
+  let listenerId = await fetchHolePunchListenerPeerId(redisClient)
   info "Got listener peer ID", listenerId
 
   let listenerRelayAddr = MultiAddress.init($relayMA & "/p2p-circuit").tryGet()
@@ -129,7 +222,7 @@ proc runDialer(config: BaseConfig) {.async.} =
   )
 
   let dcutrElapsed = Moment.now() - dcutrStart
-  info "Direct connection established via DCUtR"
+  info "Direct connection established via DCUtR", elapsedMs = dcutrElapsed.toMs()
 
   # Ping over the direct connection
   let channel = await switches.sw.dial(listenerId, PingCodec)
@@ -137,9 +230,7 @@ proc runDialer(config: BaseConfig) {.async.} =
     await channel.close()
 
   let pingDelay = await Ping.new(rng = rng()).ping(channel)
-  let pingRttMs = pingDelay.toMs()
-
-  printLatencyYaml(dcutrElapsed.toMs() + pingRttMs, pingRttMs)
+  printRttJson(pingDelay.toMs())
 
 proc runListener(config: BaseConfig) {.async.} =
   let
@@ -154,14 +245,14 @@ proc runListener(config: BaseConfig) {.async.} =
 
   discard await connectToRelay(config, redisClient, switches)
 
-  let listenerPeerId = publishListenerPeerId(redisClient, config.testKey, switches.sw)
+  let listenerPeerId = publishHolePunchListenerPeerId(redisClient, switches.sw)
   info "Published listener peer ID to Redis", listenerPeerId
 
   # Wait to be killed (docker-compose will stop us after dialer exits)
   await sleepAsync(5.minutes)
 
 proc main() {.async.} =
-  let config = readBaseConfig()
+  let config = readHolePunchConfig()
   info "Test configuration", config
   if config.isDialer:
     await runDialer(config)
