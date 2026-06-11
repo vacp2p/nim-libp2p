@@ -31,10 +31,7 @@ const
   RelayQuicAddressKey = "RELAY_QUIC_ADDRESS"
 
 proc normalizeTransport(transport: string): string =
-  if transport == "quic":
-    "quic-v1"
-  else:
-    transport
+  if transport == "quic": "quic-v1" else: transport
 
 proc defaultSecureChannel(_: string): string =
   # Circuit-relayed connections still need an inner security upgrade over QUIC.
@@ -88,7 +85,9 @@ proc popRedisListValue(client: Redis, key: string, timeout: Duration): string =
   try:
     client.bLPop(@[key], timeout.seconds.int)[1]
   except Exception as e:
-    raise newException(CatchableError, "Exception calling bLPop for " & key & ": " & e.msg, e)
+    raise newException(
+      CatchableError, "Exception calling bLPop for " & key & ": " & e.msg, e
+    )
 
 proc fetchHolePunchRelayMultiaddr(
     client: Redis, config: BaseConfig, timeout: Duration = 30.seconds
@@ -169,7 +168,8 @@ proc connectToRelay(
   info "AutoNAT reports NotReachable"
 
   # Connect to relay (triggers AutoRelay reservation)
-  let relayMA = await fetchHolePunchRelayMultiaddr(redisClient, config, config.testTimeout)
+  let relayMA =
+    await fetchHolePunchRelayMultiaddr(redisClient, config, config.testTimeout)
   info "Got relay address", relayMA
 
   try:
