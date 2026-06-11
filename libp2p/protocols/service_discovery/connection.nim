@@ -24,7 +24,7 @@ proc send*(
   defer:
     await stream.close()
 
-  let encodedMsg = msg.encode().buffer
+  let encodedMsg = msg.encode()
 
   cd_messages_sent.inc(labelValues = [$msg.msgType])
   cd_message_bytes_sent.inc(encodedMsg.len.float64, labelValues = [$msg.msgType])
@@ -63,7 +63,7 @@ proc handleMessage*(
     else:
       disco.getAdvertisements(peerId, msg)
 
-  let bytes = response.encode().buffer
+  let bytes = response.encode()
 
   cd_messages_sent.inc(labelValues = [$msg.msgType])
   cd_message_bytes_sent.inc(bytes.len.float64, labelValues = [$msg.msgType])

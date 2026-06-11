@@ -8,7 +8,6 @@ import
     peerid, switch, multihash, cid, multicodec, multiaddress, routing_record,
     extended_peer_record,
   ]
-import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../../crypto/crypto
 import ../kademlia
@@ -280,7 +279,7 @@ proc sendRegisterResponse*(
     ),
     closerPeers: closerPeers,
   )
-  let bytes = msg.encode().buffer
+  let bytes = msg.encode()
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
