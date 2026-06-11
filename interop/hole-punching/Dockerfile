@@ -23,5 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends bind9-dnsutils 
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/peer /usr/bin/hole-punch-client.bin
 COPY interop/hole-punching/hole-punch-client.sh /usr/bin/hole-punch-client
-RUN chmod +x /usr/bin/hole-punch-client
+COPY interop/hole-punching/hole-punch-entrypoint.sh /usr/bin/hole-punch-entrypoint
+RUN chmod +x /usr/bin/hole-punch-client /usr/bin/hole-punch-entrypoint
+ENTRYPOINT ["/usr/bin/hole-punch-entrypoint"]
 CMD ["hole-punch-client"]

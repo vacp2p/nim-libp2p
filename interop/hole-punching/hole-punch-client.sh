@@ -59,10 +59,20 @@ fix_router_nat() {
   ) || return 0
   [ -n "$project" ] || return 0
 
-  for router_service in dialer_router listener_router; do
+  # Fix the remote router first; Rust peers can start before this wrapper finishes.
+  case "${MODE:-}" in
+    dial) router_services="listener_router dialer_router" ;;
+    listen) router_services="dialer_router listener_router" ;;
+  esac
+
+  for router_service in $router_services; do
     router_ready=0
     router_id=""
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
+    for _ in 1 2 3 4 5 6 7 8 9 10 \
+      11 12 13 14 15 16 17 18 19 20 \
+      21 22 23 24 25 26 27 28 29 30 \
+      31 32 33 34 35 36 37 38 39 40 \
+      41 42 43 44 45 46 47 48 49 50; do
       router_id=$(
         docker_api "http://localhost/containers/json" |
           jq -r --arg project "$project" --arg service "$router_service" \
@@ -76,7 +86,7 @@ fix_router_nat() {
         break
       fi
 
-      sleep 1
+      sleep 0.2
     done
 
     [ -n "$router_id" ] || continue
@@ -96,5 +106,9 @@ fix_router_nat() {
 }
 
 fix_router_nat
+
+if [ "${1:-}" = "--fix-router-nat-only" ]; then
+  exit 0
+fi
 
 exec /usr/bin/hole-punch-client.bin "$@"
