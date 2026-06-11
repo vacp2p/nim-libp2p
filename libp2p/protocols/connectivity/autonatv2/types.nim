@@ -63,7 +63,7 @@ type
 
   DialResponse* {.proto3.} = object
     status* {.fieldNumber: 1, ext.}: ResponseStatus
-    addrIdx* {.fieldNumber: 2, fixed.}: Opt[AddrIdx]
+    addrIdx* {.fieldNumber: 2, pint.}: Opt[AddrIdx]
     dialStatus* {.fieldNumber: 3, ext.}: Opt[DialStatus]
 
   DialBack* {.proto3.} = object
@@ -73,8 +73,8 @@ type
     status* {.fieldNumber: 1, ext.}: DialBackStatus
 
   DialDataRequest* {.proto3.} = object
-    addrIdx* {.fieldNumber: 1, fixed.}: AddrIdx
-    numBytes* {.fieldNumber: 2, fixed.}: NumBytes
+    addrIdx* {.fieldNumber: 1, pint.}: AddrIdx
+    numBytes* {.fieldNumber: 2, pint.}: NumBytes
 
   DialDataResponse* {.proto3.} = object
     data* {.fieldNumber: 1.}: seq[byte]
@@ -89,7 +89,7 @@ type
   AutonatV2MsgOneof* {.proto3, oneof.} = object
     case kind*: MsgKind
     of MsgKind.notSet:
-      nil
+      discard
     of MsgKind.DialRequest:
       dialRequest* {.fieldNumber: 1.}: DialRequest
     of MsgKind.DialResponse:
