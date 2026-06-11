@@ -297,7 +297,7 @@ proc new*(
       except LPStreamError as exc:
         debug "Could not receive AutonatV2Msg", description = exc.msg
         return
-    
+
     debug "Received message", kind = $msg.oneof.kind
     if msg.oneof.kind != MsgKind.DialRequest:
       debug "Expecting DialRequest", receivedMsgType = msg.oneof.kind

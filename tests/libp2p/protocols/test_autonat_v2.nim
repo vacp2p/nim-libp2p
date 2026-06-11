@@ -84,14 +84,15 @@ suite "AutonatV2":
     # AutonatV2Msg - DialRequest
     checkEncodeDecode(
       AutonatV2Msg(
-        dialReq: Opt.some(
-          DialRequest(
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialRequest,
+          dialRequest: DialRequest(
             addrs: @[
               MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
               MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
             ],
             nonce: 42.uint64,
-          )
+          ),
         )
       )
     )
@@ -99,12 +100,13 @@ suite "AutonatV2":
     # AutonatV2Msg - DialResponse
     checkEncodeDecode(
       AutonatV2Msg(
-        dialResp: Opt.some(
-          DialResponse(
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialResponse,
+          dialResponse: DialResponse(
             status: ResponseStatus.Ok,
             addrIdx: Opt.some(1.uint32),
             dialStatus: Opt.some(DialStatus.Ok),
-          )
+          ),
         )
       )
     )
@@ -112,14 +114,21 @@ suite "AutonatV2":
     # AutonatV2Msg - DialDataRequest
     checkEncodeDecode(
       AutonatV2Msg(
-        dialDataReq:
-          Opt.some(DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64))
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialDataRequest,
+          dialDataRequest: DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64),
+        )
       )
     )
 
     # AutonatV2Msg - DialDataResponse
     checkEncodeDecode(
-      AutonatV2Msg(dialDataResp: Opt.some(DialDataResponse(data: @[1'u8, 2, 3, 4, 5])))
+      AutonatV2Msg(
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialDataResponse,
+          dialDataResponse: DialDataResponse(data: @[1'u8, 2, 3, 4, 5]),
+        )
+      )
     )
 
     # DialBack
@@ -293,19 +302,23 @@ suite "AutonatV2":
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 2. msg that is not DialResponse or DialDataRequest
-    autonatV2Mock.response =
-      AutonatV2Msg(dialReq: Opt.some(DialRequest(addrs: @[], nonce: 0.uint64))).encode()
+    autonatV2Mock.response = AutonatV2Msg(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialRequest, dialRequest: DialRequest(addrs: @[], nonce: 0.uint64)
+      )
+    ).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
     # 3. invalid addrIdx (e.g. 1000 when only 1 is present)
     autonatV2Mock.response = AutonatV2Msg(
-      dialResp: Opt.some(
-        DialResponse(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse: DialResponse(
           status: ResponseStatus.Ok,
           addrIdx: Opt.some(1000.AddrIdx),
           dialStatus: Opt.some(DialStatus.Ok),
-        )
+        ),
       )
     ).encode()
     expect(AutonatV2Error):
