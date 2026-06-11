@@ -54,8 +54,11 @@ proc sendDialResponse(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   await stream.writeLp(
     AutonatV2Msg(
-      dialResp:
-        Opt.some(DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus))
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse:
+          DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus),
+      )
     ).encode()
   )
 
@@ -116,10 +119,12 @@ proc handleDialDataResponses(
       raise newException(AutonatV2Error, error)
     debug "Received message"
 
-    if not msg.dialDataResp.isSome:
-      raise newException(AutonatV2Error, "Expecting DialDataResponse")
+    if msg.oneof.kind != MsgKind.DialDataResponse:
+      raise newException(
+        AutonatV2Error, "Expecting DialDataResponse, got " & $msg.oneof.kind
+      )
 
-    let resp = msg.dialDataResp.get()
+    let resp = msg.oneof.dialDataResponse
     dataReceived += resp.data.len.uint64
     debug "received data",
       dataReceived = resp.data.len.uint64, totalDataReceived = dataReceived
@@ -130,8 +135,11 @@ proc amplificationAttackPrevention(
   # send DialDataRequest
   await stream.writeLp(
     AutonatV2Msg(
-      dialDataReq:
-        Opt.some(DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize))
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialDataRequest,
+        dialDataRequest:
+          DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
+      )
     ).encode()
   )
 
@@ -289,15 +297,13 @@ proc new*(
       except LPStreamError as exc:
         debug "Could not receive AutonatV2Msg", description = exc.msg
         return
-
-    debug "Received message"
-
-    if not msg.dialReq.isSome:
-      debug "Expecting DialRequest"
-      return
+    
+    debug "Received message", kind = $msg.oneof.kind
+    if msg.oneof.kind != MsgKind.DialRequest:
+      debug "Expecting DialRequest", receivedMsgType = msg.oneof.kind
 
     try:
-      await autonatV2.handleDialRequest(stream, msg.dialReq.get())
+      await autonatV2.handleDialRequest(stream, msg.oneof.dialRequest)
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:

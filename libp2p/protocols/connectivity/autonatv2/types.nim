@@ -59,31 +59,48 @@ type
 
   DialRequest* {.proto3.} = object
     addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
-    nonce* {.fieldNumber: 2, pint.}: Nonce
+    nonce* {.fieldNumber: 2, fixed.}: Nonce
 
   DialResponse* {.proto3.} = object
     status* {.fieldNumber: 1, ext.}: ResponseStatus
-    addrIdx* {.fieldNumber: 2, pint.}: Opt[AddrIdx]
+    addrIdx* {.fieldNumber: 2, fixed.}: Opt[AddrIdx]
     dialStatus* {.fieldNumber: 3, ext.}: Opt[DialStatus]
 
   DialBack* {.proto3.} = object
-    nonce* {.fieldNumber: 1, pint.}: Nonce
+    nonce* {.fieldNumber: 1, fixed.}: Nonce
 
   DialBackResponse* {.proto3.} = object
     status* {.fieldNumber: 1, ext.}: DialBackStatus
 
   DialDataRequest* {.proto3.} = object
-    addrIdx* {.fieldNumber: 1, pint.}: AddrIdx
-    numBytes* {.fieldNumber: 2, pint.}: NumBytes
+    addrIdx* {.fieldNumber: 1, fixed.}: AddrIdx
+    numBytes* {.fieldNumber: 2, fixed.}: NumBytes
 
   DialDataResponse* {.proto3.} = object
     data* {.fieldNumber: 1.}: seq[byte]
 
+  MsgKind* {.pure, proto3.} = enum
+    notSet = 0
+    DialRequest = 1
+    DialResponse = 2
+    DialDataRequest = 3
+    DialDataResponse = 4
+
+  AutonatV2MsgOneof* {.proto3, oneof.} = object
+    case kind*: MsgKind
+    of MsgKind.notSet:
+      nil
+    of MsgKind.DialRequest:
+      dialRequest* {.fieldNumber: 1.}: DialRequest
+    of MsgKind.DialResponse:
+      dialResponse* {.fieldNumber: 2.}: DialResponse
+    of MsgKind.DialDataRequest:
+      dialDataRequest* {.fieldNumber: 3.}: DialDataRequest
+    of MsgKind.DialDataResponse:
+      dialDataResponse* {.fieldNumber: 4.}: DialDataResponse
+
   AutonatV2Msg* {.proto3.} = object
-    dialReq* {.fieldNumber: 1.}: Opt[DialRequest]
-    dialResp* {.fieldNumber: 2.}: Opt[DialResponse]
-    dialDataReq* {.fieldNumber: 3.}: Opt[DialDataRequest]
-    dialDataResp* {.fieldNumber: 4.}: Opt[DialDataResponse]
+    oneof* {.oneof.}: AutonatV2MsgOneof
 
 Protobuf.serializerFor(
   [
