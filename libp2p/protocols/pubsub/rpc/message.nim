@@ -10,7 +10,6 @@ import
   ../../../peerid,
   ../../../peerinfo,
   ../../../crypto/crypto,
-  ../../../protobuf/minprotobuf,
   ../../../protocols/pubsub/errors
 
 export errors, messages

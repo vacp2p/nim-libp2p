@@ -14,7 +14,6 @@ import
     transports/transport,
     multicodec,
     peerid,
-    protobuf/minprotobuf,
     utils/ipaddr,
   ],
   ../../protocol,
@@ -55,9 +54,12 @@ proc sendDialResponse(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   await stream.writeLp(
     AutonatV2Msg(
-      msgType: MsgType.DialResponse,
-      dialResp: DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus),
-    ).encode().buffer
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse:
+          DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus),
+      )
+    ).encode()
   )
 
 proc findObservedIPAddr*(
@@ -91,13 +93,11 @@ proc dialBack(
 .} =
   try:
     # send dial back
-    await stream.writeLp(DialBack(nonce: nonce).encode().buffer)
+    await stream.writeLp(DialBack(nonce: nonce).encode())
 
     # receive DialBackResponse
-    discard DialBackResponse.decode(
-      initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
-    ).valueOr:
-      trace "DialBack failed, could not decode DialBackResponse"
+    discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+      trace "DialBack failed, could not decode DialBackResponse", error = error
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
@@ -115,15 +115,16 @@ proc handleDialDataResponses(
   var dataReceived: uint64 = 0
 
   while dataReceived < self.config.dialDataSize:
-    let msg = AutonatV2Msg.decode(
-      initProtoBuffer(await stream.readLp(DialDataResponseLpSize))
-    ).valueOr:
-      raise newException(AutonatV2Error, "Received malformed message")
-    debug "Received message", msgType = $msg.msgType
-    if msg.msgType != MsgType.DialDataResponse:
-      raise
-        newException(AutonatV2Error, "Expecting DialDataResponse, got " & $msg.msgType)
-    let resp = msg.dialDataResp
+    let msg = AutonatV2Msg.decode(await stream.readLp(DialDataResponseLpSize)).valueOr:
+      raise newException(AutonatV2Error, error)
+    debug "Received message"
+
+    if msg.oneof.kind != MsgKind.DialDataResponse:
+      raise newException(
+        AutonatV2Error, "Expecting DialDataResponse, got " & $msg.oneof.kind
+      )
+
+    let resp = msg.oneof.dialDataResponse
     dataReceived += resp.data.len.uint64
     debug "received data",
       dataReceived = resp.data.len.uint64, totalDataReceived = dataReceived
@@ -134,9 +135,12 @@ proc amplificationAttackPrevention(
   # send DialDataRequest
   await stream.writeLp(
     AutonatV2Msg(
-      msgType: MsgType.DialDataRequest,
-      dialDataReq: DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
-    ).encode().buffer
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialDataRequest,
+        dialDataRequest:
+          DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
+      )
+    ).encode()
   )
 
   # recieve DialDataResponses until we're satisfied
@@ -287,20 +291,20 @@ proc new*(
 
     let msg =
       try:
-        AutonatV2Msg.decode(initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))).valueOr:
-          trace "Unable to decode AutonatV2Msg"
+        AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+          trace "Unable to decode AutonatV2Msg", error = error
           return
       except LPStreamError as exc:
         debug "Could not receive AutonatV2Msg", description = exc.msg
         return
 
-    debug "Received message", msgType = $msg.msgType
-    if msg.msgType != MsgType.DialRequest:
-      debug "Expecting DialRequest", receivedMsgType = msg.msgType
+    debug "Received message", kind = $msg.oneof.kind
+    if msg.oneof.kind != MsgKind.DialRequest:
+      debug "Expecting DialRequest", receivedMsgType = msg.oneof.kind
       return
 
     try:
-      await autonatV2.handleDialRequest(stream, msg.dialReq)
+      await autonatV2.handleDialRequest(stream, msg.oneof.dialRequest)
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
