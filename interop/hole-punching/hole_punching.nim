@@ -200,10 +200,10 @@ proc runDialer(config: BaseConfig) {.async.} =
     discard
       await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
-  let relayMA = await connectToRelay(config, redisClient, switches)
-
   let listenerId = await fetchHolePunchListenerPeerId(redisClient)
   info "Got listener peer ID", listenerId
+
+  let relayMA = await connectToRelay(config, redisClient, switches)
 
   let listenerRelayAddr = MultiAddress.init($relayMA & "/p2p-circuit").tryGet()
 

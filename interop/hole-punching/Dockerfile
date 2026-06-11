@@ -21,5 +21,7 @@ RUN cd nim-libp2p && \
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends bind9-dnsutils curl iproute2 jq tcpdump \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/peer /usr/bin/hole-punch-client
+COPY --from=builder /app/peer /usr/bin/hole-punch-client.bin
+COPY interop/hole-punching/hole-punch-client.sh /usr/bin/hole-punch-client
+RUN chmod +x /usr/bin/hole-punch-client
 CMD ["hole-punch-client"]
