@@ -82,7 +82,7 @@ suite "Signed Routing Record":
 
     check SignedPeerRecord.decode(buffer).error == EnvelopeInvalidSignature
 
-  test "Decode doesn't fail if some addresses are invalid":
+  test "Decode fails if some addresses are invalid":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
@@ -91,9 +91,8 @@ suite "Signed Routing Record":
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
 
       buffer = routingRecord.encode()
-      parsedRR = PeerRecord.decode(buffer).tryGet()
 
-    check parsedRR.addresses.len == 1
+    check PeerRecord.decode(buffer).isErr
 
   test "Decode doesn't fail if there are no addresses":
     let

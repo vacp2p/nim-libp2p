@@ -152,10 +152,7 @@ proc hashServiceId*(serviceStr: string): ServiceId =
   @(digest.data)
 
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
-  for service in ad.data.services:
-    if hashServiceId(service.id) == serviceId:
-      return true
-  false
+  ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
 
 proc new*(T: typedesc[Registrar]): T =
   T(
