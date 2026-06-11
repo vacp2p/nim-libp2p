@@ -162,12 +162,14 @@ proc connectToRelay(
   # Wait for autonat to report NotReachable
   pollUntil(
     switches.autonatService.networkReachability == NetworkReachability.NotReachable,
+    config.testTimeout,
+    200.milliseconds,
     errorMsg = "Timeout waiting for AutoNAT NotReachable",
   )
   info "AutoNAT reports NotReachable"
 
   # Connect to relay (triggers AutoRelay reservation)
-  let relayMA = await fetchHolePunchRelayMultiaddr(redisClient, config)
+  let relayMA = await fetchHolePunchRelayMultiaddr(redisClient, config, config.testTimeout)
   info "Got relay address", relayMA
 
   try:
@@ -180,6 +182,8 @@ proc connectToRelay(
   # Wait for our relay circuit address
   pollUntil(
     switches.sw.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()),
+    config.testTimeout,
+    200.milliseconds,
     errorMsg = "Timeout waiting for relay circuit address",
   )
   info "Got relay circuit address"
@@ -196,10 +200,9 @@ proc runDialer(config: BaseConfig) {.async.} =
     discard
       await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
-  let listenerId = await fetchHolePunchListenerPeerId(redisClient)
-  info "Got listener peer ID", listenerId
-
   let relayMA = await connectToRelay(config, redisClient, switches)
+  let listenerId = await fetchHolePunchListenerPeerId(redisClient, config.testTimeout)
+  info "Got listener peer ID", listenerId
 
   let listenerRelayAddr = MultiAddress.init($relayMA & "/p2p-circuit").tryGet()
 
@@ -214,6 +217,8 @@ proc runDialer(config: BaseConfig) {.async.} =
   # the relayed connection. Poll for a direct connection.
   pollUntil(
     switches.sw.isDirectlyConnected(listenerId),
+    config.testTimeout,
+    200.milliseconds,
     errorMsg = "DCUtR failed: no direct connection established within timeout",
   )
 
