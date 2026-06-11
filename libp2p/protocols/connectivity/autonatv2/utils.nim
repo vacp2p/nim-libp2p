@@ -11,15 +11,10 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../protobuf/minprotobuf,
   ./types
 
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
-  if self.status == EInternalError:
-    return Unknown
-  if self.status == ERequestRejected:
-    return Unknown
-  if self.status == EDialRefused:
+  if self.status in [EInternalError, ERequestRejected, EDialRefused]:
     return Unknown
 
   # if got here it means a dial was attempted

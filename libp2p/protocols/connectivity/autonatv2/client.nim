@@ -11,7 +11,6 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../protobuf/minprotobuf,
   ./types,
   ./utils
 
@@ -48,7 +47,7 @@ proc handleDialBack(
     return
 
   trace "Sending DialBackResponse"
-  await stream.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode().buffer)
+  await stream.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode())
 
 proc new*(
     T: typedesc[AutonatV2Client],
@@ -62,10 +61,8 @@ proc new*(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let dialBack = DialBack.decode(
-        initProtoBuffer(await stream.readLp(DialBackLpSize))
-      ).valueOr:
-        trace "Unable to decode DialBack"
+      let dialBack = DialBack.decode(await stream.readLp(DialBackLpSize)).valueOr:
+        trace "Unable to decode DialBack", error = error
         return
       if not await client.handleDialBack(stream, dialBack).withTimeout(
         client.dialBackTimeout
@@ -100,25 +97,27 @@ proc handleDialDataRequest*(
 
   # send required data
   var msg = AutonatV2Msg(
-    msgType: MsgType.DialDataResponse,
-    dialDataResp: DialDataResponse(data: newSeq[byte](MaxDialDataResponsePayload)),
+    oneof: AutonatV2MsgOneof(
+      kind: MsgKind.DialDataResponse,
+      dialDataResponse: DialDataResponse(data: newSeq[byte](MaxDialDataResponsePayload)),
+    )
   )
   let messagesToSend =
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
-    await stream.writeLp(msg.encode().buffer)
+    await stream.writeLp(msg.encode())
     debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
 
   # get DialResponse
-  msg = AutonatV2Msg.decode(initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))).valueOr:
-    raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
+  msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+    raise newException(AutonatV2Error, error)
 
-  debug "Received message", msgType = msg.msgType
-  if msg.msgType != MsgType.DialResponse:
+  debug "Received message", kind = msg.oneof.kind
+  if msg.oneof.kind != MsgKind.DialResponse:
     raise
-      newException(AutonatV2Error, "Expecting DialResponse, but got " & $msg.msgType)
+      newException(AutonatV2Error, "Expecting DialResponse, but got " & $msg.oneof.kind)
 
-  return msg.dialResp
+  return msg.oneof.dialResponse
 
 proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
@@ -161,26 +160,27 @@ method sendDialRequest*(
     # send dialRequest
     await stream.writeLp(
       AutonatV2Msg(
-        msgType: MsgType.DialRequest,
-        dialReq: DialRequest(addrs: testAddrs, nonce: nonce),
-      ).encode().buffer
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialRequest,
+          dialRequest: DialRequest(addrs: testAddrs, nonce: nonce),
+        )
+      ).encode()
     )
-    let msg = AutonatV2Msg.decode(
-      initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
-    ).valueOr:
-      raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
+    let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+      raise newException(AutonatV2Error, error)
 
     dialResp =
-      case msg.msgType
-      of MsgType.DialResponse:
-        msg.dialResp
-      of MsgType.DialDataRequest:
-        await stream.handleDialDataRequest(msg.dialDataReq)
+      case msg.oneof.kind
+      of MsgKind.DialResponse:
+        msg.oneof.dialResponse
+      of MsgKind.DialDataRequest:
+        await stream.handleDialDataRequest(msg.oneof.dialDataRequest)
       else:
         raise newException(
           AutonatV2Error,
-          "Expecting DialResponse or DialDataRequest, but got " & $msg.msgType,
+          "Expecting DialResponse or DialDataRequest, but got " & $msg.oneof.kind,
         )
+
     debug "Received DialResponse", dialResp = dialResp
 
     dialResp.dialStatus.withValue(dialStatus):
@@ -195,4 +195,5 @@ method sendDialRequest*(
   finally:
     # rollback any changes
     self.expectedNonces.del(nonce)
+
   return dialResp.asAutonatV2Response(testAddrs)

@@ -6,16 +6,14 @@
 import results
 import chronos, chronicles
 import
-  ../../../../libp2p/[
-    switch, muxers/muxer, dialer, multiaddress, multicodec, peerid, protobuf/minprotobuf
-  ],
+  ../../../../libp2p/[switch, muxers/muxer, dialer, multiaddress, multicodec, peerid],
   ../../protocol,
   ./types,
   ./server
 
 type AutonatV2Mock* = ref object of LPProtocol
   config*: AutonatV2Config
-  response*: ProtoBuffer
+  response*: seq[byte]
 
 proc new*(
     T: typedesc[AutonatV2Mock], config: AutonatV2Config = AutonatV2Config.new()
@@ -28,20 +26,13 @@ proc new*(
       await stream.close()
 
     try:
-      let msg = AutonatV2Msg.decode(
-        initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
-      ).valueOr:
-        return
-      if msg.msgType != MsgType.DialRequest:
+      let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
         return
     except LPStreamError:
       return
 
     try:
-      # return mocked message
-      await stream.writeLp(autonatV2.response.buffer)
-    except CancelledError as exc:
-      raise exc
+      await stream.writeLp(autonatV2.response)
     except LPStreamRemoteClosedError:
       discard
     except LPStreamError:
