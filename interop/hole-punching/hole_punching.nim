@@ -33,14 +33,6 @@ const
 proc normalizeTransport(transport: string): string =
   if transport == "quic": "quic-v1" else: transport
 
-proc defaultSecureChannel(_: string): string =
-  # Circuit-relayed connections still need an inner security upgrade over QUIC.
-  "noise"
-
-proc defaultMuxer(_: string): string =
-  # Circuit-relayed connections still need an inner stream muxer over QUIC.
-  "yamux"
-
 proc readHolePunchConfig(): BaseConfig =
   let
     mode = getEnv("MODE")
@@ -67,8 +59,9 @@ proc readHolePunchConfig(): BaseConfig =
     redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
     testKey: getEnv("TEST_KEY", ""),
     transport: transport,
-    secureChannel: getEnv("SECURE_CHANNEL", defaultSecureChannel(transport)),
-    muxer: getEnv("MUXER", defaultMuxer(transport)),
+    # Circuit-relayed connections still need an inner upgrade over QUIC.
+    secureChannel: getEnv("SECURE_CHANNEL", "noise"),
+    muxer: getEnv("MUXER", "yamux"),
     testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
   )
 
