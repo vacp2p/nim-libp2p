@@ -171,12 +171,13 @@ proc askPeer(
         observedCandidates.add(guessed)
     observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
 
-    reqAddrs = deduplicate(reqAddrs & observedCandidates).filterIt(
+    reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
         switch.peerInfo.addressPolicy(it)
       )
-    if reqAddrs.len == 0:
-      debug "No candidate addresses to test, not asking peer"
-      return Unknown
+
+  if reqAddrs.len == 0:
+    debug "No candidate addresses to test, not asking peer"
+    return Unknown
 
   var dialBackAddr = Opt.none(MultiAddress)
   let ans =
