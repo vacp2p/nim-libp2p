@@ -80,11 +80,11 @@ suite "Circuit Relay V2":
     asyncTest "Too many reservations":
       let stream =
         await cl2.switch.dial(rel.peerInfo.peerId, rel.peerInfo.addrs, RelayV2HopCodec)
-      let pb = encode(HopMessage(msgType: HopMessageType.Reserve))
+      let pb = encode(HopMessage(msgType: Opt.some(HopMessageType.Reserve)))
       await stream.writeLp(pb)
       let msg = HopMessage.decode(await stream.readLp(RelayMsgSize)).get()
       check:
-        msg.msgType == HopMessageType.Status
+        msg.msgType ==  Opt.some(HopMessageType.Status)
         msg.status == Opt.some(StatusV2.ReservationRefused)
 
     asyncTest "Too many reservations + Reconnect":

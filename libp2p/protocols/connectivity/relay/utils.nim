@@ -28,14 +28,14 @@ proc sendHopStatus*(
     stream: Stream, code: StatusV2
 ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "send hop relay/v2 status", status = $code & "(" & $ord(code) & ")"
-  let msg = HopMessage(msgType: HopMessageType.Status, status: Opt.some(code))
+  let msg = HopMessage(msgType: Opt.some(HopMessageType.Status), status: Opt.some(code))
   stream.writeLp(encode(msg))
 
 proc sendStopStatus*(
     stream: Stream, code: StatusV2
 ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "send stop relay/v2 status", status = $code & " (" & $ord(code) & ")"
-  let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
+  let msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(code))
   stream.writeLp(encode(msg))
 
 proc bridge*(

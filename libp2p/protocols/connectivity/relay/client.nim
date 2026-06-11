@@ -45,7 +45,7 @@ proc sendStopError(
 ) {.async: (raises: [CancelledError]).} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   try:
-    let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
+    let msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(code))
     await stream.writeLp(encode(msg))
   except CancelledError as e:
     raise e
@@ -63,7 +63,7 @@ proc handleRelayedConnect(
       return
     limitDuration = msg.limit.get(Limit()).duration
     limitData = msg.limit.get(Limit()).data
-    msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(Ok))
+    msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(Ok))
 
   trace "incoming relay connection", src
 
@@ -86,7 +86,7 @@ proc reserve*(
   defer:
     await stream.close()
   let
-    pb = encode(HopMessage(msgType: HopMessageType.Reserve))
+    pb = encode(HopMessage(msgType: Opt.some(HopMessageType.Reserve)))
     msg =
       try:
         await stream.writeLp(pb)
@@ -96,8 +96,8 @@ proc reserve*(
       except CatchableError as exc:
         trace "error writing or reading reservation message", description = exc.msg
         raise newException(ReservationError, exc.msg)
-
-  if msg.msgType != HopMessageType.Status:
+  
+  if msg.msgType.isNone or msg.msgType.get() != HopMessageType.Status:
     raise newException(ReservationError, "Unexpected relay response type")
   if msg.status.get(UnexpectedMessage) != Ok:
     raise newException(ReservationError, "Reservation failed")
@@ -192,7 +192,7 @@ proc dialPeerV2*(
   let msgRcvFromRelay =
     try:
       await relayConn.writeLp(
-        encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
+        encode(HopMessage(msgType: Opt.some(HopMessageType.Connect), peer: Opt.some(p)))
       )
       HopMessage.decode(await relayConn.readLp(RelayClientMsgSize)).tryGet()
     except CancelledError as exc:
@@ -202,7 +202,7 @@ proc dialPeerV2*(
       raise
         newException(RelayV2DialError, "Exception decoding HopMessage: " & exc.msg, exc)
 
-  if msgRcvFromRelay.msgType != HopMessageType.Status:
+  if msgRcvFromRelay.msgType.isNone or msgRcvFromRelay.msgType != Opt.some(HopMessageType.Status):
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
     trace "Relay stop failed", description = msgRcvFromRelay.status
@@ -219,7 +219,7 @@ proc handleStopStreamV2(
     return
   trace "client circuit relay v2 handle stream", msg
 
-  if msg.msgType == StopMessageType.Connect:
+  if msg.msgType.isSome and msg.msgType.get() == StopMessageType.Connect:
     await cl.handleRelayedConnect(stream, msg)
   else:
     trace "Unexpected client / relayv2 handshake", msgType = msg.msgType
