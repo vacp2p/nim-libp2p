@@ -111,4 +111,4 @@ Protobuf.serializerFor(
 
 # Custom `==` is needed to ensure consistent comparison with Opt-based fields
 proc `==`*(a, b: AutonatV2Msg): bool =
-  a.encode() == b.encode()
+  a.oneof.kind == b.oneof.kind and a.encode() == b.encode()

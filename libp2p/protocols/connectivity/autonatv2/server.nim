@@ -301,6 +301,7 @@ proc new*(
     debug "Received message", kind = $msg.oneof.kind
     if msg.oneof.kind != MsgKind.DialRequest:
       debug "Expecting DialRequest", receivedMsgType = msg.oneof.kind
+      return
 
     try:
       await autonatV2.handleDialRequest(stream, msg.oneof.dialRequest)

@@ -112,7 +112,10 @@ proc handleDialDataRequest*(
   msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
     raise newException(AutonatV2Error, error)
 
-  debug "Received message"
+  debug "Received message", kind = msg.oneof.kind
+  if msg.oneof.kind != MsgKind.DialResponse:
+    raise
+      newException(AutonatV2Error, "Expecting DialResponse, but got " & $msg.oneof.kind)
 
   return msg.oneof.dialResponse
 
