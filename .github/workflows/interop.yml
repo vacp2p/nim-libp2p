@@ -58,7 +58,6 @@ jobs:
         uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
         with:
           test-filter: nim-libp2p-hp-head
-          test-ignore: rust
           extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
