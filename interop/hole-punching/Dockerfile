@@ -19,7 +19,9 @@ RUN cd nim-libp2p && \
   -o:/app/peer ./interop/hole-punching/hole_punching.nim
 
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl jq \
+# The upstream harness runs these tools in participant containers before the client.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bind9-dnsutils curl iproute2 jq tcpdump \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/peer /usr/bin/nim-hole-punch-client
 COPY interop/hole-punching/hole-punch-client.sh /usr/bin/hole-punch-client
