@@ -30,6 +30,8 @@ const
   RelayTcpAddressKey = "RELAY_TCP_ADDRESS"
   RelayQuicAddressKey = "RELAY_QUIC_ADDRESS"
 
+type RedisListPopError = object of CatchableError
+
 proc normalizeTransport(transport: string): string =
   if transport == "quic": "quic-v1" else: transport
 
@@ -45,7 +47,7 @@ proc readHolePunchConfig(): BaseConfig =
       of "":
         parseBoolEnv("IS_DIALER", false)
       else:
-        raise newException(CatchableError, "unsupported MODE: " & mode)
+        raise newException(ValueError, "unsupported MODE: " & mode)
     transport = normalizeTransport(getEnv("TRANSPORT", "tcp"))
     bindIp =
       if isDialer:
@@ -72,15 +74,24 @@ proc relayAddressKey(config: BaseConfig): string =
   of "quic-v1":
     RelayQuicAddressKey
   else:
-    raise newException(CatchableError, "unsupported transport: " & config.transport)
+    raise newException(ValueError, "unsupported transport: " & config.transport)
 
 proc popRedisListValue(client: Redis, key: string, timeout: Duration): string =
-  try:
-    client.bLPop(@[key], timeout.seconds.int)[1]
-  except Exception as e:
-    raise newException(
-      CatchableError, "Exception calling bLPop for " & key & ": " & e.msg, e
-    )
+  let values =
+    try:
+      client.bLPop(@[key], timeout.seconds.int)
+    except Defect:
+      raise
+    # redis.bLPop is inferred as raising base Exception.
+    except Exception as e:
+      raise newException(
+        RedisListPopError, "bLPop failed for Redis key " & key & ": " & e.msg, e
+      )
+
+  if values.len < 2:
+    raise newException(RedisListPopError, "timed out waiting for Redis key " & key)
+
+  values[1]
 
 proc fetchHolePunchRelayMultiaddr(
     client: Redis, config: BaseConfig, timeout: Duration = 30.seconds
@@ -165,12 +176,9 @@ proc connectToRelay(
     await fetchHolePunchRelayMultiaddr(redisClient, config, config.testTimeout)
   info "Got relay address", relayMA
 
-  try:
-    info "Dialing relay", relayMA
-    let relayId = await switches.sw.connect(relayMA).wait(config.testTimeout)
-    info "Connected to relay", relayId
-  except AsyncTimeoutError as e:
-    raise newException(CatchableError, "Connection to relay timed out: " & e.msg, e)
+  info "Dialing relay", relayMA
+  let relayId = await switches.sw.connect(relayMA).wait(config.testTimeout)
+  info "Connected to relay", relayId
 
   # Wait for our relay circuit address
   pollUntil(

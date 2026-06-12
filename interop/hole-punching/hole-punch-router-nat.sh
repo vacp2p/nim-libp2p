@@ -19,7 +19,8 @@ docker_exec() {
   container_id="$1"
   command="$2"
 
-  # Use the Docker API directly because the client image does not include docker.
+  # The image ships curl/jq, not the Docker CLI. Use the Docker Engine API
+  # over the mounted socket to run commands inside the router container.
   exec_id=$(
     jq -nc --arg cmd "$command" \
       '{AttachStdout:false,AttachStderr:false,Cmd:["/bin/sh","-c",$cmd]}' |
