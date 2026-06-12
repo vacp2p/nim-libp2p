@@ -251,8 +251,9 @@ method handleAddProvider*(
 
   # filter out infos that do not match sender's
   let peerBytes = stream.peerId.getBytes()
-  let validPeers =
-    msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
+  let validPeers = msg.providerPeers.filterIt(
+    it.id.isSome and it.id.get() == peerBytes and PeerId.init(it.id.get()).isOk()
+  )
 
   # Per-key cap is enforced regardless of providerRejection: when rejection is
   # disabled the receiver still drops over-cap providers, just silently.
@@ -260,7 +261,8 @@ method handleAddProvider*(
   kad.config.limits.maxProvidersPerKey.withValue(limit):
     let existingProviders =
       kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
-    let senderIsKnown = existingProviders.anyIt(it.id == peerBytes)
+    let senderIsKnown =
+      existingProviders.anyIt(it.id.isSome and it.id.get() == peerBytes)
     # Re-advertisements by the same provider are exempt: addProviderRecord
     # replaces the existing record so the set size doesn't grow.
     let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
@@ -353,7 +355,9 @@ proc getProviders*(
       return
 
     for provider in reply.providerPeers:
-      if not PeerId.init(provider.id).isOk():
+      let idraw = provider.id.valueOr:
+        continue
+      if PeerId.init(idraw).isErr:
         debug "Invalid peer id received", peerId = provider.id
         continue
       allProviders.incl(provider)

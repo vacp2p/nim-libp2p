@@ -163,7 +163,7 @@ proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
 
 proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
-  let providerIds = providers.toSeq().mapIt(it.id)
+  let providerIds = providers.toSeq().filterIt(it.id.isSome).mapIt(it.id.get())
   node.switch.peerInfo.peerId.getBytes() in providerIds
 
 proc toPeer*(node: KadDHT): Peer =
@@ -245,3 +245,18 @@ proc sendAddProviderAndGetStatus*(
   let reply = Message.decode(readRes.value).valueOr:
     return ok(AddProviderStatus.accepted)
   return ok(reply.providerStatus.get(AddProviderStatus.accepted))
+
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
+converter toOptSeqMultiAddress*(a: seq[MultiAddress]): Opt[seq[MultiAddress]] =
+  Opt.some(a)
+
+converter toOptConnectionStatus*(a: ConnectionStatus): Opt[ConnectionStatus] =
+  Opt.some(a)
+
+converter toOptRecord*(a: protobuf.Record): Opt[protobuf.Record] =
+  Opt.some(a)
+
+converter toString*(a: string): Opt[string] =
+  Opt.some(a)

@@ -72,13 +72,19 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   if addrs.len == 0:
     return err("Could not find peer addresses in address book")
 
-  ok(Peer(id: peer.getBytes(), addrs: addrs, connection: ConnectionStatus.notConnected))
+  ok(
+    Peer(
+      id: Opt.some(peer.getBytes()),
+      addrs: Opt.some(addrs),
+      connection: Opt.none(ConnectionStatus),
+    )
+  )
 
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
-    id: peerInfo.peerId.getBytes(),
-    addrs: peerInfo.addrs,
-    connection: ConnectionStatus.notConnected,
+    id: Opt.some(peerInfo.peerId.getBytes()),
+    addrs: Opt.some(peerInfo.addrs),
+    connection: Opt.none(ConnectionStatus),
   )
 
 proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =
@@ -94,7 +100,9 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
   var peerIds: seq[PeerId]
 
   for p in peers:
-    let pid = PeerId.init(p.id).valueOr:
+    let raw = p.id.valueOr:
+      continue
+    let pid = PeerId.init(raw).valueOr:
       continue
     peerIds.add(pid)
 

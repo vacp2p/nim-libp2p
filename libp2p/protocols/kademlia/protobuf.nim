@@ -14,8 +14,8 @@ import protobuf_serialization/std/enums
 import ../../utils/[protobuf, protobuf_chronos]
 
 type
-  Record* {.proto3.} = object
-    key* {.fieldNumber: 1.}: seq[byte]
+  Record* {.proto2.} = object
+    key* {.fieldNumber: 1.}: Opt[seq[byte]]
     value* {.fieldNumber: 2.}: Opt[seq[byte]]
     timeReceived* {.fieldNumber: 5.}: Opt[string]
 
@@ -35,10 +35,10 @@ type
     canConnect = 2 # Unused
     cannotConnect = 3 # Unused
 
-  Peer* {.proto3.} = object
-    id* {.fieldNumber: 1.}: seq[byte]
-    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
-    connection* {.fieldNumber: 3, ext.}: ConnectionStatus
+  Peer* {.proto2.} = object
+    id* {.fieldNumber: 1.}: Opt[seq[byte]]
+    addrs* {.fieldNumber: 2, ext.}: Opt[seq[MultiAddress]]
+    connection* {.fieldNumber: 3, ext.}: Opt[ConnectionStatus]
 
   # Registration status for Service Discovery
   RegistrationStatus* = enum
@@ -75,7 +75,7 @@ type
     ticket* {.fieldNumber: 3.}: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Service Discovery
-  GetAdsMessage* {.proto2.} = object
+  GetAdsMessage* {.proto3.} = object
     advertisements* {.fieldNumber: 1.}: seq[seq[byte]]
       # field 1 - List of encoded advertisements
 
@@ -89,9 +89,9 @@ type
     register* {.fieldNumber: 21.}: Opt[RegisterMessage]
     getAds* {.fieldNumber: 22.}: Opt[GetAdsMessage]
 
-func hide(c: ConnectionStatus, hideConnectionStatus: bool): ConnectionStatus =
+func hide(c: Opt[ConnectionStatus], hideConnectionStatus: bool): Opt[ConnectionStatus] =
   if hideConnectionStatus:
-    return ConnectionStatus.notConnected
+    return Opt.none(ConnectionStatus)
   c
 
 proc hash*(peer: Peer): Hash =

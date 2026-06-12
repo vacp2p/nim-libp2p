@@ -61,7 +61,7 @@ proc dispatchPutVal*(
   let msg = Message(
     msgType: MessageType.putValue,
     key: key,
-    record: Opt.some(Record(key: key, value: Opt.some(value))),
+    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
   let encoded = msg.encode()
 
@@ -126,7 +126,7 @@ proc handlePutValue*(
     error "No record in message buffer", msg = msg, stream = stream
     return
 
-  if record.key != msg.key:
+  if record.key.isNone or record.key.get() != msg.key:
     error "Record key is different than Message key", msg = msg, stream = stream
     return
 

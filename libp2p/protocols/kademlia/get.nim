@@ -108,7 +108,7 @@ proc getValue*(
       debug "GetValue returned empty record", reply = reply
       return
 
-    if record.key != key:
+    if record.key.isNone or record.key.get() != key:
       debug "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
@@ -188,7 +188,7 @@ method handleGetValue*(
     key: key,
     record: Opt.some(
       Record(
-        key: key,
+        key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )

@@ -70,7 +70,9 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
   let cap = state.kad.config.limits.maxShortlistSize
 
   for newPeer in msg.closerPeers:
-    let pid = PeerId.init(newPeer.id).valueOr:
+    let raw = newPeer.id.valueOr:
+      continue
+    let pid = PeerId.init(raw).valueOr:
       continue
     if state.shortlist.contains(pid):
       continue
@@ -81,7 +83,7 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
       continue
 
     state.shortlist[pid] = dist
-    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))
+    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs.get(@[])))
 
   return newPeerInfos
 

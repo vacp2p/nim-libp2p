@@ -226,8 +226,8 @@ suite "KadDHT Get":
           record: Opt.some(
             protobuf.Record(
               key: wrongKey, # get value response with mismatched recored key
-              value: Opt.some(@[1.byte, 2, 3, 4]),
-              timeReceived: Opt.some(Timestamp.now()),
+              value: @[1.byte, 2, 3, 4],
+              timeReceived: Timestamp.now(),
             )
           ),
           closerPeers: @[],
@@ -293,7 +293,7 @@ suite "KadDHT Get":
             protobuf.Record(
               key: key,
               value: Opt.none(seq[byte]), # get value response with empty record value
-              timeReceived: Opt.some(Timestamp.now()),
+              timeReceived: Timestamp.now(),
             )
           ),
           closerPeers: @[],
@@ -329,8 +329,8 @@ suite "KadDHT Get":
           record: Opt.some(
             protobuf.Record(
               key: wrongKey, # get value response with mismatched recored key
-              value: Opt.some(value),
-              timeReceived: Opt.some(Timestamp.now()),
+              value: value,
+              timeReceived: Timestamp.now(),
             )
           ),
           closerPeers: @[],
