@@ -49,7 +49,7 @@ pkgs.stdenv.mkDerivation {
       --noMain \
       --mm:refc \
       --header \
-      --undef:metrics \
+      -d:metrics \
       --nimMainPrefix:libp2p \
       --nimcache:$NIMCACHE \
       cbind/libp2p.nim
@@ -66,7 +66,7 @@ pkgs.stdenv.mkDerivation {
       --noMain \
       --mm:refc \
       --header \
-      --undef:metrics \
+      -d:metrics \
       --nimMainPrefix:libp2p \
       --nimcache:$NIMCACHE \
       cbind/libp2p.nim

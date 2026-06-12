@@ -557,6 +557,14 @@ int libp2p_peerstore_set_peer_protocols(libp2p_ctx_t *ctx, const char *peerId,
 int libp2p_peerstore_delete_peer(libp2p_ctx_t *ctx, const char *peerId,
                                  Libp2pCallback callback, void *userData);
 
+// === Metrics APIs ===
+
+// Returns the metrics registry as a JSON array of {name,type,help,labels,value}
+// objects via callback's (msg, len), valid only for the callback's duration and
+// not null-terminated.
+int libp2p_collect_metrics(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                           void *userData);
+
 #ifdef __cplusplus
 }
 #endif
