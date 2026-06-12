@@ -127,7 +127,11 @@ proc new*(
       of MessageType.ping:
         await disco.handlePing(stream, msg)
       else:
-        await disco.handleMessage(stream, msg)
+        if msg.msgType in @[MessageType.register, MessageType.getAds]:
+          await disco.handleMessage(stream, msg)
+        else:
+          debug "received invalid message type", tye = msg.msgType
+          return
 
   return disco
 
