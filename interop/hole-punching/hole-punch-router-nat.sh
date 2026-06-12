@@ -121,7 +121,7 @@ fix_router_nat() {
       subnet_internal=$(ip -json addr show "$iface_internal" | jq -r '\''.[0].addr_info[] | select(.family == "inet") | .local + "/" + (.prefixlen | tostring)'\'' | head -n1)
       [ -n "$relay_ip" ] && [ -n "$iface_external" ] && [ -n "$iface_internal" ] && [ -n "$addr_external" ] && [ -n "$subnet_internal" ]
       nft list table ip nat >/dev/null 2>&1 || exit 0
-      nft add rule ip nat postrouting ip saddr "$subnet_internal" oifname "$iface_external" snat "$addr_external" 2>/dev/null || true
+      nft add rule ip nat postrouting ip saddr "$subnet_internal" oifname "$iface_external" snat to "$addr_external" 2>/dev/null || true
     ' || true
   done
 }

@@ -6,7 +6,9 @@
 set -eu
 
 # Run before the harness command as well as before the wrapper starts Nim.
-/usr/bin/hole-punch-router-nat
+if ! /usr/bin/hole-punch-router-nat; then
+  echo "hole-punch-router-nat failed; continuing" >&2
+fi
 
 if [ "$#" -eq 0 ]; then
   set -- hole-punch-client

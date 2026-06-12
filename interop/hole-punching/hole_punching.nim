@@ -30,7 +30,9 @@ const
   RelayTcpAddressKey = "RELAY_TCP_ADDRESS"
   RelayQuicAddressKey = "RELAY_QUIC_ADDRESS"
 
-type RedisListPopError = object of CatchableError
+type
+  RedisListPopError = object of CatchableError
+  RedisValueParseError = object of CatchableError
 
 proc normalizeTransport(transport: string): string =
   if transport == "quic": "quic-v1" else: transport
@@ -93,11 +95,24 @@ proc popRedisListValue(client: Redis, key: string, timeout: Duration): string =
 
   values[1]
 
+proc parseRedisMultiaddr(key, raw: string): MultiAddress =
+  MultiAddress.init(raw).valueOr:
+    raise newException(
+      RedisValueParseError, "invalid multiaddr from Redis key " & key & ": " & raw
+    )
+
+proc parseRedisPeerId(key, raw: string): PeerId =
+  PeerId.init(raw).valueOr:
+    raise newException(
+      RedisValueParseError, "invalid peer ID from Redis key " & key & ": " & raw
+    )
+
 proc fetchHolePunchRelayMultiaddr(
     client: Redis, config: BaseConfig, timeout: Duration = 30.seconds
 ): Future[MultiAddress] {.async.} =
-  let raw = client.popRedisListValue(relayAddressKey(config), timeout)
-  MultiAddress.init(raw).tryGet()
+  let key = relayAddressKey(config)
+  let raw = client.popRedisListValue(key, timeout)
+  parseRedisMultiaddr(key, raw)
 
 proc publishHolePunchListenerPeerId(client: Redis, sw: Switch): PeerId =
   let peerId = sw.peerInfo.peerId
@@ -108,7 +123,7 @@ proc fetchHolePunchListenerPeerId(
     client: Redis, timeout: Duration = 30.seconds
 ): Future[PeerId] {.async.} =
   let raw = client.popRedisListValue(ListenClientPeerIdKey, timeout)
-  PeerId.init(raw).tryGet()
+  parseRedisPeerId(ListenClientPeerIdKey, raw)
 
 proc printRttJson(rttMs: float) =
   echo &"""{{"rtt_to_holepunched_peer_millis":{rttMs:.2f}}}"""
@@ -251,7 +266,14 @@ proc runListener(config: BaseConfig) {.async.} =
   info "Published listener peer ID to Redis", listenerPeerId
 
   # Wait to be killed (docker-compose will stop us after dialer exits)
-  await sleepAsync(config.testTimeout)
+  let listenerLifetime =
+    if config.testTimeout > 1.seconds:
+      config.testTimeout - 1.seconds
+    elif config.testTimeout > 100.milliseconds:
+      config.testTimeout - 100.milliseconds
+    else:
+      config.testTimeout
+  await sleepAsync(listenerLifetime)
 
 proc main() {.async.} =
   let config = readHolePunchConfig()
