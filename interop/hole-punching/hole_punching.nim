@@ -167,7 +167,7 @@ proc connectToRelay(
 
   try:
     info "Dialing relay", relayMA
-    let relayId = await switches.sw.connect(relayMA).wait(30.seconds)
+    let relayId = await switches.sw.connect(relayMA).wait(config.testTimeout)
     info "Connected to relay", relayId
   except AsyncTimeoutError as e:
     raise newException(CatchableError, "Connection to relay timed out: " & e.msg, e)
@@ -243,7 +243,7 @@ proc runListener(config: BaseConfig) {.async.} =
   info "Published listener peer ID to Redis", listenerPeerId
 
   # Wait to be killed (docker-compose will stop us after dialer exits)
-  await sleepAsync(5.minutes)
+  await sleepAsync(config.testTimeout)
 
 proc main() {.async.} =
   let config = readHolePunchConfig()

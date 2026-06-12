@@ -111,4 +111,4 @@ if [ "${1:-}" = "--fix-router-nat-only" ]; then
   exit 0
 fi
 
-exec /usr/bin/hole-punch-client.bin "$@"
+exec /usr/bin/nim-hole-punch-client "$@"
