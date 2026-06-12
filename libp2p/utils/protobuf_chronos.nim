@@ -5,7 +5,7 @@
 
 import chronos, results, protobuf_serialization, protobuf_serialization/extension
 
-Protobuf.extensionDefaults(Duration, defaultSeq = true, packed = true)
+Protobuf.extensionDefaults(Duration, defaultSeq = true)
 
 func computeFieldSize*(
     field: int, value: Duration, ProtoType: type ProtobufExt, skipDefault: static bool
@@ -34,7 +34,7 @@ proc readFieldInto*(
   else:
     false
 
-Protobuf.extensionDefaults(Moment, defaultSeq = true, packed = true)
+Protobuf.extensionDefaults(Moment, defaultSeq = true)
 
 func computeFieldSize*(
     field: int, value: Moment, ProtoType: type ProtobufExt, skipDefault: static bool
