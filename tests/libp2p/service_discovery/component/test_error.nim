@@ -43,21 +43,20 @@ suite "Service Discovery Component - Error Handling":
     checkTrackers()
 
   asyncTest "message with unknown MessageType is rejected without a reply":
-    skip()
-    # let registrarNode = setupServiceDiscoveryNode()
-    # startAndDeferStop(@[registrarNode])
+    let registrarNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode])
 
-    # let clientSwitch = createSwitch()
-    # await clientSwitch.start()
-    # defer:
-    #   await clientSwitch.stop()
+    let clientSwitch = createSwitch()
+    await clientSwitch.start()
+    defer:
+      await clientSwitch.stop()
 
-    # # msgType = 99 is outside the MessageType enum, so decodeEnum will reject it.
-    # let invalidMsg = @[8'u8, 99]
+    # msgType = 99 is outside the MessageType enum, so decodeEnum will reject it.
+    let invalidMsg = @[8'u8, 99]
 
-    # expect LPStreamError:
-    #   discard
-    #     await clientSwitch.sendRawMessage(registrarNode, invalidMsg).wait(2.seconds)
+    expect LPStreamError:
+      discard
+        await clientSwitch.sendRawMessage(registrarNode, invalidMsg).wait(2.seconds)
 
   asyncTest "REGISTER without register body returns Rejected":
     let registrarNode = setupServiceDiscoveryNode()
@@ -212,7 +211,7 @@ suite "Service Discovery Component - Error Handling":
       tInit: Moment.now() - 10.secs,
       tMod: Moment.now() - 5.secs,
       tWaitFor: 1.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check badTicket.sign(registrarNode.switch.peerInfo.privateKey).isOk()
 
@@ -252,7 +251,7 @@ suite "Service Discovery Component - Error Handling":
       tInit: Moment.now() - 1000.secs,
       tMod: Moment.now() - 500.secs,
       tWaitFor: 10.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check badTicket.sign(otherNode.switch.peerInfo.privateKey).isOk()
 

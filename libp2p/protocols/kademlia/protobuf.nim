@@ -11,7 +11,7 @@ import ../../crypto/crypto
 import protobuf_serialization
 import protobuf_serialization/pkg/results
 import protobuf_serialization/std/enums
-import ../../utils/protobuf
+import ../../utils/[protobuf, protobuf_chronos]
 
 type
   Record* {.proto3.} = object
@@ -56,31 +56,25 @@ type
     rejected = 1
 
   # Ticket message for Service Discovery
-  # Nested within Register message
-  Ticket* = object
-    advertisement*: seq[byte] # field 1 - Copy of the original advertisement
-    tInit*: Moment # field 2 - Ticket creation timestamp (Unix time in seconds)
-    tMod*: Moment # field 3 - Last modification timestamp (Unix time in seconds)
-    tWaitFor*: Duration # field 4 - Remaining wait time in seconds
-    signature*: seq[byte] # field 5 - Ed25519 signature
-
-  TicketMsg {.proto3.} = object
-    advertisement {.fieldNumber: 1.}: seq[byte]
-    tInit {.fieldNumber: 2, pint.}: uint64
-    tMod {.fieldNumber: 3, pint.}: uint64
-    tWaitFor {.fieldNumber: 4, pint.}: uint32
-    signature {.fieldNumber: 5.}: Opt[seq[byte]]
+  Ticket* {.proto3.} = object
+    advertisement* {.fieldNumber: 1.}: seq[byte]
+      # field 1 - Copy of the original advertisement
+    tInit* {.fieldNumber: 2, ext.}: Moment
+      # field 2 - Ticket creation timestamp (Unix time in seconds)
+    tMod* {.fieldNumber: 3, ext.}: Moment
+      # field 3 - Last modification timestamp (Unix time in seconds)
+    tWaitFor* {.fieldNumber: 4, ext.}: Duration
+      # field 4 - Remaining wait time in seconds
+    signature* {.fieldNumber: 5.}: Opt[seq[byte]] # field 5 - Ed25519 signature
 
   # Register message for Service Discovery
-  # Field 21 in the main Message
   RegisterMessage* {.proto3.} = object
     advertisement* {.fieldNumber: 1.}: seq[byte] # field 1 - Encoded advertisement
     status* {.fieldNumber: 2, ext.}: Opt[RegistrationStatus]
       # field 2 - Registration status (response only)
-    ticket* {.fieldNumber: 3, ext.}: Opt[Ticket] # field 3 - Optional ticket
+    ticket* {.fieldNumber: 3.}: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Service Discovery
-  # Field 22 in the main Message
   GetAdsMessage* {.proto2.} = object
     advertisements* {.fieldNumber: 1.}: seq[seq[byte]]
       # field 1 - List of encoded advertisements
@@ -95,68 +89,20 @@ type
     register* {.fieldNumber: 21.}: Opt[RegisterMessage]
     getAds* {.fieldNumber: 22.}: Opt[GetAdsMessage]
 
+func hide(c: ConnectionStatus, hideConnectionStatus: bool): ConnectionStatus =
+  if hideConnectionStatus:
+    return ConnectionStatus.notConnected
+  c
+
 proc hash*(peer: Peer): Hash =
   hash(peer.id)
 
 proc `==`*(a, b: Peer): bool =
   a.id == b.id
 
-proc toMsg(t: Ticket): TicketMsg =
-  TicketMsg(
-    advertisement: t.advertisement,
-    tInit: t.tInit.epochSeconds.uint64,
-    tMod: t.tMod.epochSeconds.uint64,
-    tWaitFor: t.tWaitFor.seconds.uint32,
-    signature:
-      if t.signature.len > 0:
-        Opt.some(t.signature)
-      else:
-        Opt.none(seq[byte]),
-  )
+Protobuf.serializerFor([Record, Ticket, RegisterMessage, GetAdsMessage])
 
-proc toTicket(m: TicketMsg): Ticket =
-  Ticket(
-    advertisement: m.advertisement,
-    tInit: Moment.init(cast[int64](m.tInit), Second),
-    tMod: Moment.init(cast[int64](m.tMod), Second),
-    tWaitFor: m.tWaitFor.secs,
-    signature: m.signature.get(@[]),
-  )
-
-Protobuf.serializerFor([TicketMsg])
-
-Protobuf.extensionDefaults(Ticket, defaultWriteSeq = false)
-
-func computeFieldSize*(
-    field: int, value: Ticket, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  computeFieldSize(field, value.toMsg().encode(), pbytes, skipDefault)
-
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: Ticket,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  writeField(stream, field, value.toMsg().encode(), pbytes, skipDefault)
-
-proc readFieldInto*(
-    stream: InputStream,
-    value: var Ticket,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var data = default(seq[byte])
-  if readFieldInto(stream, data, header, pbytes):
-    let ticketMsg = TicketMsg.decode(data).valueOr:
-      raise (ref ProtobufValueError)(msg: "Invalid Ticket")
-    value = ticketMsg.toTicket()
-    true
-  else:
-    false
-
-Protobuf.serializerFor([Record, RegisterMessage, GetAdsMessage])
+# Peer has custom encode/decode because of additional hideConnectionStatus parameter
 
 proc decodePeer(buf: seq[byte]): Peer {.raises: [SerializationError].} =
   Protobuf.decode(buf, Peer)
@@ -171,9 +117,10 @@ proc encode*(
     msg: Peer, hideConnectionStatus: bool = true
 ): seq[byte] {.raises: [], gcsafe.} =
   var m = msg
-  if hideConnectionStatus:
-    m.connection = ConnectionStatus.notConnected
+  m.connection = m.connection.hide(hideConnectionStatus)
   Protobuf.encode(m)
+
+# Message has custom encode/decode because of additional hideConnectionStatus parameter
 
 proc decodeMessage(buf: seq[byte]): Message {.raises: [SerializationError].} =
   Protobuf.decode(buf, Message)
@@ -190,9 +137,9 @@ proc encode*(
   var m = msg
   if hideConnectionStatus:
     for p in m.closerPeers.mitems:
-      p.connection = ConnectionStatus.notConnected
+      p.connection = p.connection.hide(hideConnectionStatus)
     for p in m.providerPeers.mitems:
-      p.connection = ConnectionStatus.notConnected
+      p.connection = p.connection.hide(hideConnectionStatus)
   Protobuf.encode(m)
 
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
@@ -210,12 +157,14 @@ proc sign*(
 ): Result[void, CryptoError] {.raises: [], gcsafe.} =
   ## Sign the ticket with the given private key.
   let sig = ?privateKey.sign(ticket.toBytes())
-  ticket.signature = sig.getBytes()
+  ticket.signature = Opt.some(sig.getBytes())
   ok()
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
   ## Verify the ticket signature against the given public key.
+  if ticket.signature.isNone():
+    return false
   var sig: Signature
-  if not sig.init(ticket.signature):
+  if not sig.init(ticket.signature.get()):
     return false
   sig.verify(ticket.toBytes(), publicKey)

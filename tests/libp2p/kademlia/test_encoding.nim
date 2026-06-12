@@ -12,7 +12,6 @@ template checkEncodeDecode(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
 suite "KadDHT Protobuffers":
-
   test "encode/decode":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     checkEncodeDecode(
@@ -86,7 +85,6 @@ suite "KadDHT Protobuffers":
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
       let decoded = Peer.decode(peer.encode(hideConnectionStatus = false)).get()
       check decoded.connection == ct
-
 
   test "encode message with hideConnectionStatus=true hides connection in both peer lists":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]

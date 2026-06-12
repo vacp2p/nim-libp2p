@@ -44,7 +44,7 @@ proc makeTicket*(): Ticket =
     tInit: Moment.init(1_000_000, Second),
     tMod: Moment.init(2_000_000, Second),
     tWaitFor: 3000.secs,
-    signature: @[],
+    signature: Opt.none(seq[byte]),
   )
 
 proc signedTicket*(privateKey: PrivateKey): Ticket =
