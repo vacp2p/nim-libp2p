@@ -8,6 +8,9 @@ set -eu
 # Work around a libp2p/test-plans router NAT setup race. This is not client
 # behavior; it only makes the Docker topology deterministic before tests start.
 
+poll_attempts=50
+poll_interval=0.2
+
 docker_api() {
   curl -fsS --unix-socket /var/run/docker.sock "$@"
 }
@@ -29,21 +32,37 @@ docker_exec() {
     docker_api -H 'Content-Type: application/json' -d @- \
       "http://localhost/exec/$exec_id/start" >/dev/null
 
+  # Docker fills ExitCode only after the exec command finishes; poll briefly.
   exit_code=""
-  for _ in 1 2 3 4 5 6 7 8 9 10 \
-    11 12 13 14 15 16 17 18 19 20 \
-    21 22 23 24 25 26 27 28 29 30 \
-    31 32 33 34 35 36 37 38 39 40 \
-    41 42 43 44 45 46 47 48 49 50; do
+  attempt=0
+  while [ "$attempt" -lt "$poll_attempts" ]; do
     exit_code=$(
       docker_api "http://localhost/exec/$exec_id/json" |
         jq -r '.ExitCode // empty'
     )
     [ -n "$exit_code" ] && break
-    sleep 0.2
+    attempt=$((attempt + 1))
+    sleep "$poll_interval"
   done
 
   [ "$exit_code" = "0" ]
+}
+
+router_container_id() {
+  project_name="$1"
+  service_name="$2"
+  jq_filter="
+    .[] |
+    select(
+      .Labels[\"com.docker.compose.project\"] == \$project and
+      .Labels[\"com.docker.compose.service\"] == \$service
+    ) |
+    .Id
+  "
+
+  docker_api "http://localhost/containers/json" |
+    jq -r --arg project "$project_name" --arg service "$service_name" "$jq_filter" |
+    head -n1
 }
 
 fix_router_nat() {
@@ -73,18 +92,11 @@ fix_router_nat() {
     router_ready=0
     router_id=""
 
-    # The test-plan router writes this marker after its own network setup.
-    for _ in 1 2 3 4 5 6 7 8 9 10 \
-      11 12 13 14 15 16 17 18 19 20 \
-      21 22 23 24 25 26 27 28 29 30 \
-      31 32 33 34 35 36 37 38 39 40 \
-      41 42 43 44 45 46 47 48 49 50; do
-      router_id=$(
-        docker_api "http://localhost/containers/json" |
-          jq -r --arg project "$project" --arg service "$router_service" \
-            '.[] | select(.Labels["com.docker.compose.project"] == $project and .Labels["com.docker.compose.service"] == $service) | .Id' |
-          head -n1
-      ) || router_id=""
+    # The router can exist before setup finishes; wait for its setup marker.
+    attempt=0
+    while [ "$attempt" -lt "$poll_attempts" ]; do
+      router_id=$(router_container_id "$project" "$router_service") ||
+        router_id=""
 
       if [ -n "$router_id" ] &&
          docker_exec "$router_id" '[ "$(cat /tmp/setup_done 2>/dev/null)" = "1" ]'; then
@@ -92,7 +104,8 @@ fix_router_nat() {
         break
       fi
 
-      sleep 0.2
+      attempt=$((attempt + 1))
+      sleep "$poll_interval"
     done
 
     [ -n "$router_id" ] || continue
