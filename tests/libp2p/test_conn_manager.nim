@@ -555,6 +555,7 @@ suite "Connection Manager Watermark":
     await connMngr.close()
 
   asyncTest "lifecycle events are emitted not in order when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
     # storeMuxer triggers the trim before emitting Connected and Joined for the stored peer.
     # the trim can prune the just-stored connection, emitting Left and Disconnected first.
     # consumers assume the order: Connected, Joined, Left, Disconnected.
@@ -599,6 +600,7 @@ suite "Connection Manager Watermark":
     check events == @["Left", "Disconnected", "Connected", "Joined"]
 
   asyncTest "ready state is not cleared when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
     # the trim drops the stored peer and clears its ready state mid-storeMuxer.
     # storeMuxer then re-adds the dropped peer to readyPeers.
     # a pruned peer must not be reported ready.

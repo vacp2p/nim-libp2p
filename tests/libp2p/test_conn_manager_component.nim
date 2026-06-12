@@ -459,6 +459,7 @@ suite "Connection Manager Watermark/Scoring Component":
       await connect(peers[2], node)
 
   asyncTest "Left is emitted before Joined when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
     # gossipsub unsubscribes on Left as a no-op, then the late Joined subscribes the pruned peer.
     # the wrong order needs a Connected handler that awaits I/O, which delays Joined past the prune.
     const
