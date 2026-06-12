@@ -165,12 +165,11 @@ suite "protobuf_chronos":
     check dec.moments == orig
 
   test "seq[Moment] multiple elements round-trips":
-    let orig =
-      @[
-        Moment.init(0, Nanosecond),
-        Moment.init(1_000_000, Second),
-        Moment.init(1_700_000_000, Second),
-      ]
+    let orig = @[
+      Moment.init(0, Nanosecond),
+      Moment.init(1_000_000, Second),
+      Moment.init(1_700_000_000, Second),
+    ]
     let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
     let dec = Protobuf.decode(enc, MomentSeqMsg)
     check dec.moments == orig
@@ -185,12 +184,7 @@ suite "protobuf_chronos":
     check dec.moments[1].epochNanoSeconds() == ns2
 
   test "seq[Moment] order preserved":
-    let orig =
-      @[
-        Moment.init(3, Second),
-        Moment.init(1, Second),
-        Moment.init(2, Second),
-      ]
+    let orig = @[Moment.init(3, Second), Moment.init(1, Second), Moment.init(2, Second)]
     let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
     let dec = Protobuf.decode(enc, MomentSeqMsg)
     check dec.moments[0] == Moment.init(3, Second)
@@ -198,14 +192,12 @@ suite "protobuf_chronos":
     check dec.moments[2] == Moment.init(2, Second)
 
   test "distinct seq[Moment] encode to distinct bytes":
-    let enc1 =
-      Protobuf.encode(
-        MomentSeqMsg(moments: @[Moment.init(1, Second), Moment.init(2, Second)])
-      )
-    let enc2 =
-      Protobuf.encode(
-        MomentSeqMsg(moments: @[Moment.init(2, Second), Moment.init(1, Second)])
-      )
+    let enc1 = Protobuf.encode(
+      MomentSeqMsg(moments: @[Moment.init(1, Second), Moment.init(2, Second)])
+    )
+    let enc2 = Protobuf.encode(
+      MomentSeqMsg(moments: @[Moment.init(2, Second), Moment.init(1, Second)])
+    )
     check enc1 != enc2
 
   test "seq[Duration] and seq[Moment] coexist in same message":
@@ -223,5 +215,6 @@ suite "protobuf_chronos":
     check Protobuf.encode(msg) == Protobuf.encode(msg)
 
   test "seq[Moment] re-encodes to same bytes":
-    let msg = MomentSeqMsg(moments: @[Moment.init(1_000, Second), Moment.init(2_000, Second)])
+    let msg =
+      MomentSeqMsg(moments: @[Moment.init(1_000, Second), Moment.init(2_000, Second)])
     check Protobuf.encode(msg) == Protobuf.encode(msg)
