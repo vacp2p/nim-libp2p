@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import chronos, results, protobuf_serialization, protobuf_serialization/extension
+import chronos, protobuf_serialization, protobuf_serialization/extension
 
 Protobuf.extensionDefaults(Duration, defaultSeq = true)
 
