@@ -5,7 +5,8 @@
 
 set -eu
 
-/usr/bin/hole-punch-client --fix-router-nat-only
+# Run before the harness command as well as before the wrapper starts Nim.
+/usr/bin/hole-punch-router-nat
 
 if [ "$#" -eq 0 ]; then
   set -- hole-punch-client
