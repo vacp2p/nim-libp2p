@@ -146,7 +146,7 @@ proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   ## Returns the canonical byte representation of a Ticket used for signing.
   ## Covers: advertisement || tInit || tMod || tWaitFor
   let adv = ticket.advertisement.get(@[])
-  
+
   var buf = newSeqOfCap[byte](adv.len + 8 + 8 + 4)
   buf.add(adv)
   buf.add(@(toBytesBE(ticket.tInit.get(Moment.low).epochSeconds.uint64)))
