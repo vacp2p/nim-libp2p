@@ -546,7 +546,14 @@ method close*(m: Yamux) {.async: (raises: []).} =
     channel.isReset = true
     channel.opened = false
     channel.isClosed = true
-    await channel.remoteClosed()
+    # Fire closedRemotely (idempotent) and run actuallyClose ourselves so
+    # closeEvent fires for channels that received Fin before muxer close.
+    # Without this, cleanupChannel's `await channel.join()` would hang and
+    # the wait on cleanupFut below would never complete.
+    channel.closedRemotely.fire()
+    channel.isClosedRemotely = true
+    if not channel.closeEvent.isSet():
+      await channel.actuallyClose()
     channel.receivedData.fire()
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
