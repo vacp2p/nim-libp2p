@@ -11,7 +11,6 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../protobuf/minprotobuf,
   ../../../wire,
   ../../../utils/heartbeat,
   ../../../crypto/crypto,

@@ -5,7 +5,12 @@
 
 import results, chronos
 import
-  ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
+  protobuf_serialization,
+  protobuf_serialization/pkg/results,
+  protobuf_serialization/std/enums
+import ../../../[multiaddress, peerid]
+import ../../../errors
+import ../../../utils/protobuf
 from ../autonat/types import NetworkReachability
 
 export NetworkReachability
@@ -37,14 +42,6 @@ type
 
   NumBytes* = uint64
 
-  MsgType* {.pure.} = enum
-    # DialBack and DialBackResponse are not defined as AutonatV2Msg as per the spec
-    # likely because they are expected in response to some other message
-    DialRequest
-    DialResponse
-    DialDataRequest
-    DialDataResponse
-
   ResponseStatus* {.pure.} = enum
     EInternalError = 0
     ERequestRejected = 100
@@ -60,198 +57,58 @@ type
     EDialBackError = 101
     Ok = 200
 
-  DialRequest* = object
-    addrs*: seq[MultiAddress]
-    nonce*: Nonce
+  DialRequest* {.proto3.} = object
+    addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
+    nonce* {.fieldNumber: 2, fixed.}: Nonce
 
-  DialResponse* = object
-    status*: ResponseStatus
-    addrIdx*: Opt[AddrIdx]
-    dialStatus*: Opt[DialStatus]
+  DialResponse* {.proto3.} = object
+    status* {.fieldNumber: 1, ext.}: ResponseStatus
+    addrIdx* {.fieldNumber: 2, pint.}: Opt[AddrIdx]
+    dialStatus* {.fieldNumber: 3, ext.}: Opt[DialStatus]
 
-  DialBack* = object
-    nonce*: Nonce
+  DialBack* {.proto3.} = object
+    nonce* {.fieldNumber: 1, fixed.}: Nonce
 
-  DialBackResponse* = object
-    status*: DialBackStatus
+  DialBackResponse* {.proto3.} = object
+    status* {.fieldNumber: 1, ext.}: DialBackStatus
 
-  DialDataRequest* = object
-    addrIdx*: AddrIdx
-    numBytes*: NumBytes
+  DialDataRequest* {.proto3.} = object
+    addrIdx* {.fieldNumber: 1, pint.}: AddrIdx
+    numBytes* {.fieldNumber: 2, pint.}: NumBytes
 
-  DialDataResponse* = object
-    data*: seq[byte]
+  DialDataResponse* {.proto3.} = object
+    data* {.fieldNumber: 1.}: seq[byte]
 
-  AutonatV2Msg* = object
-    case msgType*: MsgType
-    of MsgType.DialRequest:
-      dialReq*: DialRequest
-    of MsgType.DialResponse:
-      dialResp*: DialResponse
-    of MsgType.DialDataRequest:
-      dialDataReq*: DialDataRequest
-    of MsgType.DialDataResponse:
-      dialDataResp*: DialDataResponse
+  MsgKind* {.pure, proto3.} = enum
+    notSet = 0
+    DialRequest = 1
+    DialResponse = 2
+    DialDataRequest = 3
+    DialDataResponse = 4
 
-# DialRequest
-proc encode*(dialReq: DialRequest): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  for ma in dialReq.addrs:
-    encoded.write(1, ma.data.buffer)
-  encoded.write(2, dialReq.nonce)
-  encoded.finish()
-  encoded
+  AutonatV2MsgOneof* {.proto3, oneof.} = object
+    case kind*: MsgKind
+    of MsgKind.notSet:
+      discard
+    of MsgKind.DialRequest:
+      dialRequest* {.fieldNumber: 1.}: DialRequest
+    of MsgKind.DialResponse:
+      dialResponse* {.fieldNumber: 2.}: DialResponse
+    of MsgKind.DialDataRequest:
+      dialDataRequest* {.fieldNumber: 3.}: DialDataRequest
+    of MsgKind.DialDataResponse:
+      dialDataResponse* {.fieldNumber: 4.}: DialDataResponse
 
-proc decode*(T: typedesc[DialRequest], pb: ProtoBuffer): Opt[T] =
-  var
-    addrs: seq[MultiAddress]
-    nonce: Nonce
-  if not ?pb.getRepeatedField(1, addrs).toOpt():
-    return Opt.none(T)
-  if not ?pb.getField(2, nonce).toOpt():
-    return Opt.none(T)
-  Opt.some(T(addrs: addrs, nonce: nonce))
+  AutonatV2Msg* {.proto3.} = object
+    oneof* {.oneof.}: AutonatV2MsgOneof
 
-# DialResponse
-proc encode*(dialResp: DialResponse): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  encoded.write(1, dialResp.status.uint)
-    # minprotobuf casts uses float64 for fixed64 fields
-  dialResp.addrIdx.withValue(addrIdx):
-    encoded.write(2, addrIdx)
-  dialResp.dialStatus.withValue(dialStatus):
-    encoded.write(3, dialStatus.uint)
-  encoded.finish()
-  encoded
+Protobuf.serializerFor(
+  [
+    DialRequest, DialResponse, DialBack, DialBackResponse, DialDataRequest,
+    DialDataResponse, AutonatV2Msg,
+  ]
+)
 
-proc decode*(T: typedesc[DialResponse], pb: ProtoBuffer): Opt[T] =
-  var
-    status: uint
-    addrIdx: AddrIdx
-    dialStatus: uint
-
-  if not ?pb.getField(1, status).toOpt():
-    return Opt.none(T)
-
-  var optAddrIdx = Opt.none(AddrIdx)
-  if ?pb.getField(2, addrIdx).toOpt():
-    optAddrIdx = Opt.some(addrIdx)
-
-  var optDialStatus = Opt.none(DialStatus)
-  if ?pb.getField(3, dialStatus).toOpt():
-    optDialStatus = Opt.some(cast[DialStatus](dialStatus))
-
-  Opt.some(
-    T(
-      status: cast[ResponseStatus](status),
-      addrIdx: optAddrIdx,
-      dialStatus: optDialStatus,
-    )
-  )
-
-# DialBack
-proc encode*(dialBack: DialBack): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  encoded.write(1, dialBack.nonce)
-  encoded.finish()
-  encoded
-
-proc decode*(T: typedesc[DialBack], pb: ProtoBuffer): Opt[T] =
-  var nonce: Nonce
-  if not ?pb.getField(1, nonce).toOpt():
-    return Opt.none(T)
-  Opt.some(T(nonce: nonce))
-
-# DialBackResponse
-proc encode*(dialBackResp: DialBackResponse): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  encoded.write(1, dialBackResp.status.uint)
-  encoded.finish()
-  encoded
-
-proc decode*(T: typedesc[DialBackResponse], pb: ProtoBuffer): Opt[T] =
-  var status: uint
-  if not ?pb.getField(1, status).toOpt():
-    return Opt.none(T)
-  Opt.some(T(status: cast[DialBackStatus](status)))
-
-# DialDataRequest
-proc encode*(dialDataReq: DialDataRequest): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  encoded.write(1, dialDataReq.addrIdx)
-  encoded.write(2, dialDataReq.numBytes)
-  encoded.finish()
-  encoded
-
-proc decode*(T: typedesc[DialDataRequest], pb: ProtoBuffer): Opt[T] =
-  var
-    addrIdx: AddrIdx
-    numBytes: NumBytes
-  if not ?pb.getField(1, addrIdx).toOpt():
-    return Opt.none(T)
-  if not ?pb.getField(2, numBytes).toOpt():
-    return Opt.none(T)
-  Opt.some(T(addrIdx: addrIdx, numBytes: numBytes))
-
-# DialDataResponse
-proc encode*(dialDataResp: DialDataResponse): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  encoded.write(1, dialDataResp.data)
-  encoded.finish()
-  encoded
-
-proc decode*(T: typedesc[DialDataResponse], pb: ProtoBuffer): Opt[T] =
-  var data: seq[byte]
-  if not ?pb.getField(1, data).toOpt():
-    return Opt.none(T)
-  Opt.some(T(data: data))
-
-proc protoField(msgType: MsgType): int =
-  case msgType
-  of MsgType.DialRequest: 1.int
-  of MsgType.DialResponse: 2.int
-  of MsgType.DialDataRequest: 3.int
-  of MsgType.DialDataResponse: 4.int
-
-# AutonatV2Msg
-proc encode*(msg: AutonatV2Msg): ProtoBuffer =
-  var encoded = initProtoBuffer()
-  case msg.msgType
-  of MsgType.DialRequest:
-    encoded.write(MsgType.DialRequest.protoField, msg.dialReq.encode())
-  of MsgType.DialResponse:
-    encoded.write(MsgType.DialResponse.protoField, msg.dialResp.encode())
-  of MsgType.DialDataRequest:
-    encoded.write(MsgType.DialDataRequest.protoField, msg.dialDataReq.encode())
-  of MsgType.DialDataResponse:
-    encoded.write(MsgType.DialDataResponse.protoField, msg.dialDataResp.encode())
-  encoded.finish()
-  encoded
-
-proc decode*(T: typedesc[AutonatV2Msg], pb: ProtoBuffer): Opt[T] =
-  var msg: ProtoBuffer
-
-  if ?pb.getField(MsgType.DialRequest.protoField, msg).toOpt():
-    let dialReq = DialRequest.decode(msg).valueOr:
-      return Opt.none(AutonatV2Msg)
-    Opt.some(AutonatV2Msg(msgType: MsgType.DialRequest, dialReq: dialReq))
-  elif ?pb.getField(MsgType.DialResponse.protoField, msg).toOpt():
-    let dialResp = DialResponse.decode(msg).valueOr:
-      return Opt.none(AutonatV2Msg)
-    Opt.some(AutonatV2Msg(msgType: MsgType.DialResponse, dialResp: dialResp))
-  elif ?pb.getField(MsgType.DialDataRequest.protoField, msg).toOpt():
-    let dialDataReq = DialDataRequest.decode(msg).valueOr:
-      return Opt.none(AutonatV2Msg)
-    Opt.some(AutonatV2Msg(msgType: MsgType.DialDataRequest, dialDataReq: dialDataReq))
-  elif ?pb.getField(MsgType.DialDataResponse.protoField, msg).toOpt():
-    let dialDataResp = DialDataResponse.decode(msg).valueOr:
-      return Opt.none(AutonatV2Msg)
-    Opt.some(
-      AutonatV2Msg(msgType: MsgType.DialDataResponse, dialDataResp: dialDataResp)
-    )
-  else:
-    Opt.none(AutonatV2Msg)
-
-# Custom `==` is needed to compare since AutonatV2Msg is a case object
+# Custom `==` is needed to ensure consistent comparison with Opt-based fields
 proc `==`*(a, b: AutonatV2Msg): bool =
-  a.msgType == b.msgType and a.encode() == b.encode()
+  a.oneof.kind == b.oneof.kind and a.encode() == b.encode()
