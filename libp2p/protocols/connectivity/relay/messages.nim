@@ -60,11 +60,11 @@ type
     expiration* {.fieldNumber: 3, pint.}: uint64
 
   Peer* {.proto3.} = object
-    peerId* {.fieldNumber: 1, ext.}: PeerId
+    peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
     addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
   Reservation* {.proto3.} = object
-    expire* {.fieldNumber: 1, pint.}: uint64
+    expire* {.fieldNumber: 1, pint.}: Opt[uint64]
     addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
     svoucher* {.fieldNumber: 3.}: Opt[seq[byte]]
 

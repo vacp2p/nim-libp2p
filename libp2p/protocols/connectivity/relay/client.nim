@@ -105,11 +105,13 @@ proc reserve*(
 
   let reservation = msg.reservation.valueOr:
     raise newException(ReservationError, "Missing reservation information")
-  if reservation.expire > int64.high().uint64 or
-      now().utc > reservation.expire.int64.fromUnix.utc:
+  let expire = reservation.expire.valueOr:
+    raise newException(ReservationError, "Missing expire")
+
+  if expire > int64.high().uint64 or now().utc > expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   var rsvp: Rsvp
-  rsvp.expire = reservation.expire
+  rsvp.expire = expire
   rsvp.addrs = reservation.addrs
 
   reservation.svoucher.withValue(sv):
@@ -186,7 +188,7 @@ proc dialPeerV2*(
     dstPeerId: PeerId,
     dstAddrs: seq[MultiAddress],
 ): Future[RawConn] {.async: (raises: [RelayV2DialError, CancelledError]).} =
-  let p = Peer(peerId: dstPeerId, addrs: dstAddrs)
+  let p = Peer(peerId: Opt.some(dstPeerId), addrs: dstAddrs)
 
   trace "Dial peer", p
 

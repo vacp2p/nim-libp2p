@@ -86,7 +86,7 @@ proc createReserveResponse(
       CryptoError.KeyError
     )
     rsrv = Reservation(
-      expire: expireUnix,
+      expire: Opt.some(expireUnix),
       addrs: r.switch.peerInfo.addrs.mapIt(?it.concat(ma).orErr(CryptoError.KeyError)),
       svoucher: Opt.some(?sv.encode),
     )
@@ -140,8 +140,10 @@ proc handleConnect(
     msgPeer = msg.peer.valueOr:
       await sendHopStatus(srcStream, MalformedMessage)
       return
+    dst = msgPeer.peerId.valueOr:
+      await sendHopStatus(srcStream, MalformedMessage)
+      return
     src = srcStream.peerId
-    dst = msgPeer.peerId
   if dst notin r.rsvp:
     trace "refusing connection, no reservation", src, dst
     await sendHopStatus(srcStream, NoReservation)
@@ -174,7 +176,7 @@ proc handleConnect(
   proc sendStopMsg() {.async: (raises: [SendStopError, CancelledError, LPStreamError]).} =
     let stopMsg = StopMessage(
       msgType: Opt.some(StopMessageType.Connect),
-      peer: Opt.some(Peer(peerId: src, addrs: @[])),
+      peer: Opt.some(Peer(peerId: Opt.some(src), addrs: @[])),
       limit: Opt.some(r.limit),
     )
     await dstStream.writeLp(encode(stopMsg))
