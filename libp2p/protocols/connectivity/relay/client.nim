@@ -59,7 +59,10 @@ proc handleRelayedConnect(
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
-    src = msg.peer.valueOr:
+    srcPeer = msg.peer.valueOr:
+      await sendStopError(stream, MalformedMessage)
+      return
+    src = srcPeer.peerId.valueOr:
       await sendStopError(stream, MalformedMessage)
       return
     limitDuration = msg.limit.get(Limit()).duration
@@ -117,7 +120,9 @@ proc reserve*(
   reservation.svoucher.withValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
       raise newException(ReservationError, "Invalid voucher")
-    if svoucher.data.relayPeerId != peerId:
+    let relayPeerId = svoucher.data.relayPeerId.valueOr:
+      raise newException(ReservationError, "Invalid voucher PeerId")
+    if relayPeerId != peerId:
       raise newException(ReservationError, "Invalid voucher PeerId")
     rsvp.voucher = Opt.some(svoucher.data)
 

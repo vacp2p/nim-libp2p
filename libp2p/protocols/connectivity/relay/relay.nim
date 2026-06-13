@@ -77,9 +77,9 @@ proc createReserveResponse(
   let
     expireUnix = expire.toTime.toUnix.uint64
     v = Voucher(
-      relayPeerId: r.switch.peerInfo.peerId,
-      reservingPeerId: pid,
-      expiration: expireUnix,
+      relayPeerId: Opt.some(r.switch.peerInfo.peerId),
+      reservingPeerId: Opt.some(pid),
+      expiration: Opt.some(expireUnix),
     )
     sv = ?SignedVoucher.init(r.switch.peerInfo.privateKey, v)
     ma = ?MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(

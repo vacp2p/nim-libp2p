@@ -55,9 +55,9 @@ Protobuf.serializerFor([RelayPeer, RelayMessage])
 
 type
   Voucher* {.proto3.} = object
-    relayPeerId* {.fieldNumber: 1, ext.}: PeerId
-    reservingPeerId* {.fieldNumber: 2, ext.}: PeerId
-    expiration* {.fieldNumber: 3, pint.}: uint64
+    relayPeerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    reservingPeerId* {.fieldNumber: 2, ext.}: Opt[PeerId]
+    expiration* {.fieldNumber: 3, pint.}: Opt[uint64]
 
   Peer* {.proto3.} = object
     peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
@@ -73,7 +73,7 @@ type
     data* {.fieldNumber: 2, pint.}: uint64
 
   StatusV2* = enum
-    uset = 0 # needed for protobuf
+    Unused = 0 # needed for protobuf
     Ok = 100
     ReservationRefused = 200
     ResourceLimitExceeded = 201
@@ -113,7 +113,11 @@ proc init*(
     reservingPeerId: PeerId,
     expiration: uint64,
 ): T =
-  T(relayPeerId: relayPeerId, reservingPeerId: reservingPeerId, expiration: expiration)
+  T(
+    relayPeerId: Opt.some(relayPeerId),
+    reservingPeerId: Opt.some(reservingPeerId),
+    expiration: Opt.some(expiration),
+  )
 
 type SignedVoucher* = SignedPayload[Voucher]
 
@@ -124,7 +128,12 @@ proc payloadType*(_: typedesc[Voucher]): seq[byte] =
   @[(byte) 0x03, (byte) 0x02]
 
 proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
-  if not spr.data.relayPeerId.match(spr.envelope.publicKey):
+  let relayPeerId = spr.data.relayPeerId.valueOr:
+    return err(EnvelopeFieldMissing)
+  if spr.data.reservingPeerId.isNone or spr.data.expiration.isNone:
+    return err(EnvelopeFieldMissing)
+
+  if not relayPeerId.match(spr.envelope.publicKey):
     err(EnvelopeInvalidSignature)
   else:
     ok()
