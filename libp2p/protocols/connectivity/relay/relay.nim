@@ -76,11 +76,7 @@ proc createReserveResponse(
 ): Result[HopMessage, CryptoError] =
   let
     expireUnix = expire.toTime.toUnix.uint64
-    v = Voucher(
-      relayPeerId: Opt.some(r.switch.peerInfo.peerId),
-      reservingPeerId: Opt.some(pid),
-      expiration: Opt.some(expireUnix),
-    )
+    v = Voucher.init(r.switch.peerInfo.peerId, pid, expireUnix)
     sv = ?SignedVoucher.init(r.switch.peerInfo.privateKey, v)
     ma = ?MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(
       CryptoError.KeyError

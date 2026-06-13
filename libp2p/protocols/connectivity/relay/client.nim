@@ -13,7 +13,8 @@ import
   ../../../peerinfo,
   ../../../switch,
   ../../../multiaddress,
-  ../../../stream/connection
+  ../../../stream/connection,
+  ../../../signed_envelope
 
 logScope:
   topics = "libp2p relay relay-client"
@@ -119,11 +120,13 @@ proc reserve*(
 
   reservation.svoucher.withValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
+      if error == EnvelopeFieldMissing:
+        raise newException(ReservationError, "Missing voucher field")
       raise newException(ReservationError, "Invalid voucher")
     let relayPeerId = svoucher.data.relayPeerId.valueOr:
-      raise newException(ReservationError, "Invalid voucher PeerId")
+      raise newException(ReservationError, "Missing voucher relay PeerId")
     if relayPeerId != peerId:
-      raise newException(ReservationError, "Invalid voucher PeerId")
+      raise newException(ReservationError, "Voucher relay PeerId mismatch")
     rsvp.voucher = Opt.some(svoucher.data)
 
   rsvp.limitDuration = msg.limit.get(Limit()).duration
