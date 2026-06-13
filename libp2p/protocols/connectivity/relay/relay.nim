@@ -86,14 +86,14 @@ proc createReserveResponse(
       CryptoError.KeyError
     )
     rsrv = Reservation(
-      expire: expireUnix,
+      expire: Opt.some(expireUnix),
       addrs: r.switch.peerInfo.addrs.mapIt(?it.concat(ma).orErr(CryptoError.KeyError)),
       svoucher: Opt.some(?sv.encode),
     )
     msg = HopMessage(
-      msgType: HopMessageType.Status,
+      msgType: Opt.some(HopMessageType.Status),
       reservation: Opt.some(rsrv),
-      limit: r.limit,
+      limit: Opt.some(r.limit),
       status: Opt.some(Ok),
     )
   return ok(msg)
@@ -127,7 +127,7 @@ proc handleReserve(
       return
 
   r.rsvp[pid] = expire
-  await stream.writeLp(encode(msg).buffer)
+  await stream.writeLp(encode(msg))
 
 proc handleConnect(
     r: Relay, srcStream: Stream, msg: HopMessage
@@ -140,8 +140,10 @@ proc handleConnect(
     msgPeer = msg.peer.valueOr:
       await sendHopStatus(srcStream, MalformedMessage)
       return
+    dst = msgPeer.peerId.valueOr:
+      await sendHopStatus(srcStream, MalformedMessage)
+      return
     src = srcStream.peerId
-    dst = msgPeer.peerId
   if dst notin r.rsvp:
     trace "refusing connection, no reservation", src, dst
     await sendHopStatus(srcStream, NoReservation)
@@ -173,20 +175,20 @@ proc handleConnect(
 
   proc sendStopMsg() {.async: (raises: [SendStopError, CancelledError, LPStreamError]).} =
     let stopMsg = StopMessage(
-      msgType: StopMessageType.Connect,
-      peer: Opt.some(Peer(peerId: src, addrs: @[])),
-      limit: r.limit,
+      msgType: Opt.some(StopMessageType.Connect),
+      peer: Opt.some(Peer(peerId: Opt.some(src), addrs: @[])),
+      limit: Opt.some(r.limit),
     )
-    await dstStream.writeLp(encode(stopMsg).buffer)
+    await dstStream.writeLp(encode(stopMsg))
     let msg = StopMessage.decode(await dstStream.readLp(r.msgSize)).valueOr:
       raise newException(SendStopError, "Malformed message")
-    if msg.msgType != StopMessageType.Status:
+    if msg.msgType != Opt.some(StopMessageType.Status):
       raise
         newException(SendStopError, "Unexpected stop response, not a status message")
     if msg.status.get(UnexpectedMessage) != Ok:
       raise newException(SendStopError, "Relay stop failure")
     await srcStream.writeLp(
-      encode(HopMessage(msgType: HopMessageType.Status, status: Opt.some(Ok))).buffer
+      encode(HopMessage(msgType: Opt.some(HopMessageType.Status), status: Opt.some(Ok)))
     )
 
   try:
@@ -214,7 +216,13 @@ proc handleHopStreamV2*(
     await sendHopStatus(stream, MalformedMessage)
     return
   trace "relayv2 handle stream", hopMsg = msg
-  case msg.msgType
+
+  if msg.msgType.isNone:
+    trace "relayv2 mesage type not set"
+    await sendHopStatus(stream, MalformedMessage)
+    return
+
+  case msg.msgType.get()
   of HopMessageType.Reserve:
     await r.handleReserve(stream)
   of HopMessageType.Connect:
@@ -286,7 +294,7 @@ proc handleHop*(
 
   let msgRcvFromDstOpt =
     try:
-      await dstStream.writeLp(encode(msgToSend).buffer)
+      await dstStream.writeLp(encode(msgToSend))
       RelayMessage.decode(await dstStream.readLp(r.msgSize))
     except CancelledError as exc:
       raise exc
