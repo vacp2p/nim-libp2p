@@ -5,7 +5,7 @@
 
 import chronos
 import protobuf_serialization
-import ../../../libp2p/utils/protobuf_chronos
+import ../../../libp2p/utils/protobuf_chronos_sec
 import ../../tools/[unittest]
 
 type
@@ -29,7 +29,7 @@ type
     durs {.fieldNumber: 1, ext.}: seq[Duration]
     moments {.fieldNumber: 2, ext.}: seq[Moment]
 
-suite "protobuf_chronos":
+suite "protobuf_chronos_sec":
   test "Duration zero round-trips":
     let enc = Protobuf.encode(DurationMsg(dur: 0.seconds))
     let dec = Protobuf.decode(enc, DurationMsg)
@@ -66,8 +66,7 @@ suite "protobuf_chronos":
     check dec.ts.epochSeconds() == ns
 
   test "Duration and Moment coexist in same message":
-    let orig =
-      BothMsg(dur: 5.seconds, ts: Moment.init(1_000_000, Second))
+    let orig = BothMsg(dur: 5.seconds, ts: Moment.init(1_000_000, Second))
     let enc = Protobuf.encode(orig)
     let dec = Protobuf.decode(enc, BothMsg)
     check dec.dur == orig.dur
@@ -141,10 +140,7 @@ suite "protobuf_chronos":
     check dec.moments == orig
 
   test "seq[Moment] multiple elements round-trips":
-    let orig = @[
-      Moment.init(1_000_000, Second),
-      Moment.init(1_700_000_000, Second),
-    ]
+    let orig = @[Moment.init(1_000_000, Second), Moment.init(1_700_000_000, Second)]
     let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
     let dec = Protobuf.decode(enc, MomentSeqMsg)
     check dec.moments == orig

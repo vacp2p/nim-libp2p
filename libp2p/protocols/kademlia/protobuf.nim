@@ -11,7 +11,7 @@ import ../../crypto/crypto
 import protobuf_serialization
 import protobuf_serialization/pkg/results
 import protobuf_serialization/std/enums
-import ../../utils/[protobuf, protobuf_chronos]
+import ../../utils/[protobuf, protobuf_chronos_sec]
 
 type
   Record* {.proto2.} = object
