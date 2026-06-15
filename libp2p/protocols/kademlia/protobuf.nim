@@ -102,16 +102,8 @@ proc `==`*(a, b: Peer): bool =
 
 Protobuf.serializerFor([Record, Ticket, RegisterMessage, GetAdsMessage])
 
-# Peer has custom encode/decode because of additional hideConnectionStatus parameter
-
-proc decodePeer(buf: seq[byte]): Peer {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Peer)
-
-proc decode*(_: type Peer, buf: seq[byte]): Result[Peer, string] =
-  try:
-    ok(decodePeer(buf))
-  except SerializationError as e:
-    err("failed to decode Peer from protobuf bytes. " & e.msg)
+# Peer and Message have custom encode because of additional hideConnectionStatus parameter
+Protobuf.decodeFor([Peer, Message])
 
 proc encode*(
     msg: Peer, hideConnectionStatus: bool = true
@@ -119,17 +111,6 @@ proc encode*(
   var m = msg
   m.connection = m.connection.hide(hideConnectionStatus)
   Protobuf.encode(m)
-
-# Message has custom encode/decode because of additional hideConnectionStatus parameter
-
-proc decodeMessage(buf: seq[byte]): Message {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Message)
-
-proc decode*(_: type Message, buf: seq[byte]): Result[Message, string] =
-  try:
-    ok(decodeMessage(buf))
-  except SerializationError as e:
-    err("failed to decode Message from protobuf bytes. " & e.msg)
 
 proc encode*(
     msg: Message, hideConnectionStatus: bool = true
