@@ -30,7 +30,6 @@ converter toOptMoment*(a: Moment): Opt[Moment] =
 converter toOptDuration*(a: Duration): Opt[Duration] =
   Opt.some(a)
 
-
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
 
