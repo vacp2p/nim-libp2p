@@ -190,8 +190,8 @@ proc sendRegister*(
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
   let msg = Message(
-    msgType: MessageType.register,
-    key: serviceId,
+    msgType: Opt.some(MessageType.register),
+    key: Opt.some(serviceId),
     register: Opt.some(
       RegisterMessage(
         advertisement: ad,

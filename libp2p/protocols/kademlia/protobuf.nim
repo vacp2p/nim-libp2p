@@ -81,8 +81,8 @@ type
       # field 1 - List of encoded advertisements
 
   Message* {.proto2.} = object
-    msgType* {.fieldNumber: 1, required, ext.}: MessageType
-    key* {.fieldNumber: 2, required.}: seq[byte]
+    msgType* {.fieldNumber: 1, ext.}: Opt[MessageType]
+    key* {.fieldNumber: 2.}: Opt[seq[byte]]
     record* {.fieldNumber: 3.}: Opt[Record]
     closerPeers* {.fieldNumber: 8.}: seq[Peer]
     providerPeers* {.fieldNumber: 9.}: seq[Peer]

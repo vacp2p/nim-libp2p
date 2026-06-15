@@ -15,7 +15,7 @@ proc ping*(
   defer:
     await stream.close()
 
-  let request = Message(msgType: MessageType.ping)
+  let request = Message(msgType: Opt.some(MessageType.ping))
   let encoded = request.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.ping])

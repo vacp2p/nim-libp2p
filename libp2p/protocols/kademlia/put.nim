@@ -59,8 +59,8 @@ proc dispatchPutVal*(
   defer:
     await stream.close()
   let msg = Message(
-    msgType: MessageType.putValue,
-    key: key,
+    msgType: Opt.some(MessageType.putValue),
+    key: Opt.some(key),
     record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
   let encoded = msg.encode()
@@ -126,7 +126,11 @@ proc handlePutValue*(
     error "No record in message buffer", msg = msg, stream = stream
     return
 
-  if record.key.isNone or record.key.get() != msg.key:
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handlePutValue", msg = msg, stream = stream
+    return
+
+  if record.key.isNone or record.key.get() != msgKey:
     error "Record key is different than Message key", msg = msg, stream = stream
     return
 
@@ -143,15 +147,15 @@ proc handlePutValue*(
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())
 
   # Value sanitisation done. Start insertion process
-  if not kad.config.validator.isValid(msg.key, entryRecord):
-    debug "Record is not valid", msg = msg.key, entryRecord = entryRecord
+  if not kad.config.validator.isValid(msgKey, entryRecord):
+    debug "Record is not valid", msg = msg, entryRecord = entryRecord
     return
 
-  if not kad.isBestValue(msg.key, entryRecord):
+  if not kad.isBestValue(msgKey, entryRecord):
     error "Dropping received value, we have a better one"
     return
 
-  kad.dataTable.insert(msg.key, entryRecord.value, Timestamp.now())
+  kad.dataTable.insert(msgKey, entryRecord.value, Timestamp.now())
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode(kad.config.hideConnectionStatus)

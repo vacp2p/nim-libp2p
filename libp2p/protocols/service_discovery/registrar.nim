@@ -273,7 +273,7 @@ proc sendRegisterResponse*(
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ) {.async: (raises: [CancelledError]).} =
   let msg = Message(
-    msgType: MessageType.register,
+    msgType: Opt.some(MessageType.register),
     register: Opt.some(
       RegisterMessage(advertisement: @[], status: Opt.some(status), ticket: ticket)
     ),
@@ -413,7 +413,9 @@ proc getCloserPeers(
   return disco.switch.toPeers(keys)
 
 proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
-  let serviceId = inMsg.key
+  let serviceId = inMsg.key.valueOr:
+    error "Key not set: registration", msg = inMsg
+    return
 
   # Add peer to both tables
   discard disco.rtable.insert(peerId)
@@ -422,7 +424,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
-    msgType: MessageType.register,
+    msgType: Opt.some(MessageType.register),
     register: Opt.some(
       RegisterMessage(
         advertisement: @[],
@@ -514,7 +516,9 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
-  let serviceId = msg.key
+  let serviceId = msg.key.valueOr:
+    error "Key not set: getAdvertisements", msg = msg
+    return
 
   # Add peer to both tables
   discard disco.rtable.insert(peerId)
@@ -527,7 +531,7 @@ proc getAdvertisements*(
   let closerPeers = disco.getCloserPeers(serviceId, cap)
 
   let response = Message(
-    msgType: MessageType.getAds,
+    msgType: Opt.some(MessageType.getAds),
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: closerPeers,
   )

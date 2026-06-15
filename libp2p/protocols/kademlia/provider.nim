@@ -117,8 +117,8 @@ proc dispatchAddProvider(
     await stream.close()
 
   let msg = Message(
-    msgType: MessageType.addProvider,
-    key: key,
+    msgType: Opt.some(MessageType.addProvider),
+    key: Opt.some(key),
     providerPeers: @[kad.switch.peerInfo.toPeer()],
   )
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -231,8 +231,9 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
 proc sendAddProviderResponse(
     stream: Stream, kad: KadDHT, status: AddProviderStatus
 ) {.async: (raises: [CancelledError]).} =
-  let response =
-    Message(msgType: MessageType.addProvider, providerStatus: Opt.some(status))
+  let response = Message(
+    msgType: Opt.some(MessageType.addProvider), providerStatus: Opt.some(status)
+  )
   try:
     await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
@@ -242,9 +243,13 @@ proc sendAddProviderResponse(
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  if not MultiHash.validate(msg.key):
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleAddProvider", msg = msg, stream = stream
+    return
+
+  if not MultiHash.validate(msgKey):
     error "Received key is an invalid Multihash",
-      msg = msg, stream = stream, key = msg.key
+      msg = msg, stream = stream, key = msgKey
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
@@ -260,7 +265,7 @@ method handleAddProvider*(
   var atCap = false
   kad.config.limits.maxProvidersPerKey.withValue(limit):
     let existingProviders =
-      kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
+      kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
     let senderIsKnown =
       existingProviders.anyIt(it.id.isSome and it.id.get() == peerBytes)
     # Re-advertisements by the same provider are exempt: addProviderRecord
@@ -268,7 +273,7 @@ method handleAddProvider*(
     let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
     if effectiveCount >= limit:
       atCap = true
-      debug "ADD_PROVIDER rejected: per-key limit reached", key = msg.key, limit = limit
+      debug "ADD_PROVIDER rejected: per-key limit reached", key = msgKey, limit = limit
 
   if not atCap:
     for peer in validPeers:
@@ -276,7 +281,7 @@ method handleAddProvider*(
         ProviderRecord(
           provider: peer,
           expiresAt: chronos.Moment.now() + kad.config.providerExpirationInterval,
-          key: msg.key,
+          key: msgKey,
         )
       )
 
@@ -301,7 +306,7 @@ proc dispatchGetProviders*(
   let stream = streamRes.value()
   defer:
     await stream.close()
-  let msg = Message(msgType: MessageType.getProviders, key: key)
+  let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
@@ -372,17 +377,21 @@ proc getProviders*(
 proc handleGetProviders*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleGetProviders", msg = msg, stream = stream
+    return
+
   var providers =
-    kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
+    kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
 
   # check if we are providing the key as well
-  if kad.providerManager.providedKeys.provided.hasKey(msg.key):
+  if kad.providerManager.providedKeys.provided.hasKey(msgKey):
     providers.incl(kad.switch.peerInfo.toPeer())
 
   let response = Message(
-    msgType: MessageType.getProviders,
+    msgType: Opt.some(MessageType.getProviders),
     key: msg.key,
-    closerPeers: kad.findClosestPeers(msg.key),
+    closerPeers: kad.findClosestPeers(msgKey),
     providerPeers: providers.toSeq(),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)

@@ -174,7 +174,7 @@ proc dispatchFindNode*(
   defer:
     await stream.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: target)
+  let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.findNode])
@@ -358,10 +358,13 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let target = msg.key
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleFindNode", msg = msg, stream = stream
+    return
 
-  let response =
-    Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
+  let response = Message(
+    msgType: Opt.some(MessageType.findNode), closerPeers: kad.findClosestPeers(msgKey)
+  )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
   try:

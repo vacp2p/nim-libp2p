@@ -30,6 +30,12 @@ converter toOptMoment*(a: Moment): Opt[Moment] =
 converter toOptDuration*(a: Duration): Opt[Duration] =
   Opt.some(a)
 
+converter toOptMessageType*(a: MessageType): Opt[MessageType] =
+  Opt.some(a)
+
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
 

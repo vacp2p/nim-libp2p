@@ -23,7 +23,7 @@ proc dispatchGetVal*(
   defer:
     await stream.close()
 
-  let msg = Message(msgType: MessageType.getValue, key: key)
+  let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
@@ -160,7 +160,9 @@ proc getValue*(
 method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let key = msg.key
+  let key = msg.key.valueOr:
+    error "Key not set: handleGetValue", msg = msg, stream = stream
+    return
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
   # as absent and sends the standard "no record found" response.
@@ -173,7 +175,9 @@ method handleGetValue*(
 
   let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
-      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key),
+      closerPeers: kad.findClosestPeers(key),
     )
     let encoded = response.encode(kad.config.hideConnectionStatus)
     kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
@@ -184,8 +188,8 @@ method handleGetValue*(
     return
 
   let response = Message(
-    msgType: MessageType.getValue,
-    key: key,
+    msgType: Opt.some(MessageType.getValue),
+    key: Opt.some(key),
     record: Opt.some(
       Record(
         key: Opt.some(key),

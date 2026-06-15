@@ -9,6 +9,24 @@ import ./mock_kademlia
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
+converter toOptSeqMultiAddress*(a: seq[MultiAddress]): Opt[seq[MultiAddress]] =
+  Opt.some(a)
+
+converter toOptConnectionStatus*(a: ConnectionStatus): Opt[ConnectionStatus] =
+  Opt.some(a)
+
+converter toOptRecord*(a: protobuf.Record): Opt[protobuf.Record] =
+  Opt.some(a)
+
+converter toOptString*(a: string): Opt[string] =
+  Opt.some(a)
+
+converter toOptMessageType*(a: MessageType): Opt[MessageType] =
+  Opt.some(a)
+
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
   true
@@ -245,18 +263,3 @@ proc sendAddProviderAndGetStatus*(
   let reply = Message.decode(readRes.value).valueOr:
     return ok(AddProviderStatus.accepted)
   return ok(reply.providerStatus.get(AddProviderStatus.accepted))
-
-converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
-  Opt.some(a)
-
-converter toOptSeqMultiAddress*(a: seq[MultiAddress]): Opt[seq[MultiAddress]] =
-  Opt.some(a)
-
-converter toOptConnectionStatus*(a: ConnectionStatus): Opt[ConnectionStatus] =
-  Opt.some(a)
-
-converter toOptRecord*(a: protobuf.Record): Opt[protobuf.Record] =
-  Opt.some(a)
-
-converter toString*(a: string): Opt[string] =
-  Opt.some(a)

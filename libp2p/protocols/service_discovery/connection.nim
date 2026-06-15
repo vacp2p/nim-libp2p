@@ -58,7 +58,7 @@ proc handleMessage*(
   let peerId = stream.peerId
 
   let response =
-    if msg.msgType == MessageType.register:
+    if msg.msgType.get() == MessageType.register:
       disco.registration(peerId, msg)
     else:
       disco.getAdvertisements(peerId, msg)
