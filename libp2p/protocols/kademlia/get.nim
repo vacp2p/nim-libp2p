@@ -142,8 +142,7 @@ proc getValue*(
   if kad.canStoreLocalRecord(key):
     kad.dataTable.insert(key, best.value, Timestamp.now())
   else:
-    debug "GetValue: local record limit reached",
-      key = key, current = kad.dataTable.len
+    debug "GetValue: local record limit reached", key = key, current = kad.dataTable.len
 
   # update peers that
   # - don't have best value
