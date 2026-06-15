@@ -38,6 +38,7 @@ type
     maxQueueSize: int
     minConfidence: float
     enableAddressMapper: bool
+    enableDialableCandidates: bool
 
   AutonatV2Service* = ref object of Service
     config*: AutonatV2ServiceConfig
@@ -65,6 +66,7 @@ proc new*(
     maxQueueSize: int = 10,
     minConfidence: float = 0.3,
     enableAddressMapper = true,
+    enableDialableCandidates = false,
 ): T =
   return T(
     scheduleInterval: scheduleInterval,
@@ -73,6 +75,7 @@ proc new*(
     maxQueueSize: maxQueueSize,
     minConfidence: minConfidence,
     enableAddressMapper: enableAddressMapper,
+    enableDialableCandidates: enableDialableCandidates,
   )
 
 proc new*(
@@ -155,10 +158,30 @@ proc askPeer(
     return Unknown
 
   trace "Asking peer for reachability"
+
+  var reqAddrs = switch.peerInfo.addrs
+  if self.config.enableDialableCandidates:
+    # A node behind NAT only has listen addresses until it is confirmed
+    # reachable, so derive extra candidates from the observed addresses to break
+    # the chicken-and-egg.
+    var observedCandidates: seq[MultiAddress]
+    for listenAddr in switch.peerInfo.listenAddrs:
+      let guessed = switch.peerStore.guessDialableAddr(listenAddr)
+      if guessed != listenAddr:
+        observedCandidates.add(guessed)
+    observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
+
+    reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
+        switch.peerInfo.addressPolicy(it)
+      )
+
+  if reqAddrs.len == 0:
+    debug "No candidate addresses to test, not asking peer"
+    return Unknown
+
   var dialBackAddr = Opt.none(MultiAddress)
   let ans =
     try:
-      let reqAddrs = switch.peerInfo.addrs
       let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
       debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
       dialBackAddr = autonatV2Resp.addrs
