@@ -243,22 +243,28 @@ proc set*(
   let now = Moment.now()
   var prevConf: Table[MultiAddress, AddressConfidence]
   for entry in addressBook.book.getOrDefault(peerId):
-    prevConf[entry.address] = entry.confidence
+    let normalized = entry.address.stripPeerId()
+    prevConf[normalized] =
+      max(prevConf.getOrDefault(normalized, entry.confidence), entry.confidence)
 
   var newEntries = newSeqOfCap[AddressEntry](addrs.len)
   for ma in addrs:
-    newEntries.add(
-      AddressEntry(
-        address: ma,
-        confidence: higherConfidence(prevConf, ma, confidence),
-        lastUpdated: now,
-      )
+    let normalized = stripPeerId(ma)
+    newEntries.upsertAddress(
+      normalized, higherConfidence(prevConf, normalized, confidence), now
     )
 
   for entry in addressBook.book.getOrDefault(peerId):
+    let normalized = entry.address.stripPeerId()
     if entry.confidence >= AddressConfidence.High and
-        newEntries.findWithAddress(entry.address) < 0:
-      newEntries.add(entry)
+        newEntries.findWithAddress(normalized) < 0:
+      newEntries.add(
+        AddressEntry(
+          address: normalized,
+          confidence: entry.confidence,
+          lastUpdated: entry.lastUpdated,
+        )
+      )
 
   addressBook.book[peerId] = newEntries
 
@@ -291,7 +297,7 @@ proc markConnected*(addressBook: AddressBook, peerId: PeerId, ma: MultiAddress) 
 
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(peerId)
-  entries.upsertAddress(ma, AddressConfidence.High, now)
+  entries.upsertAddress(ma.stripPeerId(), AddressConfidence.High, now)
   addressBook.book[peerId] = entries
 
 proc extend*(
@@ -310,7 +316,7 @@ proc extend*(
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(key)
   for ma in addrs:
-    entries.upsertAddress(ma, confidence, now)
+    entries.upsertAddress(ma.stripPeerId(), confidence, now)
   if entries.len > 0:
     addressBook.book[key] = entries
 

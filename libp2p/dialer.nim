@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/tables
+import std/[sequtils, tables]
 
 import pkg/[chronos, chronicles, metrics, results]
 
@@ -52,18 +52,17 @@ proc dialAndUpgrade*(
 
   for transport in self.transports: # for each transport
     if transport.handles(addrs): # check if it can dial it
-      trace "Dialing address", addrs, peerId = peerId.get(default(PeerId)), hostname
+      trace "Dialing address", addrs, peerId, hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, addrs, peerId)
         except CancelledError as exc:
-          trace "Dialing canceled",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+          trace "Dialing canceled", description = exc.msg, peerId
           raise exc
         except CatchableError as exc:
           debug "Dialing failed",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+            description = exc.msg, peerId = peerId, address = addrs, hostname
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -85,7 +84,7 @@ proc dialAndUpgrade*(
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Connection upgrade failed",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+            description = exc.msg, peerId, address = addrs, hostname
           if dialed.dir == Direction.Out:
             libp2p_failed_upgrades_outgoing.inc()
           else:
@@ -152,9 +151,15 @@ proc dialAndUpgrade*(
   ## Dial address candidates, resolving DNS addresses when configured.
   ## Returns the first upgraded muxer, or nil when no address succeeds.
 
-  debug "Dialing peer", peerId = peerId.get(default(PeerId)), addrs
+  let dialAddrs =
+    if peerId.isSome:
+      addrs.mapIt(it.stripPeerId)
+    else:
+      addrs
 
-  for rawAddress in addrs:
+  debug "Dialing peer", peerId = peerId, addrs = dialAddrs
+
+  for rawAddress in dialAddrs:
     # resolve potential dnsaddr
     let addresses = await self.expandDnsAddr(peerId, rawAddress)
     for (expandedAddress, addrPeerId) in addresses:
@@ -232,7 +237,10 @@ proc internalConnect(
   if isNil(muxed): # None of the addresses connected
     slot.release()
     raise newException(
-      DialFailedError, "Unable to establish outgoing link in internalConnect"
+      DialFailedError,
+      "Unable to establish outgoing link in internalConnect: peer_id=" & shortLog(
+        peerId
+      ) & " addrs=" & $addrs,
     )
 
   slot.trackMuxer(muxed)
@@ -414,9 +422,14 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, description = exc.msg
+    debug "Error dialing", conn, peerId, protos, addrs, description = exc.msg
     await cleanup()
-    raise newException(DialFailedError, "failed new dial: " & exc.msg, exc)
+    raise newException(
+      DialFailedError,
+      "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & $protos & " addrs=" &
+        $addrs & ": " & exc.msg,
+      exc,
+    )
 
 method addTransport*(self: Dialer, t: Transport) {.raises: [].} =
   self.transports &= t
