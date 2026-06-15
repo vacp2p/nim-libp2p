@@ -99,6 +99,35 @@ suite "KadDHT - Limits":
       kads[1].containsData(key, value)
       kads[0].containsNoData(key)
 
+  asyncTest "handlePutValue drops new records when maxLocalRecords is reached":
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
+    await connect(kads[0], kads[1])
+
+    kads[0].config.limits.maxLocalRecords = Opt.some(1)
+
+    let
+      existingKey = randomPeerId().toKey()
+      newKey = randomPeerId().toKey()
+      existingValue = @[1.byte]
+      newValue = @[2.byte]
+
+    kads[0].dataTable.insert(existingKey, existingValue, Timestamp.now())
+
+    let request = Message(
+      msgType: MessageType.putValue,
+      key: newKey,
+      record: Opt.some(Record(key: newKey, value: Opt.some(newValue))),
+    )
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
+    )
+    await kads[0].handlePutValue(conn, request)
+
+    check:
+      kads[0].containsData(existingKey, existingValue)
+      kads[0].containsNoData(newKey)
+
   asyncTest "getValue caps ReceivedTable at maxReceivedSize":
     let kads = setupKadSwitches(4)
     startAndDeferStop(kads)
