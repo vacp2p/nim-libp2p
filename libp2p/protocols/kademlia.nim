@@ -99,10 +99,12 @@ proc new*(
         debug "Failed to decode message", err = error
         return
 
-      kad_messages_received.inc(labelValues = [$msg.msgType])
-      kad_message_bytes_received.inc(bufLen.int64, labelValues = [$msg.msgType])
+      let msgType = msg.msgType.get(MessageType.putValue)
 
-      case msg.msgType.get(MessageType.putValue)
+      kad_messages_received.inc(labelValues = [$msgType])
+      kad_message_bytes_received.inc(bufLen.int64, labelValues = [$msgType])
+
+      case msgType
       of MessageType.findNode:
         await kad.handleFindNode(stream, msg)
       of MessageType.putValue:
