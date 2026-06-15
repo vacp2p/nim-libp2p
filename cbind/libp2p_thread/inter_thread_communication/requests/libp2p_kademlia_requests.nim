@@ -182,7 +182,9 @@ proc buildProvidersResult(
 
   try:
     for i, provider in providers:
-      let peerId = PeerId.init(provider.id).valueOr:
+      let providerId = provider.id.valueOr:
+        raise newException(ValueError, "Provider Id not set")
+      let peerId = PeerId.init(providerId).valueOr:
         raise newException(ValueError, $error)
       arr[i].peerId = ($peerId).alloc()
 
