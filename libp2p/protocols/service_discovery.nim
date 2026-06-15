@@ -113,10 +113,7 @@ proc new*(
         debug "Failed to decode message", err = error
         return
 
-      let msgType = msg.msgType.valueOr:
-        error "MessageType not set"
-        return
-
+      let msgType = msg.msgType.get(MessageType.putValue)
       case msgType
       of MessageType.findNode:
         await disco.handleFindNode(stream, msg)

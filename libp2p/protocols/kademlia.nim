@@ -102,11 +102,7 @@ proc new*(
       kad_messages_received.inc(labelValues = [$msg.msgType])
       kad_message_bytes_received.inc(bufLen.int64, labelValues = [$msg.msgType])
 
-      if msg.msgType.isNone:
-        debug "MessageType not set"
-        return
-
-      case msg.msgType.get()
+      case msg.msgType.get(MessageType.putValue)
       of MessageType.findNode:
         await kad.handleFindNode(stream, msg)
       of MessageType.putValue:
