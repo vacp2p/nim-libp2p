@@ -271,6 +271,33 @@ suite "AddressBook TTL / confidence":
       entries.filterIt(it.address == addr1)[0].confidence == AddressConfidence.High
       entries.filterIt(it.address == addr2)[0].confidence == AddressConfidence.Medium
 
+  test "set merges preserved entries that normalize to same address":
+    let
+      book = makeBook(1.hours, 1.hours, 24.hours)
+      fullAddr1 = MultiAddress.init($addr1 & "/p2p/" & $peerId1).get()
+      older = Moment.now() - 2.seconds
+      newer = Moment.now() - 1.seconds
+
+    book.book[peerId1] = @[
+      AddressEntry(
+        address: addr1, confidence: AddressConfidence.High, lastUpdated: older
+      ),
+      AddressEntry(
+        address: fullAddr1, confidence: AddressConfidence.Infinite, lastUpdated: newer
+      ),
+    ]
+
+    book.set(peerId1, @[addr2], AddressConfidence.Medium)
+    let
+      entries = book.entries(peerId1)
+      preserved = entries.filterIt(it.address == addr1)
+
+    check:
+      entries.len == 2
+      preserved.len == 1
+      preserved[0].confidence == AddressConfidence.Infinite
+      preserved[0].lastUpdated == newer
+
   test "set does not preserve Low/Medium address absent from incoming list":
     let book = makeBook(1.hours, 1.hours, 24.hours)
     book.set(peerId1, @[addr1], AddressConfidence.Medium)

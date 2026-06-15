@@ -143,6 +143,14 @@ proc expandDnsAddr(
       addrs.add((resolvedAddress, peerId))
   addrs
 
+proc normalizedDialAddrs(
+    peerId: Opt[PeerId], addrs: seq[MultiAddress]
+): seq[MultiAddress] =
+  if peerId.isSome:
+    addrs.mapIt(it.stripPeerId)
+  else:
+    addrs
+
 proc dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
 ): Future[Muxer] {.
@@ -151,12 +159,7 @@ proc dialAndUpgrade*(
   ## Dial address candidates, resolving DNS addresses when configured.
   ## Returns the first upgraded muxer, or nil when no address succeeds.
 
-  let dialAddrs =
-    if peerId.isSome:
-      addrs.mapIt(it.stripPeerId)
-    else:
-      addrs
-
+  let dialAddrs = normalizedDialAddrs(peerId, addrs)
   debug "Dialing peer", peerId = peerId, addrs = dialAddrs
 
   for rawAddress in dialAddrs:
@@ -223,9 +226,10 @@ proc internalConnect(
         DialFailedError, "failed getOutgoingSlot in internalConnect: " & exc.msg, exc
       )
 
+  let dialAddrs = normalizedDialAddrs(peerId, addrs)
   let muxed =
     try:
-      await self.dialAndUpgrade(peerId, addrs, dir)
+      await self.dialAndUpgrade(peerId, dialAddrs, dir)
     except CancelledError as exc:
       slot.release()
       raise exc
@@ -240,7 +244,7 @@ proc internalConnect(
       DialFailedError,
       "Unable to establish outgoing link in internalConnect: peer_id=" & shortLog(
         peerId
-      ) & " addrs=" & $addrs,
+      ) & " addrs=" & $dialAddrs,
     )
 
   slot.trackMuxer(muxed)
@@ -397,6 +401,8 @@ method dial*(
     conn: Muxer
     stream: Stream
 
+  let dialAddrs = normalizedDialAddrs(Opt.some(peerId), addrs)
+
   proc cleanup() {.async: (raises: []).} =
     if not (isNil(stream)):
       await stream.closeWithEOF()
@@ -406,7 +412,7 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+    conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 
@@ -422,12 +428,13 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, peerId, protos, addrs, description = exc.msg
+    debug "Error dialing",
+      conn, peerId, protos, addrs = dialAddrs, description = exc.msg
     await cleanup()
     raise newException(
       DialFailedError,
       "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & $protos & " addrs=" &
-        $addrs & ": " & exc.msg,
+        $dialAddrs & ": " & exc.msg,
       exc,
     )
 

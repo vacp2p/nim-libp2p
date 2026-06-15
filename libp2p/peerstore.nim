@@ -221,6 +221,15 @@ proc upsertAddress(
   else:
     entries.add(AddressEntry(address: ma, confidence: confidence, lastUpdated: now))
 
+proc mergeAddressEntry(entries: var seq[AddressEntry], entry: AddressEntry) =
+  let idx = entries.findWithAddress(entry.address)
+  if idx >= 0:
+    entries[idx].confidence = max(entries[idx].confidence, entry.confidence)
+    if entries[idx].lastUpdated < entry.lastUpdated:
+      entries[idx].lastUpdated = entry.lastUpdated
+  else:
+    entries.add(entry)
+
 proc set*(
     addressBook: AddressBook,
     peerId: PeerId,
@@ -256,9 +265,8 @@ proc set*(
 
   for entry in addressBook.book.getOrDefault(peerId):
     let normalized = entry.address.stripPeerId()
-    if entry.confidence >= AddressConfidence.High and
-        newEntries.findWithAddress(normalized) < 0:
-      newEntries.add(
+    if entry.confidence >= AddressConfidence.High:
+      newEntries.mergeAddressEntry(
         AddressEntry(
           address: normalized,
           confidence: entry.confidence,
