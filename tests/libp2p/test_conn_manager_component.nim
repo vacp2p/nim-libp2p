@@ -499,7 +499,7 @@ suite "Connection Manager Watermark/Scoring Component":
       prunedId in gossip.peers
       not node.isConnected(prunedId)
 
-  asyncTest "score and protection is persisted between disconnections":
+  asyncTest "score and protection are persisted between disconnections":
     let node = newWatermarkSwitch(1, 2)
     let peer = newSwitches(1)[0]
     let all = @[node, peer]
