@@ -4,8 +4,16 @@
 {.used.}
 
 import chronos, std/[sequtils, tables]
-import ../../libp2p/[switch, connmanager, peerinfo, stream/connection]
-import ../tools/[lifecycle, unittest, switch_builder]
+import
+  ../../libp2p/[
+    switch,
+    connmanager,
+    peerinfo,
+    stream/connection,
+    protocols/pubsub/gossipsub,
+    protocols/pubsub/pubsub,
+  ]
+import ../tools/[lifecycle, unittest, switch_builder, crypto, multiaddress]
 
 proc newWatermarkSwitch(
     lowWater: int,
@@ -449,3 +457,44 @@ suite "Connection Manager Watermark/Scoring Component":
     # that includes peers[2]'s own just-stored connection
     expect DialFailedError:
       await connect(peers[2], node)
+
+  asyncTest "Left is emitted before Joined when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
+    # gossipsub unsubscribes on Left as a no-op, then the late Joined subscribes the pruned peer.
+    # the wrong order needs a Connected handler that awaits I/O, which delays Joined past the prune.
+    const
+      lowWater = 1
+      highWater = 2
+      connectedHandlerDelay = 200.millis
+    let node = newWatermarkSwitch(lowWater, highWater)
+    let gossip =
+      GossipSub.init(switch = node, rng = rng(), parameters = GossipSubParams.init())
+    node.mount(gossip)
+    let peers = newSwitches(highWater + 1)
+    let prunedId = peers[2].peerInfo.peerId
+    let all = @[node] & peers
+
+    startAndDeferStop(all)
+
+    proc connectedHandler(
+        peerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      # simulates a Connected handler with I/O operation, delaying Joined for the pruned peer
+      if peerId == prunedId:
+        await sleepAsync(connectedHandlerDelay)
+
+    node.connManager.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
+
+    # protect peers[0] so it is the only peer the trim is allowed to keep
+    await connect(peers[0], node)
+    await connect(peers[1], node)
+    node.connManager.protect(peers[0].peerInfo.peerId, "keep")
+
+    # peers[2] triggers the trim, which prunes its own just-stored connection
+    expect DialFailedError:
+      await connect(peers[2], node)
+
+    # Joined event arrives late and subscribes
+    checkUntilTimeout:
+      prunedId in gossip.peers
+      not node.isConnected(prunedId)
