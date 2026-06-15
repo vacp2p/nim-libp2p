@@ -31,37 +31,26 @@ type
 
 suite "protobuf_chronos":
   test "Duration zero round-trips":
-    let enc = Protobuf.encode(DurationMsg(dur: 0.nanoseconds))
+    let enc = Protobuf.encode(DurationMsg(dur: 0.seconds))
     let dec = Protobuf.decode(enc, DurationMsg)
-    check dec.dur == 0.nanoseconds
+    check dec.dur == 0.seconds
 
   test "Duration 1 second round-trips":
     let enc = Protobuf.encode(DurationMsg(dur: 1.seconds))
     let dec = Protobuf.decode(enc, DurationMsg)
     check dec.dur == 1.seconds
 
-  test "Duration nanosecond precision preserved":
-    let orig = 123_456_789.nanoseconds
-    let enc = Protobuf.encode(DurationMsg(dur: orig))
-    let dec = Protobuf.decode(enc, DurationMsg)
-    check dec.dur == orig
-
   test "Duration large value round-trips":
-    let orig = 24.hours + 30.minutes + 15.seconds + 999.milliseconds
+    let orig = 24.hours + 30.minutes + 15.seconds
     let enc = Protobuf.encode(DurationMsg(dur: orig))
     let dec = Protobuf.decode(enc, DurationMsg)
     check dec.dur == orig
 
   test "Duration underlying int64 preserved":
-    let ns: int64 = 1_234_567_890_123_456_789
-    let enc = Protobuf.encode(DurationMsg(dur: ns.nanoseconds))
+    let ns: int64 = 1_234_567_890
+    let enc = Protobuf.encode(DurationMsg(dur: ns.seconds))
     let dec = Protobuf.decode(enc, DurationMsg)
-    check dec.dur.nanoseconds == ns
-
-  test "Moment zero (epoch) round-trips":
-    let enc = Protobuf.encode(MomentMsg(ts: Moment.init(0, Nanosecond)))
-    let dec = Protobuf.decode(enc, MomentMsg)
-    check dec.ts == Moment.init(0, Nanosecond)
+    check dec.dur.seconds == ns
 
   test "Moment specific timestamp round-trips":
     let orig = Moment.init(1_000_000, Second)
@@ -69,23 +58,16 @@ suite "protobuf_chronos":
     let dec = Protobuf.decode(enc, MomentMsg)
     check dec.ts == orig
 
-  test "Moment nanosecond precision preserved":
-    let ns: int64 = 1_700_000_000_123_456_789
-    let orig = Moment.init(ns, Nanosecond)
+  test "Moment epochSeconds preserved after round-trip":
+    let ns: int64 = 987_654_321
+    let orig = Moment.init(ns, Second)
     let enc = Protobuf.encode(MomentMsg(ts: orig))
     let dec = Protobuf.decode(enc, MomentMsg)
-    check dec.ts == orig
-
-  test "Moment epochNanoSeconds preserved after round-trip":
-    let ns: int64 = 987_654_321_987_654_321
-    let orig = Moment.init(ns, Nanosecond)
-    let enc = Protobuf.encode(MomentMsg(ts: orig))
-    let dec = Protobuf.decode(enc, MomentMsg)
-    check dec.ts.epochNanoSeconds() == ns
+    check dec.ts.epochSeconds() == ns
 
   test "Duration and Moment coexist in same message":
     let orig =
-      BothMsg(dur: 5.seconds + 250.milliseconds, ts: Moment.init(1_000_000, Second))
+      BothMsg(dur: 5.seconds, ts: Moment.init(1_000_000, Second))
     let enc = Protobuf.encode(orig)
     let dec = Protobuf.decode(enc, BothMsg)
     check dec.dur == orig.dur
@@ -120,25 +102,19 @@ suite "protobuf_chronos":
     check dec.durs == @[5.seconds]
 
   test "seq[Duration] multiple elements round-trips":
-    let orig = @[1.seconds, 2.minutes, 3.hours, 0.nanoseconds, 999.milliseconds]
-    let enc = Protobuf.encode(DurationSeqMsg(durs: orig))
-    let dec = Protobuf.decode(enc, DurationSeqMsg)
-    check dec.durs == orig
-
-  test "seq[Duration] nanosecond precision preserved":
-    let orig = @[123_456_789.nanoseconds, 987_654_321.nanoseconds]
+    let orig = @[1.seconds, 2.minutes, 3.hours]
     let enc = Protobuf.encode(DurationSeqMsg(durs: orig))
     let dec = Protobuf.decode(enc, DurationSeqMsg)
     check dec.durs == orig
 
   test "seq[Duration] large values round-trip":
-    let ns1: int64 = 1_234_567_890_123_456_789
-    let ns2: int64 = 9_123_456_789_012_345_678
-    let orig = @[ns1.nanoseconds, ns2.nanoseconds]
+    let ns1: int64 = 1_234_567_890
+    let ns2: int64 = 9_123_456_789
+    let orig = @[ns1.seconds, ns2.seconds]
     let enc = Protobuf.encode(DurationSeqMsg(durs: orig))
     let dec = Protobuf.decode(enc, DurationSeqMsg)
-    check dec.durs[0].nanoseconds == ns1
-    check dec.durs[1].nanoseconds == ns2
+    check dec.durs[0].seconds == ns1
+    check dec.durs[1].seconds == ns2
 
   test "seq[Duration] order preserved":
     let orig = @[3.seconds, 1.seconds, 2.seconds]
@@ -166,7 +142,6 @@ suite "protobuf_chronos":
 
   test "seq[Moment] multiple elements round-trips":
     let orig = @[
-      Moment.init(0, Nanosecond),
       Moment.init(1_000_000, Second),
       Moment.init(1_700_000_000, Second),
     ]
@@ -174,14 +149,14 @@ suite "protobuf_chronos":
     let dec = Protobuf.decode(enc, MomentSeqMsg)
     check dec.moments == orig
 
-  test "seq[Moment] nanosecond precision preserved":
-    let ns1: int64 = 1_700_000_000_123_456_789
-    let ns2: int64 = 987_654_321_987_654_321
-    let orig = @[Moment.init(ns1, Nanosecond), Moment.init(ns2, Nanosecond)]
+  test "seq[Moment] second precision preserved":
+    let ns1: int64 = 1_700_000_000
+    let ns2: int64 = 987_654_321
+    let orig = @[Moment.init(ns1, Second), Moment.init(ns2, Second)]
     let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
     let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments[0].epochNanoSeconds() == ns1
-    check dec.moments[1].epochNanoSeconds() == ns2
+    check dec.moments[0].epochSeconds() == ns1
+    check dec.moments[1].epochSeconds() == ns2
 
   test "seq[Moment] order preserved":
     let orig = @[Moment.init(3, Second), Moment.init(1, Second), Moment.init(2, Second)]
@@ -211,7 +186,7 @@ suite "protobuf_chronos":
     check dec.moments == orig.moments
 
   test "seq[Duration] re-encodes to same bytes":
-    let msg = DurationSeqMsg(durs: @[1.seconds, 42.milliseconds])
+    let msg = DurationSeqMsg(durs: @[1.seconds, 2.seconds])
     check Protobuf.encode(msg) == Protobuf.encode(msg)
 
   test "seq[Moment] re-encodes to same bytes":
