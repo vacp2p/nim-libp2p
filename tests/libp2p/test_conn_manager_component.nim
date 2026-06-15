@@ -500,28 +500,23 @@ suite "Connection Manager Watermark/Scoring Component":
       not node.isConnected(prunedId)
 
   asyncTest "score and protection is persisted between disconnections":
-    const
-      lowWater = 1
-      highWater = 2
-    let node = newWatermarkSwitch(lowWater, highWater)
+    let node = newWatermarkSwitch(1, 2)
     let peer = newSwitches(1)[0]
     let all = @[node, peer]
 
     startAndDeferStop(all)
 
-    await connect(peer, node)
-    let peerId = peer.peerInfo.peerId
+    await connect(node, peer)
 
-    # tag and protect the peer while it is connected
-    node.connManager.tagPeer(peerId, "important", 500)
+    let peerId = peer.peerInfo.peerId
+    const value = 500
+    node.connManager.tagPeer(peerId, "important", value)
     node.connManager.protect(peerId, "keep")
 
-    # disconnect the peer and wait until the node cleans up the connection
     await node.disconnect(peerId)
     checkUntilTimeout:
       not node.isConnected(peerId)
 
-    # the score and protection outlive the connection
     check:
-      node.connManager.peerScore(peerId) == 500
+      node.connManager.peerScore(peerId) == value
       node.connManager.isProtected(peerId)
