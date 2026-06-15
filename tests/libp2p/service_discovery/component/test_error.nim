@@ -54,7 +54,7 @@ suite "Service Discovery Component - Error Handling":
     # msgType = 99 is outside the MessageType enum, so decodeEnum will reject it.
     let invalidMsg = @[8'u8, 99]
 
-    expect AsyncTimeoutError:
+    expect LPStreamRemoteClosedError:
       discard
         await clientSwitch.sendRawMessage(registrarNode, invalidMsg).wait(2.seconds)
 

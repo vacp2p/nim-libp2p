@@ -280,7 +280,7 @@ proc advertiseToRegistrar*(
 
       currentTicket = Opt.some(newTicket)
 
-      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor)
+      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor.get())
 
       debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
 

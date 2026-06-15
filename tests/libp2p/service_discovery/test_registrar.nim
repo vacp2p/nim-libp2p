@@ -831,7 +831,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       tInit: now - 150.secs,
       tMod: now,
       tWaitFor: 0.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -865,7 +865,7 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
       tInit: Moment.init(1_000, Second),
       tMod: Moment.now(),
       tWaitFor: 0.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -898,7 +898,7 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
       tInit: Moment.init(1_000, Second),
       tMod: Moment.now(),
       tWaitFor: 0.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
 
@@ -1287,7 +1287,8 @@ suite "Service Discovery Registrar - registration response":
     let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().get()
     check:
       ticket.advertisement == adBytes
-      ticket.tWaitFor > ZeroDuration
+      ticket.tWaitFor.isSome
+      ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
 
   test "retrying with a valid ticket inside the window caches the ad":
@@ -1306,7 +1307,7 @@ suite "Service Discovery Registrar - registration response":
       tInit: pastNow,
       tMod: pastNow,
       tWaitFor: 1.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 

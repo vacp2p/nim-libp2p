@@ -29,7 +29,9 @@ suite "Ticket - sign and verify":
   test "verify fails with corrupted signature bytes":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.signature[0] = t.signature[0] xor 0xFF
+    var sig = t.signature.get()
+    sig[0] = sig[0] xor 0xFF
+    t.signature = Opt.some(sig)
     check not t.verify(key.getPublicKey().get())
 
 suite "Ticket - tamper detection":
@@ -45,19 +47,19 @@ suite "Ticket - tamper detection":
   test "tampered tInit":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.tInit = t.tInit + 1.secs
+    t.tInit = t.tInit.get() + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tMod":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.tMod = t.tMod + 1.secs
+    t.tMod = t.tMod.get() + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tWaitFor":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.tWaitFor = t.tWaitFor + 1.secs
+    t.tWaitFor = t.tWaitFor.get() + 1.secs
     check not t.verify(key.getPublicKey().get())
 
 suite "Ticket - boundary values":
@@ -69,7 +71,7 @@ suite "Ticket - boundary values":
       tInit: Moment.low,
       tMod: Moment.low,
       tWaitFor: ZeroDuration,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check:
       t.sign(key).isOk()
@@ -82,7 +84,7 @@ suite "Ticket - boundary values":
       tInit: Moment.init(1000, Second),
       tMod: Moment.init(2000, Second),
       tWaitFor: 300.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check:
       t.sign(key).isOk()

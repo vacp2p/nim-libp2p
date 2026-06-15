@@ -239,7 +239,7 @@ proc updateWaitAfterRetry*(
     disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
 ) =
   ticketOpt.withValue(ticket):
-    let totalWaitSoFar = now - ticket.tInit
+    let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar
 
 proc isValidTicket(
@@ -258,7 +258,7 @@ proc isValidTicket(
     return err("ticket fails verification")
 
   let
-    windowStart = ticket.tMod + ticket.tWaitFor
+    windowStart = ticket.tMod.get() + ticket.tWaitFor.get()
     windowEnd = windowStart + disco.discoConfig.registrationWindow
 
   if now notin windowStart .. windowEnd:
@@ -481,12 +481,16 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-  var ticket =
-    Ticket(advertisement: regMsg.advertisement, tInit: now, tMod: now, tWaitFor: tWait)
+  var ticket = Ticket(
+    advertisement: regMsg.advertisement,
+    tInit: Opt.some(now),
+    tMod: Opt.some(now),
+    tWaitFor: Opt.some(tWait),
+  )
 
   regMsg.ticket.withValue(t):
     let
-      windowStart = t.tMod + t.tWaitFor
+      windowStart = t.tMod.get() + t.tWaitFor.get()
       windowEnd = windowStart + disco.discoConfig.registrationWindow
     if now in windowStart .. windowEnd:
       ticket.tInit = t.tInit

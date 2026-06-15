@@ -24,6 +24,13 @@ export protobuf, registrar, routing_table_manager, types
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+converter toOptMoment*(a: Moment): Opt[Moment] =
+  Opt.some(a)
+
+converter toOptDuration*(a: Duration): Opt[Duration] =
+  Opt.some(a)
+
+
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
 
