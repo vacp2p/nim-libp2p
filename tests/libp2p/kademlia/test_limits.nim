@@ -128,6 +128,30 @@ suite "KadDHT - Limits":
       kads[0].containsData(existingKey, existingValue)
       kads[0].containsNoData(newKey)
 
+  asyncTest "getValue skips local insert when maxLocalRecords is reached":
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
+    await connect(kads[0], kads[1])
+
+    kads[0].config.limits.maxLocalRecords = Opt.some(1)
+
+    let
+      existingKey = randomPeerId().toKey()
+      lookupKey = kads[1].rtable.selfId
+      existingValue = @[1.byte]
+      lookupValue = @[2.byte]
+
+    kads[0].dataTable.insert(existingKey, existingValue, Timestamp.now())
+    kads[1].dataTable.insert(lookupKey, lookupValue, Timestamp.now())
+
+    let res = await kads[0].getValue(lookupKey, quorumOverride = Opt.some(1))
+
+    check:
+      res.isOk()
+      res.value().value == lookupValue
+      kads[0].containsData(existingKey, existingValue)
+      kads[0].containsNoData(lookupKey)
+
   asyncTest "getValue caps ReceivedTable at maxReceivedSize":
     let kads = setupKadSwitches(4)
     startAndDeferStop(kads)

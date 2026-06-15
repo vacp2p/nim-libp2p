@@ -123,6 +123,9 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
+  if not kad.canStoreLocalRecord(key):
+    return err("local record limit reached")
+
   kad.dataTable.insert(key, value, Timestamp.now())
 
   for chunk in peers.toChunks(kad.config.alpha):
