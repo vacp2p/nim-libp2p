@@ -38,7 +38,7 @@ proc asAutonatV2Response*(
       addrs: Opt.none(MultiAddress),
     )
 
-  if uint64(addrIdx) >= uint64(testAddrs.len):
+  if addrIdx.uint64 >= testAddrs.len.uint64:
     return AutonatV2Response(
       reachability: self.asNetworkReachability(),
       dialResp: self,
@@ -48,5 +48,5 @@ proc asAutonatV2Response*(
   AutonatV2Response(
     reachability: self.asNetworkReachability(),
     dialResp: self,
-    addrs: Opt.some(testAddrs[int(addrIdx)]),
+    addrs: Opt.some(testAddrs[addrIdx.int]),
   )
