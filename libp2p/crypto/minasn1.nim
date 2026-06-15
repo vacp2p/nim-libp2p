@@ -372,7 +372,7 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
     let octets = safeConvert[int](b and 0x7F'u8)
     if octets > 8:
       return err(Asn1Error.Overflow)
-    if ab.isEnough(octets):
+    if ab.isEnough(octets + 1):
       var lengthU: uint64 = 0
       for i in 0 ..< octets:
         lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
