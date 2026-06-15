@@ -13,7 +13,8 @@ import
   ../../../peerinfo,
   ../../../switch,
   ../../../multiaddress,
-  ../../../stream/connection
+  ../../../stream/connection,
+  ../../../signed_envelope
 
 logScope:
   topics = "libp2p relay relay-client"
@@ -59,7 +60,10 @@ proc handleRelayedConnect(
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
-    src = msg.peer.valueOr:
+    srcPeer = msg.peer.valueOr:
+      await sendStopError(stream, MalformedMessage)
+      return
+    src = srcPeer.peerId.valueOr:
       await sendStopError(stream, MalformedMessage)
       return
     limitDuration = msg.limit.get(Limit()).duration
@@ -116,9 +120,13 @@ proc reserve*(
 
   reservation.svoucher.withValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
+      if error == EnvelopeFieldMissing:
+        raise newException(ReservationError, "Missing voucher field")
       raise newException(ReservationError, "Invalid voucher")
-    if svoucher.data.relayPeerId != peerId:
-      raise newException(ReservationError, "Invalid voucher PeerId")
+    let relayPeerId = svoucher.data.relayPeerId.valueOr:
+      raise newException(ReservationError, "Missing voucher relay PeerId")
+    if relayPeerId != peerId:
+      raise newException(ReservationError, "Voucher relay PeerId mismatch")
     rsvp.voucher = Opt.some(svoucher.data)
 
   rsvp.limitDuration = msg.limit.get(Limit()).duration
