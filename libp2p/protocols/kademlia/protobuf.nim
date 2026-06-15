@@ -57,7 +57,7 @@ type
 
   # Ticket message for Service Discovery
   Ticket* {.proto2.} = object
-    advertisement* {.fieldNumber: 1, required.}: seq[byte]
+    advertisement* {.fieldNumber: 1.}: Opt[seq[byte]]
       # field 1 - Copy of the original advertisement
     tInit* {.fieldNumber: 2, ext.}: Opt[Moment]
       # field 2 - Ticket creation timestamp (Unix time in seconds)
@@ -69,8 +69,7 @@ type
 
   # Register message for Service Discovery
   RegisterMessage* {.proto2.} = object
-    advertisement* {.fieldNumber: 1, required.}: seq[byte]
-      # field 1 - Encoded advertisement
+    advertisement* {.fieldNumber: 1.}: Opt[seq[byte]] # field 1 - Encoded advertisement
     status* {.fieldNumber: 2, ext.}: Opt[RegistrationStatus]
       # field 2 - Registration status (response only)
     ticket* {.fieldNumber: 3.}: Opt[Ticket] # field 3 - Optional ticket
@@ -146,8 +145,9 @@ proc encode*(
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   ## Returns the canonical byte representation of a Ticket used for signing.
   ## Covers: advertisement || tInit || tMod || tWaitFor
-  var buf = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
-  buf.add(ticket.advertisement)
+  let ad = ticket.advertisement.get(@[])
+  var buf = newSeqOfCap[byte](ad.len + 8 + 8 + 4)
+  buf.add(ad)
   buf.add(@(toBytesBE(ticket.tInit.get(Moment.low).epochSeconds.uint64)))
   buf.add(@(toBytesBE(ticket.tMod.get(Moment.low).epochSeconds.uint64)))
   buf.add(@(toBytesBE(ticket.tWaitFor.get(ZeroDuration).seconds.uint32)))
@@ -163,7 +163,7 @@ proc sign*(
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
   ## Verify the ticket signature against the given public key.
-  if ticket.signature.isNone():
+  if ticket.signature.isNone:
     return false
   var sig: Signature
   if not sig.init(ticket.signature.get()):

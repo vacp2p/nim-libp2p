@@ -194,7 +194,7 @@ proc sendRegister*(
     key: Opt.some(serviceId),
     register: Opt.some(
       RegisterMessage(
-        advertisement: ad,
+        advertisement: Opt.some(ad),
         status: Opt.none(kademlia_protobuf.RegistrationStatus),
         ticket: ticket,
       )

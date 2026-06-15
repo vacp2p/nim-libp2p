@@ -41,7 +41,9 @@ suite "Ticket - tamper detection":
   test "tampered advertisement bytes":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.advertisement[0] = t.advertisement[0] xor 0xFF
+    var ad = t.advertisement.get()
+    ad[0] = ad[0] xor 0xFF
+    t.advertisement = Opt.some(ad)
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tInit":

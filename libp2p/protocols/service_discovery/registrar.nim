@@ -220,10 +220,13 @@ proc updateLowerBounds*(
 proc isValidAdvertisement*(
     regMsg: RegisterMessage, serviceId: ServiceId
 ): Result[Advertisement, string] =
-  if regMsg.advertisement.len > MaxXPRSize:
+  let advertisment = regMsg.advertisement.valueOr:
+    return err("advertisement not set")
+
+  if advertisment.len > MaxXPRSize:
     return err("oversized")
 
-  let ad = Advertisement.decode(regMsg.advertisement).valueOr:
+  let ad = Advertisement.decode(advertisment).valueOr:
     return err("cannot decode: " & $error)
 
   for svc in ad.data.services:
@@ -248,7 +251,7 @@ proc isValidTicket(
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
 
-  if ticket.advertisement != regMsg.advertisement:
+  if ticket.advertisement.get(@[]) != regMsg.advertisement.get(@[]):
     return err("message & ticket advertisement mismatch")
 
   let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
@@ -275,7 +278,9 @@ proc sendRegisterResponse*(
   let msg = Message(
     msgType: Opt.some(MessageType.register),
     register: Opt.some(
-      RegisterMessage(advertisement: @[], status: Opt.some(status), ticket: ticket)
+      RegisterMessage(
+        advertisement: Opt.none(seq[byte]), status: Opt.some(status), ticket: ticket
+      )
     ),
     closerPeers: closerPeers,
   )
@@ -427,7 +432,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     msgType: Opt.some(MessageType.register),
     register: Opt.some(
       RegisterMessage(
-        advertisement: @[],
+        advertisement: Opt.none(seq[byte]),
         status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
         ticket: Opt.none(Ticket),
       )
