@@ -32,7 +32,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
     err ValidationResult.Reject
 
 proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
-  ok((?privateKey.sign(PubSubPrefix & encodeMessage(msg, false))).getBytes())
+  ok((?privateKey.sign(PubSubPrefix & msg.encode(false))).getBytes())
 
 proc extractPublicKey(m: Message): Opt[PublicKey] =
   var pubkey: PublicKey
@@ -66,7 +66,7 @@ proc verify*(m: Message): bool =
 
     if remote.init(m.signature):
       trace "verifying signature", remoteSignature = remote
-      verified = remote.verify(PubSubPrefix & encodeMessage(msg, false), key)
+      verified = remote.verify(PubSubPrefix & msg.encode(false), key)
 
   if verified:
     libp2p_pubsub_sig_verify_success.inc()

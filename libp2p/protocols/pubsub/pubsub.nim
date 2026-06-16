@@ -292,7 +292,7 @@ proc broadcast*(
       p.send(peer, msg, priority, useCustomStream)
   else:
     # Fast path that only encodes message once
-    let encoded = encodeRpcMsg(msg, p.anonymize)
+    let encoded = msg.encode(p.anonymize)
     for peer in sendPeers:
       asyncSpawn peer.sendEncoded(encoded, priority, useCustomStream)
 

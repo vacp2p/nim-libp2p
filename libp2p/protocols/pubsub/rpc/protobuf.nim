@@ -3,42 +3,36 @@
 
 {.push raises: [].}
 
-import chronicles
 import protobuf_serialization, protobuf_serialization/pkg/results
-import messages, ../../../[peerid], ../../../utils/[opt, protobuf]
-
-export results
-
-logScope:
-  topics = "libp2p pubsubprotobuf"
-
-when defined(libp2p_protobuf_metrics):
-  import metrics
-
-  declareCounter(
-    libp2p_pubsub_rpc_bytes_read, "pubsub rpc bytes read", labels = ["kind"]
-  )
-  declareCounter(
-    libp2p_pubsub_rpc_bytes_write, "pubsub rpc bytes write", labels = ["kind"]
-  )
+import ../../../utils/[protobuf]
+import ../../../[peerid]
+import messages
 
 Protobuf.serializerFor(
   [
     PeerInfoMsg, SubOpts, ControlGraft, ControlIHave, ControlIWant, ControlPrune,
     ControlExtensions, ControlMessage, Preamble, IMReceiving, TestExtensionRPC,
-    PartialMessageExtensionRPC, PingPongExtensionRPC, PreambleExtensionRPC, Message,
-    RPCMsg,
+    PartialMessageExtensionRPC, PingPongExtensionRPC, PreambleExtensionRPC,
   ]
 )
 
-proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
-  if not anonymize:
-    return msg.encode()
-  Message(data: msg.data, topic: msg.topic).encode()
+proc encode*(msg: Message, anonymize: bool): seq[byte] =
+  var m = msg
+  if anonymize:
+    m = Message(data: msg.data, topic: msg.topic)
+  encode(Protobuf, m)
 
-proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
-  trace "encodeRpcMsg: encoding message", rpcMsg = msg.shortLog()
-  let encoded =
+proc decodeMessage(buf: seq[byte]): Message {.raises: [SerializationError].} =
+  decode(Protobuf, buf, Message)
+
+proc decode*(_: type Message, buf: seq[byte]): Result[Message, string] =
+  try:
+    ok(decodeMessage(buf))
+  except SerializationError as e:
+    err("failed to decode Message from protobuf bytes. " & e.msg)
+
+proc encode*(msg: RPCMsg, anonymize: bool): seq[byte] =
+  let msgToEncode =
     if anonymize and msg.messages.len > 0:
       var anonMsg = msg
       for m in anonMsg.messages.mitems:
@@ -46,23 +40,23 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
         m.seqno = @[]
         m.signature = @[]
         m.key = @[]
-      anonMsg.encode()
+      anonMsg
     else:
-      msg.encode()
+      msg
 
-  when defined(libp2p_protobuf_metrics):
-    libp2p_pubsub_rpc_bytes_write.inc(encoded.len.int64, labelValues = ["rpc"])
+  encode(Protobuf, msgToEncode)
 
-  encoded
+proc decodeRPCMessage(buf: seq[byte]): RPCMsg {.raises: [SerializationError].} =
+  decode(Protobuf, buf, RPCMsg)
 
-proc decodeRpcMsg*(msg: sink seq[byte]): Result[RPCMsg, string] =
-  trace "decodeRpcMsg: decoding message", encodedData = msg.shortLog()
+proc decode*(_: type RPCMsg, buf: seq[byte]): Result[RPCMsg, string] =
+  try:
+    let msg = decodeRPCMessage(buf)
 
-  when defined(libp2p_protobuf_metrics):
-    libp2p_pubsub_rpc_bytes_read.inc(msg.len.int64, labelValues = ["rpc"])
+    for m in msg.messages:
+      if m.topic.len == 0:
+        return err("Message missing required topic field")
 
-  let rpcMsg = ?RPCMsg.decode(move(msg))
-  for m in rpcMsg.messages:
-    if m.topic.len == 0:
-      return err("Message missing required topic field")
-  ok(rpcMsg)
+    ok(msg)
+  except SerializationError as e:
+    err("failed to decode RPCMsg from protobuf bytes. " & e.msg)

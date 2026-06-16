@@ -195,19 +195,19 @@ suite "Message":
       114, 24, 10, 42, 3, 10, 1, 123,
     ]
 
-    let actualEncoded = encodeRpcMsg(message, true)
+    let actualEncoded = message.encode(true)
     check:
       actualEncoded == expectedEncoded
 
-    let actualDecoded = decodeRpcMsg(expectedEncoded).value
+    let actualDecoded = RPCMsg.decode(expectedEncoded).get()
     check:
       actualDecoded == message
 
   asyncTest "RPCMsg:testExtension - encoding and decoding":
     let messageWith = RPCMsg(testExtension: Opt.some(TestExtensionRPC()))
-    var decoded = decodeRpcMsg(encodeRpcMsg(messageWith, true)).value
+    var decoded = RPCMsg.decode(encode(messageWith, true)).get()
     check decoded.testExtension.isSome()
 
     let messageWithout = RPCMsg(testExtension: Opt.none(TestExtensionRPC))
-    decoded = decodeRpcMsg(encodeRpcMsg(messageWithout, true)).value
+    decoded = RPCMsg.decode(encode(messageWithout, true)).get()
     check decoded.testExtension.isNone()
