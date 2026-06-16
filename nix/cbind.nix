@@ -30,6 +30,12 @@ pkgs.stdenv.mkDerivation {
     pkgs.nim-2_2
     pkgs.git
     pkgs.nimble
+  ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+    # miniupnpc's Darwin Makefile archives via `LIBTOOL ?= $(shell which libtool)`.
+    # cctools supplies Apple's `libtool`; `which` lets the lookup resolve it.
+    # Without both, LIBTOOL collapses to empty and no .a is produced.
+    pkgs.cctools
+    pkgs.which
   ];
 
   buildPhase = ''
