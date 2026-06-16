@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     builders,
     switch,
+    observedaddrmanager,
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
@@ -109,6 +110,8 @@ proc newService(
         expectedDials = expectedDials,
       )
   (AutonatV2Service.new(rng(), client = client, config = config), client)
+
+const ObservedAddrQuorum = 3
 
 const AutonatV2ReachabilityConfidenceMetric =
   "libp2p_autonat_v2_reachability_confidence"
@@ -584,6 +587,105 @@ suite "AutonatV2 Service":
     check service.networkReachability == NetworkReachability.NotReachable
     check capturedAddr.isSome()
     check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Observed addresses must be included in dial request candidates":
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = 1,
+        config = AutonatV2ServiceConfig.new(enableDialableCandidates = true),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = @[createSwitch()]
+
+    # Simulate identify reports from other peers: the same public address
+    # must be observed at least quorum times to become a candidate.
+    let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
+    for _ in 0 ..< ObservedAddrQuorum:
+      discard switch.peerStore.identify.observedAddrManager.addObservation(observedAddr)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let guessed = concat(MultiAddress.init("/ip4/8.8.8.8").tryGet(), tcpPart).tryGet()
+    check guessed in client.allTestAddrs[0]
+    # Ensure that the guessed IP is preferred over the observed IP when both are dialable.
+    check client.allTestAddrs[0].find(guessed) <
+      client.allTestAddrs[0].find(observedAddr)
+
+    # Observed address is kept as a fallback
+    check observedAddr in client.allTestAddrs[0]
+
+    for ma in switch.peerInfo.addrs:
+      check ma in client.allTestAddrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dial request must fall back to the guessed dialable address when the observed IP reaches quorum but the port does not":
+    # High minConfidence keeps the node Unknown for the whole test, so the
+    # address mapper stays inactive: candidates can only come from the
+    # observed addresses.
+    # Each connection triggers identify: after quorum of them the observed IP
+    # reaches quorum (ports are ephemeral, only the IP is stable), so the next
+    # ask must include the guessed dialable address (observed IP + listen port).
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = ObservedAddrQuorum + 1,
+        config = AutonatV2ServiceConfig.new(
+          minConfidence = 0.9, enableDialableCandidates = true
+        ),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(ObservedAddrQuorum + 1)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let expected =
+      concat(MultiAddress.init("/ip4/127.0.0.1").tryGet(), tcpPart).tryGet()
+
+    # Before the quorum (first quorum asks), only the listen addresses are sent.
+    for reqAddrs in client.allTestAddrs[0 ..< ObservedAddrQuorum]:
+      check reqAddrs == switch.peerInfo.listenAddrs
+
+    # The first ask after the quorum is reached must contain the guessed
+    # dialable address.
+    check expected in client.allTestAddrs[ObservedAddrQuorum]
+
+    # Make sure the guessed dialable address is not in the peer's listen addresses
+    check expected notin switch.peerInfo.addrs
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dialable candidates are not added when disabled":
+    # Same setup as the mirror test above (node kept Unknown via high
+    # minConfidence, so the address mapper stays inactive), but with
+    # enableDialableCandidates left to its default of false. The node then
+    # advertises only its listen addresses, so every dial request must be
+    # exactly the listen addresses: no guessed or observed candidate is added,
+    # even after the observed IP reaches quorum.
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = ObservedAddrQuorum + 1,
+        config = AutonatV2ServiceConfig.new(minConfidence = 0.9),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(ObservedAddrQuorum + 1)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    for reqAddrs in client.allTestAddrs:
+      check reqAddrs == switch.peerInfo.listenAddrs
 
     await switch.stop()
     await switches.stopAll()

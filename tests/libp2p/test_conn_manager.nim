@@ -554,6 +554,75 @@ suite "Connection Manager Watermark":
 
     await connMngr.close()
 
+  asyncTest "lifecycle events are emitted not in order when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
+    # storeMuxer triggers the trim before emitting Connected and Joined for the stored peer.
+    # the trim can prune the just-stored connection, emitting Left and Disconnected first.
+    # consumers assume the order: Connected, Joined, Left, Disconnected.
+    let connMngr = newWatermark(1, 2)
+    defer:
+      await connMngr.close()
+
+    let peers = PeerId.random(3, rng()).tryGet()
+    let prunedPeer = peers[2]
+
+    var events: seq[string]
+    proc connHandler(kind: string): ConnEventHandler =
+      return proc(
+          peerId: PeerId, event: ConnEvent
+      ) {.async: (raises: [CancelledError]).} =
+        if peerId == prunedPeer:
+          events.add(kind)
+
+    proc peerHandler(kind: string): PeerEventHandler =
+      return proc(
+          peerId: PeerId, event: PeerEvent
+      ) {.async: (raises: [CancelledError]).} =
+        if peerId == prunedPeer:
+          events.add(kind)
+
+    connMngr.addConnEventHandler(connHandler("Connected"), ConnEventKind.Connected)
+    connMngr.addConnEventHandler(
+      connHandler("Disconnected"), ConnEventKind.Disconnected
+    )
+    connMngr.addPeerEventHandler(peerHandler("Joined"), PeerEventKind.Joined)
+    connMngr.addPeerEventHandler(peerHandler("Left"), PeerEventKind.Left)
+
+    await connMngr.storeMuxer(makeMuxer(peers[0]))
+    await connMngr.storeMuxer(makeMuxer(peers[1]))
+    # protecting peers[0] leaves peers[1] and prunedPeer as the only trim candidates.
+    # reaching lowWater then forces the trim to prune prunedPeer's just-stored connection.
+    connMngr.protect(peers[0], "keep")
+    await connMngr.storeMuxer(makeMuxer(prunedPeer))
+
+    checkUntilTimeout:
+      events.len == 4
+    check events == @["Left", "Disconnected", "Connected", "Joined"]
+
+  asyncTest "ready state is not cleared when the trim prunes the new connection":
+    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
+    # the trim drops the stored peer and clears its ready state mid-storeMuxer.
+    # storeMuxer then re-adds the dropped peer to readyPeers.
+    # a pruned peer must not be reported ready.
+    let connMngr = newWatermark(1, 2)
+    defer:
+      await connMngr.close()
+
+    let peers = PeerId.random(3, rng()).tryGet()
+    let prunedPeer = peers[2]
+
+    await connMngr.storeMuxer(makeMuxer(peers[0]))
+    await connMngr.storeMuxer(makeMuxer(peers[1]))
+    # protecting peers[0] forces the trim to prune prunedPeer's just-stored connection
+    connMngr.protect(peers[0], "keep")
+    await connMngr.storeMuxer(makeMuxer(prunedPeer))
+
+    checkUntilTimeout:
+      prunedPeer notin connMngr
+
+    let readyState = await connMngr.waitForPeerReady(prunedPeer, 50.millis)
+    check readyState
+
 suite "Connection Manager Scoring":
   teardown:
     checkTrackers()
