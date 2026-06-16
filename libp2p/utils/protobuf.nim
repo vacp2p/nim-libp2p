@@ -7,7 +7,7 @@ import std/macros, results, protobuf_serialization
 
 when defined(libp2p_protobuf_metrics):
   import ./protobuf_metrics
-  
+
 macro decodeFor*(_: type Protobuf, Types: untyped, withMetrics: bool = false): untyped =
   ## This generates decode protobuf procs for `Types`
   let doMetrics = newLit(withMetrics.eqIdent("true"))
@@ -18,7 +18,7 @@ macro decodeFor*(_: type Protobuf, Types: untyped, withMetrics: bool = false): u
       proc `decodeName`(buf2: seq[byte]): `T` {.raises: [SerializationError].} =
         when defined(libp2p_protobuf_metrics) and `doMetrics`:
           libp2p_protobuf_bytes_read.inc(buf2.len.int64, labelValues = [$(`T`)])
-          
+
         decode(Protobuf, buf2, `T`)
 
       proc decode*(_: type `T`, buf: seq[byte]): Result[`T`, string] =
