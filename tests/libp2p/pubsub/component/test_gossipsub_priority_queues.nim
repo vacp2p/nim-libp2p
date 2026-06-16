@@ -54,8 +54,7 @@ suite "GossipSub Component - Priority Queues":
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
     let peerId = nodes[1].peerInfo.peerId
@@ -76,7 +75,6 @@ suite "GossipSub Component - Priority Queues":
     await peer.sendEncoded(msg, MessagePriority.High)
 
     # Only the first two sends were written; the third disconnected instead.
-    # High overflow never adds a slow-peer penalty.
     check:
       mock.writes.len == 2
       peer.slowPeerPenalty == penaltyBefore
@@ -91,12 +89,10 @@ suite "GossipSub Component - Priority Queues":
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
     let peerId = nodes[1].peerInfo.peerId
-    # Wait for the mesh first, so the later check shows the peer stayed in it.
     checkUntilTimeout:
       nodes[0].mesh.hasPeerId(topic, peerId)
 
@@ -130,12 +126,10 @@ suite "GossipSub Component - Priority Queues":
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
     let peerId = nodes[1].peerInfo.peerId
-    # Wait for the mesh first, so the later check shows the peer stayed in it.
     checkUntilTimeout:
       nodes[0].mesh.hasPeerId(topic, peerId)
 
