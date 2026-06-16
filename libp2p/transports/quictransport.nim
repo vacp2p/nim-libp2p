@@ -262,10 +262,15 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
+    # Close the session first: the accept loop only exits once the session is
+    # closed, so cancelling handleFut beforehand would hang cancelAndWait.
     await m.session.close()
     if not isNil(m.handleFut):
       await noCancel m.handleFut.cancelAndWait()
-    discard await noCancel allFinished(m.handlerFuts)
+    # Cancel in-flight handlers rather than just awaiting them, so each stream is
+    # torn down deterministically here (handlers run closeWithEOF on cancel)
+    # instead of being aborted lazily during GC finalization.
+    await noCancel m.handlerFuts.cancelAndWait()
     m.handlerFuts = @[]
   except CatchableError:
     discard
