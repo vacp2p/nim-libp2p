@@ -177,10 +177,10 @@ suite "Identify":
         .withSignedPeerRecord(true)
         .build()
 
-      proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore1(info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
 
-      proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore2(info: IdentifyInfo) {.async.} =
         switch2.peerStore.updatePeerInfo(info)
 
       identifyPush1 = IdentifyPush.new(updateStore1)

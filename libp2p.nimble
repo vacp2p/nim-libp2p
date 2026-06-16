@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "2.0.0"
+version = "2.1.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
@@ -12,7 +12,7 @@ requires "nim >= 2.2.4",
   "nimcrypto >= 0.6.0", "bearssl >= 0.2.7",
   "https://github.com/vacp2p/nim-boringssl >= 0.0.8", "chronicles >= 0.11.0",
   "chronos >= 4.2.2", "metrics >= 0.2.2", "secp256k1", "stew >= 0.4.2", "unittest2",
-  "results", "serialization", "lsquic >= 0.5.1", "protobuf_serialization >= 0.4.0",
+  "results", "serialization", "lsquic >= 0.5.1", "protobuf_serialization >= 0.5.0",
   "https://github.com/status-im/nim-websock >= 0.4.0",
   "https://github.com/status-im/nim-nat-traversal >= 0.0.1"
 

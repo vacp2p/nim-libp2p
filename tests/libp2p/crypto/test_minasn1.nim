@@ -80,6 +80,14 @@ suite "Minimal ASN.1 encode/decode suite":
       check:
         ncrutils.fromHex(Asn1EdgeExpects[i]) == value
 
+  test "ASN.1 DER long form length requires complete length octets":
+    var ab = Asn1Buffer.init(@[0x30'u8, 0x81'u8])
+    let res = ab.read()
+
+    check:
+      res.isErr()
+      res.error == Asn1Error.Incomplete
+
   test "ASN.1 DER INTEGER encoding/decoding of native unsigned values test":
     proc decodeBuffer(data: openArray[byte]): uint64 =
       var ab = Asn1Buffer.init(data)

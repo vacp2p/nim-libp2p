@@ -13,7 +13,8 @@ import
   ../../../peerinfo,
   ../../../switch,
   ../../../multiaddress,
-  ../../../stream/connection
+  ../../../stream/connection,
+  ../../../signed_envelope
 
 logScope:
   topics = "libp2p relay relay-client"
@@ -45,8 +46,9 @@ proc sendStopError(
 ) {.async: (raises: [CancelledError]).} =
   trace "send stop status", status = $code & " (" & $ord(code) & ")"
   try:
-    let msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(code))
-    await stream.writeLp(encode(msg).buffer)
+    let msg =
+      StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(code))
+    await stream.writeLp(encode(msg))
   except CancelledError as e:
     raise e
   except LPStreamError as e:
@@ -58,13 +60,15 @@ proc handleRelayedConnect(
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
-    src = msg.peer.valueOr:
+    srcPeer = msg.peer.valueOr:
       await sendStopError(stream, MalformedMessage)
       return
-    limitDuration = msg.limit.duration
-    limitData = msg.limit.data
-    msg = StopMessage(msgType: StopMessageType.Status, status: Opt.some(Ok))
-    pb = encode(msg)
+    src = srcPeer.peerId.valueOr:
+      await sendStopError(stream, MalformedMessage)
+      return
+    limitDuration = msg.limit.get(Limit()).duration
+    limitData = msg.limit.get(Limit()).data
+    msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(Ok))
 
   trace "incoming relay connection", src
 
@@ -72,7 +76,7 @@ proc handleRelayedConnect(
     await sendStopError(stream, StatusV2.ConnectionFailed)
     await stream.close()
     return
-  await stream.writeLp(pb.buffer)
+  await stream.writeLp(encode(msg))
   # This sound redundant but the callback could, in theory, be set to nil during
   # stream.writeLp so it's safer to double check
   if cl.onNewConnection != nil:
@@ -87,10 +91,10 @@ proc reserve*(
   defer:
     await stream.close()
   let
-    pb = encode(HopMessage(msgType: HopMessageType.Reserve))
+    pb = encode(HopMessage(msgType: Opt.some(HopMessageType.Reserve)))
     msg =
       try:
-        await stream.writeLp(pb.buffer)
+        await stream.writeLp(pb)
         HopMessage.decode(await stream.readLp(RelayClientMsgSize)).tryGet()
       except CancelledError as exc:
         raise exc
@@ -98,48 +102,52 @@ proc reserve*(
         trace "error writing or reading reservation message", description = exc.msg
         raise newException(ReservationError, exc.msg)
 
-  if msg.msgType != HopMessageType.Status:
+  if msg.msgType.isNone or msg.msgType.get() != HopMessageType.Status:
     raise newException(ReservationError, "Unexpected relay response type")
   if msg.status.get(UnexpectedMessage) != Ok:
     raise newException(ReservationError, "Reservation failed")
 
   let reservation = msg.reservation.valueOr:
     raise newException(ReservationError, "Missing reservation information")
-  if reservation.expire > int64.high().uint64 or
-      now().utc > reservation.expire.int64.fromUnix.utc:
+  let expire = reservation.expire.valueOr:
+    raise newException(ReservationError, "Missing expire")
+
+  if expire > int64.high().uint64 or now().utc > expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   var rsvp: Rsvp
-  rsvp.expire = reservation.expire
+  rsvp.expire = expire
   rsvp.addrs = reservation.addrs
 
   reservation.svoucher.withValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
+      if error == EnvelopeFieldMissing:
+        raise newException(ReservationError, "Missing voucher field")
       raise newException(ReservationError, "Invalid voucher")
-    if svoucher.data.relayPeerId != peerId:
-      raise newException(ReservationError, "Invalid voucher PeerId")
+    let relayPeerId = svoucher.data.relayPeerId.valueOr:
+      raise newException(ReservationError, "Missing voucher relay PeerId")
+    if relayPeerId != peerId:
+      raise newException(ReservationError, "Voucher relay PeerId mismatch")
     rsvp.voucher = Opt.some(svoucher.data)
 
-  rsvp.limitDuration = msg.limit.duration
-  rsvp.limitData = msg.limit.data
+  rsvp.limitDuration = msg.limit.get(Limit()).duration
+  rsvp.limitData = msg.limit.get(Limit()).data
   rsvp
 
 proc dialPeerV1*(
     cl: RelayClient, stream: Stream, dstPeerId: PeerId, dstAddrs: seq[MultiAddress]
 ): Future[RawConn] {.async: (raises: [CancelledError, RelayV1DialError]).} =
-  var
-    msg = RelayMessage(
-      msgType: Opt.some(RelayType.Hop),
-      srcPeer: Opt.some(
-        RelayPeer(peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)
-      ),
-      dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
-    )
-    pb = encode(msg)
+  var msg = RelayMessage(
+    msgType: Opt.some(RelayType.Hop),
+    srcPeer: Opt.some(
+      RelayPeer(peerId: cl.switch.peerInfo.peerId, addrs: cl.switch.peerInfo.addrs)
+    ),
+    dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
+  )
 
   trace "Dial peer", msgSend = msg
 
   try:
-    await stream.writeLp(pb.buffer)
+    await stream.writeLp(encode(msg))
   except CancelledError as exc:
     raise exc
   except LPStreamError as exc:
@@ -188,15 +196,15 @@ proc dialPeerV2*(
     dstPeerId: PeerId,
     dstAddrs: seq[MultiAddress],
 ): Future[RawConn] {.async: (raises: [RelayV2DialError, CancelledError]).} =
-  let
-    p = Peer(peerId: dstPeerId, addrs: dstAddrs)
-    pb = encode(HopMessage(msgType: HopMessageType.Connect, peer: Opt.some(p)))
+  let p = Peer(peerId: Opt.some(dstPeerId), addrs: dstAddrs)
 
   trace "Dial peer", p
 
   let msgRcvFromRelay =
     try:
-      await relayConn.writeLp(pb.buffer)
+      await relayConn.writeLp(
+        encode(HopMessage(msgType: Opt.some(HopMessageType.Connect), peer: Opt.some(p)))
+      )
       HopMessage.decode(await relayConn.readLp(RelayClientMsgSize)).tryGet()
     except CancelledError as exc:
       raise exc
@@ -205,13 +213,14 @@ proc dialPeerV2*(
       raise
         newException(RelayV2DialError, "Exception decoding HopMessage: " & exc.msg, exc)
 
-  if msgRcvFromRelay.msgType != HopMessageType.Status:
+  if msgRcvFromRelay.msgType.isNone or
+      msgRcvFromRelay.msgType != Opt.some(HopMessageType.Status):
     raise newException(RelayV2DialError, "Unexpected stop response")
   if msgRcvFromRelay.status.get(UnexpectedMessage) != Ok:
     trace "Relay stop failed", description = msgRcvFromRelay.status
     raise newException(RelayV2DialError, "Relay stop failure")
-  relayConn.limitDuration = msgRcvFromRelay.limit.duration
-  relayConn.limitData = msgRcvFromRelay.limit.data
+  relayConn.limitDuration = msgRcvFromRelay.limit.get(Limit()).duration
+  relayConn.limitData = msgRcvFromRelay.limit.get(Limit()).data
   return relayConn
 
 proc handleStopStreamV2(
@@ -222,7 +231,7 @@ proc handleStopStreamV2(
     return
   trace "client circuit relay v2 handle stream", msg
 
-  if msg.msgType == StopMessageType.Connect:
+  if msg.msgType.isSome and msg.msgType.get() == StopMessageType.Connect:
     await cl.handleRelayedConnect(stream, msg)
   else:
     trace "Unexpected client / relayv2 handshake", msgType = msg.msgType

@@ -1332,10 +1332,7 @@ func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
 
 ## protobuf_serialization extension
 
-func supportsPacked*(T: type MultiAddress, ProtoType: type ProtobufExt): bool =
-  false
-func supportsPacked*(T: type seq[MultiAddress], ProtoType: type ProtobufExt): bool =
-  false
+Protobuf.extensionDefaults(MultiAddress, defaultWriteSeq = true, packed = false)
 
 func computeFieldSize*(
     field: int,

@@ -30,7 +30,7 @@ proc new*(
     var peerDialableAddrs: seq[MultiAddress]
     try:
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
-        raise newException(DcutrError, "Failed to decode a Connect message.")
+        raise newException(DcutrError, error)
 
       debug "Dcutr receiver received a Connect message.", connectMsg
 
@@ -56,7 +56,7 @@ proc new*(
         await stream.send(MsgType.Connect, ourAddrs)
         debug "Dcutr receiver has sent a Connect message back."
         let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
-          raise newException(DcutrError, "Failed to decode a Sync message.")
+          raise newException(DcutrError, error)
         debug "Dcutr receiver has received a Sync message.", syncMsg
         debug "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
           addrs = connectMsg.addrs
@@ -79,7 +79,7 @@ proc new*(
       await stream.send(MsgType.Connect, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
-        raise newException(DcutrError, "Failed to decode a Sync message.")
+        raise newException(DcutrError, error)
       debug "Dcutr receiver has received a Sync message.", syncMsg
 
       if peerDialableAddrs.len > maxDialableAddrs:
