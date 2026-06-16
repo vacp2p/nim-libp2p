@@ -9,7 +9,7 @@ when defined(linux):
   {.passl: "-Wl,-soname,libp2p.so".}
 
 import
-  std/[typetraits, tables, atomics, json, jsonutils, strutils, times],
+  std/[typetraits, tables, atomics, json, jsonutils, strutils, times, locks, sets],
   chronos,
   chronicles,
   metrics
