@@ -94,6 +94,13 @@ proc dispatchPutVal*(
 
   return ok()
 
+proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
+  if kad.dataTable.hasKey(key):
+    return true
+  kad.config.limits.maxLocalRecords.withValue(limit):
+    return kad.dataTable.len < limit
+  true
+
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
@@ -113,7 +120,10 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  kad.dataTable.insert(key, value, Timestamp.now())
+  if kad.canStoreLocalRecord(key):
+    kad.dataTable.insert(key, value, Timestamp.now())
+  else:
+    debug "PutValue: local record limit reached", current = kad.dataTable.len
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
@@ -151,6 +161,13 @@ proc handlePutValue*(
 
   if not kad.isBestValue(msg.key, entryRecord):
     error "Dropping received value, we have a better one"
+    await stream.reset()
+    return
+
+  if not kad.canStoreLocalRecord(msg.key):
+    debug "PutValue: local record limit reached",
+      stream = stream, current = kad.dataTable.len
+    await stream.reset()
     return
 
   kad.dataTable.insert(msg.key, entryRecord.value, Timestamp.now())

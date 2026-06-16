@@ -82,9 +82,11 @@ suite "Service Discovery Component - Advertise Discover":
     check not discovererNode.rtManager.hasService(serviceHash)
 
   asyncTest "two advertisers register the same service - both discoverable":
-    # Multiple advertisers at the same registrar use overlapping IPs in tests,
-    # which would otherwise drive the second admission's wait time above the timeout.
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
+    # Zeroed safety/IP terms and a large cache cap keep the wait time under 0.5s,
+    # so both ads are admitted on the first REGISTER with no flaky retry window.
+    let conf = ServiceDiscoveryConfig.new(
+      safetyParam = 0.0, ipSimCoefficient = 0.0, advertCacheCap = 1_000_000
+    )
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserA = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserB = setupServiceDiscoveryNode(discoConfig = conf)

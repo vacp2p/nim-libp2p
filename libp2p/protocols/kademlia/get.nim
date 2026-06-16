@@ -139,7 +139,10 @@ proc getValue*(
   let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
-  kad.dataTable.insert(key, best.value, Timestamp.now())
+  if kad.canStoreLocalRecord(key):
+    kad.dataTable.insert(key, best.value, Timestamp.now())
+  else:
+    debug "GetValue: local record limit reached", key = key, current = kad.dataTable.len
 
   # update peers that
   # - don't have best value
