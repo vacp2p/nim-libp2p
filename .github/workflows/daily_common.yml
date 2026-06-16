@@ -158,6 +158,10 @@ jobs:
             exit 1
           fi
           echo "=== Installing resolved newest dependencies ==="
+          # nimbledeps/ switches nimble to local-dep mode so the Makefile's
+          # nat_libs step finds nimbledeps/pkgs2/nat_traversal-*.
+          rm -rf nimbledeps
+          mkdir nimbledeps
           echo "nimble install -y $DEPS"
           nimble install -y $DEPS
 
