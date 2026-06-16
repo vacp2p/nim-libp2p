@@ -41,6 +41,7 @@ const
     ## upper bound (bytes) on a stored record value. Held below ``MaxMsgSize``
     ## (4096) to leave headroom for the protobuf overhead from other message
     ## fields, so an accepted value still fits in a single LP frame.
+  DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
 
@@ -347,6 +348,10 @@ type KadDHTLimits* = object
   maxValueSize*: int
     ## Maximum size (bytes) of an individual record value. Enforced on
     ## ``putValue`` and on incoming PUT_VALUE / GET_VALUE records.
+  maxLocalRecords*: Opt[int]
+    ## Maximum number of records retained in the local value store.
+    ## ``Opt.none`` means unlimited; when limits are derived by the
+    ## ``KadDHTConfig`` constructor this defaults to ``DefaultMaxLocalRecords``.
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
@@ -361,6 +366,7 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxShortlistSize: replication * 2,
     maxReceivedSize: max(replication, quorum),
     maxValueSize: DefaultMaxValueSize,
+    maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
   )
 
@@ -423,6 +429,8 @@ proc new*(
   doAssert actualLimits.maxShortlistSize > 0, "maxShortlistSize must be > 0"
   doAssert actualLimits.maxReceivedSize > 0, "maxReceivedSize must be > 0"
   doAssert actualLimits.maxValueSize > 0, "maxValueSize must be > 0"
+  doAssert actualLimits.maxLocalRecords.isNone or actualLimits.maxLocalRecords.get() > 0,
+    "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
   doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
   doAssert actualLimits.maxShortlistSize >= replication,
     "maxShortlistSize must be >= replication so the shortlist can hold the target k-bucket"
