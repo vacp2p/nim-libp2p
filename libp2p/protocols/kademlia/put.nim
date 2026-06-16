@@ -118,15 +118,12 @@ proc putValue*(
   if not kad.isBestValue(key, record):
     return err("Value rejected, we have a better one")
 
-  if not kad.canStoreLocalRecord(key):
-    return err("local record limit reached")
-
   let peers = await kad.findNode(key)
 
-  if not kad.canStoreLocalRecord(key):
-    return err("local record limit reached")
-
-  kad.dataTable.insert(key, value, Timestamp.now())
+  if kad.canStoreLocalRecord(key):
+    kad.dataTable.insert(key, value, Timestamp.now())
+  else:
+    debug "PutValue: local record limit reached", current = kad.dataTable.len
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
@@ -164,6 +161,7 @@ proc handlePutValue*(
 
   if not kad.isBestValue(msg.key, entryRecord):
     error "Dropping received value, we have a better one"
+    await stream.reset()
     return
 
   if not kad.canStoreLocalRecord(msg.key):
