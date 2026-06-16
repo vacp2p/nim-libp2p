@@ -70,7 +70,9 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
   let cap = state.kad.config.limits.maxShortlistSize
 
   for newPeer in msg.closerPeers:
-    let pid = PeerId.init(newPeer.id).valueOr:
+    let raw = newPeer.id.valueOr:
+      continue
+    let pid = PeerId.init(raw).valueOr:
       continue
     if state.shortlist.contains(pid):
       continue
@@ -81,7 +83,7 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
       continue
 
     state.shortlist[pid] = dist
-    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))
+    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs.get(@[])))
 
   return newPeerInfos
 
@@ -172,19 +174,17 @@ proc dispatchFindNode*(
   defer:
     await stream.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: target)
+  let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.findNode])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -358,16 +358,17 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let target = msg.key
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleFindNode", msg = msg, stream = stream
+    return
 
-  let response =
-    Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
-  let encoded = response.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+  let response = Message(
+    msgType: Opt.some(MessageType.findNode), closerPeers: kad.findClosestPeers(msgKey)
   )
+  let encoded = response.encode(kad.config.hideConnectionStatus)
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply",
       stream = stream, err = exc.msg

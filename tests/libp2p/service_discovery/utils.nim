@@ -24,6 +24,18 @@ export protobuf, registrar, routing_table_manager, types
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+converter toOptMoment*(a: Moment): Opt[Moment] =
+  Opt.some(a)
+
+converter toOptDuration*(a: Duration): Opt[Duration] =
+  Opt.some(a)
+
+converter toOptMessageType*(a: MessageType): Opt[MessageType] =
+  Opt.some(a)
+
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
 
@@ -44,7 +56,7 @@ proc makeTicket*(): Ticket =
     tInit: Moment.init(1_000_000, Second),
     tMod: Moment.init(2_000_000, Second),
     tWaitFor: 3000.secs,
-    signature: @[],
+    signature: Opt.none(seq[byte]),
   )
 
 proc signedTicket*(privateKey: PrivateKey): Ticket =

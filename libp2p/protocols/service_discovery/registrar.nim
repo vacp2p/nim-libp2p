@@ -8,7 +8,6 @@ import
     peerid, switch, multihash, cid, multicodec, multiaddress, routing_record,
     extended_peer_record,
   ]
-import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../../crypto/crypto
 import ../kademlia
@@ -221,10 +220,13 @@ proc updateLowerBounds*(
 proc isValidAdvertisement*(
     regMsg: RegisterMessage, serviceId: ServiceId
 ): Result[Advertisement, string] =
-  if regMsg.advertisement.len > MaxXPRSize:
+  let advertisment = regMsg.advertisement.valueOr:
+    return err("advertisement not set")
+
+  if advertisment.len > MaxXPRSize:
     return err("oversized")
 
-  let ad = Advertisement.decode(regMsg.advertisement).valueOr:
+  let ad = Advertisement.decode(advertisment).valueOr:
     return err("cannot decode: " & $error)
 
   for svc in ad.data.services:
@@ -240,7 +242,7 @@ proc updateWaitAfterRetry*(
     disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
 ) =
   ticketOpt.withValue(ticket):
-    let totalWaitSoFar = now - ticket.tInit
+    let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar
 
 proc isValidTicket(
@@ -249,7 +251,7 @@ proc isValidTicket(
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
 
-  if ticket.advertisement != regMsg.advertisement:
+  if ticket.advertisement.get(@[]) != regMsg.advertisement.get(@[]):
     return err("message & ticket advertisement mismatch")
 
   let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
@@ -259,7 +261,7 @@ proc isValidTicket(
     return err("ticket fails verification")
 
   let
-    windowStart = ticket.tMod + ticket.tWaitFor
+    windowStart = ticket.tMod.get() + ticket.tWaitFor.get()
     windowEnd = windowStart + disco.discoConfig.registrationWindow
 
   if now notin windowStart .. windowEnd:
@@ -274,13 +276,15 @@ proc sendRegisterResponse*(
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ) {.async: (raises: [CancelledError]).} =
   let msg = Message(
-    msgType: MessageType.register,
+    msgType: Opt.some(MessageType.register),
     register: Opt.some(
-      RegisterMessage(advertisement: @[], status: Opt.some(status), ticket: ticket)
+      RegisterMessage(
+        advertisement: Opt.none(seq[byte]), status: Opt.some(status), ticket: ticket
+      )
     ),
     closerPeers: closerPeers,
   )
-  let bytes = msg.encode().buffer
+  let bytes = msg.encode()
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
@@ -414,7 +418,9 @@ proc getCloserPeers(
   return disco.switch.toPeers(keys)
 
 proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
-  let serviceId = inMsg.key
+  let serviceId = inMsg.key.valueOr:
+    error "Key not set: registration", msg = inMsg
+    return
 
   # Add peer to both tables
   discard disco.rtable.insert(peerId)
@@ -423,10 +429,10 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
-    msgType: MessageType.register,
+    msgType: Opt.some(MessageType.register),
     register: Opt.some(
       RegisterMessage(
-        advertisement: @[],
+        advertisement: Opt.none(seq[byte]),
         status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
         ticket: Opt.none(Ticket),
       )
@@ -482,12 +488,16 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-  var ticket =
-    Ticket(advertisement: regMsg.advertisement, tInit: now, tMod: now, tWaitFor: tWait)
+  var ticket = Ticket(
+    advertisement: regMsg.advertisement,
+    tInit: Opt.some(now),
+    tMod: Opt.some(now),
+    tWaitFor: Opt.some(tWait),
+  )
 
   regMsg.ticket.withValue(t):
     let
-      windowStart = t.tMod + t.tWaitFor
+      windowStart = t.tMod.get() + t.tWaitFor.get()
       windowEnd = windowStart + disco.discoConfig.registrationWindow
     if now in windowStart .. windowEnd:
       ticket.tInit = t.tInit
@@ -511,7 +521,9 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
-  let serviceId = msg.key
+  let serviceId = msg.key.valueOr:
+    error "Key not set: getAdvertisements", msg = msg
+    return
 
   # Add peer to both tables
   discard disco.rtable.insert(peerId)
@@ -524,7 +536,7 @@ proc getAdvertisements*(
   let closerPeers = disco.getCloserPeers(serviceId, cap)
 
   let response = Message(
-    msgType: MessageType.getAds,
+    msgType: Opt.some(MessageType.getAds),
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: closerPeers,
   )

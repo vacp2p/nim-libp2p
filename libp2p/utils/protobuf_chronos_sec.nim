@@ -10,7 +10,7 @@ Protobuf.extensionDefaults(Duration, defaultSeq = true)
 func computeFieldSize*(
     field: int, value: Duration, ProtoType: type ProtobufExt, skipDefault: static bool
 ): int =
-  computeFieldSize(field, value.nanoseconds, pint64, skipDefault)
+  computeFieldSize(field, value.seconds, pint64, skipDefault)
 
 proc writeField*(
     stream: OutputStream,
@@ -19,7 +19,7 @@ proc writeField*(
     ProtoType: type ProtobufExt,
     skipDefault: static bool = false,
 ) {.raises: [IOError].} =
-  writeField(stream, field, value.nanoseconds, pint64, skipDefault)
+  writeField(stream, field, value.seconds, pint64, skipDefault)
 
 proc readFieldInto*(
     stream: InputStream,
@@ -29,7 +29,7 @@ proc readFieldInto*(
 ): bool {.raises: [SerializationError, IOError].} =
   if header.kind() == wireKind(pint64):
     let intValue = stream.readValue(pint64).int64
-    value = intValue.nanoseconds
+    value = intValue.seconds
     return true
   else:
     false
@@ -39,7 +39,7 @@ Protobuf.extensionDefaults(Moment, defaultSeq = true)
 func computeFieldSize*(
     field: int, value: Moment, ProtoType: type ProtobufExt, skipDefault: static bool
 ): int =
-  computeFieldSize(field, value.epochNanoSeconds(), pint64, skipDefault)
+  computeFieldSize(field, value.epochSeconds(), pint64, skipDefault)
 
 proc writeField*(
     stream: OutputStream,
@@ -48,7 +48,7 @@ proc writeField*(
     ProtoType: type ProtobufExt,
     skipDefault: static bool = false,
 ) {.raises: [IOError].} =
-  writeField(stream, field, value.epochNanoSeconds(), pint64, skipDefault)
+  writeField(stream, field, value.epochSeconds(), pint64, skipDefault)
 
 proc readFieldInto*(
     stream: InputStream,
@@ -57,7 +57,7 @@ proc readFieldInto*(
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
   if header.kind() == wireKind(pint64):
-    value = Moment.init(stream.readValue(pint64).int64, Nanosecond)
+    value = Moment.init(stream.readValue(pint64).int64, Second)
     return true
   else:
     false
