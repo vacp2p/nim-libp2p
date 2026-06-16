@@ -30,6 +30,9 @@ pkgs.stdenv.mkDerivation {
     pkgs.nim-2_2
     pkgs.git
     pkgs.nimble
+    # The Darwin vendored Makefiles archive via `LIBTOOL ?= $(shell which libtool)`;
+    # the sandbox lacks `which`, leaving LIBTOOL empty so no .a is produced.
+    pkgs.which
   ];
 
   buildPhase = ''
