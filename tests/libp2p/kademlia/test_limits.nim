@@ -24,7 +24,7 @@ suite "KadDHT - Limits":
     # Generate 20 fresh peers and feed them through updateShortlist.
     var peers: seq[Peer]
     for i in 0 ..< 20:
-      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
+      peers.add(Peer(id: randomPeerId().toKey(), addrs: Opt.none(seq[MultiAddress])))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     discard state.updateShortlist(msg)
@@ -46,9 +46,7 @@ suite "KadDHT - Limits":
     # Insert a far peer first
     var farId: Key = newSeq[byte](32)
     farId[0] = 0xFF
-    let farMsg = Message(
-      msgType: MessageType.findNode, closerPeers: @[Peer(id: farId, addrs: @[])]
-    )
+    let farMsg = Message(msgType: MessageType.findNode, closerPeers: @[Peer(id: farId)])
     discard state.updateShortlist(farMsg)
 
     # Now insert 5 close peers — they should evict the far one
@@ -56,7 +54,7 @@ suite "KadDHT - Limits":
     for i in 1 .. 5:
       var id: Key = newSeq[byte](32)
       id[31] = byte(i)
-      closePeers.add(Peer(id: id, addrs: @[]))
+      closePeers.add(Peer(id: id))
     let closeMsg = Message(msgType: MessageType.findNode, closerPeers: closePeers)
     discard state.updateShortlist(closeMsg)
 

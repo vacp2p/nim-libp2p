@@ -25,6 +25,7 @@ const
 type
   DecayFn* = proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].}
     ## Decay function applied to an ephemeral tag on each tick interval.
+    ## `elapsed` is the time since the tag's last tick, for time-proportional decay.
     ## Returns the new value; returning ≤0 removes the tag.
 
   DecayingTagValue = object
@@ -38,6 +39,7 @@ type
       ## `outboundBonus` is added to the score of every peer with an outbound connection
     decayResolution*: Duration = 1.minutes
       ## `decayResolution` controls how often ephemeral tag decay functions are applied
+      ## It is the shortest interval at which any decaying tag can decay
 
   WatermarkPolicy* = object
     ## Configuration for hi/lo watermark connection management.
@@ -653,8 +655,10 @@ proc tagPeerDecaying*(
     decayFn: DecayFn,
 ) =
   ## Attach an ephemeral tag to `peerId` with an initial `value`.
-  ## The tag's value is updated by `decayFn` every `interval`. When the value
-  ## drops to ≤0 the tag is removed automatically.
+  ## A single decay loop runs every `decayResolution`.
+  ## On each run it applies `decayFn` to every tag whose `interval` has elapsed.
+  ## A tag therefore decays at most once per `decayResolution`, even with a shorter `interval`.
+  ## When the value drops to ≤0 the tag is removed automatically.
   doAssert interval > 0.seconds
   doAssert not decayFn.isNil
 

@@ -123,6 +123,32 @@ proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
     res.add(?concat(address, peerIdPart))
   ok(res)
 
+proc stripPeerId*(ma: MultiAddress): MultiAddress =
+  ## Strip a terminal /p2p/<peer-id> suffix from a dial address.
+  ## Keeps relay route components like /p2p/<relay>/p2p-circuit intact.
+  let maLen = ma.len().valueOr:
+    return ma
+
+  if maLen < 2:
+    return ma
+
+  let lastPart = ma[^1].valueOr:
+    return ma
+
+  let protoCode = lastPart.protoCode().valueOr:
+    return ma
+  if protoCode != p2pMultiCodec:
+    return ma
+
+  let protoArg = lastPart.protoArgument().valueOr:
+    return ma
+
+  discard PeerId.init(protoArg).valueOr:
+    return ma
+
+  ma[0 .. ^2].valueOr:
+    return ma
+
 proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
   let p2pPart = ?ma[^1]
   if ?p2pPart.protoCode != p2pMultiCodec:

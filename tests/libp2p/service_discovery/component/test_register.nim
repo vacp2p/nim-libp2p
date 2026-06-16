@@ -50,7 +50,7 @@ suite "Service Discovery Component - Register":
       tInit: now - 10000000.secs,
       tMod: now - 10000000.secs,
       tWaitFor: 0.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check ticket.sign(registrarKey).isOk()
 
@@ -91,7 +91,7 @@ suite "Service Discovery Component - Register":
     let third = await requestTicket()
     check:
       third.tWaitFor == second.tWaitFor
-      third.tMod >= second.tMod
+      third.tMod.get() >= second.tMod.get()
 
   asyncTest "REGISTER preserves registrar cache seqNo semantics":
     # Use a non-zero subsecond expiry: the waiting-time formula rounds it down
@@ -197,7 +197,7 @@ suite "Service Discovery Component - Register":
       tInit: oldTInit,
       tMod: Moment.now(),
       tWaitFor: 0.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check invalidTicket.sign(maloryNode.switch.peerInfo.privateKey).isOk()
 

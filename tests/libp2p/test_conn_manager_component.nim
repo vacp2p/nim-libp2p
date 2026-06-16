@@ -498,3 +498,25 @@ suite "Connection Manager Watermark/Scoring Component":
     checkUntilTimeout:
       prunedId in gossip.peers
       not node.isConnected(prunedId)
+
+  asyncTest "score and protection are persisted between disconnections":
+    let node = newWatermarkSwitch(1, 2)
+    let peer = newSwitches(1)[0]
+    let all = @[node, peer]
+
+    startAndDeferStop(all)
+
+    await connect(node, peer)
+
+    let peerId = peer.peerInfo.peerId
+    const value = 500
+    node.connManager.tagPeer(peerId, "important", value)
+    node.connManager.protect(peerId, "keep")
+
+    await node.disconnect(peerId)
+    checkUntilTimeout:
+      not node.isConnected(peerId)
+
+    check:
+      node.connManager.peerScore(peerId) == value
+      node.connManager.isProtected(peerId)
