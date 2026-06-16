@@ -37,7 +37,8 @@ suite "KadDHT - Add Provider":
     # kads[0] has kads[1] in its providermanager after adding provider
     checkUntilTimeout:
       kads[0].providerManager.providerRecords.len == 1
-      kads[0].providerManager.providerRecords[0].provider.id == kads[1].rtable.selfId
+      kads[0].providerManager.providerRecords[0].provider.id.get() ==
+        kads[1].rtable.selfId
 
   asyncTest "Provider expired":
     let kads = setupKadSwitches(2)
@@ -219,7 +220,7 @@ suite "KadDHT - Add Provider":
 
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
-      receiverKad.providerManager.providerRecords[0].provider.id ==
+      receiverKad.providerManager.providerRecords[0].provider.id.get() ==
         senderKad.switch.peerInfo.peerId.getBytes()
 
   asyncTest "Add provider rejects invalid multihash key":
@@ -278,7 +279,8 @@ suite "KadDHT - Add Provider":
     checkUntilTimeout:
       kads[0].providerManager.providerRecords.len == 1
       kads[0].providerManager.providerRecords[0].key == expectedKey
-      kads[0].providerManager.providerRecords[0].provider.id == kads[1].rtable.selfId
+      kads[0].providerManager.providerRecords[0].provider.id.get() ==
+        kads[1].rtable.selfId
 
     let originalExpiresAt = kads[0].providerManager.providerRecords[0].expiresAt
 
@@ -318,8 +320,8 @@ suite "KadDHT - Add Provider":
     let providers = kads[0].providerManager.knownKeys[targetCid.toKey()]
     check:
       providers.len == 2
-      kads[1].rtable.selfId in providers.mapIt(it.id)
-      kads[2].rtable.selfId in providers.mapIt(it.id)
+      kads[1].rtable.selfId in providers.mapIt(it.id.get())
+      kads[2].rtable.selfId in providers.mapIt(it.id.get())
 
   asyncTest "Provider address storage policy - addresses may be omitted":
     let kads = setupKadSwitches(1)
@@ -338,7 +340,7 @@ suite "KadDHT - Add Provider":
       # Provider with empty addresses
       providerWithNoAddrs = Peer(
         id: senderKad.switch.peerInfo.peerId.getBytes(),
-        addrs: @[],
+        addrs: Opt.none(seq[MultiAddress]),
         connection: ConnectionStatus.connected,
       )
     receiverKad.handleAddProviderMessage = Opt.some(
@@ -353,9 +355,9 @@ suite "KadDHT - Add Provider":
     # Provider should be stored even without addresses
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
-      receiverKad.providerManager.providerRecords[0].provider.id ==
+      receiverKad.providerManager.providerRecords[0].provider.id.get() ==
         senderKad.switch.peerInfo.peerId.getBytes()
-      receiverKad.providerManager.providerRecords[0].provider.addrs.len == 0
+      receiverKad.providerManager.providerRecords[0].provider.addrs.isNone
 
   asyncTest "Add provider includes local multiaddresses":
     let kads = setupKadSwitches(2)
@@ -381,8 +383,8 @@ suite "KadDHT - Add Provider":
 
     let storedProvider = kads[0].providerManager.providerRecords[0].provider
     check:
-      storedProvider.id == kads[1].rtable.selfId
-      storedProvider.addrs == kads[1].switch.peerInfo.addrs
+      storedProvider.id.get() == kads[1].rtable.selfId
+      storedProvider.addrs.get() == kads[1].switch.peerInfo.addrs
 
   asyncTest "Add provider completes when some peers fail":
     let kads = setupKadSwitches(3)
@@ -402,7 +404,8 @@ suite "KadDHT - Add Provider":
     # Verify provider was stored at the successful receiver
     checkUntilTimeout:
       kads[1].providerManager.providerRecords.len == 1
-      kads[1].providerManager.providerRecords[0].provider.id == kads[0].rtable.selfId
+      kads[1].providerManager.providerRecords[0].provider.id.get() ==
+        kads[0].rtable.selfId
 
 suite "KadDHT - ADD_PROVIDER Rejection":
   teardown:
@@ -486,11 +489,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
 
     # Directly inject a record into closeKad to trigger rejection without
     # involving an extra sender (which would also discover and fill farKad).
-    let existingPeer = Peer(
-      id: randomPeerId().getBytes(),
-      addrs: @[],
-      connection: ConnectionStatus.notConnected,
-    )
+    let existingPeer = Peer(id: randomPeerId().getBytes())
     closeKad.providerManager.knownKeys[key] = initHashSet[Provider]()
     closeKad.providerManager.knownKeys[key].incl(existingPeer)
     closeKad.providerManager.providerRecords.push(
@@ -507,7 +506,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
 
     checkUntilTimeout:
       farKad.providerManager.providerRecords.len == 1
-      farKad.providerManager.providerRecords[0].provider.id ==
+      farKad.providerManager.providerRecords[0].provider.id.get() ==
         senderKad.switch.peerInfo.peerId.getBytes()
 
   asyncTest "Normal replication still works when all nodes accept":
@@ -613,11 +612,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # same key that will appear in the ADD_PROVIDER message so the rejection check
     # finds the existing record.
     let msgKey = key.toCid().toKey()
-    let existingPeer = Peer(
-      id: randomPeerId().getBytes(),
-      addrs: @[],
-      connection: ConnectionStatus.notConnected,
-    )
+    let existingPeer = Peer(id: randomPeerId().getBytes())
     receiverKad.providerManager.knownKeys[msgKey] = initHashSet[Provider]()
     receiverKad.providerManager.knownKeys[msgKey].incl(existingPeer)
     receiverKad.providerManager.providerRecords.push(

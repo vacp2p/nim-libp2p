@@ -117,17 +117,17 @@ proc dispatchAddProvider(
     await stream.close()
 
   let msg = Message(
-    msgType: MessageType.addProvider,
-    key: key,
+    msgType: Opt.some(MessageType.addProvider),
+    key: Opt.some(key),
     providerPeers: @[kad.switch.peerInfo.toPeer()],
   )
   let encoded = msg.encode(kad.config.hideConnectionStatus)
   kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
+    encoded.len.int64, labelValues = [$MessageType.addProvider]
   )
   let writeRes = catch:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   if writeRes.isErr:
     return err(writeRes.error.msg)
 
@@ -231,10 +231,11 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
 proc sendAddProviderResponse(
     stream: Stream, kad: KadDHT, status: AddProviderStatus
 ) {.async: (raises: [CancelledError]).} =
-  let response =
-    Message(msgType: MessageType.addProvider, providerStatus: Opt.some(status))
+  let response = Message(
+    msgType: Opt.some(MessageType.addProvider), providerStatus: Opt.some(status)
+  )
   try:
-    await stream.writeLp(response.encode(kad.config.hideConnectionStatus).buffer)
+    await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
     debug "Failed to send add-provider response",
       stream = stream, err = exc.msg, status = status
@@ -242,31 +243,37 @@ proc sendAddProviderResponse(
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  if not MultiHash.validate(msg.key):
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleAddProvider", msg = msg, stream = stream
+    return
+
+  if not MultiHash.validate(msgKey):
     error "Received key is an invalid Multihash",
-      msg = msg, stream = stream, key = msg.key
+      msg = msg, stream = stream, key = msgKey
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
 
   # filter out infos that do not match sender's
   let peerBytes = stream.peerId.getBytes()
-  let validPeers =
-    msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
+  let validPeers = msg.providerPeers.filterIt(
+    it.id.isSome and it.id.get() == peerBytes and PeerId.init(it.id.get()).isOk()
+  )
 
   # Per-key cap is enforced regardless of providerRejection: when rejection is
   # disabled the receiver still drops over-cap providers, just silently.
   var atCap = false
   kad.config.limits.maxProvidersPerKey.withValue(limit):
     let existingProviders =
-      kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
-    let senderIsKnown = existingProviders.anyIt(it.id == peerBytes)
+      kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
+    let senderIsKnown =
+      existingProviders.anyIt(it.id.isSome and it.id.get() == peerBytes)
     # Re-advertisements by the same provider are exempt: addProviderRecord
     # replaces the existing record so the set size doesn't grow.
     let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
     if effectiveCount >= limit:
       atCap = true
-      debug "ADD_PROVIDER rejected: per-key limit reached", key = msg.key, limit = limit
+      debug "ADD_PROVIDER rejected: per-key limit reached", key = msgKey, limit = limit
 
   if not atCap:
     for peer in validPeers:
@@ -274,7 +281,7 @@ method handleAddProvider*(
         ProviderRecord(
           provider: peer,
           expiresAt: chronos.Moment.now() + kad.config.providerExpirationInterval,
-          key: msg.key,
+          key: msgKey,
         )
       )
 
@@ -299,19 +306,19 @@ proc dispatchGetProviders*(
   let stream = streamRes.value()
   defer:
     await stream.close()
-  let msg = Message(msgType: MessageType.getProviders, key: key)
+  let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+    encoded.len.int64, labelValues = [$MessageType.getProviders]
   )
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -353,7 +360,9 @@ proc getProviders*(
       return
 
     for provider in reply.providerPeers:
-      if not PeerId.init(provider.id).isOk():
+      let idraw = provider.id.valueOr:
+        continue
+      if PeerId.init(idraw).isErr:
         debug "Invalid peer id received", peerId = provider.id
         continue
       allProviders.incl(provider)
@@ -368,24 +377,28 @@ proc getProviders*(
 proc handleGetProviders*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handleGetProviders", msg = msg, stream = stream
+    return
+
   var providers =
-    kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
+    kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
 
   # check if we are providing the key as well
-  if kad.providerManager.providedKeys.provided.hasKey(msg.key):
+  if kad.providerManager.providedKeys.provided.hasKey(msgKey):
     providers.incl(kad.switch.peerInfo.toPeer())
 
   let response = Message(
-    msgType: MessageType.getProviders,
+    msgType: Opt.some(MessageType.getProviders),
     key: msg.key,
-    closerPeers: kad.findClosestPeers(msg.key),
+    closerPeers: kad.findClosestPeers(msgKey),
     providerPeers: providers.toSeq(),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+    encoded.len.int64, labelValues = [$MessageType.getProviders]
   )
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send get-providers RPC reply", stream = stream, err = exc.msg

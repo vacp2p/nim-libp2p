@@ -9,6 +9,24 @@ import ./mock_kademlia
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
+converter toOptSeqMultiAddress*(a: seq[MultiAddress]): Opt[seq[MultiAddress]] =
+  Opt.some(a)
+
+converter toOptConnectionStatus*(a: ConnectionStatus): Opt[ConnectionStatus] =
+  Opt.some(a)
+
+converter toOptRecord*(a: protobuf.Record): Opt[protobuf.Record] =
+  Opt.some(a)
+
+converter toOptString*(a: string): Opt[string] =
+  Opt.some(a)
+
+converter toOptMessageType*(a: MessageType): Opt[MessageType] =
+  Opt.some(a)
+
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
   true
@@ -163,7 +181,7 @@ proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
 
 proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
-  let providerIds = providers.toSeq().mapIt(it.id)
+  let providerIds = providers.toSeq().filterIt(it.id.isSome).mapIt(it.id.get())
   node.switch.peerInfo.peerId.getBytes() in providerIds
 
 proc toPeer*(node: KadDHT): Peer =
@@ -232,7 +250,7 @@ proc sendAddProviderAndGetStatus*(
     providerPeers: @[sender.switch.peerInfo.toPeer()],
   )
   let writeRes = catch:
-    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus))
   if writeRes.isErr:
     return err(writeRes.error.msg)
   let readFut = stream.readLp(MaxMsgSize)

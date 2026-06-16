@@ -8,7 +8,6 @@ import
   ../../[
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
-import ../../protobuf/minprotobuf
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
@@ -257,10 +256,12 @@ proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
   var peerInfos: seq[PeerInfo]
 
   for p in peers:
-    let pid = PeerId.init(p.id).valueOr:
+    let raw = p.id.valueOr:
+      continue
+    let pid = PeerId.init(raw).valueOr:
       continue
 
-    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs)
+    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs.get(@[]))
 
     peerInfos.add(peerInfo)
 
