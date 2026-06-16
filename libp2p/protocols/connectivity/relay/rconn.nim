@@ -31,15 +31,17 @@ method write*(
   self.activity = true
   await self.stream.write(move(msg))
 
-method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
-  if not self.durationCheckFut.isNil:
+proc cancelDurationCheck(self: RelayConnection) =
+  if not self.durationCheckFut.isNil():
     self.durationCheckFut.cancelSoon()
+
+method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
+  self.cancelDurationCheck()
   await self.stream.close()
   await procCall Connection(self).closeImpl()
 
 method resetImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
-  if not self.durationCheckFut.isNil:
-    self.durationCheckFut.cancelSoon()
+  self.cancelDurationCheck()
   await self.stream.reset()
   await procCall Connection(self).closeImpl()
 

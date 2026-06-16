@@ -731,6 +731,13 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
         return
     c.trimFut = c.trimConnections()
 
+proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
+  ## Drains the per-muxer onClose tasks. Call once muxers have been closed so
+  ## the tasks finish cleanup rather than being cancelled mid-flight; noCancel
+  ## keeps the drain alive even if `close` itself is cancelled.
+  discard await noCancel allFinished(c.onCloseFuts)
+  c.onCloseFuts = @[]
+
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   ## Cleanup resources for the connection manager.
   trace "Closing ConnManager"
@@ -765,10 +772,6 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
       await allFutures(muxers.mapIt(closeMuxer(it)))
       await c.onPeerDisconnected(peerId)
 
-  # Muxers are closed above, so the onClose tasks can now run their cleanup to
-  # completion rather than being cancelled mid-flight. noCancel keeps the drain
-  # alive even if ConnManager.close itself is cancelled.
-  discard await noCancel allFinished(c.onCloseFuts)
-  c.onCloseFuts = @[]
+  await c.drainOnCloseTasks()
 
   trace "Closed ConnManager"

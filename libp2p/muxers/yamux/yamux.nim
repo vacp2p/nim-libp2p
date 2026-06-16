@@ -531,6 +531,30 @@ proc createStream(
     libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
   return stream
 
+proc forceClose(channel: YamuxChannel) {.async: (raises: []).} =
+  ## Drives a channel through its terminal state without waiting on the peer.
+  ## Wakes `closedRemotely` and runs `actuallyClose` so `closeEvent` fires for
+  ## channels that received Fin before muxer close — otherwise `cleanupChannel`'s
+  ## `await channel.join()` would never return.
+  channel.closedRemotely.fire()
+  channel.isClosedRemotely = true
+  if not channel.closeEvent.isSet():
+    await channel.actuallyClose()
+  channel.receivedData.fire()
+
+proc drainChannelTasks(channels: seq[YamuxChannel]) {.async: (raises: []).} =
+  ## Awaits the cleanup, handler and sendLoop tasks of `channels` so they don't
+  ## outlive the muxer. Callers must have already torn the channels and
+  ## connection down so these tasks complete on their own.
+  var futs: seq[Future[void]]
+  for channel in channels:
+    futs.add(channel.cleanupFut)
+    if not channel.handlerFut.isNil():
+      futs.add(channel.handlerFut)
+    if not channel.sendLoopFut.isNil():
+      futs.add(channel.sendLoopFut)
+  discard await noCancel allFinished(futs)
+
 method close*(m: Yamux) {.async: (raises: []).} =
   if m.isClosed == true:
     trace "Already closed"
@@ -546,15 +570,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
     channel.isReset = true
     channel.opened = false
     channel.isClosed = true
-    # Fire closedRemotely (idempotent) and run actuallyClose ourselves so
-    # closeEvent fires for channels that received Fin before muxer close.
-    # Without this, cleanupChannel's `await channel.join()` would hang and
-    # the wait on cleanupFut below would never complete.
-    channel.closedRemotely.fire()
-    channel.isClosedRemotely = true
-    if not channel.closeEvent.isSet():
-      await channel.actuallyClose()
-    channel.receivedData.fire()
+    await channel.forceClose()
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
@@ -563,19 +579,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
     trace "failed to send goAway", description = exc.msg
   await m.connection.close()
 
-  # Wait for the per-channel tasks to finish now that the muxer is torn down so
-  # they don't outlive the connection. The channels and connection were torn
-  # down above, so they complete on their own; cancelling them would surface a
-  # spurious CancelledError inside a running stream handler.
-  var channelFuts: seq[Future[void]]
-  for channel in channels:
-    channelFuts.add(channel.cleanupFut)
-    if not channel.handlerFut.isNil:
-      channelFuts.add(channel.handlerFut)
-    if not channel.sendLoopFut.isNil:
-      channelFuts.add(channel.sendLoopFut)
-  # allFinished ensures we wait for every task even if some fail.
-  discard await noCancel allFinished(channelFuts)
+  await drainChannelTasks(channels)
 
   m.isClosed = true
   trace "Closed yamux"

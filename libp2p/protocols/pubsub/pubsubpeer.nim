@@ -400,7 +400,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
 proc connect*(p: PubSubPeer) =
   if p.connected:
     return
-  if not p.connectFut.isNil and not p.connectFut.finished:
+  if not p.connectFut.isNil() and not p.connectFut.finished():
     return
 
   p.connectFut = connectImpl(p)
@@ -733,17 +733,16 @@ proc startSendNonHighPriorityTask(p: PubSubPeer) =
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
-proc stopSendNonHighPriorityTask*(p: PubSubPeer) =
-  ## Shuts down all background tasks owned by this peer: the persistent
-  ## connector loop, any in-flight send futures, and the non-high-priority
-  ## sender task. Despite the name, this is the peer-wide teardown hook.
-  if not p.connectFut.isNil:
+proc stopTasks*(p: PubSubPeer) =
+  ## Peer-wide teardown: cancels the connector loop, in-flight sends, and the
+  ## non-high-priority sender task; clears its priority queues.
+  if not p.connectFut.isNil():
     p.connectFut.cancelSoon()
     p.connectFut = nil
   for fut in p.sendFuts:
     fut.cancelSoon()
   p.sendFuts = @[]
-  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
+  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
     debug "stopping sendNonHighPriorityTask", p
     p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonHighPriorityTask = nil

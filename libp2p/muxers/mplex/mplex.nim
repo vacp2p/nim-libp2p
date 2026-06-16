@@ -50,6 +50,17 @@ proc newTooManyChannels(): ref TooManyChannels =
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
 
+proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
+  ## Awaits the cleanup and handler tasks of `channs` so they don't outlive the
+  ## muxer. Callers must have already torn the channels and connection down so
+  ## these tasks complete on their own.
+  var futs: seq[Future[void]]
+  for chann in channs:
+    futs.add(chann.cleanupFut)
+    if not chann.handlerFut.isNil():
+      futs.add(chann.handlerFut)
+  discard await noCancel allFinished(futs)
+
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## remove the local channel from the internal tables
   ##
@@ -238,17 +249,7 @@ method close*(m: Mplex) {.async: (raises: []).} =
   for chann in channs:
     await chann.reset()
 
-  # Wait for the per-channel tasks tracked by the muxer to finish so they don't
-  # outlive the connection. The channels and connection were torn down above, so
-  # they complete on their own; cancelling them would surface a spurious
-  # CancelledError inside a running stream handler.
-  var channelFuts: seq[Future[void]]
-  for chann in channs:
-    channelFuts.add(chann.cleanupFut)
-    if not chann.handlerFut.isNil:
-      channelFuts.add(chann.handlerFut)
-  # allFinished ensures we wait for every task even if some fail.
-  discard await noCancel allFinished(channelFuts)
+  await drainChannelTasks(channs)
 
   m.channels[false].clear()
   m.channels[true].clear()
