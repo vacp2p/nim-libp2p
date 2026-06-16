@@ -34,7 +34,7 @@ method handleGetValue*(
     return
 
   try:
-    await stream.writeLp(response.encode().buffer)
+    await stream.writeLp(response.encode())
   except LPStreamError as exc:
     debug "Failed to send malicious get-value response", stream = stream, err = exc.msg
 
