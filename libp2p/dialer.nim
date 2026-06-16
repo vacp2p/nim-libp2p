@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/tables
+import std/[sequtils, tables]
 
 import pkg/[chronos, chronicles, metrics, results]
 
@@ -52,18 +52,17 @@ proc dialAndUpgrade*(
 
   for transport in self.transports: # for each transport
     if transport.handles(addrs): # check if it can dial it
-      trace "Dialing address", addrs, peerId = peerId.get(default(PeerId)), hostname
+      trace "Dialing address", addrs, peerId, hostname
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
           await transport.dial(hostname, addrs, peerId)
         except CancelledError as exc:
-          trace "Dialing canceled",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+          trace "Dialing canceled", description = exc.msg, peerId
           raise exc
         except CatchableError as exc:
           debug "Dialing failed",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+            description = exc.msg, peerId = peerId, address = addrs, hostname
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -85,7 +84,7 @@ proc dialAndUpgrade*(
           # we won't succeeded through another - no use in trying again
           await dialed.close()
           debug "Connection upgrade failed",
-            description = exc.msg, peerId = peerId.get(default(PeerId))
+            description = exc.msg, peerId, address = addrs, hostname
           if dialed.dir == Direction.Out:
             libp2p_failed_upgrades_outgoing.inc()
           else:
@@ -144,6 +143,14 @@ proc expandDnsAddr(
       addrs.add((resolvedAddress, peerId))
   addrs
 
+proc normalizedDialAddrs(
+    peerId: Opt[PeerId], addrs: seq[MultiAddress]
+): seq[MultiAddress] =
+  if peerId.isSome:
+    addrs.mapIt(it.stripPeerId)
+  else:
+    addrs
+
 proc dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
 ): Future[Muxer] {.
@@ -152,9 +159,10 @@ proc dialAndUpgrade*(
   ## Dial address candidates, resolving DNS addresses when configured.
   ## Returns the first upgraded muxer, or nil when no address succeeds.
 
-  debug "Dialing peer", peerId = peerId.get(default(PeerId)), addrs
+  let dialAddrs = normalizedDialAddrs(peerId, addrs)
+  debug "Dialing peer", peerId = peerId, addrs = dialAddrs
 
-  for rawAddress in addrs:
+  for rawAddress in dialAddrs:
     # resolve potential dnsaddr
     let addresses = await self.expandDnsAddr(peerId, rawAddress)
     for (expandedAddress, addrPeerId) in addresses:
@@ -218,9 +226,10 @@ proc internalConnect(
         DialFailedError, "failed getOutgoingSlot in internalConnect: " & exc.msg, exc
       )
 
+  let dialAddrs = normalizedDialAddrs(peerId, addrs)
   let muxed =
     try:
-      await self.dialAndUpgrade(peerId, addrs, dir)
+      await self.dialAndUpgrade(peerId, dialAddrs, dir)
     except CancelledError as exc:
       slot.release()
       raise exc
@@ -232,7 +241,10 @@ proc internalConnect(
   if isNil(muxed): # None of the addresses connected
     slot.release()
     raise newException(
-      DialFailedError, "Unable to establish outgoing link in internalConnect"
+      DialFailedError,
+      "Unable to establish outgoing link in internalConnect: peer_id=" & shortLog(
+        peerId
+      ) & " addrs=" & $dialAddrs,
     )
 
   slot.trackMuxer(muxed)
@@ -389,6 +401,8 @@ method dial*(
     conn: Muxer
     stream: Stream
 
+  let dialAddrs = normalizedDialAddrs(Opt.some(peerId), addrs)
+
   proc cleanup() {.async: (raises: []).} =
     if not (isNil(stream)):
       await stream.closeWithEOF()
@@ -398,7 +412,7 @@ method dial*(
 
   try:
     trace "Dialing (new)", peerId, protos
-    conn = await self.internalConnect(Opt.some(peerId), addrs, forceDial)
+    conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
     trace "Opening stream", conn
     stream = await self.connManager.getStream(conn)
 
@@ -414,9 +428,15 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, description = exc.msg
+    debug "Error dialing",
+      conn, peerId, protos, addrs = dialAddrs, description = exc.msg
     await cleanup()
-    raise newException(DialFailedError, "failed new dial: " & exc.msg, exc)
+    raise newException(
+      DialFailedError,
+      "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & $protos & " addrs=" &
+        $dialAddrs & ": " & exc.msg,
+      exc,
+    )
 
 method addTransport*(self: Dialer, t: Transport) {.raises: [].} =
   self.transports &= t
