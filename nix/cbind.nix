@@ -4,9 +4,7 @@ let
   deps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
-  # nat_traversal's nim sources emit {.passl: <pkgRoot>/vendor/.../lib*.a.},
-  # so the writable copy that holds the freshly built vendored .a files must
-  # also be the path nim resolves the package from.
+  # nat_traversal is resolved from a writable copy (see buildPhase), not the store.
   depsWithoutNat = builtins.removeAttrs deps [ "nat_traversal" ];
 
   pathArgs =
@@ -43,53 +41,29 @@ pkgs.stdenv.mkDerivation {
     mkdir -p build $NIMCACHE
 
     echo "== Building nat_traversal vendored C libs =="
-    # nim-nat-traversal vendors miniupnpc and libnatpmp as C sources and emits
-    # {.passl: <pkgRoot>/vendor/.../lib*.a.} from its nim modules. The nix store
-    # copy is read-only, so stage a writable copy and build the .a files there.
+    # nat_traversal emits {.passl: <pkgRoot>/vendor/.../lib*.a.}; the store copy
+    # is read-only, so stage a writable copy and build the .a files in place.
     NAT_PKG=$TMPDIR/nat_traversal
     cp -r ${deps.nat_traversal} $NAT_PKG
     chmod -R +w $NAT_PKG
+    # The vendored Makefiles default to CC=gcc, absent on the Darwin stdenv;
+    # forward $CC (wrapped gcc on Linux, clang on Darwin).
     make -C $NAT_PKG/vendor/miniupnp/miniupnpc \
-      CFLAGS="-Os -fPIC" build/libminiupnpc.a
+      CC="$CC" CFLAGS="-Os -fPIC" build/libminiupnpc.a
     make -C $NAT_PKG/vendor/libnatpmp-upstream \
+      CC="$CC" \
       CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" \
       libnatpmp.a
 
+    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
+      --threads:on --opt:size --noMain --mm:refc --header --d:metrics \
+      --nimMainPrefix:libp2p --nimcache:$NIMCACHE"
+
     echo "== Building C bindings (dynamic/shared) =="
-    nim c \
-      --noNimblePath \
-      ${cbindPathArgs} \
-      ${pathArgs} \
-      --path:$NAT_PKG \
-      --out:build/libp2p.${libExt} \
-      --app:lib \
-      --threads:on \
-      --opt:size \
-      --noMain \
-      --mm:refc \
-      --header \
-      -d:metrics \
-      --nimMainPrefix:libp2p \
-      --nimcache:$NIMCACHE \
-      cbind/libp2p.nim
+    nim c $commonArgs --app:lib --out:build/libp2p.${libExt} cbind/libp2p.nim
 
     echo "== Building C bindings (static) =="
-    nim c \
-      --noNimblePath \
-      ${cbindPathArgs} \
-      ${pathArgs} \
-      --path:$NAT_PKG \
-      --out:build/libp2p.a \
-      --app:staticlib \
-      --threads:on \
-      --opt:size \
-      --noMain \
-      --mm:refc \
-      --header \
-      -d:metrics \
-      --nimMainPrefix:libp2p \
-      --nimcache:$NIMCACHE \
-      cbind/libp2p.nim
+    nim c $commonArgs --app:staticlib --out:build/libp2p.a cbind/libp2p.nim
   '';
 
   installPhase = ''
