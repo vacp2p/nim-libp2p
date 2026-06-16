@@ -8,7 +8,9 @@ import std/macros, results, protobuf_serialization
 when defined(libp2p_protobuf_metrics):
   import ./protobuf_metrics
 
-macro serializerFor*(_: type Protobuf, Types: untyped, withMetrics: bool = false): untyped =
+macro serializerFor*(
+    _: type Protobuf, Types: untyped, withMetrics: bool = false
+): untyped =
   ## This generates encode/decode protobuf procs for `Types`
   let doMetrics = newLit(withMetrics.eqIdent("true"))
   var stmts = newStmtList()

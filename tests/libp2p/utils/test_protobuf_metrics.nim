@@ -9,9 +9,8 @@ when defined(libp2p_protobuf_metrics):
   import ../../tools/[unittest]
 
   # A type that explicitly opts into metrics tracking.
-  type
-    MetricsTestMsg* {.proto2.} = object
-      value* {.fieldNumber: 1, required, pint.}: uint64
+  type MetricsTestMsg* {.proto2.} = object
+    value* {.fieldNumber: 1, required, pint.}: uint64
 
   Protobuf.serializerFor([MetricsTestMsg], withMetrics = true)
 
