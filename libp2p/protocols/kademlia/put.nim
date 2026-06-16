@@ -166,7 +166,7 @@ proc handlePutValue*(
     await stream.reset()
     return
 
-  if not kad.canStoreLocalRecord(msg.key):
+  if not kad.canStoreLocalRecord(msgKey):
     debug "PutValue: local record limit reached",
       stream = stream, current = kad.dataTable.len
     await stream.reset()
