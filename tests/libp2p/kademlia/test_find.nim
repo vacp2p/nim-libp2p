@@ -231,7 +231,7 @@ suite "KadDHT Find":
     check:
       response.msgType == MessageType.findNode
       response.closerPeers.len == 1
-      response.closerPeers[0].id == kads[1].rtable.selfId
+      response.closerPeers[0].id.get() == kads[1].rtable.selfId
 
   asyncTest "Find node for own PeerID returns closest peers":
     let kads = setupKadSwitches(3)
@@ -245,7 +245,7 @@ suite "KadDHT Find":
     let response =
       (await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, ownKey)).value()
 
-    let closerPeersIds = response.closerPeers.mapIt(it.id)
+    let closerPeersIds = response.closerPeers.mapIt(it.id.get())
     check:
       response.msgType == MessageType.findNode
       # kads[0] knows kads[1] and kads[2], should return both as closest peers

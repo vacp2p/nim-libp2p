@@ -23,19 +23,17 @@ proc dispatchGetVal*(
   defer:
     await stream.close()
 
-  let msg = Message(msgType: MessageType.getValue, key: key)
+  let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -110,7 +108,7 @@ proc getValue*(
       debug "GetValue returned empty record", reply = reply
       return
 
-    if record.key != key:
+    if record.key.isNone or record.key.get() != key:
       debug "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
@@ -165,7 +163,9 @@ proc getValue*(
 method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let key = msg.key
+  let key = msg.key.valueOr:
+    error "Key not set: handleGetValue", msg = msg, stream = stream
+    return
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
   # as absent and sends the standard "no record found" response.
@@ -178,24 +178,24 @@ method handleGetValue*(
 
   let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
-      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key),
+      closerPeers: kad.findClosestPeers(key),
     )
     let encoded = response.encode(kad.config.hideConnectionStatus)
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-    )
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
     try:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return
 
   let response = Message(
-    msgType: MessageType.getValue,
-    key: key,
+    msgType: Opt.some(MessageType.getValue),
+    key: Opt.some(key),
     record: Opt.some(
       Record(
-        key: key,
+        key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
@@ -203,11 +203,9 @@ method handleGetValue*(
     closerPeers: kad.findClosestPeers(key),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return
