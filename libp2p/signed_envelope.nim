@@ -137,10 +137,14 @@ proc getField*[T](
     ok(true)
 
 proc decode*[T](
-    _: typedesc[SignedPayload[T]], buffer: sink seq[byte]
+    _: typedesc[SignedPayload[T]], envelope: Envelope
 ): Result[SignedPayload[T], EnvelopeError] =
+  mixin decode
+
+  if envelope.domain != T.payloadDomain:
+    return err(EnvelopeWrongType)
+
   let
-    envelope = ?Envelope.decode(move(buffer), T.payloadDomain)
     data = ?T.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
     signedPayload = SignedPayload[T](envelope: envelope, data: data)
 
@@ -151,6 +155,12 @@ proc decode*[T](
     ?signedPayload.checkValid()
 
   ok(signedPayload)
+
+proc decode*[T](
+    _: typedesc[SignedPayload[T]], buffer: sink seq[byte]
+): Result[SignedPayload[T], EnvelopeError] =
+  let envelope = ?Envelope.decode(move(buffer), T.payloadDomain)
+  SignedPayload[T].decode(envelope)
 
 proc encode*[T](msg: SignedPayload[T]): Result[seq[byte], CryptoError] =
   msg.envelope.encode()

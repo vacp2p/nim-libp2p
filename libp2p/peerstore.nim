@@ -331,6 +331,23 @@ proc pruneExpired*(addressBook: AddressBook) =
     else:
       discard addressBook.del(peerId)
 
+proc shouldStoreSignedPeerRecord(
+    sprBook: SPRBook, peerId: PeerId, incoming: Envelope
+): bool =
+  let incomingRecord = SignedPeerRecord.decode(incoming).toOpt().valueOr:
+      return false
+
+  if incomingRecord.data.peerId != peerId:
+    return false
+
+  if peerId notin sprBook:
+    return true
+
+  let existingRecord = SignedPeerRecord.decode(sprBook[peerId]).toOpt().valueOr:
+      return true
+
+  incomingRecord.data.seqNo > existingRecord.data.seqNo
+
 ##################
 # Peer Store API #
 ##################
@@ -431,7 +448,9 @@ proc updatePeerInfo*(
     peerStore[ProtoBook][info.peerId] = info.protos
 
   info.signedPeerRecord.withValue(signedPeerRecord):
-    peerStore[SPRBook][info.peerId] = signedPeerRecord
+    let sprBook = peerStore[SPRBook]
+    if sprBook.shouldStoreSignedPeerRecord(info.peerId, signedPeerRecord):
+      sprBook[info.peerId] = signedPeerRecord
 
   let cleanupPos = peerStore.toClean.find(info.peerId)
   if cleanupPos >= 0:
