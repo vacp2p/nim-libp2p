@@ -5,7 +5,10 @@
 
 import chronos
 import ./autonatv2
-import ../../libp2p/[peerid, switch, wire, protocols/connectivity/autonatv2/service]
+import
+  ../../libp2p/[
+    peerid, switch, wire, protocols/connectivity/autonatv2/service, services/natservice
+  ]
 import ../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
@@ -18,9 +21,12 @@ proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
     .withNoise()
 
   if withAutonatV2:
-    builder = builder.withAutonatV2Server().withAutonatV2(
-        serviceConfig =
-          AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
+    builder = builder.withAutonatV2Server().withNAT(
+        autonatConfig(
+          AutonatV2,
+          v2ServiceConfig =
+            Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))),
+        )
       )
 
   builder.build()

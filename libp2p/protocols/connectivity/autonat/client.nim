@@ -33,13 +33,12 @@ method dialMe*(
     base, async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
 .} =
   proc getResponseOrRaise(
-      autonatMsg: Opt[AutonatMsg]
+      msg: AutonatMsg
   ): AutonatDialResponse {.raises: [AutonatError].} =
-    autonatMsg.withValue(msg):
-      if msg.msgType == MsgType.DialResponse:
-        msg.response.withValue(res):
-          if not (res.status == Ok and res.ma.isNone()):
-            return res
+    if msg.msgType == MsgType.DialResponse:
+      msg.response.withValue(res):
+        if not (res.status == Ok and res.ma.isNone()):
+          return res
     raise newException(AutonatError, "Unexpected response")
 
   let stream =
@@ -86,7 +85,9 @@ method dialMe*(
   except CatchableError as e:
     raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 
-  let response = getResponseOrRaise(AutonatMsg.decode(move(respBytes)))
+  let msg = AutonatMsg.decode(move(respBytes)).valueOr:
+    raise newException(AutonatError, error)
+  let response = getResponseOrRaise(msg)
 
   return
     case response.status

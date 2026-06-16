@@ -167,7 +167,7 @@ proc new*(
   ) {.async: (raises: [CancelledError]).} =
     try:
       let msg = AutonatMsg.decode(await stream.readLp(1024)).valueOr:
-        raise newException(AutonatError, "Received malformed message")
+        raise newException(AutonatError, error)
       if msg.msgType != MsgType.Dial:
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(stream, msg)

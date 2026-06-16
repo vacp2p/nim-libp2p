@@ -4,21 +4,19 @@
 {.push raises: [].}
 
 import std/strformat
-import chronos
-import chronicles
+import chronos, results, chronicles
+import protobuf_serialization, protobuf_serialization/pkg/results
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
-import ../../protobuf/minprotobuf
-import ../../utils/[opt, shortlog]
-import ../../utils/bytesview
+import ../../utils/[opt, shortlog, bytesview, protobuf]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 when defined(libp2p_dump):
-  import ../../debugutils
+  import ../../utils/debug
 
 logScope:
   topics = "libp2p noise"
@@ -87,7 +85,13 @@ type
   NoiseOversizedPayloadError* = object of NoiseError
   NoiseNonceMaxError* = object of NoiseError # drop connection on purpose
 
+  NoiseHandshakePayloadMsg* {.proto2.} = object
+    identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
+    identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
+
 # Utility
+
+Protobuf.serializerFor([NoiseHandshakePayloadMsg])
 
 func shortLog*(conn: NoiseConnection): auto =
   try:
@@ -514,45 +518,37 @@ method handshake*(
       msg: "Failed to sign public key: " & $signedPayload.error()
     )
 
-  var libp2pProof = initProtoBuffer()
-  libp2pProof.write(1, p.localPublicKey)
-  libp2pProof.write(2, signedPayload.get().getBytes())
-  # data field also there but not used!
-  libp2pProof.finish()
+  let msg = NoiseHandshakePayloadMsg(
+    identityKey: Opt.some(p.localPublicKey),
+    identitySig: Opt.some(signedPayload.get().getBytes()),
+  )
 
   var handshakeRes =
     if initiator:
-      await handshakeXXOutbound(p, conn, libp2pProof.buffer)
+      await handshakeXXOutbound(p, conn, msg.encode())
     else:
-      await handshakeXXInbound(p, conn, libp2pProof.buffer)
+      await handshakeXXInbound(p, conn, msg.encode())
 
   var secure =
     try:
       var
-        remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
+        remoteMsg: NoiseHandshakePayloadMsg
         remotePubKey: PublicKey
-        remotePubKeyBytes: seq[byte]
         remoteSig: Signature
-        remoteSigBytes: seq[byte]
 
-      if not remoteProof.getField(1, remotePubKeyBytes).valueOr(false):
-        raise (ref NoiseHandshakeError)(
-          msg:
-            "Failed to deserialize remote public key bytes. (initiator: " & $initiator &
-            ")"
-        )
-      if not remoteProof.getField(2, remoteSigBytes).valueOr(false):
-        raise (ref NoiseHandshakeError)(
-          msg:
-            "Failed to deserialize remote signature bytes. (initiator: " & $initiator &
-            ")"
+      remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).valueOr:
+        raise newException(NoiseHandshakeError, error)
+
+      if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
+        raise newException(
+          NoiseHandshakeError, "NoiseHandshakePayloadMsg fields must be set"
         )
 
-      if not remotePubKey.init(remotePubKeyBytes):
+      if not remotePubKey.init(remoteMsg.identityKey.get()):
         raise (ref NoiseHandshakeError)(
           msg: "Failed to decode remote public key. (initiator: " & $initiator & ")"
         )
-      if not remoteSig.init(remoteSigBytes):
+      if not remoteSig.init(remoteMsg.identitySig.get()):
         raise (ref NoiseHandshakeError)(
           msg: "Failed to decode remote signature. (initiator: " & $initiator & ")"
         )

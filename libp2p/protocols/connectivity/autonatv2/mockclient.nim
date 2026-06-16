@@ -12,6 +12,7 @@ type AutonatV2ClientMock* = ref object of AutonatV2Client
   dials*: int
   expectedDials: int
   finished*: Future[void]
+  allTestAddrs*: seq[seq[MultiAddress]]
 
 proc new*(
     T: typedesc[AutonatV2ClientMock], response: AutonatV2Response, expectedDials: int
@@ -29,6 +30,7 @@ method sendDialRequest*(
     async: (raises: [AutonatV2Error, CancelledError, DialFailedError, LPStreamError])
 .} =
   self.dials += 1
+  self.allTestAddrs.add(testAddrs)
   if self.dials == self.expectedDials:
     self.finished.complete()
 

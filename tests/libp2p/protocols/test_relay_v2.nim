@@ -12,6 +12,8 @@ import
     protocols/connectivity/relay/messages,
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
+    signed_envelope,
+    peerid,
   ]
 import ../../tools/[unittest, crypto]
 
@@ -32,6 +34,58 @@ proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   return builder.build()
 
 suite "Circuit Relay V2":
+  suite "Voucher":
+    test "Reject signed vouchers with missing required fields":
+      let
+        relayKey = PrivateKey.random(rng()).tryGet()
+        relayPeerId = PeerId.init(relayKey).tryGet()
+        reservingPeerId = PeerId.init(PrivateKey.random(rng()).tryGet()).tryGet()
+        expiration = 123'u64
+
+      let valid = SignedVoucher
+        .init(relayKey, Voucher.init(relayPeerId, reservingPeerId, expiration))
+        .tryGet()
+        .encode()
+        .tryGet()
+
+      let missingRelay = SignedVoucher
+        .init(
+          relayKey,
+          Voucher(
+            reservingPeerId: Opt.some(reservingPeerId), expiration: Opt.some(expiration)
+          ),
+        )
+        .tryGet()
+        .encode()
+        .tryGet()
+
+      let missingPeer = SignedVoucher
+        .init(
+          relayKey,
+          Voucher(relayPeerId: Opt.some(relayPeerId), expiration: Opt.some(expiration)),
+        )
+        .tryGet()
+        .encode()
+        .tryGet()
+
+      let missingExpiration = SignedVoucher
+        .init(
+          relayKey,
+          Voucher(
+            relayPeerId: Opt.some(relayPeerId),
+            reservingPeerId: Opt.some(reservingPeerId),
+          ),
+        )
+        .tryGet()
+        .encode()
+        .tryGet()
+
+      check:
+        SignedVoucher.decode(valid).isOk
+        SignedVoucher.decode(missingRelay).error == EnvelopeFieldMissing
+        SignedVoucher.decode(missingPeer).error == EnvelopeFieldMissing
+        SignedVoucher.decode(missingExpiration).error == EnvelopeFieldMissing
+
   suite "Reservation":
     asyncTeardown:
       await allFutures(src1.stop(), src2.stop(), rel.stop())
@@ -80,11 +134,11 @@ suite "Circuit Relay V2":
     asyncTest "Too many reservations":
       let stream =
         await cl2.switch.dial(rel.peerInfo.peerId, rel.peerInfo.addrs, RelayV2HopCodec)
-      let pb = encode(HopMessage(msgType: HopMessageType.Reserve))
-      await stream.writeLp(pb.buffer)
+      let pb = encode(HopMessage(msgType: Opt.some(HopMessageType.Reserve)))
+      await stream.writeLp(pb)
       let msg = HopMessage.decode(await stream.readLp(RelayMsgSize)).get()
       check:
-        msg.msgType == HopMessageType.Status
+        msg.msgType == Opt.some(HopMessageType.Status)
         msg.status == Opt.some(StatusV2.ReservationRefused)
 
     asyncTest "Too many reservations + Reconnect":
