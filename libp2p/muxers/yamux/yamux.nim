@@ -393,9 +393,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
     except CancelledError:
-      ## sendLoopFut is owned by the channel; cancellation is not propagated from
-      ## outside in the current code, so this branch is defensive only.
-      discard
+      discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
@@ -532,10 +530,8 @@ proc createStream(
   return stream
 
 proc forceClose(channel: YamuxChannel) {.async: (raises: []).} =
-  ## Drives a channel through its terminal state without waiting on the peer.
-  ## Wakes `closedRemotely` and runs `actuallyClose` so `closeEvent` fires for
-  ## channels that received Fin before muxer close — otherwise `cleanupChannel`'s
-  ## `await channel.join()` would never return.
+  ## Drives a channel through its terminal state without waiting on the peer, so
+  ## `cleanupChannel`'s `await channel.join()` returns after muxer close.
   channel.closedRemotely.fire()
   channel.isClosedRemotely = true
   if not channel.closeEvent.isSet():
@@ -543,9 +539,8 @@ proc forceClose(channel: YamuxChannel) {.async: (raises: []).} =
   channel.receivedData.fire()
 
 proc drainChannelTasks(channels: seq[YamuxChannel]) {.async: (raises: []).} =
-  ## Awaits the cleanup, handler and sendLoop tasks of `channels` so they don't
-  ## outlive the muxer. Callers must have already torn the channels and
-  ## connection down so these tasks complete on their own.
+  ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
+  ## have torn channels and connection down first.
   var futs: seq[Future[void]]
   for channel in channels:
     futs.add(channel.cleanupFut)

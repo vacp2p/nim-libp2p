@@ -69,7 +69,7 @@ method initStream*(s: SecureConn) =
 
 method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Closing secure conn", s, dir = s.dir
-  if not s.cleanupFut.isNil:
+  if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
     await s.stream.close()
@@ -78,7 +78,7 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
 
 method resetImpl*(s: SecureConn) {.async: (raises: []).} =
   trace "Resetting secure conn", s, dir = s.dir
-  if not s.cleanupFut.isNil:
+  if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
     await s.stream.reset()

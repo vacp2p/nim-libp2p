@@ -51,9 +51,8 @@ proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
 
 proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
-  ## Awaits the cleanup and handler tasks of `channs` so they don't outlive the
-  ## muxer. Callers must have already torn the channels and connection down so
-  ## these tasks complete on their own.
+  ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
+  ## have torn channels and connection down first.
   var futs: seq[Future[void]]
   for chann in channs:
     futs.add(chann.cleanupFut)

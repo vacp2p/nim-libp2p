@@ -480,10 +480,8 @@ proc isLargeMessage(dataLen: int, msgId: MessageId): bool =
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
-  # Always drop our validationSeen bookkeeping for this message, even when the
-  # task is cancelled before the explicit pop below - otherwise the entry leaks
   defer:
-    g.validationSeen.del(saltedId)
+    g.validationSeen.del(saltedId) # drop bookkeeping even if cancelled mid-task
   try:
     template topic(): string =
       msg.topic
@@ -508,7 +506,6 @@ proc validateAndRelay(
 
     let validation = await g.validate(msg)
 
-    # Entry is removed by the defer above; just read it here.
     let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(

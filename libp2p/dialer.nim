@@ -62,7 +62,7 @@ proc dialAndUpgrade*(
           raise exc
         except CatchableError as exc:
           debug "Dialing failed",
-            description = exc.msg, peerId = peerId, address = addrs, hostname
+            description = exc.msg, peerId, address = addrs, hostname
           libp2p_failed_dials.inc()
           return nil # Try the next address
 
@@ -146,10 +146,9 @@ proc expandDnsAddr(
 proc normalizedDialAddrs(
     peerId: Opt[PeerId], addrs: seq[MultiAddress]
 ): seq[MultiAddress] =
-  if peerId.isSome:
-    addrs.mapIt(it.stripPeerId)
-  else:
-    addrs
+  if peerId.isNone():
+    return addrs
+  addrs.mapIt(it.stripPeerId())
 
 proc dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
@@ -160,7 +159,7 @@ proc dialAndUpgrade*(
   ## Returns the first upgraded muxer, or nil when no address succeeds.
 
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Dialing peer", peerId = peerId, addrs = dialAddrs
+  debug "Dialing peer", peerId, addrs = dialAddrs
 
   for rawAddress in dialAddrs:
     # resolve potential dnsaddr

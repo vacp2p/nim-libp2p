@@ -736,9 +736,8 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
     c.trimFut = c.trimConnections()
 
 proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
-  ## Drains the per-muxer onClose tasks. Call once muxers have been closed so
-  ## the tasks finish cleanup rather than being cancelled mid-flight; noCancel
-  ## keeps the drain alive even if `close` itself is cancelled.
+  ## Drains the per-muxer onClose tasks once muxers are closed, so they finish
+  ## cleanup instead of being cancelled mid-flight.
   discard await noCancel allFinished(c.onCloseFuts)
   c.onCloseFuts = @[]
 
