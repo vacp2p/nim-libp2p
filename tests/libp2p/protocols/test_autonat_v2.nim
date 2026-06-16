@@ -179,6 +179,18 @@ suite "AutonatV2":
         reachability: Reachable, dialResp: correctDialResp, addrs: Opt.some(addrs[0])
       )
 
+    let missingAddrDialResp = DialResponse(
+      status: ResponseStatus.Ok,
+      addrIdx: Opt.some(1.AddrIdx),
+      dialStatus: Opt.none(DialStatus),
+    )
+    check asAutonatV2Response(missingAddrDialResp, addrs) ==
+      AutonatV2Response(
+        reachability: Unknown,
+        dialResp: missingAddrDialResp,
+        addrs: Opt.none(MultiAddress),
+      )
+
   asyncTest "Instantiate server":
     let serverSwitch = makeStandardSwitchBuilder().withAutonatV2Server().build()
     await serverSwitch.start()
