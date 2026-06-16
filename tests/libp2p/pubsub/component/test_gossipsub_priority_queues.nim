@@ -104,7 +104,7 @@ suite "GossipSub Component - Priority Queues":
 
     # Send one high message. Its write stays pending on the stalled stream and
     # sits in the high-priority queue, so the queue is non-empty and the medium
-    # messages are queued instead of sent at once as high. 
+    # messages are queued instead of sent at once as high.
     # sendEncoded itself returns an already-completed future.
     check peer.sendEncoded(@[9'u8, 9, 9], MessagePriority.High).finished
 
@@ -141,7 +141,7 @@ suite "GossipSub Component - Priority Queues":
 
     # Send one high message. Its write stays pending on the stalled stream and
     # sits in the high-priority queue, so the queue is non-empty and the low
-    # messages are queued instead of sent at once as high. 
+    # messages are queued instead of sent at once as high.
     # sendEncoded itself returns an already-completed future.
     check peer.sendEncoded(@[9'u8, 9, 9], MessagePriority.High).finished
 
