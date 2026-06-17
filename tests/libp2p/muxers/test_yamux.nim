@@ -566,8 +566,7 @@ suite "Yamux":
 
       await conna.write(YamuxHeader.data(streamId = streamId, length = 3))
       await conna.write(fromHex("010203"))
-      await sleepAsync(10.milliseconds)
 
-      check:
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
         streamId notin yamuxb.flushed
         streamId notin yamuxb.flushedOrder
