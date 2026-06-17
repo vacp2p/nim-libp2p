@@ -211,3 +211,94 @@ suite "Message":
     let messageWithout = RPCMsg(testExtension: Opt.none(TestExtensionRPC))
     decoded = RPCMsg.decode(encode(messageWithout, true)).get()
     check decoded.testExtension.isNone()
+
+  test "anonymize Message - anonymize=true strips identity fields":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(true)
+    check:
+      anon.data == msg.data
+      anon.topic == msg.topic
+      anon.fromPeer == default(PeerId)
+      anon.seqno.len == 0
+      anon.signature.len == 0
+      anon.key.len == 0
+
+  test "anonymize Message - anonymize=false returns message unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(false)
+    check:
+      anon.fromPeer == msg.fromPeer
+      anon.seqno == msg.seqno
+      anon.signature == msg.signature
+      anon.key == msg.key
+      anon.data == msg.data
+      anon.topic == msg.topic
+
+  test "anonymize RPCMsg - anonymize=true strips identity fields from all messages":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg1 =
+      Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let msg2 =
+      Message.init(Opt.some(peer), @[2'u8], topic, Opt.some(2'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg1, msg2])
+    let anon = rpc.anonymize(true)
+    for m in anon.messages:
+      check:
+        m.fromPeer == default(PeerId)
+        m.seqno.len == 0
+        m.signature.len == 0
+        m.key.len == 0
+    check:
+      anon.messages[0].data == msg1.data
+      anon.messages[1].data == msg2.data
+
+  test "anonymize RPCMsg - anonymize=false returns RPCMsg unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg = Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg])
+    let anon = rpc.anonymize(false)
+    check:
+      anon.messages[0].fromPeer == msg.fromPeer
+      anon.messages[0].seqno == msg.seqno
+      anon.messages[0].signature == msg.signature
+      anon.messages[0].key == msg.key
+
+  test "anonymize RPCMsg - anonymize=true with no messages returns unchanged":
+    let rpc = RPCMsg(subscriptions: @[SubOpts(subscribe: true, topic: topic)])
+    let anon = rpc.anonymize(true)
+    check anon.messages.len == 0
+
+  test "validate RPCMsg - ok when all messages have topics":
+    let rpc = RPCMsg(
+      messages:
+        @[Message(topic: topic, data: @[1'u8]), Message(topic: "other", data: @[2'u8])]
+    )
+    check rpc.validate().isOk()
+
+  test "validate RPCMsg - ok with no messages":
+    let rpc = RPCMsg()
+    check rpc.validate().isOk()
+
+  test "validate RPCMsg - err when a message has empty topic":
+    let rpc = RPCMsg(messages: @[Message(topic: "", data: @[1'u8])])
+    let anon = rpc.validate()
+    check:
+      anon.isErr()
+      anon.error == "Message missing required topic field"
+
+  test "validate RPCMsg - err when one of many messages has empty topic":
+    let rpc = RPCMsg(
+      messages: @[
+        Message(topic: topic, data: @[1'u8]),
+        Message(topic: "", data: @[2'u8]),
+        Message(topic: "other", data: @[3'u8]),
+      ]
+    )
+    let res = rpc.validate()
+    check:
+      res.isErr()
+      res.error == "Message missing required topic field"
