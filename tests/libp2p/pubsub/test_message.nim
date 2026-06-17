@@ -134,7 +134,7 @@ suite "Message":
     let controlPrune = ControlPrune(
       topicID: "uvw", # 3 bytes
       peers: @[peerInfo, peerInfo], # (1 + 2) * 2 = 6 bytes
-      backoff: 12345678, # 8 bytes for uint64
+      backoff: 12345678.uint64, # 8 bytes for uint64
     )
 
     let control = ControlMessage(

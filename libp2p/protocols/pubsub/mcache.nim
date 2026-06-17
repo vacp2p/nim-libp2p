@@ -33,7 +33,7 @@ func contains*(c: MCache, msgId: MessageId): bool =
   msgId in c.msgs
 
 func put*(c: var MCache, msgId: MessageId, msg: Message) =
-  if not c.msgs.hasKeyOrPut(msgId, msg):
+  if not c.msgs.hasKeyOrPut(msgId, msg) and msg.topic.isSome:
     # Only add cache entry if the message was not already in the cache
     c.history[c.pos].add(CacheEntry(msgId: msgId, topic: msg.topic.get()))
 
