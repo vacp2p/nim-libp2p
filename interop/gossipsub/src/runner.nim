@@ -45,11 +45,12 @@ proc addReceivedMessageLogger(runner: ScriptRunner) =
     PubSubObserver(
       onRecv: proc(peer: PubSubPeer, rpc: var RPCMsg) {.gcsafe, raises: [].} =
         for msg in rpc.messages:
-          if msg.topic notin runner.node.topics or msg.data.len < MsgIdLen:
+          if msg.topic.isNone or msg.topic.get() notin runner.node.topics or
+              msg.data.get(@[]).len < MsgIdLen:
             continue
 
-          let msgId = extractMsgId(msg.data)
-          logReceivedMessage(logStream, $msgId, msg.topic)
+          let msgId = extractMsgId(msg.data.get())
+          logReceivedMessage(logStream, $msgId, msg.topic.get())
     )
   )
 

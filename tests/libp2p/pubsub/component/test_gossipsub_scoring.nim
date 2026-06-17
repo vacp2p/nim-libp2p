@@ -427,7 +427,7 @@ suite "GossipSub Component - Scoring":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       validatedMessageCount.inc
-      if string.fromBytes(message.data).contains("invalid"):
+      if string.fromBytes(message.data.get()).contains("invalid"):
         return ValidationResult.Reject # reject invalid messages
       else:
         return ValidationResult.Accept

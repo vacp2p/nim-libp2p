@@ -120,12 +120,12 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] =
   let sprBook = g.switch.peerStore[SPRBook]
   peers.map do(x: PubSubPeer) -> PeerInfoMsg:
     PeerInfoMsg(
-      peerId: x.peerId,
+      peerId: Opt.some(x.peerId),
       signedPeerRecord:
         if x.peerId in sprBook:
           sprBook[x.peerId].encode()
         else:
-          default(seq[byte]),
+          Opt.none(seq[byte]),
     )
 
 proc handleGraft*(
@@ -235,16 +235,16 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecor
   var routingRecords: seq[(PeerId, Opt[PeerRecord])]
   for record in prune.peers:
     var peerRecord = Opt.none(PeerRecord)
-    if record.signedPeerRecord.len > 0:
-      SignedPeerRecord.decode(record.signedPeerRecord).toOpt().withValue(spr):
-        if record.peerId != spr.data.peerId:
+    if record.signedPeerRecord.isSome:
+      SignedPeerRecord.decode(record.signedPeerRecord.get()).toOpt().withValue(spr):
+        if record.peerId.get() != spr.data.peerId:
           trace "peer sent envelope with wrong public key", peer
         else:
           peerRecord = Opt.some(spr.data)
       else:
         trace "peer sent invalid SPR", peer
 
-    routingRecords.add((record.peerId, peerRecord))
+    routingRecords.add((record.peerId.get(), peerRecord))
 
   routingRecords
 

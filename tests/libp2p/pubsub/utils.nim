@@ -161,8 +161,8 @@ proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Stream]) {.async.} 
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
-    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
-      byteutils.toHex(m.seqno) & $m.fromPeer
+    if m.seqno.isSome and m.fromPeer.isSome:
+      byteutils.toHex(m.seqno.get()) & $m.fromPeer.get()
     else:
       # This part is irrelevant because it's not standard,
       # We use it exclusively for testing basically and users should

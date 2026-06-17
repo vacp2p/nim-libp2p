@@ -47,9 +47,9 @@ proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ## Message ID provider for interop tests.
   ## The message ID is the raw first MsgIdLen bytes of the message data (big-endian u64),
   ## matching the wire format used by the go and rust interop binaries.
-  if m.data.len < MsgIdLen:
+  if m.data.isNone or m.data.get().len < MsgIdLen:
     return err(ValidationResult.Reject)
-  ok(MessageId(@(m.data.toOpenArray(0, MsgIdLen - 1))))
+  ok(MessageId(@(m.data.get().toOpenArray(0, MsgIdLen - 1))))
 
 # Node
 

@@ -296,7 +296,8 @@ suite "GossipSub Interop - Script runner - Component":
     var data = newSeq[byte](sizeof(uint64))
     data[0 ..< sizeof(uint64)] = toBytesBE(123'u64)
 
-    let duplicateRpc = RPCMsg.withMessages(Message(topic: topic, data: data))
+    let duplicateRpc =
+      RPCMsg.withMessages(Message(topic: Opt.some(topic), data: Opt.some(data)))
     let peer = sender.peers[receiver.node.peerInfo.peerId]
 
     sender.broadcast(@[peer], duplicateRpc, MessagePriority.High)

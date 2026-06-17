@@ -343,8 +343,8 @@ proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
 ) {.async: (raises: [PeerRateLimitError]).} =
-  let uselessAppBytesNum = msg.data.len
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    let uselessAppBytesNum = msg.data.get(@[]).len
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       debug "Peer sent invalid message and it's above rate limit",
         peer, uselessAppBytesNum
@@ -356,7 +356,8 @@ proc punishInvalidMessage*(
           PeerRateLimitError, "Peer disconnected because it's above rate limit."
         )
 
-  let topic = msg.topic
+  let topic = msg.topic.valueOr:
+    return
   if topic notin g.topics:
     return
 

@@ -79,7 +79,7 @@ suite "Message":
       peer = PeerInfo.new(seckey)
 
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
-    msg.fromPeer = PeerId()
+    msg.fromPeer = Opt.none(PeerId)
     let msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -221,10 +221,10 @@ suite "Message":
     check:
       anon.data == msg.data
       anon.topic == msg.topic
-      anon.fromPeer == default(PeerId)
-      anon.seqno.len == 0
-      anon.signature.len == 0
-      anon.key.len == 0
+      anon.fromPeer.isNone
+      anon.seqno.isNone
+      anon.signature.isNone
+      anon.key.isNone
 
   test "anonymize Message - anonymize=false returns message unchanged":
     let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
@@ -249,10 +249,10 @@ suite "Message":
     let anon = rpc.anonymize(true)
     for m in anon.messages:
       check:
-        m.fromPeer == default(PeerId)
-        m.seqno.len == 0
-        m.signature.len == 0
-        m.key.len == 0
+        m.fromPeer.isNone
+        m.seqno.isNone
+        m.signature.isNone
+        m.key.isNone
     check:
       anon.messages[0].data == msg1.data
       anon.messages[1].data == msg2.data

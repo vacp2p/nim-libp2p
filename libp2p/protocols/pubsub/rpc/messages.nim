@@ -38,8 +38,8 @@ type
     data*: MDigest[256]
 
   PeerInfoMsg* {.proto3.} = object
-    peerId* {.fieldNumber: 1, ext.}: PeerId
-    signedPeerRecord* {.fieldNumber: 2.}: seq[byte]
+    peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    signedPeerRecord* {.fieldNumber: 2.}: Opt[seq[byte]]
 
   SubOpts* {.proto3.} = object
     subscribe* {.fieldNumber: 1.}: Opt[bool]
@@ -52,12 +52,12 @@ type
     supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
 
   Message* {.proto3.} = object
-    fromPeer* {.fieldNumber: 1, ext.}: PeerId
-    data* {.fieldNumber: 2.}: seq[byte]
-    seqno* {.fieldNumber: 3.}: seq[byte]
-    topic* {.fieldNumber: 4.}: string
-    signature* {.fieldNumber: 5.}: seq[byte]
-    key* {.fieldNumber: 6.}: seq[byte]
+    fromPeer* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    data* {.fieldNumber: 2.}: Opt[seq[byte]]
+    seqno* {.fieldNumber: 3.}: Opt[seq[byte]]
+    topic* {.fieldNumber: 4.}: Opt[string]
+    signature* {.fieldNumber: 5.}: Opt[seq[byte]]
+    key* {.fieldNumber: 6.}: Opt[seq[byte]]
 
   ControlExtensions* {.proto3.} = object
     partialMessageExtension* {.fieldNumber: 10.}: Opt[bool]
@@ -444,7 +444,7 @@ proc withPreamble*(
   for i, m in msgs:
     preambles.add(
       Preamble(
-        topicID: Opt.some(m.topic),
+        topicID: m.topic,
         messageID: Opt.some(msgIds[i]),
         messageLength: Opt.some(m.data.len.uint32),
       )
@@ -488,10 +488,10 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
   if anonymize and msg.messages.len > 0:
     var anonMsg = msg
     for m in anonMsg.messages.mitems:
-      m.fromPeer = default(PeerId)
-      m.seqno = @[]
-      m.signature = @[]
-      m.key = @[]
+      m.fromPeer = Opt.none(PeerId)
+      m.seqno = Opt.none(seq[byte])
+      m.signature = Opt.none(seq[byte])
+      m.key = Opt.none(seq[byte])
     anonMsg
   else:
     msg
@@ -502,6 +502,6 @@ func validate*(msg: RPCMsg): Result[void, string] =
     if m.topic.isNone:
       return err("Subsciption topic must be set")
   for m in msg.messages:
-    if m.topic.len == 0:
+    if m.topic.isNone or m.topic.get().len == 0:
       return err("Message missing required topic field")
   ok()

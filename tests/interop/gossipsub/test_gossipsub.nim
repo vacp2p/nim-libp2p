@@ -33,7 +33,7 @@ suite "GossipSub Interop":
     var data = newSeq[byte](1024)
     # Message ID 42: big-endian encoding
     data[7] = 42
-    let msg = Message(data: data, topic: "foobar")
+    let msg = Message(data: Opt.some(data), topic: Opt.some("foobar"))
     let res = interopMsgIdProvider(msg)
     check:
       res.isOk
