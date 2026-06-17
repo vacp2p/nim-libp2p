@@ -455,7 +455,7 @@ proc withIMReceiving*(_: typedesc[RPCMsg], preamble: sink Preamble): RPCMsg =
 
 func anonymize*(msg: Message, anonymize: bool): Message =
   if anonymize:
-    Message(data: msg.data, topic: msg.topic) 
+    Message(data: msg.data, topic: msg.topic)
   else:
     msg
 
@@ -470,3 +470,10 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
     anonMsg
   else:
     msg
+
+func validate*(msg: RPCMsg): Result[void, string] =
+  # validates RPCMsg after it is received and decoded.
+  for m in msg.messages:
+    if m.topic.len == 0:
+      return err("Message missing required topic field")
+  ok()

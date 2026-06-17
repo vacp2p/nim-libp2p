@@ -37,11 +37,7 @@ proc decodeRPCMessage(buf: seq[byte]): RPCMsg {.raises: [SerializationError].} =
 proc decode*(_: type RPCMsg, buf: seq[byte]): Result[RPCMsg, string] =
   try:
     let msg = decodeRPCMessage(buf)
-
-    for m in msg.messages:
-      if m.topic.len == 0:
-        return err("Message missing required topic field")
-
+    ?msg.validate()
     ok(msg)
   except SerializationError as e:
     err("failed to decode RPCMsg from protobuf bytes. " & e.msg)
