@@ -46,6 +46,12 @@
               pkgs.nim-2_2
               pkgs.nimble
               pkgs.makeWrapper
+            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+              # cbind builds nat_traversal's vendored C libs; miniupnpc's Darwin
+              # Makefile archives with Apple's `libtool` (from cctools), resolved
+              # via `$(shell which libtool)`.
+              pkgs.cctools
+              pkgs.which
             ];
           };
         }
