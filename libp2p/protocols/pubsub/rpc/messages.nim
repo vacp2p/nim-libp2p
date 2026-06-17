@@ -99,8 +99,8 @@ type
     partsMetadata* {.fieldNumber: 4.}: Opt[seq[byte]]
 
   PingPongExtensionRPC* {.proto3.} = object
-    ping* {.fieldNumber: 1.}: seq[byte]
-    pong* {.fieldNumber: 2.}: seq[byte]
+    ping* {.fieldNumber: 1.}: Opt[seq[byte]]
+    pong* {.fieldNumber: 2.}: Opt[seq[byte]]
 
   Preamble* {.proto3.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
@@ -426,10 +426,10 @@ proc withSubscriptions*(_: typedesc[RPCMsg], subscriptions: sink seq[SubOpts]): 
   RPCMsg(subscriptions: move(subscriptions))
 
 proc withPing*(_: typedesc[RPCMsg], ping: sink seq[byte]): RPCMsg =
-  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: move(ping))))
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: Opt.some(move(ping)))))
 
 proc withPong*(_: typedesc[RPCMsg], pong: sink seq[byte]): RPCMsg =
-  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: move(pong))))
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: Opt.some(move(pong)))))
 
 proc withPreamble*(_: typedesc[RPCMsg], preamble: sink seq[Preamble]): RPCMsg =
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: move(preamble))))
