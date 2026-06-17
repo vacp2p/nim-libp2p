@@ -97,9 +97,9 @@ suite "KadDHT Iterative Lookup":
     let msg = Message(
       msgType: MessageType.findNode,
       closerPeers: @[
-        Peer(id: existingPeer.toKey(), addrs: @[]),
-        Peer(id: newPeer.toKey(), addrs: @[]),
-        Peer(id: newPeer.toKey(), addrs: @[]), # Duplicate
+        Peer(id: existingPeer.toKey()),
+        Peer(id: newPeer.toKey()),
+        Peer(id: newPeer.toKey()), # Duplicate
       ],
     )
 
@@ -124,9 +124,9 @@ suite "KadDHT Iterative Lookup":
     let msg = Message(
       msgType: MessageType.findNode,
       closerPeers: @[
-        Peer(id: @[], addrs: @[]), # Invalid: empty
-        Peer(id: @[0x00, 0x01], addrs: @[]), # Invalid: malformed
-        Peer(id: validPeer.toKey(), addrs: @[]), # Valid
+        Peer(id: Opt.none(seq[byte])), # Invalid: empty
+        Peer(id: @[0'u8, 1]), # Invalid: malformed
+        Peer(id: validPeer.toKey()), # Valid
       ],
     )
 
@@ -245,7 +245,7 @@ suite "KadDHT Iterative Lookup":
     # Create message with 10 peers (more than k=3)
     var peers: seq[Peer]
     for i in 0 ..< 10:
-      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
+      peers.add(Peer(id: randomPeerId().toKey()))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     let added = state.updateShortlist(msg)

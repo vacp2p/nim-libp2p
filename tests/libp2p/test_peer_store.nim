@@ -26,6 +26,7 @@ suite "PeerStore":
     multiaddrStr1 =
       "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
+    storedMultiaddr1 = MultiAddress.init("/ip4/127.0.0.1/udp/1234").get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
     keyPair2 = KeyPair.random(ECDSA, rng()).get()
@@ -155,11 +156,11 @@ suite "PeerStore":
 
     check:
       toSeq(keys(addressBook.book))[0] == peerId1
-      addressBook[peerId1] == @[multiaddr1]
+      addressBook[peerId1] == @[storedMultiaddr1]
 
     # Test AddressBook::get
     check:
-      addressBook[peerId1] == @[multiaddr1]
+      addressBook[peerId1] == @[storedMultiaddr1]
 
     # Test AddressBook::del
     check:
@@ -176,7 +177,7 @@ suite "PeerStore":
     addressBook[peerId2] = @[multiaddr1, multiaddr2]
     check:
       toSeq(keys(addressBook.book))[0] == peerId2
-      addressBook[peerId2] == @[multiaddr1, multiaddr2]
+      addressBook[peerId2] == @[storedMultiaddr1, multiaddr2]
 
   test "Pruner - no capacity":
     let peerStore = PeerStore.new(nil, capacity = 0)
@@ -351,6 +352,33 @@ suite "AddressBook TTL / confidence":
       entries.filterIt(it.address == addr1)[0].confidence == AddressConfidence.High
       entries.filterIt(it.address == addr2)[0].confidence == AddressConfidence.Medium
 
+  test "set merges preserved entries that normalize to same address":
+    let
+      book = makeBook(1.hours, 1.hours, 24.hours)
+      fullAddr1 = MultiAddress.init($addr1 & "/p2p/" & $peerId1).get()
+      older = Moment.now() - 2.seconds
+      newer = Moment.now() - 1.seconds
+
+    book.book[peerId1] = @[
+      AddressEntry(
+        address: addr1, confidence: AddressConfidence.High, lastUpdated: older
+      ),
+      AddressEntry(
+        address: fullAddr1, confidence: AddressConfidence.Infinite, lastUpdated: newer
+      ),
+    ]
+
+    book.set(peerId1, @[addr2], AddressConfidence.Medium)
+    let
+      entries = book.entries(peerId1)
+      preserved = entries.filterIt(it.address == addr1)
+
+    check:
+      entries.len == 2
+      preserved.len == 1
+      preserved[0].confidence == AddressConfidence.Infinite
+      preserved[0].lastUpdated == newer
+
   test "set does not preserve Low/Medium address absent from incoming list":
     let book = makeBook(1.hours, 1.hours, 24.hours)
     book.set(peerId1, @[addr1], AddressConfidence.Medium)
@@ -358,3 +386,30 @@ suite "AddressBook TTL / confidence":
     check:
       book.entries(peerId1).len == 1
       book.entries(peerId1)[0].address == addr2
+
+  test "AddressBook strips terminal peer id from direct addresses":
+    let
+      book = makeBook(1.hours, 1.hours, 24.hours)
+      fullAddr1 = MultiAddress.init($addr1 & "/p2p/" & $peerId1).get()
+      fullAddr2 = MultiAddress.init($addr2 & "/p2p/" & $peerId2).get()
+
+    book.set(peerId1, @[fullAddr1, addr1], AddressConfidence.Low)
+    check book[peerId1] == @[addr1]
+
+    book.extend(peerId1, @[fullAddr2], AddressConfidence.Medium)
+    check book[peerId1] == @[addr1, addr2]
+
+    book.markConnected(peerId1, fullAddr1)
+    check entries(book, peerId1).filterIt(it.address == addr1)[0].confidence ==
+      AddressConfidence.High
+
+  test "AddressBook preserves relay peer id and strips destination peer id":
+    let
+      book = makeBook(1.hours, 1.hours, 24.hours)
+      relayAddr = MultiAddress
+        .init("/ip4/1.2.3.4/tcp/1234/p2p/" & $peerId2 & "/p2p-circuit")
+        .get()
+      relayAddrWithDst = MultiAddress.init($relayAddr & "/p2p/" & $peerId1).get()
+
+    book.set(peerId1, @[relayAddr, relayAddrWithDst], AddressConfidence.Low)
+    check book[peerId1] == @[relayAddr]
