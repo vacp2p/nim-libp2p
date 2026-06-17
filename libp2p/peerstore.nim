@@ -334,8 +334,8 @@ proc pruneExpired*(addressBook: AddressBook) =
 proc shouldStoreSignedPeerRecord(
     sprBook: SPRBook, peerId: PeerId, incoming: Envelope
 ): bool =
-  let incomingRecord = SignedPeerRecord.decode(incoming).toOpt().valueOr:
-      return false
+  let incomingRecord = SignedPeerRecord.decode(incoming).valueOr:
+    return false
 
   if incomingRecord.data.peerId != peerId:
     return false
@@ -343,8 +343,8 @@ proc shouldStoreSignedPeerRecord(
   if peerId notin sprBook:
     return true
 
-  let existingRecord = SignedPeerRecord.decode(sprBook[peerId]).toOpt().valueOr:
-      return true
+  let existingRecord = SignedPeerRecord.decode(sprBook[peerId]).valueOr:
+    return true
 
   incomingRecord.data.seqNo > existingRecord.data.seqNo
 
