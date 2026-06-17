@@ -8,3 +8,6 @@ import ../../../libp2p/[protocols/pubsub/rpc/message]
 
 converter toOptString*(a: string): Opt[string] =
   Opt.some(a)
+
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)

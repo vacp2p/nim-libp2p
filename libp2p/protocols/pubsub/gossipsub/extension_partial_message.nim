@@ -262,9 +262,9 @@ proc gossipPartsMetadata*(ext: PartialMessageExtension) =
       var peerState = group.getPeerState(peerId)
       if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
         let rpc = PartialMessageExtensionRPC(
-          topicID: tgKey.topic,
-          groupID: tgKey.groupId,
-          partsMetadata: peerState.sentPartsMetadata.get(),
+          topicID: Opt.some(tgKey.topic),
+          groupID: Opt.some(tgKey.groupId),
+          partsMetadata: peerState.sentPartsMetadata,
         )
         ext.config.sendRPC(peerId, rpc)
 
@@ -322,12 +322,12 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc shouldHandlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ): bool =
-  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID.get())
   if nodeTopicOpts.requestsPartial:
     return true
 
   # We only send parts to a peer that asked for them.
-  if not ext.peerRequestsPartial(peerId, rpc.topicID):
+  if not ext.peerRequestsPartial(peerId, rpc.topicID.get()):
     return false
 
   if nodeTopicOpts.supportsSendingPartial:
@@ -337,7 +337,7 @@ proc shouldHandlePartialRPC(
   # to this group, so it can still fulfill parts the peer is missing.
   # Look up without creating state.
   let groupState =
-    ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
+    ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID.get(), rpc.groupID.get()))
   groupState != nil and groupState.hasPublished()
 
 proc recordReceivedMetadata(
@@ -355,7 +355,8 @@ proc recordReceivedMetadata(
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  if rpc.groupID.len == 0 or rpc.topicID.len == 0:
+  if rpc.groupID.isNone or rpc.groupID.get().len == 0 or rpc.topicID.isNone or
+      rpc.topicID.get().len == 0:
     debug "received RPC with unset groupId or topicId"
     ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
@@ -388,7 +389,9 @@ proc publishPartialToPeer(
     peerRequestsPartial: bool,
 ): bool {.raises: [].} =
   let msgPartsMetadata = pm.partsMetadata()
-  var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: pm.groupId())
+  var rpc = PartialMessageExtensionRPC(
+    topicID: Opt.some(topic), groupID: Opt.some(pm.groupId())
+  )
   var peerState = groupState.getPeerState(peer)
   var hasChanges: bool = false
 
@@ -404,14 +407,14 @@ proc publishPartialToPeer(
       let data = materializeRes.get()
       if data.len > 0: # some parts have been filled
         hasChanges = true
-        rpc.partialMessage = data
+        rpc.partialMessage = Opt.some(data)
 
         # since some parts have been filled, update requested parts metadata
         # with what has been filled
         let unionRes = ext.config.unionPartsMetadata(
           peerState.receivedPartsMetadata.get(), msgPartsMetadata
         )
-        if unionRes.isErr():
+        if unionRes.isErr:
           warn "failed to create union from the two parts metadata",
             msg = unionRes.error
           # technically should never happen since materializeParts was successful
@@ -421,7 +424,7 @@ proc publishPartialToPeer(
   # union sentPartsMetadata with new parts metadata and send if there are any changes
   if ext.unionWithSentPartsMetadata(peerState, msgPartsMetadata):
     hasChanges = true
-    rpc.partsMetadata = peerState.sentPartsMetadata.get()
+    rpc.partsMetadata = peerState.sentPartsMetadata
 
   # if there are any changes send RPC
   if hasChanges:

@@ -93,10 +93,10 @@ type
   TestExtensionRPC* {.proto3.} = object
 
   PartialMessageExtensionRPC* {.proto3.} = object
-    topicID* {.fieldNumber: 1.}: string
-    groupID* {.fieldNumber: 2.}: seq[byte]
-    partialMessage* {.fieldNumber: 3.}: seq[byte]
-    partsMetadata* {.fieldNumber: 4.}: seq[byte]
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    groupID* {.fieldNumber: 2.}: Opt[seq[byte]]
+    partialMessage* {.fieldNumber: 3.}: Opt[seq[byte]]
+    partsMetadata* {.fieldNumber: 4.}: Opt[seq[byte]]
 
   PingPongExtensionRPC* {.proto3.} = object
     ping* {.fieldNumber: 1.}: seq[byte]
@@ -124,9 +124,13 @@ type
     pingpongExtension* {.fieldNumber: 3145728.}: Opt[PingPongExtensionRPC]
     preambleExtension* {.fieldNumber: 4194304.}: Opt[PreambleExtensionRPC]
 
-func shortLogOpt[T](s: Opt[T]): string =
+func shortLog[T](s: Opt[T]): string =
   if s.isSome:
-    $s.get()
+    let value = s.get()
+    when compiles(value.shortLog):
+      value.shortLog
+    else:
+      $value
   else:
     "<unset>"
 
@@ -137,16 +141,16 @@ func len[T](opt: Opt[T]): int =
     0
 
 func shortLog*(s: ControlIHave): auto =
-  (topic: s.topicID.shortLogOpt, messageIDs: mapIt(s.messageIDs, it.shortLog))
+  (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
 
 func shortLog*(s: ControlIWant): auto =
   (messageIDs: mapIt(s.messageIDs, it.shortLog))
 
 func shortLog*(s: ControlGraft): auto =
-  (topic: s.topicID.shortLogOpt)
+  (topic: s.topicID.shortLog)
 
 func shortLog*(s: ControlPrune): auto =
-  (topic: s.topicID.shortLogOpt)
+  (topic: s.topicID.shortLog)
 
 func shortLog*(s: Preamble): auto =
   (topic: s.topicID.shortLog, messageID: s.messageID.shortLog)
@@ -165,10 +169,10 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
   else:
     let s = so.get()
     (
-      partialMessageExtension: shortLogOpt(s.partialMessageExtension),
-      testExtension: shortLogOpt(s.testExtension),
-      pingpongExtension: shortLogOpt(s.pingpongExtension),
-      preambleExtension: shortLogOpt(s.preambleExtension),
+      partialMessageExtension: shortLog(s.partialMessageExtension),
+      testExtension: shortLog(s.testExtension),
+      pingpongExtension: shortLog(s.pingpongExtension),
+      preambleExtension: shortLog(s.preambleExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
@@ -214,7 +218,7 @@ func shortLog*(m: RPCMsg): auto =
     control: m.control.valueOr(ControlMessage()).shortLog,
     partialMessageExtension:
       m.partialMessageExtension.valueOr(PartialMessageExtensionRPC()).shortLog,
-    testExtension: m.testExtension.shortLogOpt,
+    testExtension: m.testExtension.shortLog,
     pingpongExtension: m.pingpongExtension.valueOr(PingPongExtensionRPC()).shortLog,
     preambleExtension: m.preambleExtension.valueOr(PreambleExtensionRPC()).shortLog,
   )

@@ -34,8 +34,14 @@ proc have*(T: typedesc[MyPartsMetadata], chunks: seq[Chunk]): PartsMetadata =
 proc want*(T: typedesc[MyPartsMetadata], chunks: seq[Chunk]): PartsMetadata =
   return make(chunks, Meta.want)
 
-template checkLen*(m: PartsMetadata) =
-  if m.len mod 2 != 0:
+template checkLen*(m: PartsMetadata | Opt[PartsMetadata]) =
+  let value =
+    when m is Opt[PartsMetadata]:
+      m.get(@[])
+    else:
+      m
+
+  if value.len mod 2 != 0:
     return err("metadata does not have valid length")
 
 iterator iterChunkMeta(m: PartsMetadata): (Chunk, Meta) =
