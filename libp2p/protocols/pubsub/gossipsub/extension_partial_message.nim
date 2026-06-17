@@ -304,7 +304,7 @@ method onRemovePeer*(
 
 proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
   let key = PeerTopicKey.new(peerId, rpc.topic.get())
-  if rpc.subscribe.get(false):
+  if rpc.isSubscribe:
     let rp = rpc.requestsPartial.valueOr:
       false
     let ssp = rpc.supportsSendingPartial.valueOr:

@@ -262,7 +262,7 @@ proc broadcast*(
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
-    if sub.subscribe.get(false):
+    if sub.isSubscribe:
       libp2p_pubsub_broadcast_subscriptions.inc(
         npeers, labelValues = [p.topicLabel(sub.topic)]
       )
@@ -330,7 +330,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    if sub.subscribe.get(false):
+    if sub.isSubscribe:
       libp2p_pubsub_received_subscriptions.inc(labelValues = [p.topicLabel(sub.topic)])
     else:
       libp2p_pubsub_received_unsubscriptions.inc(

@@ -110,7 +110,7 @@ method rpcHandler*(
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    f.handleSubscribe(peer, sub.topic.get(), sub.subscribe.get(false))
+    f.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
 
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)

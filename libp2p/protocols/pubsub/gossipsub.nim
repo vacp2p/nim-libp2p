@@ -639,7 +639,7 @@ method rpcHandler*(
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic.get(), sub.subscribe.get(false))
+    g.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well

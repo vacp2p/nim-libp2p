@@ -475,6 +475,9 @@ proc withIMReceiving*(_: typedesc[RPCMsg], preamble: sink Preamble): RPCMsg =
     @[IMReceiving(messageID: move(preamble.messageID), messageLength: messageLength)]
   )
 
+template isSubscribe*(s: SubOpts): bool =
+  s.subscribe.get(false)
+
 func anonymize*(msg: Message, anonymize: bool): Message =
   if anonymize:
     Message(data: msg.data, topic: msg.topic)
