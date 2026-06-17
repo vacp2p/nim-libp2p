@@ -16,7 +16,7 @@ import ../../utils/[opt, shortlog, bytesview, protobuf]
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 when defined(libp2p_dump):
-  import ../../debugutils
+  import ../../utils/debug
 
 logScope:
   topics = "libp2p noise"

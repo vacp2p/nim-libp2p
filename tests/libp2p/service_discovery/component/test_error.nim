@@ -5,7 +5,6 @@
 import chronos, results
 import
   ../../../../libp2p/[
-    protobuf/minprotobuf,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/types,
     stream/connection,
@@ -34,7 +33,7 @@ proc sendMessage(
     clientNode, registrarNode: ServiceDiscovery, msg: kad_protobuf.Message
 ): Future[kad_protobuf.Message] {.async.} =
   let responseBytes =
-    await clientNode.switch.sendRawMessage(registrarNode, msg.encode().buffer)
+    await clientNode.switch.sendRawMessage(registrarNode, msg.encode())
   let response = kad_protobuf.Message.decode(responseBytes)
   check response.isOk()
   return response.get()
@@ -53,12 +52,9 @@ suite "Service Discovery Component - Error Handling":
       await clientSwitch.stop()
 
     # msgType = 99 is outside the MessageType enum, so decodeEnum will reject it.
-    var pb = initProtoBuffer()
-    pb.write(1, 99'u32)
-    pb.finish()
-    let invalidMsg = pb.buffer
+    let invalidMsg = @[8'u8, 99]
 
-    expect LPStreamError:
+    expect AsyncTimeoutError:
       discard
         await clientSwitch.sendRawMessage(registrarNode, invalidMsg).wait(2.seconds)
 
@@ -215,7 +211,7 @@ suite "Service Discovery Component - Error Handling":
       tInit: Moment.now() - 10.secs,
       tMod: Moment.now() - 5.secs,
       tWaitFor: 1.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check badTicket.sign(registrarNode.switch.peerInfo.privateKey).isOk()
 
@@ -255,7 +251,7 @@ suite "Service Discovery Component - Error Handling":
       tInit: Moment.now() - 1000.secs,
       tMod: Moment.now() - 500.secs,
       tWaitFor: 10.secs,
-      signature: @[],
+      signature: Opt.none(seq[byte]),
     )
     check badTicket.sign(otherNode.switch.peerInfo.privateKey).isOk()
 

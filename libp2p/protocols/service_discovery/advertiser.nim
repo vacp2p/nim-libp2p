@@ -190,11 +190,11 @@ proc sendRegister*(
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
   let msg = Message(
-    msgType: MessageType.register,
-    key: serviceId,
+    msgType: Opt.some(MessageType.register),
+    key: Opt.some(serviceId),
     register: Opt.some(
       RegisterMessage(
-        advertisement: ad,
+        advertisement: Opt.some(ad),
         status: Opt.none(kademlia_protobuf.RegistrationStatus),
         ticket: ticket,
       )
@@ -280,7 +280,7 @@ proc advertiseToRegistrar*(
 
       currentTicket = Opt.some(newTicket)
 
-      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor)
+      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor.get())
 
       debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
 

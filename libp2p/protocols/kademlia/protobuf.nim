@@ -3,19 +3,21 @@
 
 import std/hashes
 import chronos
-import ../../protobuf/minprotobuf
-import ../../varint
 import ../../utils/opt
 import results
 import ../../multiaddress
-import stew/[endians2, objects]
+import stew/endians2
 import ../../crypto/crypto
+import protobuf_serialization
+import protobuf_serialization/pkg/results
+import protobuf_serialization/std/enums
+import ../../utils/[protobuf, protobuf_chronos_sec]
 
 type
-  Record* = object
-    key*: seq[byte]
-    value*: Opt[seq[byte]]
-    timeReceived*: Opt[string]
+  Record* {.proto2.} = object
+    key* {.fieldNumber: 1.}: Opt[seq[byte]]
+    value* {.fieldNumber: 2.}: Opt[seq[byte]]
+    timeReceived* {.fieldNumber: 5.}: Opt[string]
 
   MessageType* = enum
     putValue = 0
@@ -33,10 +35,10 @@ type
     canConnect = 2 # Unused
     cannotConnect = 3 # Unused
 
-  Peer* = object
-    id*: seq[byte]
-    addrs*: seq[MultiAddress]
-    connection*: ConnectionStatus
+  Peer* {.proto2.} = object
+    id* {.fieldNumber: 1.}: Opt[seq[byte]]
+    addrs* {.fieldNumber: 2, ext.}: Opt[seq[MultiAddress]]
+    connection* {.fieldNumber: 3, ext.}: Opt[ConnectionStatus]
 
   # Registration status for Service Discovery
   RegistrationStatus* = enum
@@ -54,36 +56,43 @@ type
     rejected = 1
 
   # Ticket message for Service Discovery
-  # Nested within Register message
-  Ticket* = object
-    advertisement*: seq[byte] # field 1 - Copy of the original advertisement
-    tInit*: Moment # field 2 - Ticket creation timestamp (Unix time in seconds)
-    tMod*: Moment # field 3 - Last modification timestamp (Unix time in seconds)
-    tWaitFor*: Duration # field 4 - Remaining wait time in seconds
-    signature*: seq[byte] # field 5 - Ed25519 signature
+  Ticket* {.proto2.} = object
+    advertisement* {.fieldNumber: 1.}: Opt[seq[byte]]
+      # field 1 - Copy of the original advertisement
+    tInit* {.fieldNumber: 2, ext.}: Opt[Moment]
+      # field 2 - Ticket creation timestamp (Unix time in seconds)
+    tMod* {.fieldNumber: 3, ext.}: Opt[Moment]
+      # field 3 - Last modification timestamp (Unix time in seconds)
+    tWaitFor* {.fieldNumber: 4, ext.}: Opt[Duration]
+      # field 4 - Remaining wait time in seconds
+    signature* {.fieldNumber: 5.}: Opt[seq[byte]] # field 5 - Ed25519 signature
 
   # Register message for Service Discovery
-  # Field 21 in the main Message
-  RegisterMessage* = object
-    advertisement*: seq[byte] # field 1 - Encoded advertisement
-    status*: Opt[RegistrationStatus] # field 2 - Registration status (response only)
-    ticket*: Opt[Ticket] # field 3 - Optional ticket
+  RegisterMessage* {.proto2.} = object
+    advertisement* {.fieldNumber: 1.}: Opt[seq[byte]] # field 1 - Encoded advertisement
+    status* {.fieldNumber: 2, ext.}: Opt[RegistrationStatus]
+      # field 2 - Registration status (response only)
+    ticket* {.fieldNumber: 3.}: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Service Discovery
-  # Field 22 in the main Message
-  GetAdsMessage* = object
-    advertisements*: seq[seq[byte]] # field 1 - List of encoded advertisements
+  GetAdsMessage* {.proto2.} = object
+    advertisements* {.fieldNumber: 1.}: seq[seq[byte]]
+      # field 1 - List of encoded advertisements
 
-  Message* = object
-    msgType*: MessageType
-    key*: seq[byte]
-    record*: Opt[Record]
-    closerPeers*: seq[Peer]
-    providerPeers*: seq[Peer]
-    providerStatus*: Opt[AddProviderStatus]
-      # field 11 - ADD_PROVIDER response status (nim extension)
-    register*: Opt[RegisterMessage] # field 21 -  REGISTER message
-    getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
+  Message* {.proto2.} = object
+    msgType* {.fieldNumber: 1, ext.}: Opt[MessageType]
+    key* {.fieldNumber: 2.}: Opt[seq[byte]]
+    record* {.fieldNumber: 3.}: Opt[Record]
+    closerPeers* {.fieldNumber: 8.}: seq[Peer]
+    providerPeers* {.fieldNumber: 9.}: seq[Peer]
+    providerStatus* {.fieldNumber: 11, ext.}: Opt[AddProviderStatus]
+    register* {.fieldNumber: 21.}: Opt[RegisterMessage]
+    getAds* {.fieldNumber: 22.}: Opt[GetAdsMessage]
+
+func hide(c: Opt[ConnectionStatus], hideConnectionStatus: bool): Opt[ConnectionStatus] =
+  if hideConnectionStatus:
+    return Opt.none(ConnectionStatus)
+  c
 
 proc hash*(peer: Peer): Hash =
   hash(peer.id)
@@ -91,240 +100,38 @@ proc hash*(peer: Peer): Hash =
 proc `==`*(a, b: Peer): bool =
   a.id == b.id
 
-proc hide(
-    connStatus: ConnectionStatus, hideConnectionStatus: bool
-): ConnectionStatus {.raises: [], gcsafe.} =
-  if hideConnectionStatus:
-    return ConnectionStatus.notConnected
-  return connStatus
+Protobuf.serializerFor([Record, Ticket, RegisterMessage, GetAdsMessage])
 
-proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
-
-proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.}
-
-proc encode*(record: Record): ProtoBuffer {.raises: [].} =
-  var pb = initProtoBuffer()
-  pb.write(1, record.key)
-  pb.writeOpt(2, record.value)
-  pb.writeOpt(5, record.timeReceived)
-  pb.finish()
-  return pb
+# Peer and Message have custom encode because of additional hideConnectionStatus parameter
+Protobuf.decodeFor([Peer, Message])
 
 proc encode*(
-    peer: Peer, hideConnectionStatus: bool = true
-): ProtoBuffer {.raises: [].} =
-  var pb = initProtoBuffer()
-  pb.write(1, peer.id)
-  for address in peer.addrs:
-    pb.write(2, address.data.buffer)
-  pb.write(3, peer.connection.hide(hideConnectionStatus).ord.uint32)
-  pb.finish()
-  return pb
-
-proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  pb.write(1, ticket.advertisement)
-  pb.write(2, cast[uint64](ticket.tInit.epochSeconds))
-  pb.write(3, cast[uint64](ticket.tMod.epochSeconds))
-  pb.write(4, cast[uint32](ticket.tWaitFor.seconds))
-  if ticket.signature.len > 0:
-    pb.write(5, ticket.signature)
-  pb.finish()
-  return pb
-
-proc encode*(regMsg: RegisterMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  pb.write(1, regMsg.advertisement)
-
-  regMsg.status.withValue(statusVal):
-    pb.write(2, uint32(ord(statusVal)))
-
-  regMsg.ticket.withValue(ticketVal):
-    pb.write(3, ticketVal.encode())
-
-  pb.finish()
-  return pb
-
-proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-  for ad in getAdsMsg.advertisements:
-    pb.write(1, ad)
-
-  pb.finish()
-  return pb
+    msg: Peer, hideConnectionStatus: bool = true
+): seq[byte] {.raises: [], gcsafe.} =
+  var m = msg
+  m.connection = m.connection.hide(hideConnectionStatus)
+  Protobuf.encode(m)
 
 proc encode*(
     msg: Message, hideConnectionStatus: bool = true
-): ProtoBuffer {.raises: [], gcsafe.} =
-  var pb = initProtoBuffer()
-
-  pb.write(1, uint32(ord(msg.msgType)))
-
-  pb.write(2, msg.key)
-
-  pb.writeOpt(3, msg.record)
-
-  for peer in msg.closerPeers:
-    pb.write(8, peer.encode(hideConnectionStatus))
-
-  for peer in msg.providerPeers:
-    pb.write(9, peer.encode(hideConnectionStatus))
-
-  msg.providerStatus.withValue(status):
-    pb.write(11, uint32(ord(status)))
-
-  msg.register.withValue(regMsg):
-    pb.write(21, regMsg.encode())
-
-  msg.getAds.withValue(getAdsMsg):
-    pb.write(22, getAdsMsg.encode())
-
-  pb.finish()
-
-  return pb
-
-proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.} =
-  opt.withValue(v):
-    pb.write(field, v)
-
-proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.} =
-  pb.write(field, value.encode())
-
-proc decodeEnum[T: enum](val: uint32): ProtoResult[T] =
-  var e: T
-  if not checkedEnumAssign(e, val):
-    return err(ProtoError.BadWireType)
-  ok(e)
-
-proc getOptionField[T: ProtoScalar | string | seq[byte]](
-    pb: ProtoBuffer, field: int, output: var Opt[T]
-): ProtoResult[void] =
-  var f: T
-  if ?pb.getField(field, f):
-    output = Opt.some(f)
-  ok()
-
-proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[T] =
-  var r: Record
-  ?pb.getRequiredField(1, r.key)
-  ?pb.getOptionField(2, r.value)
-  ?pb.getOptionField(5, r.timeReceived)
-  return ok(r)
-
-proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
-  var p: Peer
-
-  ?pb.getRequiredField(1, p.id)
-
-  discard ?pb.getRepeatedField(2, p.addrs)
-
-  var connVal: uint32
-  if ?pb.getField(3, connVal):
-    p.connection = ?decodeEnum[ConnectionStatus](connVal)
-
-  return ok(p)
-
-proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  var
-    ticket = Ticket()
-    tInit: uint64 = 0
-    tMod: uint64 = 0
-    tWaitFor: uint32 = 0
-
-  discard ?pb.getField(1, ticket.advertisement)
-  discard ?pb.getField(2, tInit)
-  discard ?pb.getField(3, tMod)
-  discard ?pb.getField(4, tWaitFor)
-  discard ?pb.getField(5, ticket.signature)
-
-  #TODO make this nicer?
-  ticket.tInit = Moment.init(cast[int64](tInit), Second)
-  ticket.tMod = Moment.init(cast[int64](tMod), Second)
-  ticket.tWaitFor = tWaitFor.secs
-
-  return ok(ticket)
-
-proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var regMsg = RegisterMessage(
-    advertisement: @[], status: Opt.none(RegistrationStatus), ticket: Opt.none(Ticket)
-  )
-
-  discard ?pb.getField(1, regMsg.advertisement)
-
-  var statusVal: uint32
-  if ?pb.getField(2, statusVal):
-    regMsg.status = Opt.some(?decodeEnum[RegistrationStatus](statusVal))
-
-  var ticketBuf: seq[byte]
-  if ?pb.getField(3, ticketBuf):
-    let ticket = ?Ticket.decode(initProtoBuffer(ticketBuf))
-    regMsg.ticket = Opt.some(ticket)
-
-  return ok(regMsg)
-
-proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var getAdsMsg = GetAdsMessage()
-
-  discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
-
-  return ok(getAdsMsg)
-
-proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
-  var
-    m: Message
-    recPb: seq[byte]
-    closerPbs: seq[seq[byte]]
-    providerPbs: seq[seq[byte]]
-
-  var msgTypeVal: uint32
-  ?pb.getRequiredField(1, msgTypeVal)
-  m.msgType = ?decodeEnum[MessageType](msgTypeVal)
-
-  discard ?pb.getField(2, m.key)
-
-  if ?pb.getField(3, recPb):
-    # Could be either a Record for standard KadDHT messages
-    if m.msgType in {MessageType.putValue, MessageType.getValue}:
-      m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
-
-  discard ?pb.getRepeatedField(8, closerPbs)
-  for ppb in closerPbs:
-    m.closerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
-
-  discard ?pb.getRepeatedField(9, providerPbs)
-  for ppb in providerPbs:
-    m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
-
-  var providerStatusVal: uint32
-  if ?pb.getField(11, providerStatusVal):
-    m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))
-
-  # Decode Register message (field 21)
-  var regBuf: seq[byte]
-  if ?pb.getField(21, regBuf):
-    let regMsg = ?RegisterMessage.decode(initProtoBuffer(regBuf))
-    m.register = Opt.some(regMsg)
-
-  # Decode GetAds message (field 22)
-  var getAdsBuf: seq[byte]
-  if ?pb.getField(22, getAdsBuf):
-    let getAdsMsg = ?GetAdsMessage.decode(initProtoBuffer(getAdsBuf))
-    m.getAds = Opt.some(getAdsMsg)
-
-  return ok(m)
-
-proc decode*(T: type Message, buf: sink seq[byte]): ProtoResult[T] =
-  var pb = initProtoBuffer(move(buf))
-  return Message.decode(pb)
+): seq[byte] {.raises: [], gcsafe.} =
+  var m = msg
+  if hideConnectionStatus:
+    for p in m.closerPeers.mitems:
+      p.connection = p.connection.hide(hideConnectionStatus)
+    for p in m.providerPeers.mitems:
+      p.connection = p.connection.hide(hideConnectionStatus)
+  Protobuf.encode(m)
 
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   ## Returns the canonical byte representation of a Ticket used for signing.
   ## Covers: advertisement || tInit || tMod || tWaitFor
-  var buf = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
-  buf.add(ticket.advertisement)
-  buf.add(@(toBytesBE(ticket.tInit.epochSeconds.uint64)))
-  buf.add(@(toBytesBE(ticket.tMod.epochSeconds.uint64)))
-  buf.add(@(toBytesBE(ticket.tWaitFor.seconds.uint32)))
+  let ad = ticket.advertisement.get(@[])
+  var buf = newSeqOfCap[byte](ad.len + 8 + 8 + 4)
+  buf.add(ad)
+  buf.add(@(toBytesBE(ticket.tInit.get(Moment.low).epochSeconds.uint64)))
+  buf.add(@(toBytesBE(ticket.tMod.get(Moment.low).epochSeconds.uint64)))
+  buf.add(@(toBytesBE(ticket.tWaitFor.get(ZeroDuration).seconds.uint32)))
   buf
 
 proc sign*(
@@ -332,12 +139,14 @@ proc sign*(
 ): Result[void, CryptoError] {.raises: [], gcsafe.} =
   ## Sign the ticket with the given private key.
   let sig = ?privateKey.sign(ticket.toBytes())
-  ticket.signature = sig.getBytes()
+  ticket.signature = Opt.some(sig.getBytes())
   ok()
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
   ## Verify the ticket signature against the given public key.
+  if ticket.signature.isNone:
+    return false
   var sig: Signature
-  if not sig.init(ticket.signature):
+  if not sig.init(ticket.signature.get()):
     return false
   sig.verify(ticket.toBytes(), publicKey)

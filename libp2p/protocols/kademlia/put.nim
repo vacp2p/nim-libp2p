@@ -59,22 +59,20 @@ proc dispatchPutVal*(
   defer:
     await stream.close()
   let msg = Message(
-    msgType: MessageType.putValue,
-    key: key,
-    record: Opt.some(Record(key: key, value: Opt.some(value))),
+    msgType: Opt.some(MessageType.putValue),
+    key: Opt.some(key),
+    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
   let encoded = msg.encode()
 
   kad_messages_sent.inc(labelValues = [$MessageType.putValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
 
   var replyBuf: seq[byte]
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
     ioRes = catch:
-      await stream.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
@@ -93,6 +91,13 @@ proc dispatchPutVal*(
       msg = msg, reply = reply, stream = stream
 
   return ok()
+
+proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
+  if kad.dataTable.hasKey(key):
+    return true
+  kad.config.limits.maxLocalRecords.withValue(limit):
+    return kad.dataTable.len < limit
+  true
 
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
@@ -113,7 +118,10 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  kad.dataTable.insert(key, value, Timestamp.now())
+  if kad.canStoreLocalRecord(key):
+    kad.dataTable.insert(key, value, Timestamp.now())
+  else:
+    debug "PutValue: local record limit reached", current = kad.dataTable.len
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
@@ -128,7 +136,11 @@ proc handlePutValue*(
     error "No record in message buffer", msg = msg, stream = stream
     return
 
-  if record.key != msg.key:
+  let msgKey = msg.key.valueOr:
+    error "Key not set: handlePutValue", msg = msg, stream = stream
+    return
+
+  if record.key.isNone or record.key.get() != msgKey:
     error "Record key is different than Message key", msg = msg, stream = stream
     return
 
@@ -145,23 +157,28 @@ proc handlePutValue*(
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())
 
   # Value sanitisation done. Start insertion process
-  if not kad.config.validator.isValid(msg.key, entryRecord):
-    debug "Record is not valid", msg = msg.key, entryRecord = entryRecord
+  if not kad.config.validator.isValid(msgKey, entryRecord):
+    debug "Record is not valid", msg = msg, entryRecord = entryRecord
     return
 
-  if not kad.isBestValue(msg.key, entryRecord):
+  if not kad.isBestValue(msgKey, entryRecord):
     error "Dropping received value, we have a better one"
+    await stream.reset()
     return
 
-  kad.dataTable.insert(msg.key, entryRecord.value, Timestamp.now())
+  if not kad.canStoreLocalRecord(msgKey):
+    debug "PutValue: local record limit reached",
+      stream = stream, current = kad.dataTable.len
+    await stream.reset()
+    return
+
+  kad.dataTable.insert(msgKey, entryRecord.value, Timestamp.now())
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode(kad.config.hideConnectionStatus)
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
   try:
-    await stream.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Failed to send find-node RPC reply", stream = stream, err = exc.msg
     return
