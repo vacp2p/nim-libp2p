@@ -29,6 +29,14 @@ proc expectedFields[T](
     )
 
 type
+  MessageId* = seq[byte]
+
+  SaltedId* = object
+    # Salted hash of message ID - used instead of the ordinary message ID to
+    # avoid hash poisoning attacks and to make memory usage more predictable
+    # with respect to the variable-length message id
+    data*: MDigest[256]
+
   PeerInfoMsg* {.proto3.} = object
     peerId* {.fieldNumber: 1, ext.}: PeerId
     signedPeerRecord* {.fieldNumber: 2.}: seq[byte]
@@ -42,14 +50,6 @@ type
     # messages on this topic.
     # When requestsPartial is true, this is assumed to be true.
     supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
-
-  MessageId* = seq[byte]
-
-  SaltedId* = object
-    # Salted hash of message ID - used instead of the ordinary message ID to
-    # avoid hash poisoning attacks and to make memory usage more predictable
-    # with respect to the variable-length message id
-    data*: MDigest[256]
 
   Message* {.proto3.} = object
     fromPeer* {.fieldNumber: 1, ext.}: PeerId
@@ -124,9 +124,9 @@ type
     pingpongExtension* {.fieldNumber: 3145728.}: Opt[PingPongExtensionRPC]
     preambleExtension* {.fieldNumber: 4194304.}: Opt[PreambleExtensionRPC]
 
-func shortLog[T](s: Opt[T]): string =
-  if s.isSome:
-    let value = s.get()
+func shortLog[T](optVal: Opt[T]): string =
+  if optVal.isSome:
+    let value = optVal.get()
     when compiles(value.shortLog):
       value.shortLog
     else:

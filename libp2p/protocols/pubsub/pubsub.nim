@@ -208,7 +208,7 @@ proc topicLabel*(p: PubSub, topic: string | Opt[string]): string =
       if topic.isSome:
         topic.get()
       else:
-        "unset"
+        return "unset"
     else:
       topic
 
