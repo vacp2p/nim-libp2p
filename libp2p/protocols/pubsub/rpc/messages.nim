@@ -125,10 +125,10 @@ type
     preambleExtension* {.fieldNumber: 4194304.}: Opt[PreambleExtensionRPC]
 
 func shortLogOpt[T](s: Opt[T]): string =
-  if s.isNone():
-    "<unset>"
-  else:
+  if s.isSome:
     $s.get()
+  else:
+    "<unset>"
 
 func len[T](opt: Opt[T]): int =
   if opt.isSome:
