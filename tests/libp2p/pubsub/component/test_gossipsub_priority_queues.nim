@@ -215,3 +215,80 @@ suite "GossipSub Component - Priority Queues":
 
     checkUntilTimeout:
       mock.writes == highMsgs & mediumMsgs & lowMsgs
+
+  asyncTest "Persistently slow peer is penalized and pruned":
+    let nodes =
+      generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
+    # Aggressive slow-peer scoring so any penalty drives the score negative.
+    for node in nodes:
+      node.parameters.slowPeerPenaltyWeight = -10.0
+      node.parameters.slowPeerPenaltyThreshold = 0.0
+      node.parameters.slowPeerPenaltyDecay = 0.9
+    # Small cap so the medium queue overflows quickly.
+    nodes[0].parameters.maxMediumPriorityQueueLen = 2
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+    # The peer must be in the mesh first, so the later prune is a real removal.
+    checkUntilTimeout:
+      nodes[0].mesh.hasPeerId(topic, peerId)
+
+    let mock = stallSendStream(nodes[0], topic, peerId)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    # A pending high message keeps the high-priority queue non-empty,
+    # so the medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
+
+    # the first two are queued, the next three are dropped
+    for i in 0 ..< 5:
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
+    check peer.slowPeerPenalty == 3.0
+
+    # The penalty makes the peer's score negative, so it is pruned from the mesh.
+    checkUntilTimeout:
+      nodes[0].getPeerScore(peerId) < 0.0
+      not nodes[0].mesh.hasPeerId(topic, peerId)
+
+  asyncTest "Transiently slow peer recovers and is not pruned":
+    let nodes =
+      generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
+    for node in nodes:
+      node.parameters.slowPeerPenaltyWeight = -10.0
+      # Threshold above the transient penalty, so it never affects the score.
+      node.parameters.slowPeerPenaltyThreshold = 2.0
+      node.parameters.slowPeerPenaltyDecay = 0.5
+    nodes[0].parameters.maxMediumPriorityQueueLen = 2
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+
+    let mock = stallSendStream(nodes[0], topic, peerId)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    # A pending high message keeps the high-priority queue non-empty,
+    # so the medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
+
+    # the first two are queued, the third is dropped
+    for i in 0 ..< 3:
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
+    check peer.slowPeerPenalty == 1.0
+
+    # The penalty stays below the threshold, so it never affects the score, and
+    # decay returns it to zero over heartbeats. The peer is never pruned.
+    checkUntilTimeout:
+      peer.slowPeerPenalty == 0.0
+    check nodes[0].mesh.hasPeerId(topic, peerId)
