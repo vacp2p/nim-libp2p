@@ -121,7 +121,7 @@ suite "KadDHT Put":
     let msg = Message(
       msgType: MessageType.putValue,
       key: msgKey,
-      record: Opt.some(Record(key: recordKey, value: Opt.some(@[1.byte, 2, 3, 4, 5]))),
+      record: Record(key: recordKey, value: @[1.byte, 2, 3, 4, 5]),
     )
 
     # Send directly via handlePutValue to test the validation logic
@@ -160,7 +160,7 @@ suite "KadDHT Put":
     let msgNoValue = Message(
       msgType: MessageType.putValue,
       key: key,
-      record: Opt.some(Record(key: key, value: Opt.none(seq[byte]))),
+      record: Record(key: key, value: Opt.none(seq[byte])),
     )
 
     await kads[0].handlePutValue(conn, msgNoValue)
@@ -179,9 +179,7 @@ suite "KadDHT Put":
 
     # Build the PUT_VALUE request message
     let request = Message(
-      msgType: MessageType.putValue,
-      key: key,
-      record: Opt.some(Record(key: key, value: Opt.some(value))),
+      msgType: MessageType.putValue, key: key, record: Record(key: key, value: value)
     )
 
     let conn = await kads[1].switch.dial(
