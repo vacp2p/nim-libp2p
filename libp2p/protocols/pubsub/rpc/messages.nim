@@ -76,17 +76,17 @@ type
     extensions* {.fieldNumber: 6.}: Opt[ControlExtensions]
 
   ControlIHave* {.proto3.} = object
-    topicID* {.fieldNumber: 1.}: string
+    topicID* {.fieldNumber: 1.}: Opt[string]
     messageIDs* {.fieldNumber: 2.}: seq[MessageId]
 
   ControlIWant* {.proto3.} = object
     messageIDs* {.fieldNumber: 1.}: seq[MessageId]
 
   ControlGraft* {.proto3.} = object
-    topicID* {.fieldNumber: 1.}: string
+    topicID* {.fieldNumber: 1.}: Opt[string]
 
   ControlPrune* {.proto3.} = object
-    topicID* {.fieldNumber: 1.}: string
+    topicID* {.fieldNumber: 1.}: Opt[string]
     peers* {.fieldNumber: 2.}: seq[PeerInfoMsg]
     backoff* {.fieldNumber: 3, pint.}: uint64
 
@@ -124,29 +124,35 @@ type
     pingpongExtension* {.fieldNumber: 3145728.}: Opt[PingPongExtensionRPC]
     preambleExtension* {.fieldNumber: 4194304.}: Opt[PreambleExtensionRPC]
 
+func shortLogOpt[T](s: Opt[T]): string =
+  if s.isNone():
+    "<unset>"
+  else:
+    $s.get()
+
+func len[T](opt: Opt[T]): int =
+  if opt.isSome:
+    opt.get().len
+  else:
+    0
+
 func shortLog*(s: ControlIHave): auto =
-  (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
+  (topic: s.topicID.shortLogOpt, messageIDs: mapIt(s.messageIDs, it.shortLog))
 
 func shortLog*(s: ControlIWant): auto =
   (messageIDs: mapIt(s.messageIDs, it.shortLog))
 
 func shortLog*(s: ControlGraft): auto =
-  (topic: s.topicID.shortLog)
+  (topic: s.topicID.shortLogOpt)
 
 func shortLog*(s: ControlPrune): auto =
-  (topic: s.topicID.shortLog)
+  (topic: s.topicID.shortLogOpt)
 
 func shortLog*(s: Preamble): auto =
   (topic: s.topicID.shortLog, messageID: s.messageID.shortLog)
 
 func shortLog*(s: IMReceiving): auto =
   (messageID: s.messageID.shortLog)
-
-func shortLogOpt[T](s: Opt[T]): string =
-  if s.isNone():
-    "<unset>"
-  else:
-    $s.get()
 
 func shortLog*(so: Opt[ControlExtensions]): auto =
   if so.isNone():
@@ -377,11 +383,12 @@ proc withIHave*(
     _: typedesc[ControlMessage], topicID: sink string, messageIDs: sink seq[MessageId]
 ): ControlMessage =
   ControlMessage(
-    ihave: @[ControlIHave(topicID: move(topicID), messageIDs: move(messageIDs))]
+    ihave:
+      @[ControlIHave(topicID: Opt.some(move(topicID)), messageIDs: move(messageIDs))]
   )
 
 proc withGraft*(_: typedesc[ControlMessage], topicID: sink string): ControlMessage =
-  ControlMessage(graft: @[ControlGraft(topicID: move(topicID))])
+  ControlMessage(graft: @[ControlGraft(topicID: Opt.some(move(topicID)))])
 
 proc withPrune*(
     _: typedesc[ControlMessage],
@@ -390,7 +397,11 @@ proc withPrune*(
     peers: sink seq[PeerInfoMsg],
 ): ControlMessage =
   ControlMessage(
-    prune: @[ControlPrune(topicID: move(topicID), peers: move(peers), backoff: backoff)]
+    prune: @[
+      ControlPrune(
+        topicID: Opt.some(move(topicID)), peers: move(peers), backoff: backoff
+      )
+    ]
   )
 
 proc withExtensions*(

@@ -15,6 +15,7 @@ import
     protocols/pubsub/rpc/protobuf,
   ]
 import ../../tools/[unittest, crypto as cryptoTools]
+import converters
 
 suite "Message":
   const topic = "foobar"

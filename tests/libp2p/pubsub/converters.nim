@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
+{.used.}
+
+import results
+import ../../../libp2p/[protocols/pubsub/rpc/message]
+
+converter toOptString*(a: string): Opt[string] =
+  Opt.some(a)

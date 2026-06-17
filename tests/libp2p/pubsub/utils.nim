@@ -27,8 +27,9 @@ import
   ]
 import
   ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
+import ./converters
 
-export switch
+export switch, converters
 
 randomize()
 

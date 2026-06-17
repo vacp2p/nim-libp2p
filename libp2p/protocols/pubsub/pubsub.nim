@@ -201,11 +201,18 @@ type
     knownTopics*: HashSet[string]
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
 
-proc topicLabel*(p: PubSub, topic: string): string =
+proc topicLabel*(p: PubSub, topic: string | Opt[string]): string =
   ## returns value to be used for `topic` labels.
-  ## 
+  let t =
+    when topic is Opt[string]:
+      if topic.isSome:
+        topic.get()
+      else:
+        "unset"
+    else:
+      topic
 
-  if p.knownTopics.contains(topic): topic else: "generic"
+  if p.knownTopics.contains(t): t else: "generic"
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects

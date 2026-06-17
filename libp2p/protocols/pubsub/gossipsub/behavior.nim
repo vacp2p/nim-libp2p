@@ -133,7 +133,10 @@ proc handleGraft*(
 ): seq[ControlPrune] =
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicID
+    let topic = graft.topicID.valueOr:
+      trace "topic not set: graft", peer
+      continue
+
     trace "peer grafted topicID", peer, topic
 
     # It is an error to GRAFT on a direct peer
@@ -145,7 +148,7 @@ proc handleGraft*(
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
         ControlPrune(
-          topicID: topic,
+          topicID: Opt.some(topic),
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
           backoff: g.parameters.pruneBackoff.seconds.uint64,
@@ -174,7 +177,7 @@ proc handleGraft*(
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
         ControlPrune(
-          topicID: topic,
+          topicID: Opt.some(topic),
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
           backoff: g.parameters.pruneBackoff.seconds.uint64,
@@ -212,7 +215,7 @@ proc handleGraft*(
           peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
         prunes.add(
           ControlPrune(
-            topicID: topic,
+            topicID: Opt.some(topic),
             peers: g.peerExchangeList(topic),
             backoff: g.parameters.pruneBackoff.seconds.uint64,
           )
@@ -247,7 +250,9 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecor
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    let topic = prune.topicID
+    let topic = prune.topicID.valueOr:
+      trace "topic not set: prune", peer
+      continue
 
     trace "peer pruned topicID", peer, topic
 
@@ -292,17 +297,18 @@ proc handleIHave*(
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
     for ihave in ihaves:
-      trace "peer sent ihave", peer, topicID = ihave.topicID, msgs = ihave.messageIDs
-      if ihave.topicID in g.topics:
+      let topic = ihave.topicID.valueOr:
+        trace "topic not set: ihave", peer
+        continue
+      trace "peer sent ihave", peer, topicID = topic, msgs = ihave.messageIDs
+      if topic in g.topics:
         for msgId in ihave.messageIDs:
           if not g.hasSeen(g.salt(msgId)):
             if peer.iHaveBudget <= 0:
               break
             elif msgId notin res.messageIDs:
               if g.extensionsState.preambleHandleIHave(peer.peerId, msgId):
-                libp2p_gossipsub_preamble_saved_iwants.inc(
-                  labelValues = [ihave.topicID]
-                )
+                libp2p_gossipsub_preamble_saved_iwants.inc(labelValues = [topic])
                 continue
               res.messageIDs.add(msgId)
               dec peer.iHaveBudget
@@ -668,7 +674,7 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
       midsSeq.setLen(IHaveMaxLength)
 
     let
-      ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
+      ihave = ControlIHave(topicID: Opt.some(topic), messageIDs: midsSeq)
       mesh = g.mesh.getOrDefault(topic)
       fanout = g.fanout.getOrDefault(topic)
       gossipPeers = mesh + fanout
@@ -753,7 +759,8 @@ proc onHeartbeat(g: GossipSub) =
     for ihave in control.ihave:
       libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
 
-      if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
+      if ihave.topicID.isSome and
+          not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID.get()):
         # send IHAVE only if peer has not requested partial for topic.
         # these peers will receive gossip of partial metadata via extension.
         g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
