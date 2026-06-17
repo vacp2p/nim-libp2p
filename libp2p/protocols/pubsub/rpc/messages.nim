@@ -428,6 +428,9 @@ proc withSubscriptions*(_: typedesc[RPCMsg], subscriptions: sink seq[SubOpts]): 
 proc withPing*(_: typedesc[RPCMsg], ping: sink seq[byte]): RPCMsg =
   RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: Opt.some(move(ping)))))
 
+proc withPing*(_: typedesc[RPCMsg], ping: sink Opt[seq[byte]]): RPCMsg =
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: move(ping))))
+
 proc withPong*(_: typedesc[RPCMsg], pong: sink seq[byte]): RPCMsg =
   RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: Opt.some(move(pong)))))
 
