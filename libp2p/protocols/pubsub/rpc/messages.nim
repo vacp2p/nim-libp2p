@@ -452,3 +452,21 @@ proc withIMReceiving*(_: typedesc[RPCMsg], preamble: sink Preamble): RPCMsg =
   RPCMsg.withIMReceiving(
     @[IMReceiving(messageID: move(preamble.messageID), messageLength: messageLength)]
   )
+
+func anonymize*(msg: Message, anonymize: bool): Message =
+  if anonymize:
+    Message(data: msg.data, topic: msg.topic) 
+  else:
+    msg
+
+func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
+  if anonymize and msg.messages.len > 0:
+    var anonMsg = msg
+    for m in anonMsg.messages.mitems:
+      m.fromPeer = default(PeerId)
+      m.seqno = @[]
+      m.signature = @[]
+      m.key = @[]
+    anonMsg
+  else:
+    msg
