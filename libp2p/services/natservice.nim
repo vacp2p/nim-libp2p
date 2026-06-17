@@ -430,7 +430,7 @@ proc setupHolePunching(
 
 proc setupAutonatV1(
     self: NATService, switch: Switch, r: ReachabilityConfig
-) {.raises: [ServiceSetupError].} =
+) {.raises: [].} =
   let autonatService =
     AutonatService.new(AutonatClient(), self.rng, scheduleInterval = r.scheduleInterval)
   autonatService.setup(switch)

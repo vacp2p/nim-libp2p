@@ -101,9 +101,7 @@ proc expandWildcardAddresses(
           addresses.add(remapped)
   addresses
 
-method setup*(
-    self: WildcardAddressResolverService, switch: Switch
-) {.raises: [ServiceSetupError].} =
+method setup*(self: WildcardAddressResolverService, switch: Switch) {.raises: [].} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
   ## This method adds the address mapper to the peer's list of address mappers.
@@ -113,7 +111,7 @@ method setup*(
   ## - `switch`: The switch context in which the service operates.
   ##
   ## Returns:
-  ## - No value. If setup fails, a `ServiceSetupError` is raised.
+  ## - No value.
   debug "Setting up WildcardAddressResolverService"
 
   self.addressMapper = proc(
