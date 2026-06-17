@@ -639,7 +639,7 @@ method rpcHandler*(
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic, sub.subscribe)
+    g.handleSubscribe(peer, sub.topic.get(), sub.subscribe.get(false))
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
@@ -722,7 +722,7 @@ method rpcHandler*(
 
   # Now, check subscription to update the meshes if required
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
-    let topic = rpcMsg.subscriptions[i].topic
+    let topic = rpcMsg.subscriptions[i].topic.get()
     if topic in g.topics and g.mesh.peers(topic) < g.parameters.dLow:
       # rebalance but don't update metrics here, we do that only in the heartbeat
       g.rebalanceMesh(topic, metrics = nil)

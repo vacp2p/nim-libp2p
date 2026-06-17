@@ -34,8 +34,8 @@ type
     signedPeerRecord* {.fieldNumber: 2.}: seq[byte]
 
   SubOpts* {.proto3.} = object
-    subscribe* {.fieldNumber: 1.}: bool
-    topic* {.fieldNumber: 2.}: string
+    subscribe* {.fieldNumber: 1.}: Opt[bool]
+    topic* {.fieldNumber: 2.}: Opt[string]
     # When true, it signals the receiver that the sender prefers partial messages.
     requestsPartial* {.fieldNumber: 3.}: Opt[bool]
     # When true, it signals the receiver that the sender supports sending partial
@@ -488,6 +488,9 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
 
 func validate*(msg: RPCMsg): Result[void, string] =
   # validates RPCMsg after it is received and decoded.
+  for m in msg.subscriptions:
+    if m.topic.isNone:
+      return err("Subsciption topic must be set")
   for m in msg.messages:
     if m.topic.len == 0:
       return err("Message missing required topic field")

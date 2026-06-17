@@ -262,7 +262,7 @@ proc broadcast*(
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
-    if sub.subscribe:
+    if sub.subscribe.get(false):
       libp2p_pubsub_broadcast_subscriptions.inc(
         npeers, labelValues = [p.topicLabel(sub.topic)]
       )
@@ -310,7 +310,7 @@ proc sendSubs*(
 
   var subscriptions = newSeq[SubOpts]()
   for topic in subTopics:
-    var subOpt = SubOpts(subscribe: subscribe, topic: topic)
+    var subOpt = SubOpts(subscribe: Opt.some(subscribe), topic: Opt.some(topic))
     if subscribe:
       p.topics.withValue(topic, topicData):
         subOpt.requestsPartial = Opt.some(topicData[].requestsPartial)
@@ -330,7 +330,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    if sub.subscribe:
+    if sub.subscribe.get(false):
       libp2p_pubsub_received_subscriptions.inc(labelValues = [p.topicLabel(sub.topic)])
     else:
       libp2p_pubsub_received_unsubscriptions.inc(
