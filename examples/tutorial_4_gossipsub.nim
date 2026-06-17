@@ -79,7 +79,7 @@ proc oneNode(node: Node, rng: Rng) {.async.} =
   node.gossip.addValidator(
     ["metrics"],
     proc(topic: string, message: Message): Future[ValidationResult] {.async.} =
-      let decoded = MetricList.decode(message.data)
+      let decoded = MetricList.decode(message.data.get())
       if decoded.isErr:
         return ValidationResult.Reject
       return ValidationResult.Accept,

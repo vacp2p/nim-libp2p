@@ -15,6 +15,9 @@ converter toOptBool*(a: bool): Opt[bool] =
 converter toOptUint32*(a: uint32): Opt[uint32] =
   Opt.some(a)
 
+converter toOptUint64*(a: uint64): Opt[uint64] =
+  Opt.some(a)
+
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)
 
