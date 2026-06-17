@@ -464,7 +464,7 @@ suite "Yamux":
       YamuxHeader.data(streamId = 1'u32, length = 0, {Syn}),
       YamuxHeader.windowUpdate(streamId = 5'u32, delta = 0, {Syn}),
     ]:
-      let testCase = testCase
+      let testCase = testCase # capture loop var for the asyncTest closure
       asyncTest "Syn opens stream and sends Ack - " & $testCase:
         mSetup(startHandlera = false)
 
@@ -500,7 +500,7 @@ suite "Yamux":
       # Reserved parity on WindowUpdate+Syn (even id against responder)
       YamuxHeader.windowUpdate(streamId = 4'u32, delta = 0, {Syn}),
     ]:
-      let badHeader = badHeader
+      let badHeader = badHeader # capture loop var for the asyncTest closure
       asyncTest "Reject invalid/unknown header - " & $badHeader:
         mSetup(startHandlera = false)
 
