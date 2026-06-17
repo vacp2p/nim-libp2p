@@ -23,6 +23,9 @@ jobs:
           - repository: status-im/nimbus-eth2
             ref: unstable
             secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
+          - repository: status-im/nimbus-eth2
+            ref: stable
+            secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
           - repository: logos-messaging/logos-delivery
             ref: master
             secret: ACTIONS_GITHUB_TOKEN_NWAKU
