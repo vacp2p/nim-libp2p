@@ -151,7 +151,7 @@ proc handleGraft*(
           topicID: Opt.some(topic),
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
-          backoff: g.parameters.pruneBackoff.seconds.uint64,
+          backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
         )
       )
 
@@ -180,7 +180,7 @@ proc handleGraft*(
           topicID: Opt.some(topic),
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
-          backoff: g.parameters.pruneBackoff.seconds.uint64,
+          backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
         )
       )
 
@@ -217,7 +217,7 @@ proc handleGraft*(
           ControlPrune(
             topicID: Opt.some(topic),
             peers: g.peerExchangeList(topic),
-            backoff: g.parameters.pruneBackoff.seconds.uint64,
+            backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
           )
         )
 
@@ -265,11 +265,11 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       continue
 
     # add peer backoff
-    if prune.backoff > 0:
+    if prune.backoff.isSome and prune.backoff.get() > 0:
       let
         # avoid overflows and clamp to reasonable value
         backoffSeconds =
-          clamp(prune.backoff + BackoffSlackTime, 0'u64, 1.days.seconds.uint64)
+          clamp(prune.backoff.get() + BackoffSlackTime, 0'u64, 1.days.seconds.uint64)
         backoff = Moment.fromNow(backoffSeconds.int64.seconds)
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
       if backoff > current:

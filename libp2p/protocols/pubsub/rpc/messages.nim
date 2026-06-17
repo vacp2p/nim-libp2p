@@ -37,11 +37,11 @@ type
     # with respect to the variable-length message id
     data*: MDigest[256]
 
-  PeerInfoMsg* {.proto3.} = object
+  PeerInfoMsg* {.proto2.} = object
     peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
     signedPeerRecord* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  SubOpts* {.proto3.} = object
+  SubOpts* {.proto2.} = object
     subscribe* {.fieldNumber: 1.}: Opt[bool]
     topic* {.fieldNumber: 2.}: Opt[string]
     # When true, it signals the receiver that the sender prefers partial messages.
@@ -51,7 +51,7 @@ type
     # When requestsPartial is true, this is assumed to be true.
     supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
 
-  Message* {.proto3.} = object
+  Message* {.proto2.} = object
     fromPeer* {.fieldNumber: 1, ext.}: Opt[PeerId]
     data* {.fieldNumber: 2.}: Opt[seq[byte]]
     seqno* {.fieldNumber: 3.}: Opt[seq[byte]]
@@ -59,7 +59,7 @@ type
     signature* {.fieldNumber: 5.}: Opt[seq[byte]]
     key* {.fieldNumber: 6.}: Opt[seq[byte]]
 
-  ControlExtensions* {.proto3.} = object
+  ControlExtensions* {.proto2.} = object
     partialMessageExtension* {.fieldNumber: 10.}: Opt[bool]
 
     # Experimental extensions fields:
@@ -67,7 +67,7 @@ type
     pingpongExtension* {.fieldNumber: 3145728.}: Opt[bool]
     preambleExtension* {.fieldNumber: 4194304.}: Opt[bool]
 
-  ControlMessage* {.proto3.} = object
+  ControlMessage* {.proto2.} = object
     ihave* {.fieldNumber: 1.}: seq[ControlIHave]
     iwant* {.fieldNumber: 2.}: seq[ControlIWant]
     graft* {.fieldNumber: 3.}: seq[ControlGraft]
@@ -75,47 +75,47 @@ type
     idontwant* {.fieldNumber: 5.}: seq[ControlIWant]
     extensions* {.fieldNumber: 6.}: Opt[ControlExtensions]
 
-  ControlIHave* {.proto3.} = object
+  ControlIHave* {.proto2.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
     messageIDs* {.fieldNumber: 2.}: seq[MessageId]
 
-  ControlIWant* {.proto3.} = object
+  ControlIWant* {.proto2.} = object
     messageIDs* {.fieldNumber: 1.}: seq[MessageId]
 
-  ControlGraft* {.proto3.} = object
+  ControlGraft* {.proto2.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
 
-  ControlPrune* {.proto3.} = object
+  ControlPrune* {.proto2.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
     peers* {.fieldNumber: 2.}: seq[PeerInfoMsg]
-    backoff* {.fieldNumber: 3, pint.}: uint64
+    backoff* {.fieldNumber: 3, pint.}: Opt[uint64]
 
-  TestExtensionRPC* {.proto3.} = object
+  TestExtensionRPC* {.proto2.} = object
 
-  PartialMessageExtensionRPC* {.proto3.} = object
+  PartialMessageExtensionRPC* {.proto2.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
     groupID* {.fieldNumber: 2.}: Opt[seq[byte]]
     partialMessage* {.fieldNumber: 3.}: Opt[seq[byte]]
     partsMetadata* {.fieldNumber: 4.}: Opt[seq[byte]]
 
-  PingPongExtensionRPC* {.proto3.} = object
+  PingPongExtensionRPC* {.proto2.} = object
     ping* {.fieldNumber: 1.}: Opt[seq[byte]]
     pong* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  Preamble* {.proto3.} = object
+  Preamble* {.proto2.} = object
     topicID* {.fieldNumber: 1.}: Opt[string]
     messageID* {.fieldNumber: 2.}: Opt[MessageId]
     messageLength* {.fieldNumber: 3, pint.}: Opt[uint32]
 
-  IMReceiving* {.proto3.} = object
+  IMReceiving* {.proto2.} = object
     messageID* {.fieldNumber: 1.}: Opt[MessageId]
     messageLength* {.fieldNumber: 2, pint.}: Opt[uint32]
 
-  PreambleExtensionRPC* {.proto3.} = object
+  PreambleExtensionRPC* {.proto2.} = object
     preamble* {.fieldNumber: 1.}: seq[Preamble]
     imreceiving* {.fieldNumber: 2.}: seq[IMReceiving]
 
-  RPCMsg* {.proto3.} = object
+  RPCMsg* {.proto2.} = object
     subscriptions* {.fieldNumber: 1.}: seq[SubOpts]
     messages* {.fieldNumber: 2.}: seq[Message]
     control* {.fieldNumber: 3.}: Opt[ControlMessage]
@@ -403,7 +403,7 @@ proc withPrune*(
   ControlMessage(
     prune: @[
       ControlPrune(
-        topicID: Opt.some(move(topicID)), peers: move(peers), backoff: backoff
+        topicID: Opt.some(move(topicID)), peers: move(peers), backoff: Opt.some(backoff)
       )
     ]
   )
