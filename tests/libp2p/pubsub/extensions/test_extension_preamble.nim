@@ -12,6 +12,7 @@ import
     rpc/messages,
   ]
 import ../../../tools/[unittest, crypto]
+import ../converters
 
 const largeMsgLen = preambleMessageSizeThreshold
 const smallMsgLen = preambleMessageSizeThreshold - 1

@@ -103,13 +103,13 @@ type
     pong* {.fieldNumber: 2.}: seq[byte]
 
   Preamble* {.proto3.} = object
-    topicID* {.fieldNumber: 1.}: string
-    messageID* {.fieldNumber: 2.}: MessageId
-    messageLength* {.fieldNumber: 3, pint.}: uint32
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    messageID* {.fieldNumber: 2.}: Opt[MessageId]
+    messageLength* {.fieldNumber: 3, pint.}: Opt[uint32]
 
   IMReceiving* {.proto3.} = object
-    messageID* {.fieldNumber: 1.}: MessageId
-    messageLength* {.fieldNumber: 2, pint.}: uint32
+    messageID* {.fieldNumber: 1.}: Opt[MessageId]
+    messageLength* {.fieldNumber: 2, pint.}: Opt[uint32]
 
   PreambleExtensionRPC* {.proto3.} = object
     preamble* {.fieldNumber: 1.}: seq[Preamble]
@@ -440,7 +440,11 @@ proc withPreamble*(
   var preambles: seq[Preamble]
   for i, m in msgs:
     preambles.add(
-      Preamble(topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32)
+      Preamble(
+        topicID: Opt.some(m.topic),
+        messageID: Opt.some(msgIds[i]),
+        messageLength: Opt.some(m.data.len.uint32),
+      )
     )
   RPCMsg.withPreamble(preambles)
 
@@ -450,9 +454,9 @@ proc withPreamble*(
   RPCMsg.withPreamble(
     @[
       Preamble(
-        topicID: move(topic),
-        messageID: move(msgId),
-        messageLength: messageLength.uint32,
+        topicID: Opt.some(move(topic)),
+        messageID: Opt.some(move(msgId)),
+        messageLength: Opt.some(messageLength.uint32),
       )
     ]
   )

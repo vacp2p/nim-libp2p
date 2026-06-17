@@ -12,5 +12,11 @@ converter toOptString*(a: string): Opt[string] =
 converter toOptBool*(a: bool): Opt[bool] =
   Opt.some(a)
 
+converter toOptUint32*(a: uint32): Opt[uint32] =
+  Opt.some(a)
+
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
+converter toOptMessageId*(a: MessageId): Opt[MessageId] =
   Opt.some(a)

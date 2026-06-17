@@ -35,9 +35,9 @@ proc init*(
     expiresAt: Moment,
 ): T =
   PreambleInfo(
-    messageId: preamble.messageID,
-    messageLength: preamble.messageLength,
-    topicId: preamble.topicID,
+    messageId: preamble.messageID.get(),
+    messageLength: preamble.messageLength.get(),
+    topicId: preamble.topicID.get(),
     sender: sender,
     startsAt: startsAt,
     expiresAt: expiresAt,
