@@ -72,6 +72,9 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out/lib $out/include
     cp build/libp2p.${libExt} $out/lib
     cp build/libp2p.a         $out/lib
+    # libp2p.a references these via {.passl.}; install them so static linking resolves.
+    cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib
+    cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib
     cp cbind/libp2p.h         $out/include
   '';
 }
