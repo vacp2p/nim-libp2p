@@ -495,8 +495,9 @@ proc validateAndRelay(
       addToSendPeers(peersToSendIDontWant)
       # Also exclude the original message publisher so we don't send IDontWant
       # to a peer we won't relay to after the fix below.
-      g.peers.withValue(msg.fromPeer.get(), sourcePeer):
-        peersToSendIDontWant.excl(sourcePeer[])
+      msg.fromPeer.withValue(fromPeer):
+        g.peers.withValue(fromPeer, sourcePeer):
+          peersToSendIDontWant.excl(sourcePeer[])
       g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
@@ -542,8 +543,9 @@ proc validateAndRelay(
     # Also exclude the original message publisher to prevent relaying back to
     # them. This handles the case where the message arrived via an intermediate
     # relay node (e.g., A→B→C: when C relays, it should not send back to A).
-    g.peers.withValue(msg.fromPeer.get(), sourcePeer):
-      toSendPeers.excl(sourcePeer[])
+    msg.fromPeer.withValue(fromPeer):
+      g.peers.withValue(fromPeer, sourcePeer):
+        toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
@@ -696,7 +698,7 @@ method rpcHandler*(
         msgId = shortLog(msgId), peer
       continue
 
-    if (msg.signature.isNone or g.verifySignature) and not msg.verify():
+    if (msg.signature.isSome or g.verifySignature) and not msg.verify():
       debug "Dropping message due to failed signature verification", msg = msg
 
       await g.punishInvalidMessage(peer, msg)
