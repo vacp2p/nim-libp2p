@@ -240,7 +240,7 @@ proc addressMapper(
       addrs.add(peerStore.guessDialableAddr(listenAddr))
   return addrs
 
-method setup*(self: AutonatV2Service, switch: Switch) {.raises: [ServiceSetupError].} =
+method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
   trace "Setting up AutonatV2Service"
 
   self.addressMapper = proc(
