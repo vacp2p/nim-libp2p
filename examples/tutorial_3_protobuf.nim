@@ -10,76 +10,61 @@
 ## messages. Let's start by importing our dependencies, as usual:
 import chronos
 import results # for Opt[T]
+import protobuf_serialization, protobuf_serialization/pkg/results
 
 import libp2p
 
 ## ## Protobuf encoding & decoding
 ## This will be the structure of our messages:
 ## ```protobuf
+## syntax = "proto2";
+## 
 ## message MetricList {
 ##   message Metric {
 ##     string name = 1;
 ##     float value = 2;
 ##   }
 ##
-##   repeated Metric metrics = 2;
+##   repeated Metric metrics = 1;
 ## }
 ## ```
 ## We'll create our protobuf types, encoders & decoders, according to this format.
-## To create the encoders & decoders, we are going to use minprotobuf
-## (included in libp2p).
-##
-## While more modern technics
-## (such as [nim-protobuf-serialization](https://github.com/status-im/nim-protobuf-serialization))
-## exists, minprotobuf is currently the recommended method to handle protobuf, since it has
-## been used in production extensively, and audited.
+## To create the encoders & decoders, we are going to use 
+## [nim-protobuf-serialization](https://github.com/status-im/nim-protobuf-serialization) library.
 type
-  Metric = object
-    name: string
-    value: float
+  Metric {.proto2.} = object
+    name {.fieldNumber: 1.}: Opt[string]
+    value {.fieldNumber: 2.}: Opt[float]
 
-  MetricList = object
-    metrics: seq[Metric]
+  MetricList {.proto2.} = object
+    metrics {.fieldNumber: 1.}: seq[Metric]
 
 {.push raises: [].}
 
-proc encode(m: Metric): ProtoBuffer =
-  var pb = initProtoBuffer()
-  pb.write(1, m.name)
-  pb.write(2, m.value)
-  pb.finish()
-  pb
+proc encode*(c: Metric): seq[byte] =
+  Protobuf.encode(c)
 
-proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
-  var res: Metric
-  let pb = initProtoBuffer(buf)
-  # "getField" will return a Result[bool, ProtoError].
-  # The Result will hold an error if the protobuf is invalid.
-  # The Result will hold "false" if the field is missing
-  #
-  # We are just checking the error, and ignoring whether the value
-  # is present or not (default values are valid).
-  discard ?pb.getField(1, res.name)
-  discard ?pb.getField(2, res.value)
-  ok(res)
+proc decode*(_: type Metric, buf: seq[byte]): Result[Metric, string] =
+  try:
+    let m = Protobuf.decode(buf, Metric)
+    # although `name` and `value` are optional, they should always be set.
+    # ideal place to validate is as soon as Metric is received - decoded.
+    if m.name.isNone:
+      err("invalid Metric received: name must be set")
+    if m.value.isNone:
+      err("invalid Metric received: value must be set")
+    ok(Protobuf.decode(buf, Metric))
+  except SerializationError as e:
+    err("failed to decode Metric from protobuf bytes. " & e.msg)
 
-proc encode(m: MetricList): ProtoBuffer =
-  var pb = initProtoBuffer()
-  for metric in m.metrics:
-    pb.write(1, metric.encode())
-  pb.finish()
-  pb
+proc encode*(c: MetricList): seq[byte] =
+  Protobuf.encode(c)
 
-proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] =
-  var
-    res: MetricList
-    metrics: seq[seq[byte]]
-  let pb = initProtoBuffer(buf)
-  discard ?pb.getRepeatedField(1, metrics)
-
-  for metric in metrics:
-    res.metrics &= ?Metric.decode(metric)
-  ok(res)
+proc decode*(_: type MetricList, buf: seq[byte]): Result[MetricList, string] =
+  try:
+    ok(Protobuf.decode(buf, MetricList))
+  except SerializationError as e:
+    err("failed to decode MetricList from protobuf bytes. " & e.msg)
 
 ## ## Results instead of exceptions
 ## As you can see, this part of the program also uses Results instead of exceptions for error handling.
@@ -117,7 +102,7 @@ proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
       let
         metrics = await res.metricGetter()
         asProtobuf = metrics.encode()
-      await stream.writeLp(asProtobuf.buffer)
+      await stream.writeLp(asProtobuf)
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
     finally:
@@ -151,7 +136,10 @@ proc main() {.async.} =
     var metricList: MetricList
     for i in 0 ..< metricCount + 1:
       metricList.metrics.add(
-        Metric(name: "metric_" & $i, value: float(rng.generate(uint16)) / 1000.0)
+        Metric(
+          name: Opt.some("metric_" & $i),
+          value: Opt.some(float(rng.generate(uint16)) / 1000.0),
+        )
       )
     metricList
 
@@ -174,7 +162,7 @@ proc main() {.async.} =
   await stream.close()
 
   for metric in metrics.metrics:
-    echo metric.name, " = ", metric.value
+    echo metric.name.get(), " = ", metric.value.get()
 
   await allFutures(switch1.stop(), switch2.stop())
     # close connections and shutdown all transports
