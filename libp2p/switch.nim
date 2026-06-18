@@ -52,7 +52,7 @@ type
     muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
-    upgradeFuts: seq[Future[void]] # in-flight per-connection upgradeMonitor tasks
+    upgradeFuts: seq[Future[void]]
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
@@ -302,8 +302,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       conn.transportDir = Direction.In
 
       debug "Accepted an incoming connection", conn
-      s.upgradeFuts.keepItIf(not it.finished())
-      s.upgradeFuts.add(s.upgradeMonitor(transport, conn, upgrades))
+      s.upgradeFuts.trackFut(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
     except CatchableError as exc:

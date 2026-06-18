@@ -34,7 +34,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
-    closeFuts: seq[Future[void]] # per-connection onClose tasks
+    closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
 
@@ -80,8 +80,7 @@ proc connHandler*(
 
   self.clients[dir].add(client)
 
-  self.closeFuts.keepItIf(not it.finished())
-  self.closeFuts.add(onClose())
+  self.closeFuts.trackFut(onClose())
 
   return conn
 

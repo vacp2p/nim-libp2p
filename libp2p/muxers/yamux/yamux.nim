@@ -154,9 +154,9 @@ type
     closedRemotely: AsyncEvent
     closedLocally: bool
     receivedData: AsyncEvent
-    cleanupFut: Future[void] # tracks the muxer-side cleanup task
-    handlerFut: Future[void] # tracks the muxer's streamHandler invocation
-    sendLoopFut: Future[void] # tracks the singleton sendLoop
+    cleanupFut: Future[void]
+    handlerFut: Future[void]
+    sendLoopFut: Future[void]
 
 proc `$`(channel: YamuxChannel): string =
   var str = if channel.conn.dir == Out: "=> " else: "<= "

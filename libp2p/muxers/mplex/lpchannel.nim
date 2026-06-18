@@ -54,9 +54,9 @@ type LPChannel* = ref object of BufferStream
   closeCode*: MessageType # cached in/out close code
   resetCode*: MessageType # cached in/out reset code
   writes*: int # In-flight writes
-  resetMessageFut: Future[void] # tracks fire-and-forget reset message write
-  cleanupFut*: Future[void] # tracks the muxer-side cleanup task
-  handlerFut*: Future[void] # tracks the muxer's streamHandler invocation
+  resetMessageFut: Future[void]
+  cleanupFut*: Future[void]
+  handlerFut*: Future[void]
 
 func shortLog*(s: LPChannel): auto =
   try:

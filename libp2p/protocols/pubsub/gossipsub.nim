@@ -314,9 +314,7 @@ method onPubSubPeerEvent*(
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
   of PubSubPeerEventKind.DisconnectionRequested:
-    # this should unsubscribePeer the peer too
-    p.pendingTasks.keepItIf(not it.finished())
-    p.pendingTasks.add(p.disconnectPeer(peer))
+    p.pendingTasks.trackFut(p.disconnectPeer(peer)) # disconnectPeer also unsubscribes
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -718,8 +716,7 @@ method rpcHandler*(
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    g.pendingTasks.keepItIf(not it.finished())
-    g.pendingTasks.add(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
+    g.pendingTasks.trackFut(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())

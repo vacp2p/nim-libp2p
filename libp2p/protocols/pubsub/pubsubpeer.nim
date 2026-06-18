@@ -177,8 +177,8 @@ type
     maxLowPriorityQueueLen*: int
     disconnected: bool
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
-    connectFut: Future[void] # persistent connector loop
-    sendFuts: seq[Future[void]] # in-flight asynchronous sends
+    connectFut: Future[void]
+    sendFuts: seq[Future[void]]
 
   RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
     async: (raises: [CancelledError])
@@ -407,8 +407,7 @@ proc connect*(p: PubSubPeer) =
 
 proc trackSend*(p: PubSubPeer, fut: Future[void]) =
   ## Take ownership of an in-flight send future on this peer.
-  p.sendFuts.keepItIf(not it.finished())
-  p.sendFuts.add(fut)
+  p.sendFuts.trackFut(fut)
 
 proc hasSendStream*(p: PubSubPeer): bool =
   p.sendStream != nil

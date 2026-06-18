@@ -3,13 +3,13 @@
 
 {.push raises: [].}
 
-import std/[tables, sets, sequtils]
+import std/[tables, sets]
 import chronos, chronicles, metrics
 import chronos/ratelimit
 import "."/[types]
 import ".."/[pubsubpeer]
 import ../rpc/messages
-import "../../.."/[peerid, multiaddress, switch, utils/heartbeat]
+import "../../.."/[peerid, multiaddress, switch, utils/heartbeat, utils/future]
 import ../pubsub
 
 logScope:
@@ -140,8 +140,7 @@ proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
       peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score = peer.score
-    g.pendingTasks.keepItIf(not it.finished())
-    g.pendingTasks.add(g.disconnectPeer(peer))
+    g.pendingTasks.trackFut(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
 
 proc updateScores*(g: GossipSub) = # avoid async

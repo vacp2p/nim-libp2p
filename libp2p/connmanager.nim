@@ -120,9 +120,9 @@ type
     staticTags: Table[PeerId, Table[string, int]]
     decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
     decayLoopFut: Future[void]
-    onCloseFuts: seq[Future[void]] # per-muxer onClose tasks
-    peerEventFuts: seq[Future[void]] # peer-event handler dispatches
-    slotMonitorFuts: seq[Future[void]] # per-slot semaphore monitor tasks
+    onCloseFuts: seq[Future[void]]
+    peerEventFuts: seq[Future[void]]
+    slotMonitorFuts: seq[Future[void]]
 
   ConnectionSlot* = object
     connManager: ConnManager
@@ -459,8 +459,7 @@ proc storeMuxer*(
     if c.muxerStore.countPeers() > c.watermark.get().highWater:
       c.triggerTrim()
 
-  c.onCloseFuts.keepItIf(not it.finished())
-  c.onCloseFuts.add(c.onClose(muxer))
+  c.onCloseFuts.trackFut(c.onClose(muxer))
 
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
@@ -473,8 +472,7 @@ proc storeMuxer*(
   await connectedEvent
 
   if isNewPeer:
-    c.peerEventFuts.keepItIf(not it.finished())
-    c.peerEventFuts.add(
+    c.peerEventFuts.trackFut(
       c.triggerPeerEvents(
         peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
       )
@@ -533,8 +531,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     finally:
       cs.release()
 
-  cs.connManager.slotMonitorFuts.keepItIf(not it.finished())
-  cs.connManager.slotMonitorFuts.add(semaphoreMonitor())
+  cs.connManager.slotMonitorFuts.trackFut(semaphoreMonitor())
 
 proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
   cs.trackConnection(mux.connection)
