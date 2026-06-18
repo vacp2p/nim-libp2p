@@ -35,18 +35,18 @@ proc readFieldInto*(
     false
 
 func computeFieldSizePacked*(
-    field: int, value: Duration, ProtoType: type ProtobufExt
+    field: int, value: seq[Duration], ProtoType: type ProtobufExt
 ): int =
   computeFieldSizePackedIt(field, value, pint64, it.seconds)
 
 proc writeFieldPacked*(
-    stream: OutputStream, field: int, value: Duration, ProtoType: type ProtobufExt
+    stream: OutputStream, field: int, value: seq[Duration], ProtoType: type ProtobufExt
 ) {.raises: [IOError].} =
   writeFieldPackedIt(stream, field, value, pint64, it.seconds)
 
 proc readFieldPackedInto*(
     stream: InputStream,
-    value: var Duration,
+    value: var seq[Duration],
     header: FieldHeader,
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
@@ -82,18 +82,18 @@ proc readFieldInto*(
     false
 
 func computeFieldSizePacked*(
-    field: int, value: Moment, ProtoType: type ProtobufExt
+    field: int, value: seq[Moment], ProtoType: type ProtobufExt
 ): int =
   computeFieldSizePackedIt(field, value, pint64, it.epochSeconds())
 
 proc writeFieldPacked*(
-    stream: OutputStream, field: int, value: Moment, ProtoType: type ProtobufExt
+    stream: OutputStream, field: int, value: seq[Moment], ProtoType: type ProtobufExt
 ) {.raises: [IOError].} =
   writeFieldPackedIt(stream, field, value, pint64, it.epochSeconds())
 
 proc readFieldPackedInto*(
     stream: InputStream,
-    value: var Moment,
+    value: var seq[Moment],
     header: FieldHeader,
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
