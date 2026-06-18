@@ -150,6 +150,63 @@ suite "KadDHT updatePeers address policy":
     check switch.peerStore[AddressBook][remotePeer].len == 0
     check kad.rtable.findClosestPeerIds(remotePeer.toKey(), 1).len == 0
 
+  test "updatePeers enforces IP diversity limits":
+    let switch = makeStandardSwitch(TcpAutoAddress)
+
+    var limits = KadDHTLimits.new(DefaultReplication, DefaultQuorum)
+    limits.maxPeersPerIp = 1
+    limits.maxPeersPerIpv4Subnet = 2
+    limits.maxPeersPerIpv6Subnet = 2
+    let config = KadDHTConfig.new(limits = Opt.some(limits))
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
+    switch.mount(kad)
+
+    let
+      v4PeerA = PeerId.random(rng()).tryGet()
+      v4PeerB = PeerId.random(rng()).tryGet()
+      v4PeerC = PeerId.random(rng()).tryGet()
+      v4PeerD = PeerId.random(rng()).tryGet()
+      v4PeerE = PeerId.random(rng()).tryGet()
+      v6PeerA = PeerId.random(rng()).tryGet()
+      v6PeerB = PeerId.random(rng()).tryGet()
+      v6PeerC = PeerId.random(rng()).tryGet()
+      v6PeerD = PeerId.random(rng()).tryGet()
+      v6PeerE = PeerId.random(rng()).tryGet()
+
+    kad.updatePeers(
+      @[
+        PeerInfo(peerId: v4PeerA, addrs: @[ma("/ip4/8.8.8.1/tcp/4001")]),
+        PeerInfo(peerId: v4PeerB, addrs: @[ma("/ip4/8.8.8.2/tcp/4001")]),
+        PeerInfo(peerId: v4PeerC, addrs: @[ma("/ip4/8.8.8.3/tcp/4001")]),
+        PeerInfo(peerId: v4PeerD, addrs: @[ma("/ip4/1.1.1.1/tcp/4001")]),
+        PeerInfo(peerId: v4PeerE, addrs: @[ma("/ip4/1.1.1.1/tcp/4002")]),
+        PeerInfo(peerId: v6PeerA, addrs: @[ma("/ip6/2001:4860:4860::1/tcp/4001")]),
+        PeerInfo(peerId: v6PeerB, addrs: @[ma("/ip6/2001:4860:4860::2/tcp/4001")]),
+        PeerInfo(peerId: v6PeerC, addrs: @[ma("/ip6/2001:4860:4860::3/tcp/4001")]),
+        PeerInfo(peerId: v6PeerD, addrs: @[ma("/ip6/2606:4700:4700::1111/tcp/4001")]),
+        PeerInfo(peerId: v6PeerE, addrs: @[ma("/ip6/2606:4700:4700::1111/tcp/4002")]),
+      ]
+    )
+
+    let keys = kad.rtable.allKeys()
+    check:
+      v4PeerA.toKey() in keys
+      v4PeerB.toKey() in keys
+      v4PeerC.toKey() notin keys
+      v4PeerD.toKey() in keys
+      v4PeerE.toKey() notin keys
+      v6PeerA.toKey() in keys
+      v6PeerB.toKey() in keys
+      v6PeerC.toKey() notin keys
+      v6PeerD.toKey() in keys
+      v6PeerE.toKey() notin keys
+      switch.peerStore[AddressBook][v4PeerC].len == 0
+      switch.peerStore[AddressBook][v4PeerD].len == 1
+      switch.peerStore[AddressBook][v4PeerE].len == 0
+      switch.peerStore[AddressBook][v6PeerC].len == 0
+      switch.peerStore[AddressBook][v6PeerD].len == 1
+      switch.peerStore[AddressBook][v6PeerE].len == 0
+
 suite "SwitchBuilder withPrivateAddressFilter outbound":
   teardown:
     checkTrackers()
