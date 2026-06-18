@@ -99,7 +99,7 @@ proc decode*[T](
     return err(EnvelopeWrongType)
   if not envelope.verify(T.payloadDomain):
     return err(EnvelopeInvalidSignature)
-  
+
   let
     data = ?T.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
     signedPayload = SignedPayload[T](envelope: envelope, data: data)
