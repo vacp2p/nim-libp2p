@@ -1438,7 +1438,7 @@ type
     help: string
     labels: seq[LabelPair]
     value: float64
-    timestamp: float64
+    timestamp: int64
 
 const UntypedMetricKind = "untyped"
 
@@ -1468,6 +1468,8 @@ proc addMetricEntry(
     labels, labelValues: openArray[string],
     timestamp: Time,
 ) {.gcsafe, raises: [].} =
+  # _created entries are OpenMetrics creation-timestamp metadata that nim-metrics
+  # auto-emits per counter/summary; they carry no measurement, so skip them.
   if name.endsWith("_created"):
     return
   doAssert labels.len == labelValues.len, "metric label count mismatch"
@@ -1480,7 +1482,7 @@ proc addMetricEntry(
     help: help,
     labels: labelPairs,
     value: value,
-    timestamp: timestamp.toUnixFloat(),
+    timestamp: timestamp.toMilliseconds(),
   )
 
 proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] =
