@@ -66,6 +66,12 @@ proc decode*(
     except SerializationError:
       return err(EnvelopeInvalidProtobuf)
 
+  if envelope.publicKey.getBytes().isErr:
+    return err(EnvelopeFieldMissing)
+
+  if envelope.signature.data.len == 0:
+    return err(EnvelopeFieldMissing)
+
   if not envelope.verify(domain):
     return err(EnvelopeInvalidSignature)
 

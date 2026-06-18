@@ -327,8 +327,7 @@ proc advertise*[E](
     info "Can't create the signed peer record", error = error
     return
 
-  let pBuff = signedPeerRecord.encode().valueOr:
-    raise newException(AdvertiseError, "Wrong Custom Peer Record")
+  let pBuff = signedPeerRecord.encode()
   await rdv.advertise(ns, ttl, peers, Opt.some(pBuff))
 
 proc advertise*[E](
