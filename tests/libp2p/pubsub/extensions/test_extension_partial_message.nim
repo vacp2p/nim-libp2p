@@ -88,6 +88,18 @@ proc handlePartialMessage(
 ) =
   ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: Opt.some(rpc)))
 
+proc sendGroupMetadata(
+    ext: PartialMessageExtension, peerId: PeerId, topic, groupId: string
+) =
+  ext.handlePartialMessage(
+    peerId,
+    PartialMessageExtensionRPC(
+      topicID: topic,
+      groupID: groupId.toBytes,
+      partsMetadata: MyPartsMetadata.want(@[1]),
+    ),
+  )
+
 suite "GossipSub Extensions :: Partial Message Extension":
   let peerId = PeerId.random(rng()).get()
   let groupId = "group-id-1".toBytes
@@ -669,3 +681,77 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # because peer already knows the same parts metadata.
     ext.onHeartbeat()
     check cr.sentRPC.len == 1
+
+  test "group store enforces global limit":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 3
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    # distinct peers each adding one group so per-peer cap is not the limiter
+    for i in 0 ..< 10:
+      let p = PeerId.random(rng()).get()
+      ext.sendGroupMetadata(p, topic, "g-" & $i)
+
+    check ext.trackedGroups == 3
+
+  test "group store enforces per-peer limit":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 100
+    cfg.maxPartialGroupsPerPeer = 2
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    for i in 0 ..< 10:
+      ext.sendGroupMetadata(peerId, topic, "g-" & $i)
+
+    # single peer cannot exceed its own budget despite global budget remaining
+    check ext.trackedGroups == 2
+
+    # a different peer still has its own budget
+    let otherPeer = PeerId.random(rng()).get()
+    ext.sendGroupMetadata(otherPeer, topic, "other")
+    check ext.trackedGroups == 3
+
+  test "removing a peer frees its group budget":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 100
+    cfg.maxPartialGroupsPerPeer = 1
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    ext.sendGroupMetadata(peerId, topic, "g-1")
+    ext.sendGroupMetadata(peerId, topic, "g-2") # rejected, peer at budget
+    check ext.trackedGroups == 1
+
+    ext.onRemovePeer(peerId)
+    ext.sendGroupMetadata(peerId, topic, "g-3") # budget reclaimed
+    check ext.trackedGroups == 2
+
+  test "heartbeat eviction frees group budget":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 1
+    cfg.maxPartialGroupsPerPeer = 1
+    cfg.heartbeatsTillEviction = 1
+    var ext = PartialMessageExtension.new(cfg)
+
+    ext.sendGroupMetadata(peerId, topic, "g-1")
+    check ext.trackedGroups == 1
+
+    ext.sendGroupMetadata(peerId, topic, "g-2") # at capacity, rejected
+    check ext.trackedGroups == 1
+
+    # heartbeat reclaims the expired group, freeing both global and per-peer budget
+    ext.onHeartbeat()
+    check ext.trackedGroups == 0
+
+    ext.sendGroupMetadata(peerId, topic, "g-3")
+    check ext.trackedGroups == 1

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import tables, sets, sequtils, chronicles, results
+import tables, sets, sequtils, chronicles, results, metrics
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -9,6 +9,15 @@ import ./[extensions_types, partial_message]
 
 logScope:
   topics = "libp2p partial message"
+
+declareGauge(
+  libp2p_gossipsub_partial_message_groups,
+  "number of partial-message groups currently tracked",
+)
+declareCounter(
+  libp2p_gossipsub_partial_message_groups_dropped,
+  "number of partial-message groups dropped due to configured limits",
+)
 
 type
   TopicOpts* = object
@@ -54,6 +63,9 @@ type
       # needs to be implemented by application.
     heartbeatsTillEviction*: int
       # number of heartbeats for which metadata will be retained before eviction
+    maxPartialGroups*: int = 1000
+      # upper bound on (topic, group) entries; new groups are rejected at the limit
+    maxPartialGroupsPerPeer*: int = 100 # upper bound on groups a single peer can create
 
   PeerGroupState = ref object
     receivedPartsMetadata: Opt[PartsMetadata] # parts metadata peer sent to this node
@@ -63,6 +75,7 @@ type
     peerState: Table[PeerId, PeerGroupState]
     heartbeatsTillEviction: int
     lastPublishedMetadata: PartsMetadata
+    creator: Opt[PeerId] # peer this group was allocated for, none if locally published
 
   PeerTopicKey = object of TableKey
     peerId: PeerId
@@ -76,6 +89,7 @@ type
     config: PartialMessageExtensionConfig
     groupState: Table[TopicGroupKey, GroupState]
     peerTopicOpts: Table[PeerTopicKey, TopicOpts]
+    peerGroupCount: Table[PeerId, int] # groups allocated per peer, keyed by creator
 
 proc new(T: typedesc[PeerTopicKey], peerId: PeerId, topic: string): PeerTopicKey =
   PeerTopicKey(key: TableKey.makeKey(peerId, topic), peerId: peerId, topic: topic)
@@ -96,6 +110,8 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.validateRPC != nil, msg("validateRPC"))
   doAssert(config.onIncomingRPC != nil, msg("onIncomingRPC"))
   doAssert(config.heartbeatsTillEviction >= 1, msg("heartbeatsTillEviction"))
+  doAssert(config.maxPartialGroups >= 1, msg("maxPartialGroups"))
+  doAssert(config.maxPartialGroupsPerPeer >= 1, msg("maxPartialGroupsPerPeer"))
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
@@ -114,20 +130,64 @@ proc peerRequestsPartial*(
   let opt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(peerId, topic))
   return opt.requestsPartial
 
+proc updateGroupCountMetric(ext: PartialMessageExtension) =
+  libp2p_gossipsub_partial_message_groups.set(ext.groupState.len.int64)
+
+proc releasePeerGroup(ext: PartialMessageExtension, peerId: PeerId) =
+  let count = ext.peerGroupCount.getOrDefault(peerId)
+  if count <= 1:
+    ext.peerGroupCount.del(peerId)
+    return
+  ext.peerGroupCount[peerId] = count - 1
+
+proc evictGroup(ext: PartialMessageExtension, key: TopicGroupKey) =
+  let group = ext.groupState.getOrDefault(key)
+  if group.isNil():
+    return
+  group.creator.withValue(creator):
+    ext.releasePeerGroup(creator)
+  ext.groupState.del(key)
+
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
-  # reduce heartbeatsTillEviction and remove groups that hit 0
   var toRemove: seq[TopicGroupKey] = @[]
   for key, group in ext.groupState.mpairs:
     group.heartbeatsTillEviction.dec
     if group.heartbeatsTillEviction <= 0:
       toRemove.add(key)
   for key in toRemove:
-    ext.groupState.del(key)
+    ext.evictGroup(key)
+  ext.updateGroupCountMetric()
 
-template getGroupState(
+proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
-  ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
+  let group = ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
+  ext.updateGroupCountMetric()
+  group
+
+proc acquireGroupState(
+    ext: PartialMessageExtension, peerId: PeerId, topic: string, groupId: GroupId
+): GroupState =
+  ## Returns the existing group for (topic, groupId), or allocates one for peerId.
+  ## Returns nil when a new group would exceed the global or per-peer limit.
+  let key = TopicGroupKey.new(topic, groupId)
+  let existing = ext.groupState.getOrDefault(key)
+  if not existing.isNil():
+    return existing
+
+  if ext.groupState.len >= ext.config.maxPartialGroups or
+      ext.peerGroupCount.getOrDefault(peerId) >= ext.config.maxPartialGroupsPerPeer:
+    libp2p_gossipsub_partial_message_groups_dropped.inc()
+    return nil
+
+  let group = GroupState(creator: Opt.some(peerId))
+  ext.groupState[key] = group
+  ext.peerGroupCount[peerId] = ext.peerGroupCount.getOrDefault(peerId) + 1
+  ext.updateGroupCountMetric()
+  group
+
+proc trackedGroups*(ext: PartialMessageExtension): int =
+  ext.groupState.len
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
@@ -203,6 +263,10 @@ method onRemovePeer*(
   # remove peer data from _groupState_
   for key, group in ext.groupState:
     group.peerState.del(peerId)
+    group.creator.withValue(creator):
+      if creator == peerId:
+        group.creator = Opt.none(PeerId)
+  ext.peerGroupCount.del(peerId)
 
   # remove peer subscription options from _peerTopicOpts_
   var toRemove: seq[PeerTopicKey] = @[]
@@ -250,6 +314,18 @@ proc shouldHandlePartialRPC(
     ext.groupState.getOrDefault(TopicGroupKey.new(rpc.topicID, rpc.groupID))
   groupState != nil and groupState.hasPublished()
 
+proc recordReceivedMetadata(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
+) =
+  if rpc.partsMetadata.len == 0:
+    return
+  let groupState = ext.acquireGroupState(peerId, rpc.topicID, rpc.groupID)
+  if groupState.isNil():
+    return
+  var peerState = groupState.getPeerState(peerId)
+  peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
+  groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
+
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
@@ -263,11 +339,7 @@ proc handlePartialRPC(
     debug "RPC did not pass application validation", msg = validateRes.error
     return
 
-  if rpc.partsMetadata.len > 0:
-    var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
-    var peerState = groupState.getPeerState(peerId)
-    peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
-    groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
+  ext.recordReceivedMetadata(peerId, rpc)
 
   if shouldHandlePartialRPC(ext, peerId, rpc):
     ext.config.onIncomingRPC(peerId, rpc)
