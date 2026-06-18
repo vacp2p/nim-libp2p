@@ -5,7 +5,16 @@
 
 import std/[tables, sequtils]
 import chronos
-import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
+import
+  ../../libp2p/[
+    crypto/crypto,
+    multiaddress,
+    peerid,
+    peerstore,
+    protocols/identify,
+    routing_record,
+    utils/opt,
+  ]
 import ../tools/[unittest, crypto]
 
 suite "PeerStore":
@@ -27,6 +36,24 @@ suite "PeerStore":
     multiaddr2 = MultiAddress.init(multiaddrStr2).get()
     testcodec2 = "/nim/libp2p/test/0.0.2-beta1"
 
+  proc makeSignedPeerRecord(
+      privateKey: PrivateKey, peerId: PeerId, addrs: seq[MultiAddress], seqNo: uint64
+  ): SignedPeerRecord =
+    SignedPeerRecord.init(privateKey, PeerRecord.init(peerId, addrs, seqNo)).tryGet()
+
+  proc storedPeerRecord(peerStore: PeerStore, peerId: PeerId): PeerRecord =
+    let encoded = peerStore[SPRBook][peerId].encode().tryGet()
+    SignedPeerRecord.decode(encoded).tryGet().data
+
+  proc checkStoredPeerRecord(
+      peerStore: PeerStore, peerId: PeerId, seqNo: uint64, address: MultiAddress
+  ) =
+    let stored = peerStore.storedPeerRecord(peerId)
+    check:
+      stored.seqNo == seqNo
+      stored.addresses.len == 1
+      stored.addresses[0].address == address
+
   test "PeerStore API":
     # Set up peer store
     var peerStore = PeerStore.new(nil)
@@ -44,6 +71,60 @@ suite "PeerStore":
     check peerId1 notin peerStore[AddressBook]
     # Now try and del it again
     peerStore.del(peerId1)
+
+  test "updatePeerInfo stores and updates only fresh signed peer records":
+    let
+      peerStore = PeerStore.new(nil)
+      initial = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr1], 10)
+      lower = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr2], 9)
+      same = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr2], 10)
+      higher = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr2], 11)
+
+    peerStore.updatePeerInfo(
+      IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(initial.envelope))
+    )
+    peerStore.checkStoredPeerRecord(peerId1, 10, multiaddr1)
+
+    for stale in [lower, same]:
+      peerStore.updatePeerInfo(
+        IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(stale.envelope))
+      )
+      peerStore.checkStoredPeerRecord(peerId1, 10, multiaddr1)
+
+    peerStore.updatePeerInfo(
+      IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(higher.envelope))
+    )
+    peerStore.checkStoredPeerRecord(peerId1, 11, multiaddr2)
+
+  test "updatePeerInfo ignores invalid signed peer records":
+    let
+      peerStore = PeerStore.new(nil)
+      valid = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr1], 10)
+      wrongPeer = makeSignedPeerRecord(keyPair2.seckey, peerId2, @[multiaddr2], 11)
+      wrongKey = makeSignedPeerRecord(keyPair2.seckey, peerId1, @[multiaddr2], 12)
+
+    peerStore.updatePeerInfo(
+      IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(valid.envelope))
+    )
+
+    for invalid in [wrongPeer, wrongKey]:
+      peerStore.updatePeerInfo(
+        IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(invalid.envelope))
+      )
+      peerStore.checkStoredPeerRecord(peerId1, 10, multiaddr1)
+
+  test "updatePeerInfo replaces malformed existing signed peer record":
+    let
+      peerStore = PeerStore.new(nil)
+      malformed = makeSignedPeerRecord(keyPair2.seckey, peerId1, @[multiaddr2], 20)
+      valid = makeSignedPeerRecord(keyPair1.seckey, peerId1, @[multiaddr1], 1)
+
+    peerStore[SPRBook][peerId1] = malformed.envelope
+    peerStore.updatePeerInfo(
+      IdentifyInfo(peerId: peerId1, signedPeerRecord: Opt.some(valid.envelope))
+    )
+
+    peerStore.checkStoredPeerRecord(peerId1, 1, multiaddr1)
 
   test "PeerStore listeners":
     # Set up peer store with listener

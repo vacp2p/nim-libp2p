@@ -8,7 +8,8 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+# A real log call keeps the chronicles import used; it declares activeChroniclesStream.
+trace "kademlia limits tests loaded"
 
 suite "KadDHT - Limits":
   teardown:

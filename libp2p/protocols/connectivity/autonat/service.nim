@@ -198,7 +198,7 @@ proc addressMapper(
     addrs.add(processedMA)
   return addrs
 
-method setup*(self: AutonatService, switch: Switch) {.raises: [ServiceSetupError].} =
+method setup*(self: AutonatService, switch: Switch) {.raises: [].} =
   info "Setting up AutonatService"
 
   self.addressMapper = proc(

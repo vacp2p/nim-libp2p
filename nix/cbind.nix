@@ -31,9 +31,7 @@ pkgs.stdenv.mkDerivation {
     pkgs.git
     pkgs.nimble
   ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-    # miniupnpc's Darwin Makefile archives via `LIBTOOL ?= $(shell which libtool)`.
-    # cctools supplies Apple's `libtool`; `which` lets the lookup resolve it.
-    # Without both, LIBTOOL collapses to empty and no .a is produced.
+    # miniupnpc's Darwin Makefile archives via `LIBTOOL ?= $(shell which libtool)`; cctools supplies it, which resolves it.
     pkgs.cctools
     pkgs.which
   ];
@@ -47,13 +45,11 @@ pkgs.stdenv.mkDerivation {
     mkdir -p build $NIMCACHE
 
     echo "== Building nat_traversal vendored C libs =="
-    # nat_traversal emits {.passl: <pkgRoot>/vendor/.../lib*.a.}; the store copy
-    # is read-only, so stage a writable copy and build the .a files in place.
+    # nat_traversal's {.passl: <pkgRoot>/vendor/.../lib*.a.} needs a writable copy: the store is read-only.
     NAT_PKG=$TMPDIR/nat_traversal
     cp -r ${deps.nat_traversal} $NAT_PKG
     chmod -R +w $NAT_PKG
-    # The vendored Makefiles default to CC=gcc, absent on the Darwin stdenv;
-    # forward $CC (wrapped gcc on Linux, clang on Darwin).
+    # Forward $CC; the vendored Makefiles default to CC=gcc, absent on the Darwin stdenv.
     make -C $NAT_PKG/vendor/miniupnp/miniupnpc \
       CC="$CC" CFLAGS="-Os -fPIC" build/libminiupnpc.a
     make -C $NAT_PKG/vendor/libnatpmp-upstream \
@@ -76,6 +72,9 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out/lib $out/include
     cp build/libp2p.${libExt} $out/lib
     cp build/libp2p.a         $out/lib
+    # libp2p.a references these via {.passl.}; install them so static linking resolves.
+    cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib
+    cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib
     cp cbind/libp2p.h         $out/include
   '';
 }
