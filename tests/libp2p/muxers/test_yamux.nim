@@ -513,6 +513,30 @@ suite "Yamux":
           header.length == GoAwayStatus.ProtocolError.uint32
           not yamuxb.channels.hasKey(badHeader.streamId)
 
+    asyncTest "Cleanup caps retained flushed budgets and evicts oldest ids":
+      mSetup(startHandlera = false, startHandlerb = false)
+      yamuxb.maxChannCount = 2
+
+      for streamId in [11'u32, 13'u32, 15'u32]:
+        let stream =
+          yamuxb.createStream(streamId, false, YamuxDefaultWindowSize, MaxSendQueueSize)
+        stream.isReset = true
+        stream.recvWindow = streamId.int
+        stream.closedRemotely.fire()
+        await stream.close()
+
+        checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+          streamId notin yamuxb.channels
+
+      check:
+        yamuxb.flushed.len == 2
+        11'u32 notin yamuxb.flushed
+        13'u32 in yamuxb.flushed
+        15'u32 in yamuxb.flushed
+        yamuxb.flushed[13'u32] == 13
+        yamuxb.flushed[15'u32] == 15
+        yamuxb.flushedOrder == @[13'u32, 15'u32]
+
     asyncTest "Flush unknown-stream Data up to budget then ProtocolError when exceeded":
       # Cover the flush path: streamId not in channels, no Syn, with a pre-seeded
       # flush budget in yamuxb.flushed. First frame should be flushed (no GoAway),
@@ -535,3 +559,16 @@ suite "Yamux":
         header.msgType == GoAway
         header.flags == {}
         header.length == GoAwayStatus.ProtocolError.uint32
+
+    asyncTest "Flush unknown-stream Data removes budget when exactly drained":
+      mSetup(startHandlera = false)
+
+      let streamId = 11'u32
+      yamuxb.rememberFlushed(streamId, 3)
+
+      await conna.write(YamuxHeader.data(streamId = streamId, length = 3))
+      await conna.write(fromHex("010203"))
+
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+        streamId notin yamuxb.flushed
+        streamId notin yamuxb.flushedOrder
