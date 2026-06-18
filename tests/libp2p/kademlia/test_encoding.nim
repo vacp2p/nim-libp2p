@@ -39,7 +39,7 @@ suite "KadDHT Protobuffers":
   test "peer with empty addr list and no connection":
     let peer = Peer(
       id: @[0x42'u8],
-      addrs: Opt.none(seq[MultiAddress]),
+      addrs: @[],
       connection: Opt.none(ConnectionStatus),
     )
     let encoded = peer.encode()
