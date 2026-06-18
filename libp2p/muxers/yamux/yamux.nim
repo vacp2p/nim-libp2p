@@ -460,6 +460,7 @@ method getWrapped*(channel: YamuxChannel): Connection =
 type Yamux* = ref object of Muxer
   channels: Table[uint32, YamuxChannel]
   flushed: Table[uint32, int]
+  flushedOrder: seq[uint32]
   currentId: uint32
   isClosed: bool
   maxChannCount: int
@@ -472,6 +473,23 @@ when defined(libp2p_yamux_metrics):
   proc lenBySrc(m: Yamux, isSrc: bool): int =
     m.channels.values.countIt(it.isSrc == isSrc)
 
+proc forgetFlushed(m: Yamux, id: uint32) =
+  m.flushed.del(id)
+  let index = m.flushedOrder.find(id)
+  if index >= 0:
+    m.flushedOrder.delete(index)
+
+proc rememberFlushed(m: Yamux, id: uint32, recvWindow: int) =
+  let maxFlushed = max(m.maxChannCount, 0)
+  if id notin m.flushed:
+    m.flushedOrder.add(id)
+  m.flushed[id] = recvWindow
+
+  while m.flushedOrder.len > maxFlushed:
+    let oldest = m.flushedOrder[0]
+    m.flushedOrder.delete(0)
+    m.flushed.del(oldest)
+
 proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   try:
     await channel.join()
@@ -483,7 +501,7 @@ proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
       m.lenBySrc(channel.isSrc).int64, [$channel.isSrc, $channel.peerId]
     )
   if channel.isReset and channel.recvWindow > 0:
-    m.flushed[channel.id] = channel.recvWindow
+    m.rememberFlushed(channel.id, channel.recvWindow)
 
 proc createStream(
     m: Yamux, id: uint32, isSrc: bool, recvWindow: int, maxSendQueueSize: int
@@ -610,8 +628,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           if header.streamId in m.channels:
             debug "Trying to create an existing channel, skipping", id = header.streamId
           else:
-            if header.streamId in m.flushed:
-              m.flushed.del(header.streamId)
+            m.forgetFlushed(header.streamId)
 
             if header.streamId mod 2 == m.currentId mod 2:
               debug "Peer used our reserved stream id, skipping",
@@ -630,6 +647,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             newStream.handlerFut = m.handleStream(newStream)
         elif header.streamId notin m.channels:
           # Flush the data
+          var flushedDrained = false
           m.flushed.withValue(header.streamId, flushed):
             if header.msgType == Data:
               flushed[].dec(int(header.length))
@@ -639,6 +657,10 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               if header.length > 0:
                 var buffer = newSeqUninit[byte](header.length)
                 await m.connection.readExactly(addr buffer[0], int(header.length))
+              flushedDrained = flushed[] == 0
+
+          if flushedDrained:
+            m.forgetFlushed(header.streamId)
 
           # If we do not have a stream, likely we sent a RST and/or closed the stream
           trace "unknown stream id", id = header.streamId

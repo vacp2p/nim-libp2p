@@ -54,7 +54,7 @@ proc reserveAndUpdate(
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(self: AutoRelayService, switch: Switch) {.raises: [ServiceSetupError].} =
+method setup*(self: AutoRelayService, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =

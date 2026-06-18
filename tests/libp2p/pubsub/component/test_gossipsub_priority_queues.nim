@@ -9,10 +9,11 @@ import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 type MockSendStream* = ref object of Connection
-  ## Send stream whose writes never finish, so a peer's send queues fill up.
-  ## Closing it fails the pending writes.
-  writes*: seq[seq[byte]] # payloads written, in order
+  ## Records every write in order. The first `stallCount` writes stay pending.
+  ## Later writes complete at once. Closing fails any pending write.
+  writes*: seq[seq[byte]] # messages written, in order
   pendingWrites: seq[Future[void].Raising([CancelledError, LPStreamError])]
+  stallCount: int
 
 method writeLp*(
     s: MockSendStream, msg: openArray[byte]
@@ -20,7 +21,10 @@ method writeLp*(
   s.writes.add(@msg)
   let fut =
     Future[void].Raising([CancelledError, LPStreamError]).init("MockSendStream.writeLp")
-  s.pendingWrites.add(fut)
+  if s.pendingWrites.len >= s.stallCount:
+    fut.complete()
+  else:
+    s.pendingWrites.add(fut)
   fut
 
 method getWrapped*(s: MockSendStream): Connection =
@@ -32,14 +36,25 @@ method closeImpl*(s: MockSendStream) {.async: (raises: []).} =
       fut.fail(newLPStreamClosedError())
   await procCall Connection(s).closeImpl()
 
-proc stallSendStream*(node: GossipSub, topic: string, peerId: PeerId): MockSendStream =
+proc releasePendingWrites*(s: MockSendStream) {.raises: [].} =
+  for fut in s.pendingWrites:
+    if not fut.finished:
+      fut.complete()
+
+proc stallSendStream*(
+    node: GossipSub, topic: string, peerId: PeerId, stallCount: int = int.high
+): MockSendStream =
   ## Point `node`'s send stream for `peerId` at a stall stream so its outbound queues fill up.
   ## The replaced stream is left open on purpose: if it closed, the peer would
   ## dial a new stream and overwrite the stall stream. It is closed at teardown.
-  let mock = MockSendStream(dir: Direction.Out, timeout: 0.milliseconds)
+  let mock =
+    MockSendStream(dir: Direction.Out, timeout: 0.milliseconds, stallCount: stallCount)
   mock.initStream()
   node.getPeerByPeerId(topic, peerId).sendStream = mock
   mock
+
+proc message(n: byte): seq[byte] =
+  @[n, n, n]
 
 suite "GossipSub Component - Priority Queues":
   const topic = "foobar"
@@ -49,7 +64,7 @@ suite "GossipSub Component - Priority Queues":
 
   asyncTest "High-priority queue overflow disconnects the peer":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
-    # Small cap so two pending sends fill the high-priority queue.
+    # Small cap so two pending high messages fill the high-priority queue.
     nodes[0].parameters.maxHighPriorityQueueLen = 2
 
     startAndDeferStop(nodes)
@@ -64,17 +79,17 @@ suite "GossipSub Component - Priority Queues":
     let peer = nodes[0].getPeerByPeerId(topic, peerId)
     let penaltyBefore = peer.slowPeerPenalty
 
-    let msg = @[1'u8, 2, 3]
-    # Two pending high sends fill the high-priority queue to its cap.
+    let msg = message(1)
+    # Two pending high messages fill the high-priority queue to its cap.
     let f1 = peer.sendEncoded(msg, MessagePriority.High)
     let f2 = peer.sendEncoded(msg, MessagePriority.High)
     check:
       f1.finished
       f2.finished
-    # The third send finds the queue full and asks to disconnect the peer.
+    # The third high message finds the queue full and disconnects the peer.
     await peer.sendEncoded(msg, MessagePriority.High)
 
-    # Only the first two sends were written; the third disconnected instead.
+    # Only the first two high messages were written; the third disconnected instead.
     check:
       mock.writes.len == 2
       peer.slowPeerPenalty == penaltyBefore
@@ -102,18 +117,16 @@ suite "GossipSub Component - Priority Queues":
     let peer = nodes[0].getPeerByPeerId(topic, peerId)
     let penaltyBefore = peer.slowPeerPenalty
 
-    # Send one high message. Its write stays pending on the stalled stream and
-    # sits in the high-priority queue, so the queue is non-empty and the medium
-    # messages are queued instead of sent at once as high.
-    # sendEncoded itself returns an already-completed future.
-    check peer.sendEncoded(@[9'u8, 9, 9], MessagePriority.High).finished
+    # A pending high message keeps the high-priority queue non-empty, so the
+    # medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
 
     # maxMedium = 2: the first two are queued, the third overflows and is dropped.
     for i in 0 ..< 3:
-      check peer.sendEncoded(@[byte(i), 0, 0], MessagePriority.Medium).finished
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
 
     check:
-      # Only the high send was written, the medium messages stayed queued or dropped.
+      # Only the high message was written; the medium messages were queued or dropped.
       mock.writes.len == 1
       peer.slowPeerPenalty == penaltyBefore + 1.0 # one message dropped
       peer.connected
@@ -139,20 +152,143 @@ suite "GossipSub Component - Priority Queues":
     let peer = nodes[0].getPeerByPeerId(topic, peerId)
     let penaltyBefore = peer.slowPeerPenalty
 
-    # Send one high message. Its write stays pending on the stalled stream and
-    # sits in the high-priority queue, so the queue is non-empty and the low
-    # messages are queued instead of sent at once as high.
-    # sendEncoded itself returns an already-completed future.
-    check peer.sendEncoded(@[9'u8, 9, 9], MessagePriority.High).finished
+    # A pending high message keeps the high-priority queue non-empty, so the
+    # low messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
 
     # maxLow = 2: the first two are queued, the third overflows and is dropped.
     for i in 0 ..< 3:
-      check peer.sendEncoded(@[byte(i), 0, 0], MessagePriority.Low).finished
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Low).finished
 
     check:
-      # Only the high send was written, the low messages stayed queued or dropped.
+      # Only the high message was written; the low messages were queued or dropped.
       mock.writes.len == 1
       peer.slowPeerPenalty == penaltyBefore + 1.0 # one message dropped
       peer.connected
       nodes[0].switch.isConnected(peerId)
       nodes[0].mesh.hasPeerId(topic, peerId)
+
+  asyncTest "Messages are sent in priority order: high, then medium, then low":
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+    # Caps high enough that nothing overflows, only ordering is tested.
+    nodes[0].parameters.maxMediumPriorityQueueLen = 4
+    nodes[0].parameters.maxLowPriorityQueueLen = 4
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+    checkUntilTimeout:
+      nodes[0].mesh.hasPeerId(topic, peerId)
+
+    let mock = stallSendStream(nodes[0], topic, peerId, stallCount = 1)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    let highMsgs = @[message(0), message(1)]
+    let mediumMsgs = @[message(10), message(11)]
+    let lowMsgs = @[message(20), message(21)]
+
+    # A pending high message keeps the high-priority queue non-empty, so the
+    # medium and low messages are queued rather than sent at once.
+    check peer.sendEncoded(highMsgs[0], MessagePriority.High).finished
+
+    check mock.writes == @[highMsgs[0]]
+
+    # Interleave the sends so the order proves priority precedence, not send order.
+    check:
+      peer.sendEncoded(mediumMsgs[0], MessagePriority.Medium).finished
+      peer.sendEncoded(lowMsgs[0], MessagePriority.Low).finished
+      peer.sendEncoded(mediumMsgs[1], MessagePriority.Medium).finished
+      peer.sendEncoded(lowMsgs[1], MessagePriority.Low).finished
+
+    # A further high message is written ahead of the queued medium and low messages.
+    check peer.sendEncoded(highMsgs[1], MessagePriority.High).finished
+
+    check mock.writes == highMsgs
+
+    # Releasing the high message lets the queues drain: all medium, then all low.
+    mock.releasePendingWrites()
+
+    checkUntilTimeout:
+      mock.writes == highMsgs & mediumMsgs & lowMsgs
+
+  asyncTest "Persistently slow peer is penalized and pruned":
+    let nodes =
+      generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
+    # Aggressive slow-peer scoring so any penalty drives the score negative.
+    for node in nodes:
+      node.parameters.slowPeerPenaltyWeight = -10.0
+      node.parameters.slowPeerPenaltyThreshold = 0.0
+      node.parameters.slowPeerPenaltyDecay = 0.9
+    # Small cap so the medium queue overflows quickly.
+    nodes[0].parameters.maxMediumPriorityQueueLen = 2
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+    # The peer must be in the mesh first, so the later prune is a real removal.
+    checkUntilTimeout:
+      nodes[0].mesh.hasPeerId(topic, peerId)
+
+    let mock = stallSendStream(nodes[0], topic, peerId)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    # A pending high message keeps the high-priority queue non-empty,
+    # so the medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
+
+    # the first two are queued, the next three are dropped
+    for i in 0 ..< 5:
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
+    check peer.slowPeerPenalty == 3.0
+
+    # The penalty makes the peer's score negative, so it is pruned from the mesh.
+    checkUntilTimeout:
+      nodes[0].getPeerScore(peerId) < 0.0
+      not nodes[0].mesh.hasPeerId(topic, peerId)
+
+  asyncTest "Transiently slow peer recovers and is not pruned":
+    let nodes =
+      generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
+    for node in nodes:
+      node.parameters.slowPeerPenaltyWeight = -10.0
+      # Threshold above the transient penalty, so it never affects the score.
+      node.parameters.slowPeerPenaltyThreshold = 2.0
+      node.parameters.slowPeerPenaltyDecay = 0.5
+    nodes[0].parameters.maxMediumPriorityQueueLen = 2
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+
+    let mock = stallSendStream(nodes[0], topic, peerId)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    # A pending high message keeps the high-priority queue non-empty,
+    # so the medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
+
+    # the first two are queued, the third is dropped
+    for i in 0 ..< 3:
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
+    check peer.slowPeerPenalty == 1.0
+
+    # The penalty stays below the threshold, so it never affects the score, and
+    # decay returns it to zero over heartbeats. The peer is never pruned.
+    checkUntilTimeout:
+      peer.slowPeerPenalty == 0.0
+    check nodes[0].mesh.hasPeerId(topic, peerId)

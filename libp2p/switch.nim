@@ -68,10 +68,14 @@ type
     ## Service is internal component of Switch. Service is automatically started and stopped
     ## when the Switch starts and stops.
 
+{.push hint[XCannotRaiseY]: off.}
+  # Base setup keeps `raises: [ServiceSetupError]` to match overrides.
 method setup*(
     self: Service, switch: Switch
 ) {.base, gcsafe, raises: [ServiceSetupError].} =
   raiseAssert "[Service.setup] abstract method not implemented!"
+
+{.pop.}
 
 method start*(
     self: Service, switch: Switch
