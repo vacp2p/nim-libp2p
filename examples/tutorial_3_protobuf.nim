@@ -41,19 +41,23 @@ type
 
 {.push raises: [].}
 
-proc encode*(c: Metric): seq[byte] =
-  Protobuf.encode(c)
+func validate(m: Metric): Result[void, string] =
+  # although `name` and `value` are optional, they should always be set.
+  if m.name.isNone:
+    return err("invalid Metric: Metric.name must be set")
+  if m.value.isNone:
+    return err("invalid Metric: Metric.value must be set")
+  ok()
+
+proc encode*(m: Metric): seq[byte] =
+  Protobuf.encode(m)
 
 proc decode*(_: type Metric, buf: seq[byte]): Result[Metric, string] =
   try:
     let m = Protobuf.decode(buf, Metric)
-    # although `name` and `value` are optional, they should always be set.
-    # ideal place to validate is as soon as Metric is received - decoded.
-    if m.name.isNone:
-      err("invalid Metric received: name must be set")
-    if m.value.isNone:
-      err("invalid Metric received: value must be set")
-    ok(Protobuf.decode(buf, Metric))
+    # any metrics that is received (decoded) should be valid
+    ?m.validate()
+    ok(m)
   except SerializationError as e:
     err("failed to decode Metric from protobuf bytes. " & e.msg)
 
