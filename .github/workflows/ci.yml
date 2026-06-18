@@ -83,6 +83,14 @@ jobs:
         with:
           submodules: true
 
+      - name: Exclude workspace from Defender (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath "$Env:RUNNER_TEMP"
+
       - name: Select Nimble version
         if: matrix.nim.nimble_commit != ''
         shell: bash
@@ -183,6 +191,13 @@ jobs:
           if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
             TEST_JOBS=2
           fi
+
+          # Total C-compiler concurrency is TEST_JOBS * parallelBuild; split ncpu
+          # across the lanes so the product stays near ncpu instead of squaring it.
+          ncpu=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
+          PARALLEL_BUILD=$(( ncpu / TEST_JOBS ))
+          [[ $PARALLEL_BUILD -lt 1 ]] && PARALLEL_BUILD=1
+          export NIMFLAGS="${NIMFLAGS} --parallelBuild:$PARALLEL_BUILD"
           make TEST_JOBS=$TEST_JOBS test
 
       - name: Fix xml newlines
