@@ -7,7 +7,8 @@
 
 import std/sugar
 import pkg/stew/byteutils, pkg/results
-import multicodec, crypto/crypto, protobuf/minprotobuf, vbuffer
+import multicodec, crypto/crypto, vbuffer
+import protobuf_serialization
 
 export crypto
 
@@ -18,45 +19,20 @@ type
     EnvelopeInvalidSignature
     EnvelopeWrongType
 
-  Envelope* = object
-    publicKey*: PublicKey
-    domain*: string
-    payloadType*: seq[byte]
-    payload: seq[byte]
-    signature*: Signature
+  Envelope* {.proto3.} = object
+    publicKey* {.fieldNumber: 1, ext.}: PublicKey
+    payloadType* {.fieldNumber: 2.}: seq[byte]
+    payload {.fieldNumber: 3.}: seq[byte]
+    signature* {.fieldNumber: 5, ext.}: Signature
 
-proc mapProtobufError(e: ProtoError): EnvelopeError =
-  case e
-  of RequiredFieldMissing: EnvelopeFieldMissing
-  else: EnvelopeInvalidProtobuf
-
-proc getSignatureBuffer(e: Envelope): seq[byte] =
+proc getSignatureBuffer(e: Envelope, domain: string): seq[byte] =
   var buffer = initVBuffer()
 
-  let domainBytes = e.domain.toBytes()
-  buffer.writeSeq(domainBytes)
+  buffer.writeSeq(domain.toBytes())
   buffer.writeSeq(e.payloadType)
   buffer.writeSeq(e.payload)
 
   buffer.buffer
-
-proc decode*(
-    T: typedesc[Envelope], buf: sink seq[byte], domain: string
-): Result[Envelope, EnvelopeError] =
-  let pb = initProtoBuffer(move(buf))
-  var envelope = Envelope()
-
-  envelope.domain = domain
-  ?pb.getRequiredField(1, envelope.publicKey).mapErr(mapProtobufError)
-  discard ?pb.getField(2, envelope.payloadType).mapErr(mapProtobufError)
-  ?pb.getRequiredField(3, envelope.payload).mapErr(mapProtobufError)
-  ?pb.getRequiredField(5, envelope.signature).mapErr(mapProtobufError)
-
-  if envelope.signature.verify(envelope.getSignatureBuffer(), envelope.publicKey) ==
-      false:
-    err(EnvelopeInvalidSignature)
-  else:
-    ok(envelope)
 
 proc init*(
     T: typedesc[Envelope],
@@ -67,49 +43,37 @@ proc init*(
 ): Result[Envelope, CryptoError] =
   var envelope = Envelope(
     publicKey: ?privateKey.getPublicKey(),
-    domain: domain,
     payloadType: move(payloadType),
     payload: move(payload),
   )
 
-  envelope.signature = ?privateKey.sign(envelope.getSignatureBuffer())
+  envelope.signature = ?privateKey.sign(envelope.getSignatureBuffer(domain))
 
   ok(envelope)
 
-proc encode*(env: Envelope): Result[seq[byte], CryptoError] =
-  var pb = initProtoBuffer()
+proc verify*(envelope: Envelope, domain: string): bool =
+  envelope.signature.verify(envelope.getSignatureBuffer(domain), envelope.publicKey)
 
-  try:
-    pb.write(1, env.publicKey)
-    pb.write(2, env.payloadType)
-    pb.write(3, env.payload)
-    pb.write(5, env.signature)
-  except ResultError[CryptoError] as exc:
-    return err(exc.error)
+proc encode*(envelope: Envelope): seq[byte] =
+  Protobuf.encode(envelope)
 
-  pb.finish()
-  ok(pb.buffer)
+proc decode*(
+    _: type Envelope, buf: seq[byte], domain: string
+): Result[Envelope, EnvelopeError] =
+  let envelope =
+    try:
+      Protobuf.decode(buf, Envelope)
+    except SerializationError:
+      return err(EnvelopeInvalidProtobuf)
 
-proc payload*(env: Envelope): seq[byte] =
+  if not envelope.verify(domain):
+    return err(EnvelopeInvalidSignature)
+
+  ok(envelope)
+
+proc payload*(envelope: Envelope): seq[byte] =
   # Payload is readonly
-  env.payload
-
-proc getField*(
-    pb: ProtoBuffer, field: int, value: var Envelope, domain: string
-): ProtoResult[bool] =
-  var buffer: seq[byte]
-  let res = ?pb.getField(field, buffer)
-  if not (res):
-    ok(false)
-  else:
-    value = Envelope.decode(move(buffer), domain).valueOr:
-      return err(ProtoError.IncorrectBlob)
-    ok(true)
-
-proc write*(pb: var ProtoBuffer, field: int, env: Envelope): Result[void, CryptoError] =
-  let e = ?env.encode()
-  pb.write(field, e)
-  ok()
+  envelope.payload
 
 type SignedPayload*[T] = object
   # T needs to have .encode(), .decode(), .payloadType(), .payloadDomain()
@@ -126,30 +90,19 @@ proc init*[T](
 
   ok(SignedPayload[T](data: data, envelope: envelope))
 
-proc getField*[T](
-    pb: ProtoBuffer, field: int, value: var SignedPayload[T]
-): ProtoResult[bool] =
-  if not ?getField(pb, field, value.envelope, T.payloadDomain):
-    ok(false)
-  else:
-    mixin decode
-    value.data = ?T.decode(value.envelope.payload).mapErr(x => ProtoError.IncorrectBlob)
-    ok(true)
-
 proc decode*[T](
     _: typedesc[SignedPayload[T]], envelope: Envelope
 ): Result[SignedPayload[T], EnvelopeError] =
   mixin decode
 
-  if envelope.domain != T.payloadDomain:
+  if envelope.payloadType != T.payloadType:
     return err(EnvelopeWrongType)
-
+  if not envelope.verify(T.payloadDomain):
+    return err(EnvelopeInvalidSignature)
+  
   let
     data = ?T.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
     signedPayload = SignedPayload[T](envelope: envelope, data: data)
-
-  if envelope.payloadType != T.payloadType:
-    return err(EnvelopeWrongType)
 
   when compiles(?signedPayload.checkValid()):
     ?signedPayload.checkValid()
@@ -162,5 +115,5 @@ proc decode*[T](
   let envelope = ?Envelope.decode(move(buffer), T.payloadDomain)
   SignedPayload[T].decode(envelope)
 
-proc encode*[T](msg: SignedPayload[T]): Result[seq[byte], CryptoError] =
+proc encode*[T](msg: SignedPayload[T]): seq[byte] =
   msg.envelope.encode()

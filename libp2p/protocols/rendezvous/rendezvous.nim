@@ -364,8 +364,7 @@ method advertise*(
   if rdv.switch.isNil:
     # I don't like this, but adding this as i don't understand why we have a constructor without switch as arg
     raise newException(AdvertiseError, "Rendezvous not setup with a switch")
-  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode().valueOr:
-    raise newException(AdvertiseError, "Wrong Signed Peer Record")
+  let sprBuff = rdv.switch.peerInfo.signedPeerRecord.encode()
   await rdv.advertise(ns, lttl, rdv.peers, sprBuff)
 
 proc requestLocally*[E](rdv: GenericRendezVous[E], ns: string): seq[E] =

@@ -46,7 +46,6 @@ suite "Circuit Relay V2":
         .init(relayKey, Voucher.init(relayPeerId, reservingPeerId, expiration))
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingRelay = SignedVoucher
         .init(
@@ -57,7 +56,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingPeer = SignedVoucher
         .init(
@@ -66,7 +64,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingExpiration = SignedVoucher
         .init(
@@ -78,7 +75,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       check:
         SignedVoucher.decode(valid).isOk
