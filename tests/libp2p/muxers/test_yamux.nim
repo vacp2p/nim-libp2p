@@ -12,6 +12,16 @@ include ../../../libp2p/muxers/yamux/yamux
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
 
+proc blockedThenClose(
+    blocker: Future[void].Raising([])
+): proc(stream: MuxedStream) {.async: (raises: []).} =
+  proc(stream: MuxedStream) {.async: (raises: []).} =
+    await blocker
+    try:
+      await stream.close()
+    except CancelledError, LPStreamError:
+      return
+
 suite "Yamux":
   teardown:
     checkTrackers()
@@ -291,6 +301,56 @@ suite "Yamux":
       readerBlocker2.complete()
       await wait(thirdWriter, 1.seconds)
       await streamA.close()
+
+  suite "Send window bounds":
+    const streamId = 5'u32
+
+    asyncTest "WindowUpdate is clamped to the maximum":
+      mSetup(startHandlera = false)
+      let blocker = newBlockerFut()
+      yamuxb.streamHandler = blockedThenClose(blocker)
+
+      await conna.write(YamuxHeader.windowUpdate(streamId, delta = 0, {Syn}))
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+        yamuxb.channels.hasKey(streamId)
+
+      await conna.write(YamuxHeader.windowUpdate(streamId, delta = high(uint32)))
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+        yamuxb.channels[streamId].sendWindow == MaxSendWindow
+
+      blocker.complete()
+
+    asyncTest "Cumulative WindowUpdates saturate without overflow":
+      mSetup(startHandlera = false)
+      let blocker = newBlockerFut()
+      yamuxb.streamHandler = blockedThenClose(blocker)
+
+      await conna.write(YamuxHeader.windowUpdate(streamId, delta = 0, {Syn}))
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+        yamuxb.channels.hasKey(streamId)
+
+      for _ in 0 ..< 8:
+        await conna.write(YamuxHeader.windowUpdate(streamId, delta = high(uint32)))
+
+      checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
+        yamuxb.channels[streamId].sendWindow == MaxSendWindow
+
+      blocker.complete()
+
+    asyncTest "Send path tolerates a non-positive sendWindow":
+      mSetup(startHandlera = false, startHandlerb = false)
+      let channel =
+        yamuxb.createStream(streamId, false, YamuxDefaultWindowSize, MaxSendQueueSize)
+      channel.sendWindow = -100000
+
+      let writer = channel.write(newSeq[byte](10))
+      await sleepAsync(50.milliseconds)
+      check:
+        not writer.finished()
+
+      await channel.reset()
+      expect(LPStreamError):
+        await writer
 
   suite "Timeout testing":
     asyncTest "Check if InTimeout close both streams correctly":
