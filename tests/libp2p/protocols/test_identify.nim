@@ -266,9 +266,10 @@ suite "Identify":
           switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng()).get())
+      let wrongPeerInfo = PeerInfo.new(PrivateKey.random(rng()).get())
+      await wrongPeerInfo.update()
 
-      await identifyPush2.push(switch2.peerInfo, stream)
+      await identifyPush2.push(wrongPeerInfo, stream)
 
       # We have no way to know when the message will is received
       # because it will fail validation inside push identify itself
@@ -280,8 +281,8 @@ suite "Identify":
 
       # Wait the very end to be sure that the push has been processed
       check:
-        switch1.peerStore[ProtoBook][oldPeerId] != switch2.peerInfo.protocols
-        switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
+        switch1.peerStore[ProtoBook][oldPeerId] != wrongPeerInfo.protocols
+        switch1.peerStore[AddressBook][oldPeerId] != wrongPeerInfo.addrs
 
   asyncTest "identify exposes QUIC transport addresses":
     # Server switch with both QUIC and TCP
