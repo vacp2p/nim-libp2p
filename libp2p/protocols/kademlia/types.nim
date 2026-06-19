@@ -80,7 +80,7 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   ok(
     Peer(
       id: Opt.some(peer.getBytes()),
-      addrs: Opt.some(addrs),
+      addrs: addrs,
       connection: Opt.none(ConnectionStatus),
     )
   )
@@ -88,7 +88,7 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
     id: Opt.some(peerInfo.peerId.getBytes()),
-    addrs: Opt.some(peerInfo.addrs),
+    addrs: peerInfo.addrs,
     connection: Opt.none(ConnectionStatus),
   )
 

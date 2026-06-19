@@ -123,7 +123,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] =
       peerId: x.peerId,
       signedPeerRecord:
         if x.peerId in sprBook:
-          sprBook[x.peerId].encode().get(default(seq[byte]))
+          sprBook[x.peerId].encode()
         else:
           default(seq[byte]),
     )
