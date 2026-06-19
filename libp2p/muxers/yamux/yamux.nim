@@ -19,6 +19,7 @@ const
   YamuxDefaultWindowSize* = 256000
   MaxSendQueueSize = 256000
   MaxChannelCount* = 256
+  MaxSendWindow = int64(high(uint32))
 
 when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
@@ -140,7 +141,7 @@ type
   YamuxChannel* = ref object of Connection
     id: uint32
     recvWindow: int
-    sendWindow: int
+    sendWindow: int64
     maxRecvWindow: int
     maxSendQueueSize: int
     conn: RawConn
@@ -345,7 +346,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
   while channel.sendQueue.len > 0:
     channel.sendQueue.keepItIf(not it.fut.finished())
 
-    if channel.sendWindow == 0:
+    if channel.sendWindow <= 0:
       trace "trying to send while the sendWindow is empty"
       if channel.lengthSendQueueWithLimit() > channel.maxSendQueueSize:
         trace "channel send queue too big, resetting",
@@ -356,7 +357,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
 
     let
       bytesAvailable = channel.lengthSendQueue()
-      numBytesToSend = min(channel.sendWindow, bytesAvailable)
+      numBytesToSend = min(channel.sendWindow, bytesAvailable.int64).int
     var
       sendBuffer = newSeqUninit[byte](NumBytesHeader + numBytesToSend)
       header = YamuxHeader.data(channel.id, numBytesToSend.uint32)
@@ -679,7 +680,8 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             )
 
         if header.msgType == WindowUpdate:
-          channel.sendWindow += int(header.length)
+          channel.sendWindow =
+            min(channel.sendWindow + int64(header.length), MaxSendWindow)
           if not channel.isSending:
             channel.sendLoopFut = channel.sendLoop()
         else:
