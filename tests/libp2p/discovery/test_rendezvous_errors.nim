@@ -52,7 +52,7 @@ suite "RendezVous Errors":
       (
         proc(node: RendezVous): Message =
           prepareRegisterMessage(
-            "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode().get, 2.hours
+            "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode(), 2.hours
           )
       ),
       ResponseStatus.InvalidNamespace,
@@ -71,7 +71,7 @@ suite "RendezVous Errors":
       (
         proc(node: RendezVous): Message =
           prepareRegisterMessage(
-            "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
+            "namespace", node.switch.peerInfo.signedPeerRecord.encode(), 73.hours
           )
       ),
       ResponseStatus.InvalidTTL,
@@ -134,7 +134,7 @@ suite "RendezVous Errors":
     # Attempt one more registration which should be rejected with NotAuthorized
     let messageBuf = encode(
       prepareRegisterMessage(
-        namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode().get, 2.hours
+        namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode(), 2.hours
       )
     )
 

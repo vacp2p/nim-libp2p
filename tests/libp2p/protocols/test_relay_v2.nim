@@ -46,7 +46,6 @@ suite "Circuit Relay V2":
         .init(relayKey, Voucher.init(relayPeerId, reservingPeerId, expiration))
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingRelay = SignedVoucher
         .init(
@@ -57,7 +56,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingPeer = SignedVoucher
         .init(
@@ -66,7 +64,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       let missingExpiration = SignedVoucher
         .init(
@@ -78,7 +75,6 @@ suite "Circuit Relay V2":
         )
         .tryGet()
         .encode()
-        .tryGet()
 
       check:
         SignedVoucher.decode(valid).isOk
@@ -186,6 +182,7 @@ suite "Circuit Relay V2":
         discard await cl1.reserve(src2.peerInfo.peerId, addrs)
 
   for (useYamux, muxName) in [(false, "Mplex"), (true, "Yamux")]:
+    let (useYamux, muxName) = (useYamux, muxName) # capture loop vars for the closures
     suite "Circuit Relay V2 Connection using " & muxName:
       asyncTeardown:
         checkTrackers()

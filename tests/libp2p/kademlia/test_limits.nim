@@ -8,7 +8,8 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
-# chronicles must be imported to avoid "undeclared identifier: 'activeChroniclesStream'"
+# A real log call keeps the chronicles import used; it declares activeChroniclesStream.
+trace "kademlia limits tests loaded"
 
 suite "KadDHT - Limits":
   teardown:
@@ -24,7 +25,7 @@ suite "KadDHT - Limits":
     # Generate 20 fresh peers and feed them through updateShortlist.
     var peers: seq[Peer]
     for i in 0 ..< 20:
-      peers.add(Peer(id: randomPeerId().toKey(), addrs: Opt.none(seq[MultiAddress])))
+      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     discard state.updateShortlist(msg)

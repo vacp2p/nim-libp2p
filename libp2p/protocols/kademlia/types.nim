@@ -44,6 +44,10 @@ const
   DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
+  DefaultMaxPeersPerIp* = 4
+    ## upper bound on Kademlia routing-table peers sharing one exact IP
+  DefaultMaxPeersPerSubnet* = 10
+    ## upper bound on Kademlia routing-table peers sharing one IP subnet
 
 type Key* = seq[byte]
 
@@ -76,7 +80,7 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   ok(
     Peer(
       id: Opt.some(peer.getBytes()),
-      addrs: Opt.some(addrs),
+      addrs: addrs,
       connection: Opt.none(ConnectionStatus),
     )
   )
@@ -84,7 +88,7 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
     id: Opt.some(peerInfo.peerId.getBytes()),
-    addrs: Opt.some(peerInfo.addrs),
+    addrs: peerInfo.addrs,
     connection: Opt.none(ConnectionStatus),
   )
 
@@ -355,6 +359,12 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
+  maxPeersPerIp*: int
+    ## Maximum number of Kademlia routing-table peers sharing one exact IP.
+  maxPeersPerIpv4Subnet*: int
+    ## Maximum number of Kademlia routing-table peers sharing one IPv4 /24.
+  maxPeersPerIpv6Subnet*: int
+    ## Maximum number of Kademlia routing-table peers sharing one IPv6 /64.
 
 proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises: [].} =
   ## Builds a limits object whose shortlist/received caps and providers-per-key
@@ -368,6 +378,9 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxValueSize: DefaultMaxValueSize,
     maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
+    maxPeersPerIp: DefaultMaxPeersPerIp,
+    maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
+    maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
   )
 
 type KadDHTConfig* = object
@@ -432,6 +445,9 @@ proc new*(
   doAssert actualLimits.maxLocalRecords.isNone or actualLimits.maxLocalRecords.get() > 0,
     "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
   doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
+  doAssert actualLimits.maxPeersPerIp > 0, "maxPeersPerIp must be > 0"
+  doAssert actualLimits.maxPeersPerIpv4Subnet > 0, "maxPeersPerIpv4Subnet must be > 0"
+  doAssert actualLimits.maxPeersPerIpv6Subnet > 0, "maxPeersPerIpv6Subnet must be > 0"
   doAssert actualLimits.maxShortlistSize >= replication,
     "maxShortlistSize must be >= replication so the shortlist can hold the target k-bucket"
   doAssert actualLimits.maxReceivedSize >= quorum,

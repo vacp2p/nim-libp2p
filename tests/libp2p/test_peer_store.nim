@@ -42,7 +42,7 @@ suite "PeerStore":
     SignedPeerRecord.init(privateKey, PeerRecord.init(peerId, addrs, seqNo)).tryGet()
 
   proc storedPeerRecord(peerStore: PeerStore, peerId: PeerId): PeerRecord =
-    let encoded = peerStore[SPRBook][peerId].encode().tryGet()
+    let encoded = peerStore[SPRBook][peerId].encode()
     SignedPeerRecord.decode(encoded).tryGet().data
 
   proc checkStoredPeerRecord(
