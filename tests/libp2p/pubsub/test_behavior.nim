@@ -173,9 +173,9 @@ suite "GossipSub Behavior":
       peer2Info = peerInfoList.filterIt(it.peerId == peers[2].peerId)[0]
 
     check:
-      peer0Info.signedPeerRecord == mockRecord0.envelope.encode().get()
+      peer0Info.signedPeerRecord == mockRecord0.envelope.encode()
       peer1Info.signedPeerRecord.len == 0
-      peer2Info.signedPeerRecord == mockRecord2.envelope.encode().get()
+      peer2Info.signedPeerRecord == mockRecord2.envelope.encode()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
