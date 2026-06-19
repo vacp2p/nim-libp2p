@@ -5,7 +5,7 @@
 
 import chronos, protobuf_serialization, protobuf_serialization/extension
 
-Protobuf.extensionDefaults(Duration, defaultSeq = true)
+Protobuf.extensionDefaults(Duration, pint64, defaultSeq = true)
 
 func computeFieldSize*(
     field: int, value: Duration, ProtoType: type ProtobufExt, skipDefault: static bool
@@ -34,7 +34,26 @@ proc readFieldInto*(
   else:
     false
 
-Protobuf.extensionDefaults(Moment, defaultSeq = true)
+func computeFieldSizePacked*(
+    field: int, value: seq[Duration], ProtoType: type ProtobufExt
+): int =
+  computeFieldSizePackedIt(field, value, pint64, it.seconds)
+
+proc writeFieldPacked*(
+    stream: OutputStream, field: int, value: seq[Duration], ProtoType: type ProtobufExt
+) {.raises: [IOError].} =
+  writeFieldPackedIt(stream, field, value, pint64, it.seconds)
+
+proc readFieldPackedInto*(
+    stream: InputStream,
+    value: var seq[Duration],
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  readFieldPackedIntoIt(stream, value, header, pint64):
+    value.add it.seconds
+
+Protobuf.extensionDefaults(Moment, pint64, defaultSeq = true)
 
 func computeFieldSize*(
     field: int, value: Moment, ProtoType: type ProtobufExt, skipDefault: static bool
@@ -61,3 +80,22 @@ proc readFieldInto*(
     return true
   else:
     false
+
+func computeFieldSizePacked*(
+    field: int, value: seq[Moment], ProtoType: type ProtobufExt
+): int =
+  computeFieldSizePackedIt(field, value, pint64, it.epochSeconds())
+
+proc writeFieldPacked*(
+    stream: OutputStream, field: int, value: seq[Moment], ProtoType: type ProtobufExt
+) {.raises: [IOError].} =
+  writeFieldPackedIt(stream, field, value, pint64, it.epochSeconds())
+
+proc readFieldPackedInto*(
+    stream: InputStream,
+    value: var seq[Moment],
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  readFieldPackedIntoIt(stream, value, header, pint64):
+    value.add Moment.init(it, Second)

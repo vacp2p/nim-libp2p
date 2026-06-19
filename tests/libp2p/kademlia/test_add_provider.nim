@@ -340,7 +340,7 @@ suite "KadDHT - Add Provider":
       # Provider with empty addresses
       providerWithNoAddrs = Peer(
         id: senderKad.switch.peerInfo.peerId.getBytes(),
-        addrs: Opt.none(seq[MultiAddress]),
+        addrs: @[],
         connection: ConnectionStatus.connected,
       )
     receiverKad.handleAddProviderMessage = Opt.some(
@@ -357,7 +357,7 @@ suite "KadDHT - Add Provider":
       receiverKad.providerManager.providerRecords.len == 1
       receiverKad.providerManager.providerRecords[0].provider.id.get() ==
         senderKad.switch.peerInfo.peerId.getBytes()
-      receiverKad.providerManager.providerRecords[0].provider.addrs.isNone
+      receiverKad.providerManager.providerRecords[0].provider.addrs.len == 0
 
   asyncTest "Add provider includes local multiaddresses":
     let kads = setupKadSwitches(2)
@@ -384,7 +384,7 @@ suite "KadDHT - Add Provider":
     let storedProvider = kads[0].providerManager.providerRecords[0].provider
     check:
       storedProvider.id.get() == kads[1].rtable.selfId
-      storedProvider.addrs.get() == kads[1].switch.peerInfo.addrs
+      storedProvider.addrs == kads[1].switch.peerInfo.addrs
 
   asyncTest "Add provider completes when some peers fail":
     let kads = setupKadSwitches(3)
