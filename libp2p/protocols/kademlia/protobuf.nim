@@ -37,7 +37,7 @@ type
 
   Peer* {.proto2.} = object
     id* {.fieldNumber: 1.}: Opt[seq[byte]]
-    addrs* {.fieldNumber: 2, ext.}: Opt[seq[MultiAddress]]
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
     connection* {.fieldNumber: 3, ext.}: Opt[ConnectionStatus]
 
   # Registration status for Service Discovery

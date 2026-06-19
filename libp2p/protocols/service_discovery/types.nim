@@ -258,7 +258,7 @@ proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
     let pid = PeerId.init(raw).valueOr:
       continue
 
-    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs.get(@[]))
+    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs)
 
     peerInfos.add(peerInfo)
 

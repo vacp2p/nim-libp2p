@@ -83,7 +83,7 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
       continue
 
     state.shortlist[pid] = dist
-    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs.get(@[])))
+    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))
 
   return newPeerInfos
 
