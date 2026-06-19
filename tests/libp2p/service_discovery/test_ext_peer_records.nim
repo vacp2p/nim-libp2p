@@ -59,9 +59,9 @@ suite "Signed Extended Peer Record":
     check signedExtPR.isOk() == true
 
     let encoded = signedExtPR.get().encode()
-    check encoded.isOk() == true
+    check encoded.len > 0
 
-    let decoded = SignedExtendedPeerRecord.decode(encoded.get())
+    let decoded = SignedExtendedPeerRecord.decode(encoded)
     check:
       decoded.isOk() == true
       decoded.get() == signedExtPR.get()
@@ -85,8 +85,8 @@ suite "Signed Extended Peer Record":
     let encoded = signedExtPR.get().encode()
 
     check:
-      encoded.isOk() == true
-      SignedExtendedPeerRecord.decode(encoded.get()).error == EnvelopeInvalidSignature
+      encoded.len > 0
+      SignedExtendedPeerRecord.decode(encoded).error == EnvelopeInvalidSignature
 
   test "Decode doesn't fail if some addresses are invalid":
     let

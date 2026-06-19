@@ -140,10 +140,7 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
   for ad in ads:
     if adBytes.len >= fReturn:
       break
-    let encoded = ad.encode().valueOr:
-      error "failed to encode advertisement", error
-      continue
-    adBytes.add(encoded)
+    adBytes.add(ad.encode())
   adBytes
 
 proc hashServiceId*(serviceStr: string): ServiceId =
@@ -261,7 +258,7 @@ proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
     let pid = PeerId.init(raw).valueOr:
       continue
 
-    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs.get(@[]))
+    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs)
 
     peerInfos.add(peerInfo)
 

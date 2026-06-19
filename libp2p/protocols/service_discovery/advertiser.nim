@@ -43,10 +43,7 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
   let extRecord = disco.record().valueOr:
     error "failed to create extended peer record", error
     return Opt.none(seq[byte])
-  let bytes = extRecord.encode().valueOr:
-    error "failed to encode advertisement", error
-    return Opt.none(seq[byte])
-  Opt.some(bytes)
+  Opt.some(extRecord.encode())
 
 proc advertiseToRegistrar*(
   disco: ServiceDiscovery,
