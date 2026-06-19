@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import tables, sets, sequtils, chronicles, results, metrics
+import tables, sets, sequtils, algorithm, chronicles, results, metrics
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -63,9 +63,8 @@ type
       # needs to be implemented by application.
     heartbeatsTillEviction*: int
       # number of heartbeats for which metadata will be retained before eviction
-    maxPartialGroups*: int = 1000
-      # upper bound on (topic, group) entries; new groups are rejected at the limit
-    maxPartialGroupsPerPeer*: int = 100 # upper bound on groups a single peer can create
+    maxPartialGroups*: int = 1000 # global cap; excess trimmed LRU each heartbeat
+    maxPartialGroupsPerPeer*: int = 100
 
   PeerGroupState = ref object
     receivedPartsMetadata: Opt[PartsMetadata] # parts metadata peer sent to this node
@@ -146,6 +145,7 @@ proc evictGroup(ext: PartialMessageExtension, key: TopicGroupKey) =
   group.creator.withValue(creator):
     ext.releasePeerGroup(creator)
   ext.groupState.del(key)
+  ext.updateGroupCountMetric()
 
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   var toRemove: seq[TopicGroupKey] = @[]
@@ -155,38 +155,53 @@ proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
       toRemove.add(key)
   for key in toRemove:
     ext.evictGroup(key)
-  ext.updateGroupCountMetric()
 
 template getGroupState(
     ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
   ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
 
+proc trimToMaxGroups(ext: PartialMessageExtension) =
+  ## Evicts least-recently-used groups down to maxPartialGroups, ranking by
+  ## heartbeatsTillEviction (refreshed whenever a group sees new metadata).
+  let excess = ext.groupState.len - ext.config.maxPartialGroups
+  if excess <= 0:
+    return
+  var groups = ext.groupState.pairs.toSeq()
+  groups.sort do(a, b: (TopicGroupKey, GroupState)) -> int:
+    cmp(a[1].heartbeatsTillEviction, b[1].heartbeatsTillEviction)
+  for (key, _) in groups[0 ..< excess]:
+    ext.evictGroup(key)
+    libp2p_gossipsub_partial_message_groups_dropped.inc()
+
 proc acquireGroupState(
     ext: PartialMessageExtension, peerId: PeerId, topic: string, groupId: GroupId
 ): GroupState =
-  ## Returns the existing group for (topic, groupId), or allocates one for peerId.
-  ## Returns nil when a new group would exceed the global or per-peer limit.
+  ## Returns the group for (topic, groupId), allocating one for peerId if absent.
+  ## Returns nil when allocating would exceed the per-peer limit.
   let key = TopicGroupKey.new(topic, groupId)
   let existing = ext.groupState.getOrDefault(key)
   if not existing.isNil():
     return existing
 
-  if ext.groupState.len >= ext.config.maxPartialGroups or
-      ext.peerGroupCount.getOrDefault(peerId) >= ext.config.maxPartialGroupsPerPeer:
+  if ext.peerGroupCount.getOrDefault(peerId) >= ext.config.maxPartialGroupsPerPeer:
     libp2p_gossipsub_partial_message_groups_dropped.inc()
     return nil
 
   let group = GroupState(creator: Opt.some(peerId))
   ext.groupState[key] = group
   ext.peerGroupCount.inc(peerId)
+  ext.updateGroupCountMetric()
   group
 
 proc trackedGroups(ext: PartialMessageExtension): int =
   ext.groupState.len
 
+proc hasGroup(ext: PartialMessageExtension, topic: string, groupId: GroupId): bool =
+  ext.groupState.hasKey(TopicGroupKey.new(topic, groupId))
+
 when defined(libp2p_testing):
-  export trackedGroups
+  export trackedGroups, hasGroup
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
@@ -196,6 +211,12 @@ template hasPeer(gs: GroupState, peerId: PeerId): bool =
 
 template hasPublished(gs: GroupState): bool =
   gs.lastPublishedMetadata.len > 0
+
+template createdBy(gs: GroupState, peerId: PeerId): bool =
+  gs.creator == Opt.some(peerId)
+
+template isReclaimable(gs: GroupState): bool =
+  gs.peerState.len == 0 and not gs.hasPublished()
 
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
@@ -249,6 +270,7 @@ proc gossipPartsMetadata*(ext: PartialMessageExtension) =
 
 method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
   ext.reduceHeartbeatsTillEviction()
+  ext.trimToMaxGroups()
   ext.gossipPartsMetadata()
 
 method onNegotiated*(
@@ -259,12 +281,17 @@ method onNegotiated*(
 method onRemovePeer*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  # remove peer data from _groupState_
+  var toEvict: seq[TopicGroupKey] = @[]
   for key, group in ext.groupState:
     group.peerState.del(peerId)
-    group.creator.withValue(creator):
-      if creator == peerId:
-        group.creator = Opt.none(PeerId)
+    if not group.createdBy(peerId):
+      continue
+    if group.isReclaimable():
+      toEvict.add(key)
+      continue
+    group.creator = Opt.none(PeerId)
+  for key in toEvict:
+    ext.evictGroup(key)
   ext.peerGroupCount.del(peerId)
 
   # remove peer subscription options from _peerTopicOpts_
@@ -416,6 +443,7 @@ proc publishPartial*(
   var groupState = ext.getGroupState(topic, pm.groupId())
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
   groupState.lastPublishedMetadata = pm.partsMetadata()
+  ext.updateGroupCountMetric()
 
   let publishToPeers =
     if peers.len > 0:
