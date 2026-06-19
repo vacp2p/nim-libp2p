@@ -23,10 +23,7 @@ proc refreshSelfSignedPeerRecord(
     error "Failed to create signed extended peer record", error
     return
 
-  let encodedSR = extPeerRecord.encode().valueOr:
-    error "Failed to encode signed peer record", error
-    return
-
+  let encodedSR = extPeerRecord.encode()
   let key = disco.switch.peerInfo.peerId.toKey()
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord

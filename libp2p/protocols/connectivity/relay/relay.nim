@@ -84,7 +84,7 @@ proc createReserveResponse(
     rsrv = Reservation(
       expire: Opt.some(expireUnix),
       addrs: r.switch.peerInfo.addrs.mapIt(?it.concat(ma).orErr(CryptoError.KeyError)),
-      svoucher: Opt.some(?sv.encode),
+      svoucher: Opt.some(sv.encode),
     )
     msg = HopMessage(
       msgType: Opt.some(HopMessageType.Status),

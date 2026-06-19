@@ -113,8 +113,7 @@ proc advertise*(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
     raise newException(AdvertiseError, "Failed to sign Custom Peer Record")
-  let sprBuff = se.encode().valueOr:
-    raise newException(AdvertiseError, "Wrong Signed Peer Record")
+  let sprBuff = se.encode()
   await rdv.advertise(namespace, rdv.config.minDuration, rdv.peers, sprBuff)
 
 suite "RendezVous":
