@@ -44,8 +44,8 @@ suite "PeerInfo":
     # Check envelope fields
     check:
       env.publicKey == peerInfo.publicKey
-      env.domain == ExpectedDomain
       env.payloadType == ExpectedPayloadType
+      env.verify(ExpectedDomain)
 
     # Check payload (routing record)
     check:
