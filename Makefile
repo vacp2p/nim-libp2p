@@ -3,11 +3,15 @@
 # On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
 # of address space; the unsharded TU overran that on orc. Two slices halve the
 # memory footprint enough to fit, and the overhead is small on 64-bit targets.
+# Number of test binaries to compile and run concurrently; 1 keeps `make test`
+# serial. CI raises it, using fewer lanes on 32-bit to stay under the ~3 GB cap.
+TEST_JOBS ?= 1
+
 TEST_ALL_SLICES ?= 2
 TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
 TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
 
-.PHONY: all build deps cbind clean test _test_all $(TEST_ALL_SLICE_TARGETS) \
+.PHONY: all build deps cbind clean test _run_all_tests $(TEST_ALL_SLICE_TARGETS) \
         test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
@@ -139,8 +143,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 
 test: nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
-	$(MAKE) _test_all
-	$(MAKE) test_multiformat_exts
+	$(MAKE) -j$(TEST_JOBS) _run_all_tests
 else
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -149,11 +152,12 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-_test_all: $(TEST_ALL_SLICE_TARGETS)
+_run_all_tests: $(TEST_ALL_SLICE_TARGETS) test_multiformat_exts
 
+# Per-target nimcache, always: concurrent compiles must not share one.
 $(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all_$*,) \
+	  --nimcache:nimcache/test_all_$* \
 	  -d:sliceTotal=$(TEST_ALL_SLICES) \
 	  -d:sliceIdx=$* \
 	  -o:tests/test_all_$* \
@@ -162,7 +166,7 @@ $(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
 
 test_multiformat_exts: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all_multiformat,) \
+	  --nimcache:nimcache/test_all_multiformat \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
 	  -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim \
 	  -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim \
