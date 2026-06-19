@@ -55,7 +55,7 @@ suite "Signed Routing Record":
       routingRecord = SignedPeerRecord
         .init(privKey, PeerRecord.init(peerId, multiAddresses, 42))
         .tryGet()
-      buffer = routingRecord.envelope.encode().tryGet()
+      buffer = routingRecord.envelope.encode()
 
       parsedRR = SignedPeerRecord.decode(buffer).tryGet().data
 
@@ -78,7 +78,7 @@ suite "Signed Routing Record":
       routingRecord = SignedPeerRecord
         .init(privKey2, PeerRecord.init(peerId, multiAddresses, 42))
         .tryGet()
-      buffer = routingRecord.envelope.encode().tryGet()
+      buffer = routingRecord.envelope.encode()
 
     check SignedPeerRecord.decode(buffer).error == EnvelopeInvalidSignature
 
