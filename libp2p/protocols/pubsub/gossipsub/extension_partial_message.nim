@@ -89,7 +89,7 @@ type
     config: PartialMessageExtensionConfig
     groupState: Table[TopicGroupKey, GroupState]
     peerTopicOpts: Table[PeerTopicKey, TopicOpts]
-    peerGroupCount: Table[PeerId, int] # groups allocated per peer, keyed by creator
+    peerGroupCount: CountTable[PeerId] # groups allocated per peer, keyed by creator
 
 proc new(T: typedesc[PeerTopicKey], peerId: PeerId, topic: string): PeerTopicKey =
   PeerTopicKey(key: TableKey.makeKey(peerId, topic), peerId: peerId, topic: topic)
@@ -134,11 +134,10 @@ proc updateGroupCountMetric(ext: PartialMessageExtension) =
   libp2p_gossipsub_partial_message_groups.set(ext.groupState.len.int64)
 
 proc releasePeerGroup(ext: PartialMessageExtension, peerId: PeerId) =
-  let count = ext.peerGroupCount.getOrDefault(peerId)
-  if count <= 1:
+  if ext.peerGroupCount.getOrDefault(peerId) <= 1:
     ext.peerGroupCount.del(peerId)
     return
-  ext.peerGroupCount[peerId] = count - 1
+  ext.peerGroupCount.inc(peerId, -1)
 
 proc evictGroup(ext: PartialMessageExtension, key: TopicGroupKey) =
   let group = ext.groupState.getOrDefault(key)
@@ -158,12 +157,10 @@ proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
     ext.evictGroup(key)
   ext.updateGroupCountMetric()
 
-proc getGroupState(
+template getGroupState(
     ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
-  let group = ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
-  ext.updateGroupCountMetric()
-  group
+  ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
 
 proc acquireGroupState(
     ext: PartialMessageExtension, peerId: PeerId, topic: string, groupId: GroupId
@@ -182,12 +179,14 @@ proc acquireGroupState(
 
   let group = GroupState(creator: Opt.some(peerId))
   ext.groupState[key] = group
-  ext.peerGroupCount[peerId] = ext.peerGroupCount.getOrDefault(peerId) + 1
-  ext.updateGroupCountMetric()
+  ext.peerGroupCount.inc(peerId)
   group
 
-proc trackedGroups*(ext: PartialMessageExtension): int =
+proc trackedGroups(ext: PartialMessageExtension): int =
   ext.groupState.len
+
+when defined(libp2p_testing):
+  export trackedGroups
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
