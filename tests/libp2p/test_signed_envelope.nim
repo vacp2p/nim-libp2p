@@ -13,11 +13,11 @@ suite "Signed envelope":
       privKey = PrivateKey.random(rng()).tryGet()
       envelope =
         Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
-      buffer = envelope.encode().tryGet()
+      buffer = envelope.encode()
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
       wrongDomain = Envelope.decode(buffer, "wdomain")
 
-      reencodedEnvelope = decodedEnvelope.encode().tryGet()
+      reencodedEnvelope = decodedEnvelope.encode()
       redecodedEnvelope = Envelope.decode(reencodedEnvelope, "domain").tryGet()
 
     check:
@@ -73,7 +73,7 @@ suite "Signed payload":
       privKey = PrivateKey.random(rng()).tryGet()
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
       decoded = SignedDummy.decode(encoded).tryGet()
 
     check:
@@ -85,7 +85,7 @@ suite "Signed payload":
       privKey = PrivateKey.random(rng()).tryGet()
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
 
     check SignedDummy.decode(encoded).error == EnvelopeInvalidSignature
 
@@ -96,6 +96,6 @@ suite "Signed payload":
       signed = Envelope
         .init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain)
         .tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
 
     check SignedDummy.decode(encoded).error == EnvelopeWrongType
