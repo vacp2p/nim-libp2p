@@ -180,7 +180,14 @@ jobs:
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
           export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
-          make test
+
+          # Build/run test binaries concurrently; fewer lanes on 32-bit to stay
+          # under the ~3 GB address cap.
+          TEST_JOBS=3
+          if [[ '${{ matrix.config.cpu }}' == 'i386' ]]; then
+            TEST_JOBS=2
+          fi
+          make TEST_JOBS=$TEST_JOBS test
 
       - name: Run integration tests
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
