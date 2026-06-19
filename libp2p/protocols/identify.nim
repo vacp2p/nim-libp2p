@@ -93,8 +93,7 @@ proc makeIdentifyMsg(
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sign:
-    pi.signedPeerRecord.envelope.encode().withValue(value):
-      spr = Opt.some(value)
+    spr = Opt.some(pi.signedPeerRecord.envelope.encode())
 
   IdentifyMsg(
     publicKey: Opt.some(pi.publicKey),
