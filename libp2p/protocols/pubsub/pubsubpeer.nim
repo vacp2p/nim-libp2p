@@ -745,6 +745,8 @@ proc stopTasks*(p: PubSubPeer) =
     debug "stopping sendNonHighPriorityTask", p
     p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonHighPriorityTask = nil
+    for fut in p.rpcmessagequeue.sendPriorityQueue:
+      fut.cancelSoon()
     p.rpcmessagequeue.sendPriorityQueue.clear()
     p.rpcmessagequeue.mediumPriorityQueue.clear()
     p.rpcmessagequeue.lowPriorityQueue.clear()

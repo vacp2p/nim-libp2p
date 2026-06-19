@@ -58,6 +58,8 @@ proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
     futs.add(chann.cleanupFut)
     if not chann.handlerFut.isNil():
       futs.add(chann.handlerFut)
+    if not chann.resetMessageFut.isNil():
+      futs.add(chann.resetMessageFut)
   discard await noCancel allFinished(futs)
 
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =

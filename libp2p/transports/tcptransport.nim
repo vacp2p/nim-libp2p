@@ -198,6 +198,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       "No incoming connections possible without start"
     await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
+    discard await noCancel allFinished(self.closeFuts)
+    self.closeFuts = @[]
+
 method accept*(
     self: TcpTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =

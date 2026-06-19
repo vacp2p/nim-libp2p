@@ -54,7 +54,7 @@ type LPChannel* = ref object of BufferStream
   closeCode*: MessageType # cached in/out close code
   resetCode*: MessageType # cached in/out reset code
   writes*: int # In-flight writes
-  resetMessageFut: Future[void]
+  resetMessageFut*: Future[void]
   cleanupFut*: Future[void]
   handlerFut*: Future[void]
 
