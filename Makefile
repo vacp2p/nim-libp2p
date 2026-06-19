@@ -3,17 +3,16 @@
 # On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
 # of address space; the unsharded TU overran that on orc. Two slices halve the
 # memory footprint enough to fit, and the overhead is small on 64-bit targets.
-# Test binaries to run concurrently (1 = serial). Compilation stays serial.
+# Number of test binaries to compile and run concurrently; 1 keeps `make test`
+# serial. CI raises it, using fewer lanes on 32-bit to stay under the ~3 GB cap.
 TEST_JOBS ?= 1
 
 TEST_ALL_SLICES ?= 2
 TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
-COMPILE_SLICE_TARGETS := $(addprefix _compile_slice_,$(TEST_ALL_SLICE_IDS))
-RUN_SLICE_TARGETS := $(addprefix _run_slice_,$(TEST_ALL_SLICE_IDS))
+TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
 
-.PHONY: all build deps cbind clean test compile_tests run_tests \
-        $(COMPILE_SLICE_TARGETS) $(RUN_SLICE_TARGETS) \
-        compile_multiformat_exts run_multiformat_exts test_integration \
+.PHONY: all build deps cbind clean test _run_all_tests $(TEST_ALL_SLICE_TARGETS) \
+        test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
 NIM_VERSION  ?= 2.2.10
@@ -144,8 +143,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 
 test: nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
-	$(MAKE) compile_tests
-	$(MAKE) -j$(TEST_JOBS) run_tests
+	$(MAKE) -j$(TEST_JOBS) _run_all_tests
 else
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -154,22 +152,19 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-compile_tests: $(COMPILE_SLICE_TARGETS) compile_multiformat_exts
+_run_all_tests: $(TEST_ALL_SLICE_TARGETS) test_multiformat_exts
 
-run_tests: $(RUN_SLICE_TARGETS) run_multiformat_exts
-
-$(COMPILE_SLICE_TARGETS): _compile_slice_%: nimble.paths nat_libs
+# Per-target nimcache, always: concurrent compiles must not share one.
+$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  --nimcache:nimcache/test_all_$* \
 	  -d:sliceTotal=$(TEST_ALL_SLICES) \
 	  -d:sliceIdx=$* \
 	  -o:tests/test_all_$* \
 	  tests/test_all.nim
-
-$(RUN_SLICE_TARGETS): _run_slice_%:
 	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
 
-compile_multiformat_exts: nimble.paths nat_libs
+test_multiformat_exts: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  --nimcache:nimcache/test_all_multiformat \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
@@ -178,11 +173,8 @@ compile_multiformat_exts: nimble.paths nat_libs
 	  -d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim \
 	  -d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim \
 	  -d:path=multiformat_exts \
-	  -o:tests/test_all_multiformat \
 	  tests/test_all.nim
-
-run_multiformat_exts:
-	./tests/test_all_multiformat $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
 
 test_integration: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \

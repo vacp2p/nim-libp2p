@@ -177,8 +177,13 @@ jobs:
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
 
-          # Compile test binaries serially, run them concurrently.
-          make TEST_JOBS=3 test
+          # Build/run test binaries concurrently; fewer lanes on 32-bit to stay
+          # under the ~3 GB address cap.
+          TEST_JOBS=3
+          if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
+            TEST_JOBS=2
+          fi
+          make TEST_JOBS=$TEST_JOBS test
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
