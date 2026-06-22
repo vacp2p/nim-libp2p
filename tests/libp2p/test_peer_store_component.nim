@@ -134,7 +134,7 @@ suite "PeerStore Address TTL - Component":
   asyncTest "non-expiring addresses survive the pruning loop":
     # A zero TTL disables expiry for that confidence band.
     # Infinite confidence never expires regardless of the configured TTLs.
-    # The High TTL is shorter than the sleep below, making its entry a control.
+    # The High TTL is intentionally short so the control entry expires quickly.
     let switch = makeStandardSwitchBuilder(TcpAutoAddress)
       .withAddressConfidenceTtls(
         AddressConfidenceTtls(
@@ -163,10 +163,11 @@ suite "PeerStore Address TTL - Component":
     switch.peerStore[AddressBook].book[infinitePeer][0].lastUpdated =
       Moment.now() - 48.hours
 
-    await sleepAsync(100.milliseconds)
-    check:
+    checkUntilTimeout:
       # The control was pruned, proving the loop actively expires entries.
       switch.peerStore[AddressBook].entries(controlPeer).len == 0
+
+    check:
       # The non-expiring entries were spared.
       switch.peerStore[AddressBook].entries(zeroTtlPeer).len == 1
       switch.peerStore[AddressBook].entries(infinitePeer).len == 1
