@@ -314,6 +314,13 @@ proc triggerPeerEvents*(
     c: ConnManager, peerId: PeerId, event: PeerEvent
 ) {.async: (raises: [CancelledError]).} =
   trace "About to trigger peer events", peer = peerId
+  # Defensive check against memory corruption of the variant discriminator.
+  # In Nim 2.2.x, variant objects passed through async closure state machines
+  # have been observed to have corrupted discriminator values in rare cases.
+  if ord(event.kind) notin {ord(low(PeerEventKind)) .. ord(high(PeerEventKind))}:
+    warn "Invalid PeerEventKind in triggerPeerEvents",
+      peer = peerId, kind = ord(event.kind)
+    return
   if c.peerEvents[event.kind].len == 0:
     return
 
