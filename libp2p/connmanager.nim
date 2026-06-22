@@ -87,11 +87,10 @@ type
     Identified
 
   PeerEvent* = object
-    case kind*: PeerEventKind
-    of PeerEventKind.Joined, PeerEventKind.Identified:
-      initiator*: bool
-    else:
-      discard
+    kind*: PeerEventKind
+    initiator*: bool
+      ## Only used for PeerEventKind.(Joined|Identified). 
+      ## Nim 2.10.x might have issues with variant object handling inside async closures/closure iterators
 
   PeerEventHandler* = proc(peerId: PeerId, event: PeerEvent): Future[void] {.
     gcsafe, async: (raises: [CancelledError])
