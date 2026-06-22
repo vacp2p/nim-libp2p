@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/sequtils
+import std/[sequtils, tables]
 import chronos
 import ../../libp2p/[peerstore, peerinfo, multiaddress, switch, protocols/kademlia]
 import ../tools/[unittest, multiaddress, switch_builder, lifecycle, topology]
@@ -59,7 +59,7 @@ suite "PeerStore Address TTL - Component":
     # kads[1] discovers kads[2] through kads[0]'s FIND_NODE response.
     discard await kads[1].findNode(kads[2].rtable.selfId)
 
-    # The addresses arrive in a DHT response, so they are stored at the Low confidence.
+    # The addresses arrive in a DHT response, so they are stored at Low confidence.
     let entries =
       kads[1].switch.peerStore[AddressBook].entries(kads[2].switch.peerInfo.peerId)
     check:
@@ -95,3 +95,78 @@ suite "PeerStore Address TTL - Component":
       dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).anyIt(
         it.confidence == AddressConfidence.High
       )
+
+  asyncTest "addresses of every confidence are pruned after their TTL":
+    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withAddressConfidenceTtls(
+        AddressConfidenceTtls(
+          low: 10.milliseconds, medium: 20.milliseconds, high: 30.milliseconds
+        )
+      )
+      .build()
+    startAndDeferStop(@[switch])
+
+    let
+      lowPeer = randomPeerId()
+      mediumPeer = randomPeerId()
+      highPeer = randomPeerId()
+    switch.peerStore[AddressBook].extend(
+      lowPeer, @[ma("/ip4/1.2.3.4/tcp/4001")], AddressConfidence.Low
+    )
+    switch.peerStore[AddressBook].extend(
+      mediumPeer, @[ma("/ip4/5.6.7.8/tcp/4001")], AddressConfidence.Medium
+    )
+    switch.peerStore[AddressBook].extend(
+      highPeer, @[ma("/ip4/9.10.11.12/tcp/4001")], AddressConfidence.High
+    )
+    check:
+      lowPeer in switch.peerStore[AddressBook]
+      mediumPeer in switch.peerStore[AddressBook]
+      highPeer in switch.peerStore[AddressBook]
+
+    # The background pruning loop applies each entry's own TTL.
+    # Asserting on the raw entries proves the loop ran, not just lazy filtering.
+    checkUntilTimeout:
+      switch.peerStore[AddressBook].entries(lowPeer).len == 0
+      switch.peerStore[AddressBook].entries(mediumPeer).len == 0
+      switch.peerStore[AddressBook].entries(highPeer).len == 0
+
+  asyncTest "non-expiring addresses survive the pruning loop":
+    # A zero TTL disables expiry for that confidence band.
+    # Infinite confidence never expires regardless of the configured TTLs.
+    # The High TTL is shorter than the sleep below, making its entry a control.
+    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withAddressConfidenceTtls(
+        AddressConfidenceTtls(
+          low: 0.seconds, medium: 10.milliseconds, high: 20.milliseconds
+        )
+      )
+      .build()
+    startAndDeferStop(@[switch])
+
+    let
+      zeroTtlPeer = randomPeerId()
+      infinitePeer = randomPeerId()
+      controlPeer = randomPeerId()
+    switch.peerStore[AddressBook].extend(
+      zeroTtlPeer, @[ma("/ip4/1.2.3.4/tcp/4001")], AddressConfidence.Low
+    )
+    switch.peerStore[AddressBook].extend(
+      infinitePeer, @[ma("/ip4/5.6.7.8/tcp/4001")], AddressConfidence.Infinite
+    )
+    switch.peerStore[AddressBook].extend(
+      controlPeer, @[ma("/ip4/9.10.11.12/tcp/4001")], AddressConfidence.High
+    )
+    # Back-date the non-expiring entries well beyond any positive TTL.
+    switch.peerStore[AddressBook].book[zeroTtlPeer][0].lastUpdated =
+      Moment.now() - 48.hours
+    switch.peerStore[AddressBook].book[infinitePeer][0].lastUpdated =
+      Moment.now() - 48.hours
+
+    await sleepAsync(100.milliseconds)
+    check:
+      # The control was pruned, proving the loop actively expires entries.
+      switch.peerStore[AddressBook].entries(controlPeer).len == 0
+      # The non-expiring entries were spared.
+      switch.peerStore[AddressBook].entries(zeroTtlPeer).len == 1
+      switch.peerStore[AddressBook].entries(infinitePeer).len == 1
