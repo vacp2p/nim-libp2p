@@ -414,6 +414,37 @@ suite "AddressBook TTL / confidence":
     book.set(peerId1, @[relayAddr, relayAddrWithDst], AddressConfidence.Low)
     check book[peerId1] == @[relayAddr]
 
+  test "[] hides expired entries while entries returns them raw":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1, addr2], AddressConfidence.Low)
+    # Back-date addr2 past the low TTL, addr1 stays fresh.
+    book.book[peerId1][1].lastUpdated = Moment.now() - 2.seconds
+    check:
+      # [] filters expired entries lazily, without any pruning.
+      book[peerId1] == @[addr1]
+      # entries returns the raw list, expired entry included.
+      book.entries(peerId1).len == 2
+      book.entries(peerId1).anyIt(it.address == addr2)
+
+  test "contains reflects only non-expired entries":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.set(peerId2, @[addr2], AddressConfidence.Low)
+    # Expire peerId2's only entry without pruning it.
+    book.book[peerId2][0].lastUpdated = Moment.now() - 2.seconds
+    check:
+      peerId1 in book
+      # All expired entries makes 'contains' false, the raw entry remains.
+      peerId2 notin book
+      book.entries(peerId2).len == 1
+
+  test "reads on an absent peer return empty and do not crash":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    check:
+      book[peerId1].len == 0
+      book.entries(peerId1).len == 0
+      peerId1 notin book
+
 suite "AddressBook TTL pruning loop":
   let
     peerId1 = PeerId.random(rng()).get()
