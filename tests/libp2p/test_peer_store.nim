@@ -413,3 +413,65 @@ suite "AddressBook TTL / confidence":
 
     book.set(peerId1, @[relayAddr, relayAddrWithDst], AddressConfidence.Low)
     check book[peerId1] == @[relayAddr]
+
+suite "AddressBook TTL pruning loop":
+  let
+    peerId1 = PeerId.random(rng()).get()
+    addr1 = MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get()
+
+  proc makeStore(low, medium, high: Duration): PeerStore =
+    PeerStore.new(
+      nil, addressTtls = AddressConfidenceTtls(low: low, medium: medium, high: high)
+    )
+
+  proc addExpiredLow(peerStore: PeerStore) =
+    # Store a Low address and back-date it past any short low TTL.
+    peerStore[AddressBook].set(peerId1, @[addr1], AddressConfidence.Low)
+    peerStore[AddressBook].book[peerId1][0].lastUpdated = Moment.now() - 1.seconds
+
+  asyncTest "startAddressPruning runs the loop and prunes an expired entry":
+    # low is the smallest positive TTL, so the loop interval tracks it.
+    # medium and high are large, proving the cadence follows the minimum.
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    defer:
+      peerStore.close()
+
+    peerStore.addExpiredLow()
+
+    peerStore.startAddressPruning()
+    check not peerStore.pruneHandle.isNil
+
+    checkUntilTimeout:
+      peerStore[AddressBook].entries(peerId1).len == 0
+
+  asyncTest "startAddressPruning does not start a loop when all TTLs are zero":
+    # All-zero TTLs disable expiry, so the loop is never started.
+    let peerStore = makeStore(0.seconds, 0.seconds, 0.seconds)
+    peerStore.startAddressPruning()
+    check peerStore.pruneHandle.isNil
+
+  asyncTest "startAddressPruning is idempotent":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    defer:
+      peerStore.close()
+
+    peerStore.startAddressPruning()
+    let handle = peerStore.pruneHandle
+    check not handle.isNil
+
+    # A second call must not spawn a second loop or replace the handle.
+    peerStore.startAddressPruning()
+    check peerStore.pruneHandle == handle
+
+  asyncTest "close cancels the loop and clears the handle":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    peerStore.startAddressPruning()
+    check not peerStore.pruneHandle.isNil
+
+    peerStore.close()
+    check peerStore.pruneHandle.isNil
+
+  asyncTest "close on a store that never started is a no-op":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    peerStore.close()
+    check peerStore.pruneHandle.isNil
