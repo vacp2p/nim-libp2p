@@ -52,12 +52,13 @@ proc allocServiceInfoArrayFromSeq(services: seq[ServiceInfo]): ptr Libp2pService
   let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](ret)
   for i, svc in services:
     servicesArr[i].id = svc.id.alloc()
-    servicesArr[i].dataLen = svc.data.len.csize_t
-    if svc.data.len == 0:
-      servicesArr[i].data = nil
+    if svc.data.isSome:
+      servicesArr[i].dataLen = svc.data.get().len.csize_t
+      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.get().len))
+      copyMem(servicesArr[i].data, addr svc.data.get()[0], svc.data.get().len)
     else:
-      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.len))
-      copyMem(servicesArr[i].data, addr svc.data[0], svc.data.len)
+      servicesArr[i].dataLen = 0.csize_t
+      servicesArr[i].data = nil
   ret
 
 proc createShared*(
