@@ -8,14 +8,7 @@
 import std/[sequtils, times, hashes]
 import pkg/results
 import protobuf_serialization, protobuf_serialization/pkg/results
-import
-  multiaddress,
-  multicodec,
-  peerid,
-  protobuf/minprotobuf,
-  signed_envelope,
-  routing_record,
-  utils/protobuf
+import multiaddress, multicodec, peerid, signed_envelope, routing_record, utils/protobuf
 
 export peerid, multiaddress, signed_envelope
 
