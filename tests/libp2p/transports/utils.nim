@@ -126,10 +126,12 @@ proc extractPort*(ma: MultiAddress): int =
 template noExceptionWithStreamClose*(stream: Stream, body) =
   try:
     body
+  except CancelledError:
+    discard # handler torn down during muxer close; stream is closed below
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
   finally:
-    await stream.close()
+    await noCancel stream.close()
 
 proc serverHandlerSingleStream*(
     server: Transport, streamProvider: StreamProvider, handler: StreamHandler
