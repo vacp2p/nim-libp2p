@@ -1062,6 +1062,39 @@ proc libp2p_service_disco_start_advertising(
 
   RET_OK.cint
 
+proc libp2p_create_xpr(
+    ctx: ptr LibP2PContext,
+    addrs: ptr cstring,
+    addrsLen: csize_t,
+    services: ptr Libp2pServiceInfo,
+    servicesLen: csize_t,
+    seqNo: uint64,
+    callback: Libp2pBufferCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.SERVICE_DISCOVERY,
+    ServiceDiscoveryRequest.createSharedXpr(
+      addrs = addrs,
+      addrsLen = addrsLen,
+      services = services,
+      servicesLen = servicesLen,
+      seqNo = seqNo,
+    ),
+    callback,
+    CallbackKind.READ,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
 proc libp2p_service_disco_stop_advertising(
     ctx: ptr LibP2PContext,
     serviceId: cstring,

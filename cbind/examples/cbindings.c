@@ -60,6 +60,9 @@ static void create_cid_handler(int callerRet, const char *msg, size_t len,
                                void *userData);
 static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
                          const char *msg, size_t len, void *userData);
+static void create_xpr_handler(int callerRet, const uint8_t *data,
+                               size_t dataLen, const char *msg, size_t len,
+                               void *userData);
 static void print_bytes(const char *label, const uint8_t *data, size_t dataLen);
 
 // libp2p Context
@@ -232,6 +235,20 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   libp2p_kad_get_providers(ctx2, cid, get_providers_handler, NULL);
+  waitForCallback();
+
+  // Build and sign node1's own Extended Peer Record for two services.
+  // NULL addrs uses node1's listen addresses; signed bytes come via the
+  // callback.
+  const uint8_t chat_data[] = {0x01, 0x02, 0x03};
+  Libp2pServiceInfo xpr_services[] = {
+      {.id = (char *)"chat", .data = chat_data, .dataLen = sizeof(chat_data)},
+      {.id = (char *)"file-share", .data = NULL, .dataLen = 0},
+  };
+  printf("Creating signed XPR for node1:\n");
+  libp2p_create_xpr(ctx1, NULL, 0, xpr_services,
+                    sizeof(xpr_services) / sizeof(xpr_services[0]), 0,
+                    create_xpr_handler, NULL);
   waitForCallback();
 
   // Peerstore operations
@@ -572,6 +589,20 @@ static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
   callback_executed = 1;
   pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
+}
+
+static void create_xpr_handler(int callerRet, const uint8_t *data,
+                               size_t dataLen, const char *msg, size_t len,
+                               void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Create XPR error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  print_bytes("Signed XPR bytes", data, dataLen);
+
+  signal_callback_executed();
 }
 
 static void free_peerinfo(PeerInfo *pi) {
