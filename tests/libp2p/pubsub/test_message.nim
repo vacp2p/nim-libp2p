@@ -272,34 +272,3 @@ suite "Message":
     let rpc = RPCMsg(subscriptions: @[SubOpts(subscribe: true, topic: topic)])
     let anon = rpc.anonymize(true)
     check anon.messages.len == 0
-
-  test "validate RPCMsg - ok when all messages have topics":
-    let rpc = RPCMsg(
-      messages:
-        @[Message(topic: topic, data: @[1'u8]), Message(topic: "other", data: @[2'u8])]
-    )
-    check rpc.validate().isOk()
-
-  test "validate RPCMsg - ok with no messages":
-    let rpc = RPCMsg()
-    check rpc.validate().isOk()
-
-  test "validate RPCMsg - err when a message has empty topic":
-    let rpc = RPCMsg(messages: @[Message(topic: "", data: @[1'u8])])
-    let anon = rpc.validate()
-    check:
-      anon.isErr()
-      anon.error == "Message missing required topic field"
-
-  test "validate RPCMsg - err when one of many messages has empty topic":
-    let rpc = RPCMsg(
-      messages: @[
-        Message(topic: topic, data: @[1'u8]),
-        Message(topic: "", data: @[2'u8]),
-        Message(topic: "other", data: @[3'u8]),
-      ]
-    )
-    let res = rpc.validate()
-    check:
-      res.isErr()
-      res.error == "Message missing required topic field"

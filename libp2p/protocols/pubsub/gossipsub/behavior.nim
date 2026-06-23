@@ -125,7 +125,7 @@ proc peerExchangeList*(g: GossipSub, topic: string): seq[PeerInfoMsg] =
         if x.peerId in sprBook:
           Opt.some(sprBook[x.peerId].encode())
         else:
-          Opt.none(seq[byte])
+          Opt.none(seq[byte]),
     )
 
 proc handleGraft*(

@@ -108,7 +108,8 @@ proc init*(
     topic: string,
     seqno: Opt[uint64],
 ): Message {.gcsafe, raises: [].} =
-  var msg = Message(fromPeer: Opt.some(peerId), data: move(data), topic: topic)
+  var msg =
+    Message(fromPeer: Opt.some(peerId), data: Opt.some(move(data)), topic: topic)
 
   seqno.withValue(seqn):
     msg.seqno = Opt.some(@(seqn.toBytesBE()))
