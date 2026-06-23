@@ -19,7 +19,7 @@ type
     maxNumRelays: int # maximum number of relays we can reserve at the same time
     relayPeers: Table[PeerId, Future[void]]
     relayAddresses: Table[PeerId, seq[MultiAddress]]
-    backingOff: seq[PeerId]
+    backingOff: Table[PeerId, Future[void]]
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
@@ -81,7 +81,7 @@ proc manageBackedOff(
     self: AutoRelayService, pid: PeerId
 ) {.async: (raises: [CancelledError]).} =
   await sleepAsync(chronos.seconds(5))
-  self.backingOff.keepItIf(it != pid)
+  self.backingOff.del(pid)
   self.peerAvailable.fire()
 
 proc innerRun(
@@ -98,8 +98,7 @@ proc innerRun(
           if self.running and not self.onReservation.isNil():
             self.onReservation(concat(toSeq(self.relayAddresses.values)))
           # To avoid ddosing our peers in certain conditions
-          self.backingOff.add(k)
-          asyncSpawn self.manageBackedOff(k)
+          self.backingOff[k] = self.manageBackedOff(k)
       except KeyError:
         raiseAssert "checked with in"
 
@@ -142,6 +141,9 @@ method stop*(
     return
   self.running = false
   self.runner.cancelSoon()
+  for fut in self.backingOff.values:
+    fut.cancelSoon()
+  self.backingOff.clear()
   switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 

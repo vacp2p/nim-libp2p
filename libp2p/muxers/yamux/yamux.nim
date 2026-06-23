@@ -19,7 +19,8 @@ const
   YamuxDefaultWindowSize* = 256000
   MaxSendQueueSize = 256000
   MaxChannelCount* = 256
-
+  MaxSendWindow = int64(high(uint32))
+  
 when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
   declareHistogram libp2p_yamux_send_queue,
@@ -154,6 +155,9 @@ type
     closedRemotely: AsyncEvent
     closedLocally: bool
     receivedData: AsyncEvent
+    cleanupFut: Future[void]
+    handlerFut: Future[void]
+    sendLoopFut: Future[void]
 
 proc `$`(channel: YamuxChannel): string =
   var str = if channel.conn.dir == Out: "=> " else: "<= "
@@ -390,9 +394,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
     except CancelledError:
-      ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
-      ## Therefore, no one owns that sendLoop's future and no one can cancel it.
-      discard
+      discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
       error "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
@@ -431,7 +433,8 @@ method write*(
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)
 
-  asyncSpawn channel.sendLoop()
+  if not channel.isSending:
+    channel.sendLoopFut = channel.sendLoop()
 
   return resFut
 
@@ -521,11 +524,32 @@ proc createStream(
   when defined(libp2p_agents_metrics):
     stream.shortAgent = m.connection.shortAgent
   m.channels[id] = stream
-  asyncSpawn m.cleanupChannel(stream)
+  stream.cleanupFut = m.cleanupChannel(stream)
   trace "created channel", id, pid = m.connection.peerId
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
   return stream
+
+proc forceClose(channel: YamuxChannel) {.async: (raises: []).} =
+  ## Drives a channel through its terminal state without waiting on the peer, so
+  ## `cleanupChannel`'s `await channel.join()` returns after muxer close.
+  channel.closedRemotely.fire()
+  channel.isClosedRemotely = true
+  if not channel.closeEvent.isSet():
+    await channel.actuallyClose()
+  channel.receivedData.fire()
+
+proc drainChannelTasks(channels: seq[YamuxChannel]) {.async: (raises: []).} =
+  ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
+  ## have torn channels and connection down first.
+  var futs: seq[Future[void]]
+  for channel in channels:
+    futs.add(channel.cleanupFut)
+    if not channel.handlerFut.isNil():
+      futs.add(channel.handlerFut)
+    if not channel.sendLoopFut.isNil():
+      futs.add(channel.sendLoopFut)
+  discard await noCancel allFinished(futs)
 
 method close*(m: Yamux) {.async: (raises: []).} =
   if m.isClosed == true:
@@ -542,8 +566,7 @@ method close*(m: Yamux) {.async: (raises: []).} =
     channel.isReset = true
     channel.opened = false
     channel.isClosed = true
-    await channel.remoteClosed()
-    channel.receivedData.fire()
+    await channel.forceClose()
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
@@ -551,6 +574,8 @@ method close*(m: Yamux) {.async: (raises: []).} =
   except LPStreamError as exc:
     trace "failed to send goAway", description = exc.msg
   await m.connection.close()
+
+  await drainChannelTasks(channels)
 
   m.isClosed = true
   trace "Closed yamux"
@@ -603,7 +628,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
               await newStream.reset()
               continue
             await newStream.open()
-            asyncSpawn m.handleStream(newStream)
+            newStream.handlerFut = m.handleStream(newStream)
         elif header.streamId notin m.channels:
           # Flush the data
           m.flushed.withValue(header.streamId, flushed):
@@ -633,8 +658,10 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             )
 
         if header.msgType == WindowUpdate:
-          channel.sendWindow += int(header.length)
-          asyncSpawn channel.sendLoop()
+          channel.sendWindow =
+            min(channel.sendWindow + int64(header.length), MaxSendWindow)
+          if not channel.isSending:
+            channel.sendLoopFut = channel.sendLoop()
         else:
           if header.length.int > channel.recvWindow.int:
             # check before allocating the buffer

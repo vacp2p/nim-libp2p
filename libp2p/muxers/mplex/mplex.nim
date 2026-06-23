@@ -50,6 +50,18 @@ proc newTooManyChannels(): ref TooManyChannels =
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
 
+proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
+  ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
+  ## have torn channels and connection down first.
+  var futs: seq[Future[void]]
+  for chann in channs:
+    futs.add(chann.cleanupFut)
+    if not chann.handlerFut.isNil():
+      futs.add(chann.handlerFut)
+    if not chann.resetMessageFut.isNil():
+      futs.add(chann.resetMessageFut)
+  discard await noCancel allFinished(futs)
+
 proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## remove the local channel from the internal tables
   ##
@@ -99,7 +111,7 @@ proc newStreamInternal*(
   m.channels[initiator][id] = channel
 
   # All the errors are handled inside `cleanupChann()` procedure.
-  asyncSpawn m.cleanupChann(channel)
+  channel.cleanupFut = m.cleanupChann(channel)
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
@@ -158,7 +170,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         if m.streamHandler != nil:
           # Launch handler task
           # All the errors are handled inside `handleStream()` procedure.
-          asyncSpawn m.handleStream(channel)
+          channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
           warn "attempting to send a packet larger than allowed",
@@ -237,6 +249,8 @@ method close*(m: Mplex) {.async: (raises: []).} =
 
   for chann in channs:
     await chann.reset()
+
+  await drainChannelTasks(channs)
 
   m.channels[false].clear()
   m.channels[true].clear()
