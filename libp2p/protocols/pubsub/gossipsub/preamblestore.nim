@@ -36,7 +36,7 @@ proc init*(
 ): T =
   PreambleInfo(
     messageId: preamble.messageID.get(),
-    messageLength: preamble.messageLength.get(),
+    messageLength: preamble.messageLength.get(0),
     topicId: preamble.topicID.get(),
     sender: sender,
     startsAt: startsAt,
