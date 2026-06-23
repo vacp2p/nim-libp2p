@@ -496,9 +496,13 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
   else:
     msg
 
+func validate*(sub: SubOpts): Result[void, string] =
+  if sub.topic.isNone:
+    return err("Subsciption topic must be set")
+  ok()
+
 func validate*(msg: RPCMsg): Result[void, string] =
   # validates RPCMsg after it is received and decoded.
-  for m in msg.subscriptions:
-    if m.topic.isNone:
-      return err("Subsciption topic must be set")
+  for sub in msg.subscriptions:
+    ?sub.validate()
   ok()
