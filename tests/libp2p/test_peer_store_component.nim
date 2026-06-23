@@ -171,3 +171,34 @@ suite "PeerStore Address TTL - Component":
       # The non-expiring entries were spared.
       switch.peerStore[AddressBook].entries(zeroTtlPeer).len == 1
       switch.peerStore[AddressBook].entries(infinitePeer).len == 1
+
+  asyncTest "connected-but-idle address expires while still connected":
+    # An address's lastUpdated only changes when something writes it again:
+    # a re-dial, a new identify, or an identify-push from the peer.
+    # On a long-lived connection where none of that happens 
+    # the address can go stale and be pruned, even though the dialer is still connected.
+    let
+      listener = makeStandardSwitch(TcpAutoAddress)
+      dialer = makeStandardSwitchBuilder(TcpAutoAddress)
+        .withAddressConfidenceTtls(
+          AddressConfidenceTtls(
+            low: 10.milliseconds, medium: 20.milliseconds, high: 30.milliseconds
+          )
+        )
+        .build()
+    startAndDeferStop(@[listener, dialer])
+
+    await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
+
+    # The successful dial records the listener's address at High.
+    checkUntilTimeout:
+      dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).anyIt(
+        it.confidence == AddressConfidence.High
+      )
+
+    # The connection stays open and idle.
+    # When TTL elapses, the address is gone while the connection is still alive.
+    checkUntilTimeout:
+      dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).len == 0
+
+    check dialer.isConnected(listener.peerInfo.peerId)
