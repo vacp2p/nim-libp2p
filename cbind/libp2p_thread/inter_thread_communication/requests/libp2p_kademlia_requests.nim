@@ -52,7 +52,7 @@ proc allocServiceInfoArrayFromSeq(services: seq[ServiceInfo]): ptr Libp2pService
   let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](ret)
   for i, svc in services:
     servicesArr[i].id = svc.id.alloc()
-    if svc.data.isSome:
+    if svc.data.isSome and svc.data.get().len > 0:
       servicesArr[i].dataLen = svc.data.get().len.csize_t
       servicesArr[i].data = cast[ptr byte](allocShared(svc.data.get().len))
       copyMem(servicesArr[i].data, addr svc.data.get()[0], svc.data.get().len)
