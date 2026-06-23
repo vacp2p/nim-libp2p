@@ -45,7 +45,7 @@ proc extractPublicKey(m: Message): Opt[PublicKey] =
       warn "could not derive peerId from key field"
       return Opt.none(PublicKey)
 
-    if derivedPeerId != m.fromPeer.get():
+    if m.fromPeer.isSome and derivedPeerId != m.fromPeer.get():
       warn "peerId derived from msg.key is not the same as msg.fromPeer",
         derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
       return Opt.none(PublicKey)
