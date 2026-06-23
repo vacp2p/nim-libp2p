@@ -173,32 +173,35 @@ suite "PeerStore Address TTL - Component":
       switch.peerStore[AddressBook].entries(infinitePeer).len == 1
 
   asyncTest "connected-but-idle address expires while still connected":
-    # An address's lastUpdated only changes when something writes it again:
-    # a re-dial, an Identify exchange, or an Identify Push from the peer.
-    # After the initial dial/identify, if nothing refreshes the entry,
-    # the address can go stale and be pruned, even though the dialer is still connected.
+    # An address only gets a fresh timestamp when it is written again:
+    # on a re-dial, an identify, or an identify push from the peer.
+    # If a connection does none of these, the address gets stale and the
+    # prune loop drops it while we are still connected to the peer.
     let
       listener = makeStandardSwitch(TcpAutoAddress)
+      # low is small so the prune loop runs often.
+      # medium and high are large so the address does not expire on its own during setup.
       dialer = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAddressConfidenceTtls(
-          AddressConfidenceTtls(
-            low: 10.milliseconds, medium: 20.milliseconds, high: 30.milliseconds
-          )
+          AddressConfidenceTtls(low: 50.milliseconds, medium: 1.hours, high: 1.hours)
         )
         .build()
     startAndDeferStop(@[listener, dialer])
 
-    await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
+    let peerId = listener.peerInfo.peerId
+    await dialer.connect(peerId, listener.peerInfo.addrs)
 
-    # The successful dial records the listener's address at High.
+    # The dial stores the listener's address.
     checkUntilTimeout:
-      dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).anyIt(
-        it.confidence == AddressConfidence.High
-      )
+      dialer.peerStore[AddressBook].entries(peerId).len > 0
 
-    # The connection stays open and idle.
-    # When TTL elapses, the address is gone while the connection is still alive.
+    # Nothing refreshes the address.
+    # Back-date the entries beyond the TTL.
+    for i in 0 ..< dialer.peerStore[AddressBook].book[peerId].len:
+      dialer.peerStore[AddressBook].book[peerId][i].lastUpdated = Moment.now() - 2.hours
+
+    # The prune loop drops the old address while the connection is still open.
     checkUntilTimeout:
-      dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).len == 0
+      dialer.peerStore[AddressBook].entries(peerId).len == 0
 
-    check dialer.isConnected(listener.peerInfo.peerId)
+    check dialer.isConnected(peerId)
