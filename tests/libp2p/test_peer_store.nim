@@ -229,6 +229,17 @@ suite "AddressBook TTL / confidence":
     b.ttls = AddressConfidenceTtls(low: low, medium: medium, high: high)
     b
 
+  proc newRecorder(book: AddressBook): ref seq[PeerId] =
+    ## Record the peerId of every change-handler notification.
+    var recorded: ref seq[PeerId]
+    new(recorded)
+    recorded[] = @[]
+    book.addHandler(
+      proc(peerId: PeerId) {.gcsafe, raises: [].} =
+        recorded[].add(peerId)
+    )
+    recorded
+
   test "isExpired - Low expires after low TTL":
     let ttls = AddressConfidenceTtls(low: 1.seconds, medium: 1.hours, high: 24.hours)
     let entry = AddressEntry(
@@ -444,6 +455,50 @@ suite "AddressBook TTL / confidence":
       book[peerId1].len == 0
       book.entries(peerId1).len == 0
       peerId1 notin book
+
+  test "extend notifies subscribers":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    book.extend(peerId1, @[addr1], AddressConfidence.Low)
+    check recorded[] == @[peerId1]
+
+  test "markConnected notifies subscribers":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    book.markConnected(peerId1, addr1)
+    check recorded[] == @[peerId1]
+
+  test "set fires a change handler even when clearing an absent peer":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    # Clearing a peer that was never stored changes nothing,
+    # yet set still notifies through its unconditional defer.
+    # This differs from del and pruneExpired, which notify only on a real change.
+    book.set(peerId1, newSeq[MultiAddress]())
+    check recorded[] == @[peerId1]
+
+  test "pruneExpired notifies changed peers and skips untouched ones":
+    let
+      book = makeBook(1.seconds, 1.hours, 24.hours)
+      peerId3 = PeerId.random(rng()).get()
+    # peerId1 keeps a fresh address but loses an expired one (partial eviction).
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.extend(peerId1, @[addr2], AddressConfidence.Medium)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    # peerId2's only address is expired (full eviction).
+    book.set(peerId2, @[addr1], AddressConfidence.Low)
+    book.book[peerId2][0].lastUpdated = Moment.now() - 2.seconds
+    # peerId3 stays fresh and must not be touched.
+    book.set(peerId3, @[addr2], AddressConfidence.Low)
+
+    # Register after setup so only the prune notifications are recorded.
+    let recorded = newRecorder(book)
+    book.pruneExpired()
+
+    check:
+      peerId1 in recorded[]
+      peerId2 in recorded[]
+      peerId3 notin recorded[]
 
 suite "AddressBook TTL pruning loop":
   let
