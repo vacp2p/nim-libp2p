@@ -33,9 +33,9 @@ func contains*(c: MCache, msgId: MessageId): bool =
   msgId in c.msgs
 
 func put*(c: var MCache, msgId: MessageId, msg: Message) =
-  if not c.msgs.hasKeyOrPut(msgId, msg) and msg.topic.isSome:
+  if not c.msgs.hasKeyOrPut(msgId, msg):
     # Only add cache entry if the message was not already in the cache
-    c.history[c.pos].add(CacheEntry(msgId: msgId, topic: msg.topic.get()))
+    c.history[c.pos].add(CacheEntry(msgId: msgId, topic: msg.topic))
 
 func window*(c: MCache, topic: string): HashSet[MessageId] =
   let len = min(c.windowSize, c.history.len)

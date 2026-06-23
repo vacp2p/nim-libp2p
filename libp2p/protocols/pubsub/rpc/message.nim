@@ -86,7 +86,7 @@ proc init*(
   if sign and peer.isNone():
     doAssert(false, "Cannot sign message without peer info")
 
-  var msg = Message(data: Opt.some(move(data)), topic: Opt.some(topic))
+  var msg = Message(data: Opt.some(move(data)), topic: topic)
 
   # order matters, we want to include seqno in the signature
   seqno.withValue(seqn):

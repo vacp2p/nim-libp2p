@@ -479,7 +479,7 @@ proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
   try:
-    let topic = msg.topic.get()
+    let topic = msg.topic
 
     proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
       g.floodsub.withValue(topic, peers):
@@ -580,7 +580,7 @@ proc validateAndRelay(
     info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.get(@[]).len + it.topic.get().len).foldl(a + b, 0)
+  msgs.mapIt(it.data.get(@[]).len + it.topic.len).foldl(a + b, 0)
 
 proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
   # In this way we count even ignored fields by protobuf
@@ -656,7 +656,7 @@ method rpcHandler*(
       rpcMsg.messages[i]
 
     template topic(): string =
-      msg.topic.get()
+      msg.topic
 
     let msgIdResult = g.msgIdProvider(msg)
 

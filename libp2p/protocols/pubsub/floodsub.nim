@@ -153,9 +153,7 @@ method rpcHandler*(
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    let topic = msg.topic.valueOr:
-      debug "Dropping message after validation, reason: topic not set", msgId, peer
-      continue
+    let topic = msg.topic
     if topic notin f.topics:
       debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue

@@ -55,7 +55,7 @@ type
     fromPeer* {.fieldNumber: 1, ext.}: Opt[PeerId]
     data* {.fieldNumber: 2.}: Opt[seq[byte]]
     seqno* {.fieldNumber: 3.}: Opt[seq[byte]]
-    topic* {.fieldNumber: 4.}: Opt[string]
+    topic* {.fieldNumber: 4, required.}: string
     signature* {.fieldNumber: 5.}: Opt[seq[byte]]
     key* {.fieldNumber: 6.}: Opt[seq[byte]]
 
@@ -444,7 +444,7 @@ proc withPreamble*(
   for i, m in msgs:
     preambles.add(
       Preamble(
-        topicID: m.topic,
+        topicID: Opt.some(m.topic),
         messageID: Opt.some(msgIds[i]),
         messageLength: Opt.some(m.data.len.uint32),
       )
@@ -501,7 +501,4 @@ func validate*(msg: RPCMsg): Result[void, string] =
   for m in msg.subscriptions:
     if m.topic.isNone:
       return err("Subsciption topic must be set")
-  for m in msg.messages:
-    if m.topic.isNone or m.topic.get().len == 0:
-      return err("Message missing required topic field")
   ok()

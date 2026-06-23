@@ -343,13 +343,13 @@ proc shouldHandlePartialRPC(
 proc recordReceivedMetadata(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  if rpc.partsMetadata.len == 0:
+  if rpc.partsMetadata.isNone:
     return
-  let groupState = ext.acquireGroupState(peerId, rpc.topicID, rpc.groupID)
+  let groupState = ext.acquireGroupState(peerId, rpc.topicID.get(), rpc.groupID.get())
   if groupState.isNil():
     return
   var peerState = groupState.getPeerState(peerId)
-  peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
+  peerState.receivedPartsMetadata = rpc.partsMetadata
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
 proc handlePartialRPC(
