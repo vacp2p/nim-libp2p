@@ -329,6 +329,37 @@ suite "GossipSub":
 
     await conn.close()
 
+  asyncTest "rpcHandler - cumulative subscription limit across messages":
+    let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
+    gossipSub.topicsHigh = 10
+
+    let conn = TestBufferStream.new(noop)
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    for i in 0 .. gossipSub.topicsHigh + 10:
+      let sub = RPCMsg.withSubs(@[topic & $i], true)
+      await gossipSub.rpcHandler(peer, encodeRpcMsg(sub, false))
+
+    check:
+      gossipSub.gossipsub.len == gossipSub.topicsHigh
+      peer.subscribedTopics == gossipSub.topicsHigh
+      not gossipSub.gossipsub.hasKey(topic & $gossipSub.topicsHigh)
+      peer.behaviourPenalty > 0.0
+
+    let unsub = RPCMsg.withSubs(@[topic & "0"], false)
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(unsub, false))
+    check peer.subscribedTopics == gossipSub.topicsHigh - 1
+
+    let lateSub = RPCMsg.withSubs(@[topic & "late"], true)
+    await gossipSub.rpcHandler(peer, encodeRpcMsg(lateSub, false))
+    check:
+      peer.subscribedTopics == gossipSub.topicsHigh
+      gossipSub.gossipsub.hasKey(topic & "late")
+
+    await conn.close()
+
   asyncTest "rpcHandler - invalid message bytes":
     let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
 

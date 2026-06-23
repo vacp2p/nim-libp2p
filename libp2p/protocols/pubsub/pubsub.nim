@@ -41,6 +41,7 @@ logScope:
 const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
+  DefaultTopicsHigh* = 1024 ## max topics a single peer may subscribe to
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -719,7 +720,7 @@ proc init*[PubParams: object | bool](
         subscriptionValidator: subscriptionValidator,
         maxMessageSize: maxMessageSize,
         rng: rng,
-        topicsHigh: int.high,
+        topicsHigh: DefaultTopicsHigh,
         customStreamCallbacks: customStreamCallbacks,
       )
     else:
@@ -735,7 +736,7 @@ proc init*[PubParams: object | bool](
         parameters: parameters,
         maxMessageSize: maxMessageSize,
         rng: rng,
-        topicsHigh: int.high,
+        topicsHigh: DefaultTopicsHigh,
         customStreamCallbacks: customStreamCallbacks,
       )
 

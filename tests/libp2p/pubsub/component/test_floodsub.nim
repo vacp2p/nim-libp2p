@@ -12,6 +12,7 @@ import
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
+    protocols/pubsub/rpc/protobuf,
     protocols/pubsub/peertable,
     protocols/pubsub/pubsubpeer,
   ]
@@ -274,3 +275,30 @@ suite "FloodSub Component":
     # especially on slow CI machines (e.g. Windows runners).
     checkUntilTimeoutCustom(120.seconds, 500.milliseconds):
       messageReceived == 1
+
+  asyncTest "FloodSub cumulative subscription limit across messages":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.topicsHigh = 10
+
+    let peerId = randomPeerId()
+    proc getStream(): Future[Stream] {.
+        async: (raises: [CancelledError, GetStreamDialError])
+    .} =
+      raise (ref GetStreamDialError)(msg: "unused")
+
+    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    node.peers[peerId] = peer
+
+    for i in 0 .. node.topicsHigh + 10:
+      let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
+      await node.rpcHandler(peer, encodeRpcMsg(sub, false))
+
+    check:
+      node.floodsub.len == node.topicsHigh
+      peer.subscribedTopics == node.topicsHigh
+      not node.floodsub.hasKey(topic & $node.topicsHigh)
+
+    let unsub =
+      RPCMsg.withSubscriptions(@[SubOpts(subscribe: false, topic: topic & "0")])
+    await node.rpcHandler(peer, encodeRpcMsg(unsub, false))
+    check peer.subscribedTopics == node.topicsHigh - 1

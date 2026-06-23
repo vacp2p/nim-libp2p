@@ -71,16 +71,19 @@ proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bo
     return
 
   if subscribe:
+    if peer.subscribedTopics >= f.topicsHigh and not f.floodsub.hasPeer(topic, peer):
+      trace "ignoring subscription over topicsHigh limit", peer, limit = f.topicsHigh
+      return
+
     trace "adding subscription for topic", peer, topic
 
-    # subscribe the peer to the topic
-    f.floodsub.mgetOrPut(topic, HashSet[PubSubPeer]()).incl(peer)
+    if f.floodsub.addPeer(topic, peer):
+      peer.subscribedTopics.inc()
   else:
-    f.floodsub.withValue(topic, peers):
+    if f.floodsub.hasPeer(topic, peer):
       trace "removing subscription for topic", peer, topic
-
-      # unsubscribe the peer from the topic
-      peers[].excl(peer)
+      f.floodsub.removePeer(topic, peer)
+      peer.subscribedTopics.dec()
 
 method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   ## handle peer disconnects
