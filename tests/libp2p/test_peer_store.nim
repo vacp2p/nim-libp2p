@@ -552,10 +552,14 @@ suite "AddressBook TTL pruning loop":
   asyncTest "close cancels the loop and clears the handle":
     let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
     peerStore.startAddressPruning()
-    check not peerStore.pruneHandle.isNil
+    let handle = peerStore.pruneHandle
+    check not handle.isNil
 
     peerStore.close()
     check peerStore.pruneHandle.isNil
+    # cancelSoon only schedules cancellation, so wait until the loop terminates.
+    checkUntilTimeout:
+      handle.finished()
 
   asyncTest "close on a store that never started is a no-op":
     let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
