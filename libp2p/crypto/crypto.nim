@@ -393,53 +393,6 @@ proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
     else:
       err(SchemeError)
 
-proc toBytes*(key: PrivateKey, data: var openArray[byte]): CryptoResult[int] =
-  ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
-  ## it to ``data``.
-  ##
-  ## Returns number of bytes (octets) needed to store private key ``key``.
-  let rawBytes = ?key.getRawBytes()
-  var encoded: seq[byte]
-  try:
-    var stream = memoryOutput()
-    stream.writeField(1, puint64(key.scheme))
-    stream.writeField(2, pbytes(rawBytes))
-    encoded = stream.getOutput(seq[byte])
-  except IOError:
-    return err(CryptoError.KeyError)
-  let blen = len(encoded)
-  if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], addr encoded[0], blen)
-  ok(blen)
-
-proc toBytes*(key: PublicKey, data: var openArray[byte]): CryptoResult[int] =
-  ## Serialize public key ``key`` (using libp2p protobuf scheme) and store
-  ## it to ``data``.
-  ##
-  ## Returns number of bytes (octets) needed to store public key ``key``.
-  let rawBytes = ?key.getRawBytes()
-  var encoded: seq[byte]
-  try:
-    var stream = memoryOutput()
-    stream.writeField(1, puint64(key.scheme))
-    stream.writeField(2, pbytes(rawBytes))
-    encoded = stream.getOutput(seq[byte])
-  except IOError:
-    return err(CryptoError.KeyError)
-  let blen = len(encoded)
-  if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], addr encoded[0], blen)
-  ok(blen)
-
-proc toBytes*(sig: Signature, data: var openArray[byte]): int =
-  ## Serialize signature ``sig`` and store it to ``data``.
-  ##
-  ## Returns number of bytes (octets) needed to store signature ``sig``.
-  let blen = len(sig.data)
-  if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], addr sig.data[0], len(sig.data))
-  blen
-
 proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
   ## serialization).
@@ -472,6 +425,38 @@ proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
 proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
   sig.data
+
+proc toBytes*(key: PrivateKey, data: var openArray[byte]): CryptoResult[int] =
+  ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
+  ## it to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store private key ``key``.
+  let encoded = ?key.getBytes()
+  let blen = len(encoded)
+  if len(data) >= blen and blen > 0:
+    copyMem(addr data[0], addr encoded[0], blen)
+  ok(blen)
+
+proc toBytes*(key: PublicKey, data: var openArray[byte]): CryptoResult[int] =
+  ## Serialize public key ``key`` (using libp2p protobuf scheme) and store
+  ## it to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store public key ``key``.
+  let encoded = ?key.getBytes()
+  let blen = len(encoded)
+  if len(data) >= blen and blen > 0:
+    copyMem(addr data[0], addr encoded[0], blen)
+  ok(blen)
+
+proc toBytes*(sig: Signature, data: var openArray[byte]): int =
+  ## Serialize signature ``sig`` and store it to ``data``.
+  ##
+  ## Returns number of bytes (octets) needed to store signature ``sig``.
+  let encoded = sig.getBytes()
+  let blen = len(encoded)
+  if len(data) >= blen and blen > 0:
+    copyMem(addr data[0], addr encoded[0], len(encoded))
+  blen
 
 template initImpl[T: PrivateKey | PublicKey](key: var T, data: openArray[byte]): bool =
   var id: uint64
