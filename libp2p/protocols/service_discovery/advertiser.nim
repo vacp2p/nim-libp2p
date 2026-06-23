@@ -295,7 +295,7 @@ proc addProvidedService*(
 
   if not service.isValid():
     error "rejecting service with oversized data",
-      service = service.id, dataLen = service.data.len, max = MaxServiceDataSize
+      service = service.id, dataLen = service.data.get().len, max = MaxServiceDataSize
     return
 
   let serviceId = service.id.hashServiceId()
