@@ -120,6 +120,9 @@ type
     staticTags: Table[PeerId, Table[string, int]]
     decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
     decayLoopFut: Future[void]
+    onCloseFuts: seq[Future[void]]
+    peerEventFuts: seq[Future[void]]
+    slotMonitorFuts: seq[Future[void]]
 
   ConnectionSlot* = object
     connManager: ConnManager
@@ -456,7 +459,7 @@ proc storeMuxer*(
     if c.muxerStore.countPeers() > c.watermark.get().highWater:
       c.triggerTrim()
 
-  asyncSpawn c.onClose(muxer)
+  c.onCloseFuts.trackFut(c.onClose(muxer))
 
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
@@ -469,8 +472,10 @@ proc storeMuxer*(
   await connectedEvent
 
   if isNewPeer:
-    asyncSpawn c.triggerPeerEvents(
-      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
+    c.peerEventFuts.trackFut(
+      c.triggerPeerEvents(
+        peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
+      )
     )
 
   trace "Stored muxer",
@@ -526,7 +531,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     finally:
       cs.release()
 
-  asyncSpawn semaphoreMonitor()
+  cs.connManager.slotMonitorFuts.trackFut(semaphoreMonitor())
 
 proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
   cs.trackConnection(mux.connection)
@@ -727,6 +732,12 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
         return
     c.trimFut = c.trimConnections()
 
+proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
+  ## Drains the per-muxer onClose tasks once muxers are closed, so they finish
+  ## cleanup instead of being cancelled mid-flight.
+  discard await noCancel allFinished(c.onCloseFuts)
+  c.onCloseFuts = @[]
+
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   ## Cleanup resources for the connection manager.
   trace "Closing ConnManager"
@@ -737,6 +748,11 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   if not c.trimFut.isNil:
     await c.trimFut.cancelAndWait()
+
+  await c.peerEventFuts.cancelAndWait()
+  c.peerEventFuts = @[]
+  await c.slotMonitorFuts.cancelAndWait()
+  c.slotMonitorFuts = @[]
 
   let expected = c.expectedConnectionsOverLimit
   c.expectedConnectionsOverLimit.clear()
@@ -755,5 +771,7 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
     if muxers.len > 0:
       await allFutures(muxers.mapIt(closeMuxer(it)))
       await c.onPeerDisconnected(peerId)
+
+  await c.drainOnCloseTasks()
 
   trace "Closed ConnManager"
