@@ -455,7 +455,7 @@ proc toBytes*(sig: Signature, data: var openArray[byte]): int =
   let encoded = sig.getBytes()
   let blen = len(encoded)
   if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], addr encoded[0], len(encoded))
+    copyMem(addr data[0], addr encoded[0], blen)
   blen
 
 template initImpl[T: PrivateKey | PublicKey](key: var T, data: openArray[byte]): bool =
