@@ -175,7 +175,7 @@ suite "PeerStore Address TTL - Component":
   asyncTest "connected-but-idle address expires while still connected":
     # An address's lastUpdated only changes when something writes it again:
     # a re-dial, a new identify, or an identify-push from the peer.
-    # On a long-lived connection where none of that happens 
+    # On a long-lived connection where none of that happens
     # the address can go stale and be pruned, even though the dialer is still connected.
     let
       listener = makeStandardSwitch(TcpAutoAddress)
