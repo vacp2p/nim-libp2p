@@ -463,6 +463,8 @@ proc storeMuxer*(
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
 
+  c.onCloseFuts.trackFut(c.onClose(muxer))
+
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
   )
@@ -479,8 +481,6 @@ proc storeMuxer*(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
     c.peerEventFuts.trackFut(joinedEvent)
-
-  c.onCloseFuts.trackFut(c.onClose(muxer))
 
   if c.watermark.isSome:
     if isNewPeer:
