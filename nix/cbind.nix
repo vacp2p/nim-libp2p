@@ -58,7 +58,7 @@ pkgs.stdenv.mkDerivation {
       libnatpmp.a
 
     commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
-      --threads:on --opt:size --noMain --mm:refc --header --undef:metrics \
+      --threads:on --opt:size --noMain --mm:refc --header --d:metrics \
       --nimMainPrefix:libp2p --nimcache:$NIMCACHE"
 
     echo "== Building C bindings (dynamic/shared) =="
