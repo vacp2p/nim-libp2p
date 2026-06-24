@@ -302,3 +302,30 @@ suite "FloodSub Component":
       RPCMsg.withSubscriptions(@[SubOpts(subscribe: false, topic: topic & "0")])
     await node.rpcHandler(peer, encodeRpcMsg(unsub, false))
     check peer.subscribedTopics == node.topicsHigh - 1
+
+    let lateSub =
+      RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & "late")])
+    await node.rpcHandler(peer, encodeRpcMsg(lateSub, false))
+    check:
+      peer.subscribedTopics == node.topicsHigh
+      node.floodsub.hasKey(topic & "late")
+
+  asyncTest "FloodSub unsubscribePeer clears emptied topics":
+    let node = generateNodes(1).toFloodSub()[0]
+
+    let peerId = randomPeerId()
+    proc getStream(): Future[Stream] {.
+        async: (raises: [CancelledError, GetStreamDialError])
+    .} =
+      raise (ref GetStreamDialError)(msg: "unused")
+
+    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    node.peers[peerId] = peer
+
+    for i in 0 ..< 5:
+      let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
+      await node.rpcHandler(peer, encodeRpcMsg(sub, false))
+    check node.floodsub.len == 5
+
+    node.unsubscribePeer(peerId)
+    check node.floodsub.len == 0

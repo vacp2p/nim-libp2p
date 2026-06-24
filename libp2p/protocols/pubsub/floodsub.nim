@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sets, hashes, tables]
+import std/[sets, hashes, tables, sequtils]
 import chronos, chronicles, metrics
 import
   ./pubsub,
@@ -93,8 +93,8 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   if pubSubPeer.isNil:
     return
 
-  for _, v in f.floodsub.mpairs():
-    v.excl(pubSubPeer)
+  for t in toSeq(f.floodsub.keys):
+    f.floodsub.removePeer(t, pubSubPeer)
 
   procCall PubSub(f).unsubscribePeer(peer)
 
