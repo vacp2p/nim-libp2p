@@ -394,6 +394,8 @@ proc processServiceDiscovery(
   case request[].callbackKind
   of CallbackKind.RANDOM_RECORDS:
     handleRandomRecordsRes(await req.processLookup(libp2p.kad), request)
+  of CallbackKind.READ:
+    handleReadRes(await req.processCreateXpr(libp2p), request)
   else:
     handleRes(await req.process(libp2p.kad), request)
 

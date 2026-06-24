@@ -221,33 +221,17 @@ method select*(
   return ok(bestIdx)
 
 proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
-  let
-    peerInfo: PeerInfo = disco.switch.peerInfo
-    services: seq[ServiceInfo] = disco.services.toSeq()
-
-  for svc in services:
-    if not svc.isValid():
-      return err(
-        "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
-      )
-
+  let peerInfo = disco.switch.peerInfo
   let filteredAddresses = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
 
-  let extPeerRecord = SignedExtendedPeerRecord.init(
-    peerInfo.privateKey,
-    ExtendedPeerRecord(
-      peerId: peerInfo.peerId,
-      seqNo: Moment.now().epochSeconds.uint64,
-      addresses: filteredAddresses.mapIt(AddressInfo(address: it)),
-      services: services,
-    ),
-  ).valueOr:
-    return err("Failed to create signed peer record: " & $error)
+  let peerRecord = ExtendedPeerRecord.init(
+    peerId = peerInfo.peerId,
+    addresses = filteredAddresses,
+    seqNo = Moment.now().epochSeconds.uint64,
+    services = disco.services.toSeq(),
+  )
 
-  if not extPeerRecord.isValid():
-    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
-
-  return ok(extPeerRecord)
+  SignedExtendedPeerRecord.build(peerInfo.privateKey, peerRecord)
 
 proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
   var peerInfos: seq[PeerInfo]
