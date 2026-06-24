@@ -7,7 +7,7 @@ import std/[sequtils, tables]
 import chronos
 import
   ../../libp2p/
-    [peerstore, peerinfo, multiaddress, switch, protocols/identify, protocols/kademlia]
+    [peerstore, peerinfo, multiaddress, switch, connmanager, protocols/kademlia]
 import ../tools/[unittest, multiaddress, switch_builder, lifecycle, topology]
 import ./kademlia/utils
 
@@ -74,17 +74,25 @@ suite "PeerStore Address TTL - Component":
       dialer = makeStandardSwitch()
     startAndDeferStop(@[listener, dialer])
 
+    # Wait for the listener to finish identifying the dialer,
+    # so IdentifyPusher has the dialer in its pushPeers set.
+    let listenerIdentified = newFuture[void]("listenerIdentified")
+    proc onIdentified(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if not listenerIdentified.finished:
+        listenerIdentified.complete()
+
+    listener.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
+
     await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
 
-    # Wait for the dialed address to reach High before the update.
     checkUntilTimeout:
       dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).anyIt(
         it.confidence == AddressConfidence.High
       )
 
-    # Wait until listener has identified the dialer before announcing the extra address.
-    checkUntilTimeout:
-      IdentifyPushCodec in listener.peerStore[ProtoBook][dialer.peerInfo.peerId]
+    await listenerIdentified.wait(10.seconds)
 
     # The listener announces an extra address.
     # Its IdentifyPusher pushes the updated PeerInfo to the dialer at Medium.
