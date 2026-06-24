@@ -1075,6 +1075,17 @@ proc libp2p_create_xpr(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
+  if addrsLen > 0 and addrs.isNil():
+    failWithBufferMsg(callback, userData, "addrs are not set")
+
+  if servicesLen > 0 and services.isNil():
+    failWithBufferMsg(callback, userData, "services are not set")
+
+  let serviceArray = cast[ptr UncheckedArray[Libp2pServiceInfo]](services)
+  for i in 0 ..< servicesLen.int:
+    if serviceArray[i].dataLen > 0 and serviceArray[i].data.isNil():
+      failWithBufferMsg(callback, userData, "service data is not set")
+
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.SERVICE_DISCOVERY,

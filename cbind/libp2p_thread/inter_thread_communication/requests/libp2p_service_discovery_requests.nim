@@ -58,9 +58,9 @@ proc createSharedXpr*(
   ret[].operation = SD_CREATE_XPR
   ret[].addrs = allocSharedSeqFromCArray(addrs, addrsLen.int)
   ret[].seqNo = seqNo
-  ret[].servicesLen = servicesLen.int
 
   if servicesLen > 0 and not services.isNil():
+    ret[].servicesLen = servicesLen.int
     ret[].services = cast[ptr UncheckedArray[SharedService]](allocShared0(
       sizeof(SharedService) * servicesLen.int
     ))
@@ -126,7 +126,9 @@ proc toServices(self: ptr ServiceDiscoveryRequest): seq[ServiceInfo] =
   var services: seq[ServiceInfo]
   for i in 0 ..< self[].servicesLen:
     services.add(
-      ServiceInfo(id: $self[].services[i].id, data: self[].services[i].data.toSeq())
+      ServiceInfo(
+        id: $self[].services[i].id, data: Opt.some(self[].services[i].data.toSeq())
+      )
     )
   services
 
