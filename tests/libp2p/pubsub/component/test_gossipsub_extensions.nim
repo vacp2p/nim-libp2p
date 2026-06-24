@@ -442,15 +442,15 @@ suite "GossipSub Component - Extensions":
     await connect(nodes[0], nodes[1])
 
     let pingBytes = @[1'u8, 2, 3, 4, 5]
-    var receivedPong: seq[byte]
+    let receivedPongFut = newFuture[seq[byte]]("wait for pong")
 
     # observe pong received by nodes[0] after it sends a ping
     nodes[0].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
           msg.pingpongExtension.withValue(ppe):
-            if ppe.pong.len > 0:
-              receivedPong = ppe.pong
+            if ppe.pong.isSome:
+              receivedPongFut.complete(ppe.pong.get())
       )
     )
 
@@ -462,8 +462,7 @@ suite "GossipSub Component - Extensions":
     )
 
     # nodes[1] should echo the ping back as a pong
-    checkUntilTimeout:
-      receivedPong == pingBytes
+    check (await receivedPongFut) == pingBytes
 
   asyncTest "Preamble Extension":
     const topic = "preamble-topic"
@@ -503,4 +502,4 @@ suite "GossipSub Component - Extensions":
     # nodes[1] should receive IMReceiving right after it broadcasted preamble.
     checkUntilTimeout:
       receivedImReceiving.len == 1
-      receivedImReceiving[0].messageLength == msgLength.uint32
+      receivedImReceiving[0].messageLength.get() == msgLength.uint32

@@ -13,7 +13,6 @@ import
   ../../peerinfo,
   ../../stream/connection,
   ../../crypto/crypto,
-  ../../protobuf/minprotobuf,
   ../../utils/shortlog,
   ../../utils/future
 
@@ -625,7 +624,7 @@ iterator splitRPCMsg(
         continue # Skip this message
 
       trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-      yield encodeRpcMsg(currentRPCMsg, anonymize)
+      yield encode(currentRPCMsg, anonymize)
       currentRPCMsg = RPCMsg()
       currentSize = 0
 
@@ -635,7 +634,7 @@ iterator splitRPCMsg(
   # Check if there is a non-empty currentRPCMsg left to be added
   if currentRPCMsg.messages.len > 0:
     trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-    yield encodeRpcMsg(currentRPCMsg, anonymize)
+    yield encode(currentRPCMsg, anonymize)
 
 proc send*(
     p: PubSubPeer,
@@ -664,12 +663,12 @@ proc send*(
       # trigger send hooks
       p.sendObservers(mm)
       sendMetrics(mm)
-      encodeRpcMsg(mm, anonymize)
+      encode(mm, anonymize)
     else:
       # If there are no send hooks, we redundantly re-encode the message to
       # protobuf for every peer - this could easily be improved!
       sendMetrics(msg)
-      encodeRpcMsg(msg, anonymize)
+      encode(msg, anonymize)
 
   # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
   let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100

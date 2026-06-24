@@ -45,10 +45,10 @@ proc addReceivedMessageLogger(runner: ScriptRunner) =
     PubSubObserver(
       onRecv: proc(peer: PubSubPeer, rpc: var RPCMsg) {.gcsafe, raises: [].} =
         for msg in rpc.messages:
-          if msg.topic notin runner.node.topics or msg.data.len < MsgIdLen:
+          if msg.topic notin runner.node.topics or msg.data.get(@[]).len < MsgIdLen:
             continue
 
-          let msgId = extractMsgId(msg.data)
+          let msgId = extractMsgId(msg.data.get())
           logReceivedMessage(logStream, $msgId, msg.topic)
     )
   )
@@ -65,21 +65,21 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
   proc onIncomingRPC(
       peer: PeerId, rpc: PartialMessageExtensionRPC
   ) {.gcsafe, raises: [].} =
-    if rpc.groupID.len != GroupIdLen:
-      warn "Incoming RPC has invalid groupID length", len = rpc.groupID.len
+    if rpc.groupID.isNone or rpc.groupID.get().len != GroupIdLen:
+      warn "Incoming RPC has invalid groupID length", len = rpc.groupID.get(@[]).len
       return
 
-    let groupId = fromBytesBE(uint64, rpc.groupID)
-    logReceivedPartialMessage(runner.logStream, rpc.topicID, groupId, peer)
+    let groupId = fromBytesBE(uint64, rpc.groupID.get())
+    logReceivedPartialMessage(runner.logStream, rpc.topicID.get(), groupId, peer)
 
-    let key = makeKey(rpc.topicID, rpc.groupID)
+    let key = makeKey(rpc.topicID.get(), rpc.groupID.get())
     let pm =
-      runner.messages.mgetOrPut(key, InteropPartialMessage.fromBytes(rpc.groupID))
+      runner.messages.mgetOrPut(key, InteropPartialMessage.fromBytes(rpc.groupID.get()))
 
-    if rpc.partialMessage.len > 0:
+    if rpc.partialMessage.isSome:
       let before = pm.partsMetadata()
-      let extendRes = pm.extend(rpc.partialMessage)
-      if extendRes.isErr():
+      let extendRes = pm.extend(rpc.partialMessage.get())
+      if extendRes.isErr:
         warn "Failed to extend partial message", error = extendRes.error
         return
 
@@ -89,7 +89,7 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
 
     doAssert runner.node != nil, "runner.node must be set before RPC processing"
 
-    asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
+    asyncSpawn runner.node.publishPartial(rpc.topicID.get(), pm)
 
   PartialMessageExtensionConfig(
     unionPartsMetadata: interopUnionPartsMetadata,
