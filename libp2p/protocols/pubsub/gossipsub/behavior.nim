@@ -234,6 +234,9 @@ proc handleGraft*(
 proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecord])] =
   var routingRecords: seq[(PeerId, Opt[PeerRecord])]
   for record in prune.peers:
+    if record.peerId.isNone:
+      continue
+
     var peerRecord = Opt.none(PeerRecord)
     if record.signedPeerRecord.isSome:
       SignedPeerRecord.decode(record.signedPeerRecord.get()).toOpt().withValue(spr):
