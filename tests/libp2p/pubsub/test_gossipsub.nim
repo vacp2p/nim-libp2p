@@ -334,7 +334,7 @@ suite "GossipSub":
 
     for i in 0 .. gossipSub.topicsHigh + 10:
       let sub = RPCMsg.withSubs(@[topic & $i], true)
-      await gossipSub.rpcHandler(peer, encodeRpcMsg(sub, false))
+      await gossipSub.rpcHandler(peer, encode(sub, false))
 
     check:
       gossipSub.gossipsub.len == gossipSub.topicsHigh
@@ -343,11 +343,11 @@ suite "GossipSub":
       peer.behaviourPenalty > 0.0
 
     let unsub = RPCMsg.withSubs(@[topic & "0"], false)
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(unsub, false))
+    await gossipSub.rpcHandler(peer, encode(unsub, false))
     check peer.subscribedTopics == gossipSub.topicsHigh - 1
 
     let lateSub = RPCMsg.withSubs(@[topic & "late"], true)
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(lateSub, false))
+    await gossipSub.rpcHandler(peer, encode(lateSub, false))
     check:
       peer.subscribedTopics == gossipSub.topicsHigh
       gossipSub.gossipsub.hasKey(topic & "late")

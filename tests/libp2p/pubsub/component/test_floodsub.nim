@@ -291,7 +291,7 @@ suite "FloodSub Component":
 
     for i in 0 .. node.topicsHigh + 10:
       let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
-      await node.rpcHandler(peer, encodeRpcMsg(sub, false))
+      await node.rpcHandler(peer, encode(sub, false))
 
     check:
       node.floodsub.len == node.topicsHigh
@@ -300,12 +300,12 @@ suite "FloodSub Component":
 
     let unsub =
       RPCMsg.withSubscriptions(@[SubOpts(subscribe: false, topic: topic & "0")])
-    await node.rpcHandler(peer, encodeRpcMsg(unsub, false))
+    await node.rpcHandler(peer, encode(unsub, false))
     check peer.subscribedTopics == node.topicsHigh - 1
 
     let lateSub =
       RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & "late")])
-    await node.rpcHandler(peer, encodeRpcMsg(lateSub, false))
+    await node.rpcHandler(peer, encode(lateSub, false))
     check:
       peer.subscribedTopics == node.topicsHigh
       node.floodsub.hasKey(topic & "late")
@@ -324,7 +324,7 @@ suite "FloodSub Component":
 
     for i in 0 ..< 5:
       let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
-      await node.rpcHandler(peer, encodeRpcMsg(sub, false))
+      await node.rpcHandler(peer, encode(sub, false))
     check node.floodsub.len == 5
 
     node.unsubscribePeer(peerId)
