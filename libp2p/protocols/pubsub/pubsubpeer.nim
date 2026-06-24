@@ -13,7 +13,6 @@ import
   ../../peerinfo,
   ../../stream/connection,
   ../../crypto/crypto,
-  ../../protobuf/minprotobuf,
   ../../utils/shortlog,
   ../../utils/future
 
