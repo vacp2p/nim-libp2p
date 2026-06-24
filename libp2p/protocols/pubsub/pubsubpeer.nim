@@ -159,6 +159,7 @@ type
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
     score*: float64
+    subscribedTopics*: int # distinct topics this peer is tracked as subscribed to
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
       ## IDONTWANT contains unvalidated message id:s which may be long and/or
