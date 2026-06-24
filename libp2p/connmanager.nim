@@ -453,14 +453,6 @@ proc storeMuxer*(
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
 
-  if c.watermark.isSome:
-    if isNewPeer:
-      c.connectedAt[peerId] = Moment.now()
-    if c.muxerStore.countPeers() > c.watermark.get().highWater:
-      c.triggerTrim()
-
-  c.onCloseFuts.trackFut(c.onClose(muxer))
-
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
   )
@@ -472,11 +464,17 @@ proc storeMuxer*(
   await connectedEvent
 
   if isNewPeer:
-    c.peerEventFuts.trackFut(
-      c.triggerPeerEvents(
-        peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
-      )
+    await c.triggerPeerEvents(
+      peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
+
+  c.onCloseFuts.trackFut(c.onClose(muxer))
+
+  if c.watermark.isSome:
+    if isNewPeer:
+      c.connectedAt[peerId] = Moment.now()
+    if c.muxerStore.countPeers() > c.watermark.get().highWater:
+      c.triggerTrim()
 
   trace "Stored muxer",
     muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
