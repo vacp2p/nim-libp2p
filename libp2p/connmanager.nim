@@ -419,6 +419,16 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
 
 proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
 
+proc triggerTrimAfter(
+    c: ConnManager, fut: Future[void]
+) {.async: (raises: []).} =
+  try:
+    await fut
+  except CancelledError:
+    return
+  if c.watermark.isSome and c.muxerStore.countPeers() > c.watermark.get().highWater:
+    c.triggerTrim()
+
 proc storeMuxer*(
     c: ConnManager, muxer: Muxer
 ) {.async: (raises: [CancelledError, LPError]).} =
@@ -463,10 +473,12 @@ proc storeMuxer*(
   c.notifyPeerReady(peerId)
   await connectedEvent
 
+  var joinedEvent: Future[void]
   if isNewPeer:
-    await c.triggerPeerEvents(
+    joinedEvent = c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
+    c.peerEventFuts.trackFut(joinedEvent)
 
   c.onCloseFuts.trackFut(c.onClose(muxer))
 
@@ -474,7 +486,10 @@ proc storeMuxer*(
     if isNewPeer:
       c.connectedAt[peerId] = Moment.now()
     if c.muxerStore.countPeers() > c.watermark.get().highWater:
-      c.triggerTrim()
+      if joinedEvent.isNil:
+        c.triggerTrim()
+      else:
+        c.peerEventFuts.trackFut(c.triggerTrimAfter(joinedEvent))
 
   trace "Stored muxer",
     muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
