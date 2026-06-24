@@ -4,6 +4,7 @@
 {.push raises: [].}
 
 import sequtils
+import protobuf_serialization
 import ../../../[peerid, routing_record]
 import ../../../utils/[opt, shortlog]
 
@@ -28,20 +29,6 @@ proc expectedFields[T](
     )
 
 type
-  PeerInfoMsg* = object
-    peerId*: PeerId
-    signedPeerRecord*: seq[byte]
-
-  SubOpts* = object
-    subscribe*: bool
-    topic*: string
-    # When true, it signals the receiver that the sender prefers partial messages.
-    requestsPartial*: Opt[bool]
-    # When true, it signals the receiver that the sender supports sending partial
-    # messages on this topic.
-    # When requestsPartial is true, this is assumed to be true.
-    supportsSendingPartial*: Opt[bool]
-
   MessageId* = seq[byte]
 
   SaltedId* = object
@@ -50,78 +37,108 @@ type
     # with respect to the variable-length message id
     data*: MDigest[256]
 
-  Message* = object
-    fromPeer*: PeerId
-    data*: seq[byte]
-    seqno*: seq[byte]
-    topic*: string
-    signature*: seq[byte]
-    key*: seq[byte]
+  PeerInfoMsg* {.proto2.} = object
+    peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    signedPeerRecord* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  ControlExtensions* = object
-    partialMessageExtension*: Opt[bool]
+  SubOpts* {.proto2.} = object
+    subscribe* {.fieldNumber: 1.}: Opt[bool]
+    topic* {.fieldNumber: 2.}: Opt[string]
+    # When true, it signals the receiver that the sender prefers partial messages.
+    requestsPartial* {.fieldNumber: 3.}: Opt[bool]
+    # When true, it signals the receiver that the sender supports sending partial
+    # messages on this topic.
+    # When requestsPartial is true, this is assumed to be true.
+    supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
+
+  Message* {.proto2.} = object
+    fromPeer* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    data* {.fieldNumber: 2.}: Opt[seq[byte]]
+    seqno* {.fieldNumber: 3.}: Opt[seq[byte]]
+    topic* {.fieldNumber: 4, required.}: string
+    signature* {.fieldNumber: 5.}: Opt[seq[byte]]
+    key* {.fieldNumber: 6.}: Opt[seq[byte]]
+
+  ControlExtensions* {.proto2.} = object
+    partialMessageExtension* {.fieldNumber: 10.}: Opt[bool]
 
     # Experimental extensions fields:
-    testExtension*: Opt[bool]
-    pingpongExtension*: Opt[bool]
-    preambleExtension*: Opt[bool]
+    testExtension* {.fieldNumber: 6492434.}: Opt[bool]
+    pingpongExtension* {.fieldNumber: 3145728.}: Opt[bool]
+    preambleExtension* {.fieldNumber: 4194304.}: Opt[bool]
 
-  ControlMessage* = object
-    ihave*: seq[ControlIHave]
-    iwant*: seq[ControlIWant]
-    graft*: seq[ControlGraft]
-    prune*: seq[ControlPrune]
-    idontwant*: seq[ControlIWant]
-    extensions*: Opt[ControlExtensions]
+  ControlMessage* {.proto2.} = object
+    ihave* {.fieldNumber: 1.}: seq[ControlIHave]
+    iwant* {.fieldNumber: 2.}: seq[ControlIWant]
+    graft* {.fieldNumber: 3.}: seq[ControlGraft]
+    prune* {.fieldNumber: 4.}: seq[ControlPrune]
+    idontwant* {.fieldNumber: 5.}: seq[ControlIWant]
+    extensions* {.fieldNumber: 6.}: Opt[ControlExtensions]
 
-  ControlIHave* = object
-    topicID*: string
-    messageIDs*: seq[MessageId]
+  ControlIHave* {.proto2.} = object
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    messageIDs* {.fieldNumber: 2.}: seq[MessageId]
 
-  ControlIWant* = object
-    messageIDs*: seq[MessageId]
+  ControlIWant* {.proto2.} = object
+    messageIDs* {.fieldNumber: 1.}: seq[MessageId]
 
-  ControlGraft* = object
-    topicID*: string
+  ControlGraft* {.proto2.} = object
+    topicID* {.fieldNumber: 1.}: Opt[string]
 
-  ControlPrune* = object
-    topicID*: string
-    peers*: seq[PeerInfoMsg]
-    backoff*: uint64
+  ControlPrune* {.proto2.} = object
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    peers* {.fieldNumber: 2.}: seq[PeerInfoMsg]
+    backoff* {.fieldNumber: 3, pint.}: Opt[uint64]
 
-  TestExtensionRPC* = object
+  TestExtensionRPC* {.proto2.} = object
 
-  PartialMessageExtensionRPC* = object
-    topicID*: string
-    groupID*: seq[byte]
-    partialMessage*: seq[byte]
-    partsMetadata*: seq[byte]
+  PartialMessageExtensionRPC* {.proto2.} = object
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    groupID* {.fieldNumber: 2.}: Opt[seq[byte]]
+    partialMessage* {.fieldNumber: 3.}: Opt[seq[byte]]
+    partsMetadata* {.fieldNumber: 4.}: Opt[seq[byte]]
 
-  PingPongExtensionRPC* = object
-    ping*: seq[byte]
-    pong*: seq[byte]
+  PingPongExtensionRPC* {.proto2.} = object
+    ping* {.fieldNumber: 1.}: Opt[seq[byte]]
+    pong* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  Preamble* = object
-    topicID*: string
-    messageID*: MessageId
-    messageLength*: uint32
+  Preamble* {.proto2.} = object
+    topicID* {.fieldNumber: 1.}: Opt[string]
+    messageID* {.fieldNumber: 2.}: Opt[MessageId]
+    messageLength* {.fieldNumber: 3, pint.}: Opt[uint32]
 
-  IMReceiving* = object
-    messageID*: MessageId
-    messageLength*: uint32
+  IMReceiving* {.proto2.} = object
+    messageID* {.fieldNumber: 1.}: Opt[MessageId]
+    messageLength* {.fieldNumber: 2, pint.}: Opt[uint32]
 
-  PreambleExtensionRPC* = object
-    preamble*: seq[Preamble]
-    imreceiving*: seq[IMReceiving]
+  PreambleExtensionRPC* {.proto2.} = object
+    preamble* {.fieldNumber: 1.}: seq[Preamble]
+    imreceiving* {.fieldNumber: 2.}: seq[IMReceiving]
 
-  RPCMsg* = object
-    subscriptions*: seq[SubOpts]
-    messages*: seq[Message]
-    control*: Opt[ControlMessage]
-    partialMessageExtension*: Opt[PartialMessageExtensionRPC]
-    testExtension*: Opt[TestExtensionRPC]
-    pingpongExtension*: Opt[PingPongExtensionRPC]
-    preambleExtension*: Opt[PreambleExtensionRPC]
+  RPCMsg* {.proto2.} = object
+    subscriptions* {.fieldNumber: 1.}: seq[SubOpts]
+    messages* {.fieldNumber: 2.}: seq[Message]
+    control* {.fieldNumber: 3.}: Opt[ControlMessage]
+    partialMessageExtension* {.fieldNumber: 10.}: Opt[PartialMessageExtensionRPC]
+    testExtension* {.fieldNumber: 6492434.}: Opt[TestExtensionRPC]
+    pingpongExtension* {.fieldNumber: 3145728.}: Opt[PingPongExtensionRPC]
+    preambleExtension* {.fieldNumber: 4194304.}: Opt[PreambleExtensionRPC]
+
+func shortLog[T](optVal: Opt[T]): string =
+  if optVal.isSome:
+    let value = optVal.get()
+    when compiles(value.shortLog):
+      value.shortLog
+    else:
+      $value
+  else:
+    "<unset>"
+
+func len[T](opt: Opt[T]): int =
+  if opt.isSome:
+    opt.get().len
+  else:
+    0
 
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
@@ -141,12 +158,6 @@ func shortLog*(s: Preamble): auto =
 func shortLog*(s: IMReceiving): auto =
   (messageID: s.messageID.shortLog)
 
-func shortLogOpt[T](s: Opt[T]): string =
-  if s.isNone():
-    "<unset>"
-  else:
-    $s.get()
-
 func shortLog*(so: Opt[ControlExtensions]): auto =
   if so.isNone():
     (
@@ -158,10 +169,10 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
   else:
     let s = so.get()
     (
-      partialMessageExtension: shortLogOpt(s.partialMessageExtension),
-      testExtension: shortLogOpt(s.testExtension),
-      pingpongExtension: shortLogOpt(s.pingpongExtension),
-      preambleExtension: shortLogOpt(s.preambleExtension),
+      partialMessageExtension: shortLog(s.partialMessageExtension),
+      testExtension: shortLog(s.testExtension),
+      pingpongExtension: shortLog(s.pingpongExtension),
+      preambleExtension: shortLog(s.preambleExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
@@ -207,7 +218,7 @@ func shortLog*(m: RPCMsg): auto =
     control: m.control.valueOr(ControlMessage()).shortLog,
     partialMessageExtension:
       m.partialMessageExtension.valueOr(PartialMessageExtensionRPC()).shortLog,
-    testExtension: m.testExtension.shortLogOpt,
+    testExtension: m.testExtension.shortLog,
     pingpongExtension: m.pingpongExtension.valueOr(PingPongExtensionRPC()).shortLog,
     preambleExtension: m.preambleExtension.valueOr(PreambleExtensionRPC()).shortLog,
   )
@@ -376,11 +387,12 @@ proc withIHave*(
     _: typedesc[ControlMessage], topicID: sink string, messageIDs: sink seq[MessageId]
 ): ControlMessage =
   ControlMessage(
-    ihave: @[ControlIHave(topicID: move(topicID), messageIDs: move(messageIDs))]
+    ihave:
+      @[ControlIHave(topicID: Opt.some(move(topicID)), messageIDs: move(messageIDs))]
   )
 
 proc withGraft*(_: typedesc[ControlMessage], topicID: sink string): ControlMessage =
-  ControlMessage(graft: @[ControlGraft(topicID: move(topicID))])
+  ControlMessage(graft: @[ControlGraft(topicID: Opt.some(move(topicID)))])
 
 proc withPrune*(
     _: typedesc[ControlMessage],
@@ -389,7 +401,11 @@ proc withPrune*(
     peers: sink seq[PeerInfoMsg],
 ): ControlMessage =
   ControlMessage(
-    prune: @[ControlPrune(topicID: move(topicID), peers: move(peers), backoff: backoff)]
+    prune: @[
+      ControlPrune(
+        topicID: Opt.some(move(topicID)), peers: move(peers), backoff: Opt.some(backoff)
+      )
+    ]
   )
 
 proc withExtensions*(
@@ -410,10 +426,13 @@ proc withSubscriptions*(_: typedesc[RPCMsg], subscriptions: sink seq[SubOpts]): 
   RPCMsg(subscriptions: move(subscriptions))
 
 proc withPing*(_: typedesc[RPCMsg], ping: sink seq[byte]): RPCMsg =
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: Opt.some(move(ping)))))
+
+proc withPing*(_: typedesc[RPCMsg], ping: sink Opt[seq[byte]]): RPCMsg =
   RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: move(ping))))
 
 proc withPong*(_: typedesc[RPCMsg], pong: sink seq[byte]): RPCMsg =
-  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: move(pong))))
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: Opt.some(move(pong)))))
 
 proc withPreamble*(_: typedesc[RPCMsg], preamble: sink seq[Preamble]): RPCMsg =
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: move(preamble))))
@@ -424,7 +443,11 @@ proc withPreamble*(
   var preambles: seq[Preamble]
   for i, m in msgs:
     preambles.add(
-      Preamble(topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32)
+      Preamble(
+        topicID: Opt.some(m.topic),
+        messageID: Opt.some(msgIds[i]),
+        messageLength: Opt.some(m.data.len.uint32),
+      )
     )
   RPCMsg.withPreamble(preambles)
 
@@ -434,9 +457,9 @@ proc withPreamble*(
   RPCMsg.withPreamble(
     @[
       Preamble(
-        topicID: move(topic),
-        messageID: move(msgId),
-        messageLength: messageLength.uint32,
+        topicID: Opt.some(move(topic)),
+        messageID: Opt.some(move(msgId)),
+        messageLength: Opt.some(messageLength.uint32),
       )
     ]
   )
@@ -451,3 +474,35 @@ proc withIMReceiving*(_: typedesc[RPCMsg], preamble: sink Preamble): RPCMsg =
   RPCMsg.withIMReceiving(
     @[IMReceiving(messageID: move(preamble.messageID), messageLength: messageLength)]
   )
+
+template isSubscribe*(s: SubOpts): bool =
+  s.subscribe.get(false)
+
+func anonymize*(msg: Message, anonymize: bool): Message =
+  if anonymize:
+    Message(data: msg.data, topic: msg.topic)
+  else:
+    msg
+
+func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
+  if anonymize and msg.messages.len > 0:
+    var anonMsg = msg
+    for m in anonMsg.messages.mitems:
+      m.fromPeer = Opt.none(PeerId)
+      m.seqno = Opt.none(seq[byte])
+      m.signature = Opt.none(seq[byte])
+      m.key = Opt.none(seq[byte])
+    anonMsg
+  else:
+    msg
+
+func validate*(sub: SubOpts): Result[void, string] =
+  if sub.topic.isNone:
+    return err("Subsciption topic must be set")
+  ok()
+
+func validate*(msg: RPCMsg): Result[void, string] =
+  # validates RPCMsg after it is received and decoded.
+  for sub in msg.subscriptions:
+    ?sub.validate()
+  ok()

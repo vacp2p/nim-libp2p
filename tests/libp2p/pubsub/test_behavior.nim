@@ -174,7 +174,7 @@ suite "GossipSub Behavior":
 
     check:
       peer0Info.signedPeerRecord == mockRecord0.envelope.encode()
-      peer1Info.signedPeerRecord.len == 0
+      peer1Info.signedPeerRecord.isNone
       peer2Info.signedPeerRecord == mockRecord2.envelope.encode()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
