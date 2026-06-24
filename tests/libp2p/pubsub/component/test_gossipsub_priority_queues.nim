@@ -292,3 +292,50 @@ suite "GossipSub Component - Priority Queues":
     checkUntilTimeout:
       peer.slowPeerPenalty == 0.0
     check nodes[0].mesh.hasPeerId(topic, peerId)
+
+  asyncTest "Slow-peer penalty with zero weight never prunes the peer":
+    let nodes =
+      generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
+    # Same as the pruning test, but with zero weight the penalty never affects
+    # the score.
+    for node in nodes:
+      node.parameters.slowPeerPenaltyWeight = 0.0
+      node.parameters.slowPeerPenaltyThreshold = 0.0
+      node.parameters.slowPeerPenaltyDecay = 0.9
+    nodes[0].parameters.maxMediumPriorityQueueLen = 2
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    let peerId = nodes[1].peerInfo.peerId
+    checkUntilTimeout:
+      nodes[0].mesh.hasPeerId(topic, peerId)
+
+    let mock = stallSendStream(nodes[0], topic, peerId)
+    defer:
+      await mock.close()
+    let peer = nodes[0].getPeerByPeerId(topic, peerId)
+
+    # A pending high message keeps the high-priority queue non-empty,
+    # so the medium messages are queued rather than sent at once.
+    check peer.sendEncoded(message(9), MessagePriority.High).finished
+
+    # the first two are queued, the next three are dropped
+    for i in 0 ..< 5:
+      check peer.sendEncoded(message(byte(i)), MessagePriority.Medium).finished
+    check peer.slowPeerPenalty == 3.0
+
+    # Recompute the score over several scoring heartbeats, then run a mesh
+    # heartbeat that would prune a low-scoring peer.
+    await nodes[0].waitForScoringHeartbeatByEvent(3)
+    await nodes[0].waitForNextHeartbeat()
+
+    check:
+      # The penalty stays above the threshold, but with zero weight it never
+      # affects the score, so the score stays non-negative and the peer is not
+      # pruned.
+      peer.slowPeerPenalty > nodes[0].parameters.slowPeerPenaltyThreshold
+      nodes[0].getPeerScore(peerId) >= 0.0
+      nodes[0].mesh.hasPeerId(topic, peerId)

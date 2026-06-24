@@ -54,6 +54,9 @@ type LPChannel* = ref object of BufferStream
   closeCode*: MessageType # cached in/out close code
   resetCode*: MessageType # cached in/out reset code
   writes*: int # In-flight writes
+  resetMessageFut*: Future[void]
+  cleanupFut*: Future[void]
+  handlerFut*: Future[void]
 
 func shortLog*(s: LPChannel): auto =
   try:
@@ -113,7 +116,7 @@ proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
         trace "Can't send reset message", s, conn = s.conn, description = exc.msg
         await s.conn.close()
 
-    asyncSpawn resetMessage()
+    s.resetMessageFut = resetMessage()
 
   await s.closeImpl()
 
