@@ -84,8 +84,118 @@ jobs:
           groups=$(jq -c 'keys + ["multiformat"]' tests/test_groups.json)
           echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
+  # Compile the library once per arch and cache nimcache/test_all so the per-group
+  # test jobs reuse the .o. Mirrors the test job's setup and NIMFLAGS (including
+  # -d:chronicles_log_level=DEBUG) exactly, or the cached objects won't match.
+  # Needs delete_cache so it warms after that job has wiped stale caches.
+  prebuild:
+    needs: [delete_cache, resolve_deps]
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJSON(inputs.configuration) }}
+        nim: ${{ fromJSON(inputs.nim) }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.config.shell }}
+
+    name: "prebuild ${{ matrix.config.os }} (nim ${{ matrix.nim.ref }} / ${{ matrix.config.cc }} / ${{ matrix.nim.memory_management }})"
+    runs-on: ${{ matrix.config.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.config.os }}
+          shell: ${{ matrix.config.shell }}
+          nim_ref: ${{ matrix.nim.ref }}
+          cpu: ${{ matrix.config.cpu }}
+
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && matrix.config.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v5
+        with:
+          path: external/mingw-${{ matrix.config.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.config.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        run: |
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.config.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.config.cpu }}.zip" -oexternal/mingw-${{ matrix.config.cpu }}/
+          mv external/mingw-${{ matrix.config.cpu }}/**/* ./external/mingw-${{ matrix.config.cpu }}
+
+      - name: Use gcc 14
+        if: ${{ matrix.config.os == 'linux-gcc-14'}}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.config.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install dependencies (pinned)
+        if: ${{ inputs.pinned_deps }}
+        run: |
+          nimble install_pinned
+
+      - name: Install dependencies (newest used across projects)
+        if: ${{ inputs.pinned_deps == false }}
+        env:
+          DEPS: ${{ needs.resolve_deps.outputs.deps }}
+        run: |
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output for this workflow run" >&2
+            exit 1
+          fi
+          rm -rf nimbledeps
+          mkdir nimbledeps
+          nimble install -y $DEPS
+
+      - name: Cache nimcache
+        uses: actions/cache@v5
+        with:
+          path: nimcache/test_all
+          key: nimcache-daily-${{ matrix.config.os }}-${{ matrix.config.cpu }}-${{ matrix.config.cc }}-${{ matrix.nim.memory_management }}-${{ matrix.nim.ref }}-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
+
+      - name: Warm nimcache
+        run: |
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
+            export NIMFLAGS="${NIMFLAGS} --cc:clang"
+          fi
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make warm_cache
+
   test:
-    needs: [delete_cache, resolve_deps, compute-matrix]
+    needs: [delete_cache, resolve_deps, compute-matrix, prebuild]
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 55
@@ -182,6 +292,12 @@ jobs:
           mkdir nimbledeps
           echo "nimble install -y $DEPS"
           nimble install -y $DEPS
+
+      - name: Restore warmed nimcache
+        uses: actions/cache/restore@v5
+        with:
+          path: nimcache/test_all
+          key: nimcache-daily-${{ matrix.config.os }}-${{ matrix.config.cpu }}-${{ matrix.config.cc }}-${{ matrix.nim.memory_management }}-${{ matrix.nim.ref }}-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
 
       - name: Run tests
         env:

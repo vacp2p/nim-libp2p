@@ -5,7 +5,7 @@
 # (a 32-bit process capped at ~3 GB) under its address limit, which the
 # unsharded suite overran on orc.
 
-.PHONY: all build deps cbind clean test _run_all_tests test_group \
+.PHONY: all build deps cbind clean test _run_all_tests test_group warm_cache \
         test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
@@ -155,11 +155,21 @@ _run_all_tests: nimble.paths nat_libs
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 	$(MAKE) test_multiformat_exts
 
+# Warm nimcache/test_all with the libp2p library + heavy deps (no tests). CI's
+# per-arch prebuild job runs this once so every `test_group` compile reuses the
+# library .o instead of rebuilding it.
+warm_cache: nimble.paths nat_libs
+	$(NIMC) c $(NIM_FLAGS) \
+	  --nimcache:nimcache/test_all \
+	  -o:tests/warm_cache \
+	  tests/warm_cache.nim
+
 # One subsystem group, e.g. `make test_group GROUP=pubsub`. Group names and the
-# directories they cover are defined in tests/test_groups.json.
+# directories they cover are defined in tests/test_groups.json. Shares
+# nimcache/test_all so it reuses the library .o warmed by `make warm_cache`.
 test_group: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  --nimcache:nimcache/test_$(GROUP) \
+	  --nimcache:nimcache/test_all \
 	  -d:testGroup=$(GROUP) \
 	  -o:tests/test_$(GROUP) \
 	  tests/test_all.nim

@@ -27,8 +27,165 @@ jobs:
           groups=$(jq -c 'keys + ["multiformat"]' tests/test_groups.json)
           echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
+  # Compile the libp2p library once per arch and cache nimcache/test_all, so the
+  # per-group test jobs reuse the .o instead of each rebuilding the library.
+  # Must mirror the test job's toolchain setup and NIMFLAGS exactly, or the
+  # cached objects won't match and the test jobs recompile from scratch.
+  prebuild:
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            cpu: amd64
+            cc: gcc
+          - os: linux
+            cpu: i386
+            cc: gcc
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
+          - os: macos-15
+            cpu: arm64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: gcc
+        nim:
+          - ref: v2.2.4
+            memory_management: refc
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+          - ref: v2.2.10
+            memory_management: refc
+          - ref: v2.2.10
+            memory_management: orc
+        include:
+          - platform:
+              os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
+          - platform:
+              os: macos-15
+            builder: macos-15
+            shell: bash
+          - platform:
+              os: windows
+              cc: clang
+            builder: windows-2022
+            shell: bash
+          - platform:
+              os: windows
+              cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    name: "prebuild ${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }} / ${{ matrix.nim.memory_management }})"
+    runs-on: ${{ matrix.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
+          shell: ${{ matrix.shell }}
+          nim_ref: ${{ matrix.nim.ref }}
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned') }}
+
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v5
+        with:
+          path: external/mingw-${{ matrix.platform.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.platform.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
+        run: |
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.platform.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.platform.cpu }}.zip" -oexternal/mingw-${{ matrix.platform.cpu }}/
+          mv external/mingw-${{ matrix.platform.cpu }}/**/* ./external/mingw-${{ matrix.platform.cpu }}
+
+      - name: Use gcc 14
+        if: ${{ matrix.platform.os == 'linux-gcc-14'}}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.platform.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Cache nimcache
+        uses: actions/cache@v5
+        with:
+          path: nimcache/test_all
+          # Identical in the prebuild (save) and test (restore) steps so the
+          # warmed objects are reused. Refreshes when the library or deps change.
+          key: nimcache-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.memory_management }}-${{ matrix.nim.ref }}-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
+
+      - name: Warm nimcache
+        run: |
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+            export NIMFLAGS="${NIMFLAGS} --cc:clang"
+          fi
+          make warm_cache
+
   test:
-    needs: compute-matrix
+    needs: [compute-matrix, prebuild]
     env:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
@@ -179,6 +336,14 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Restore warmed nimcache
+        uses: actions/cache/restore@v5
+        with:
+          path: nimcache/test_all
+          # Identical in the prebuild (save) and test (restore) steps so the
+          # warmed objects are reused. Refreshes when the library or deps change.
+          key: nimcache-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.memory_management }}-${{ matrix.nim.ref }}-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
+
       - name: Run tests
         id: run-tests
         env:
@@ -219,3 +384,17 @@ jobs:
           list-suites: 'failed'
           list-tests: 'failed'
           fail-on-error: 'false'
+
+  # Single stable status check for branch protection. The per-group test jobs
+  # have dynamic names (the group dimension), so make this the required check
+  # instead of each individual job. Passes only if every test job succeeded.
+  ci-success:
+    name: ci-success
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all test jobs passed
+        run: |
+          echo "test result: ${{ needs.test.result }}"
+          test '${{ needs.test.result }}' = success

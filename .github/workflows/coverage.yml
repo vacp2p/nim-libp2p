@@ -14,13 +14,77 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  codecov:
-    name: Run coverage and upload to codecov
+  # Derive the per-subsystem job list from tests/test_groups.json so the matrix
+  # and the test harness can never drift. `multiformat` is appended: it is built
+  # with extension defines rather than as a path group.
+  compute-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: groups
+        run: |
+          groups=$(jq -c 'keys + ["multiformat"]' tests/test_groups.json)
+          echo "groups=$groups" >> "$GITHUB_OUTPUT"
+
+  # Compile the library once with coverage instrumentation and cache nimcache so
+  # the per-group coverage jobs reuse the .o. The coverage NIMFLAGS and the cache
+  # key must match the codecov job's exactly, or the objects won't be reused.
+  prebuild:
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
-      CICOV: YES
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: amd64
+          shell: bash
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Cache nimcache
+        uses: actions/cache@v5
+        with:
+          path: nimcache/test_all
+          key: nimcache-cov-linux-amd64-gcc-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
+
+      - name: Warm nimcache
+        run: |
+          export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
+          make warm_cache
+
+  # One coverage job per group, run in parallel; each uploads a partial report
+  # that Codecov merges by commit into the full picture (same union of line
+  # coverage a single serial run would produce).
+  codecov:
+    needs: [compute-matrix, prebuild]
+    name: "coverage ${{ matrix.group }}"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.compute-matrix.outputs.groups) }}
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -53,24 +117,48 @@ jobs:
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
 
-      - name: Run test suite with coverage flags
+      - name: Restore warmed nimcache
+        uses: actions/cache/restore@v5
+        with:
+          path: nimcache/test_all
+          key: nimcache-cov-linux-amd64-gcc-${{ hashFiles('libp2p.nim', 'libp2p/**/*.nim', '.pinned') }}
+
+      - name: Run test group with coverage flags
+        env:
+          GROUP: ${{ matrix.group }}
         run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          # Build the whole suite in one job (all groups + multiformat) so every
-          # source's .gcda files accumulate under nimcache/ for a single combined
-          # lcov report. lcov captures all of nimcache/ recursively.
-          make test
+          if [ "$GROUP" = multiformat ]; then
+            make test_multiformat_exts
+          else
+            make test_group GROUP="$GROUP"
+          fi
 
-      - name: Run coverage
+      - name: Capture coverage
         run: |
           find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info
-          genhtml coverage/coverage.f.info --output-directory coverage/output
 
       - name: Upload coverage to codecov
         uses: codecov/codecov-action@v5
         with:
           files: coverage/coverage.f.info
+          # Distinct flag per group so Codecov merges the partials instead of
+          # treating each upload as a full report that overwrites the last.
+          flags: ${{ matrix.group }}
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Single stable status check for branch protection (the per-group coverage
+  # jobs have dynamic names). Passes only if every coverage job succeeded.
+  coverage-success:
+    name: coverage-success
+    if: always()
+    needs: [codecov]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all coverage jobs passed
+        run: |
+          echo "codecov result: ${{ needs.codecov.result }}"
+          test '${{ needs.codecov.result }}' = success
