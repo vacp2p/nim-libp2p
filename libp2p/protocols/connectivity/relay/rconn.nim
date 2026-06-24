@@ -12,6 +12,7 @@ type RelayConnection* = ref object of Connection
   limitDuration*: uint32
   limitData*: uint64
   dataSent*: uint64
+  durationCheckFut: Future[void]
 
 method readOnce*(
     self: RelayConnection, pbytes: pointer, nbytes: int
@@ -30,11 +31,17 @@ method write*(
   self.activity = true
   await self.stream.write(move(msg))
 
+proc cancelDurationCheck(self: RelayConnection) =
+  if not self.durationCheckFut.isNil():
+    self.durationCheckFut.cancelSoon()
+
 method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
+  self.cancelDurationCheck()
   await self.stream.close()
   await procCall Connection(self).closeImpl()
 
 method resetImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
+  self.cancelDurationCheck()
   await self.stream.reset()
   await procCall Connection(self).closeImpl()
 
@@ -53,9 +60,11 @@ proc new*(
   if limitDuration > 0:
     proc checkDurationConnection() {.async: (raises: []).} =
       try:
-        await noCancel stream.join().wait(limitDuration.seconds())
+        await stream.join().wait(limitDuration.seconds())
       except AsyncTimeoutError:
         await stream.close()
+      except CancelledError:
+        discard # cancelled by close/reset; teardown already underway
 
-    asyncSpawn checkDurationConnection()
+    rc.durationCheckFut = checkDurationConnection()
   return rc

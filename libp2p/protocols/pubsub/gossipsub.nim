@@ -320,7 +320,7 @@ method onPubSubPeerEvent*(
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
   of PubSubPeerEventKind.DisconnectionRequested:
-    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
+    p.pendingTasks.trackFut(p.disconnectPeer(peer)) # disconnectPeer also unsubscribes
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -358,7 +358,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopSendNonHighPriorityTask()
+  pubSubPeer.stopTasks()
 
   g.extensionsState.removePeer(peer)
 
@@ -492,6 +492,8 @@ proc isLargeMessage(dataLen: int, msgId: MessageId): bool =
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
+  defer:
+    g.validationSeen.del(saltedId) # drop bookkeeping even if cancelled mid-task
   try:
     template topic(): string =
       msg.topic
@@ -516,8 +518,7 @@ proc validateAndRelay(
 
     let validation = await g.validate(msg)
 
-    var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(saltedId, seenPeers)
+    let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(
       (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
@@ -729,7 +730,7 @@ method rpcHandler*(
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
+    g.pendingTasks.trackFut(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
@@ -1097,6 +1098,8 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
+  g.pendingTasks.cancelSoon()
+  g.pendingTasks = @[]
   newFutureCompleted[void]()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
