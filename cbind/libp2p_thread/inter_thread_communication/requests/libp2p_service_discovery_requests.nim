@@ -106,7 +106,8 @@ proc process*(
   of SD_STOP:
     await disco.stop()
   of SD_START_ADVERTISING:
-    let service = ServiceInfo(id: $self[].serviceId, data: self[].serviceData.toSeq())
+    let service =
+      ServiceInfo(id: $self[].serviceId, data: Opt.some(self[].serviceData.toSeq()))
     disco.startAdvertising(service)
   of SD_STOP_ADVERTISING:
     await disco.stopAdvertising($self[].serviceId)
@@ -183,7 +184,8 @@ proc processLookup*(
     return err("service discovery not mounted")
 
   let disco = ServiceDiscovery(kad)
-  let service = ServiceInfo(id: $self[].serviceId, data: self[].serviceData.toSeq())
+  let service =
+    ServiceInfo(id: $self[].serviceId, data: Opt.some(self[].serviceData.toSeq()))
   let res = await disco.lookup(service)
   let ads = res.valueOr:
     return err($error)
