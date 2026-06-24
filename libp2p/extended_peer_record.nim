@@ -75,6 +75,25 @@ proc isValid*(xpr: SignedExtendedPeerRecord): bool =
     return false
   true
 
+proc build*(
+    T: typedesc[SignedExtendedPeerRecord],
+    privateKey: PrivateKey,
+    record: ExtendedPeerRecord,
+): Result[SignedExtendedPeerRecord, string] =
+  for svc in record.services:
+    if not svc.isValid():
+      return err(
+        "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
+      )
+
+  let signed = SignedExtendedPeerRecord.init(privateKey, record).valueOr:
+    return err("failed to create signed extended peer record: " & $error)
+
+  if not signed.isValid():
+    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
+
+  ok(signed)
+
 # This is for internal use only
 proc hash*(service: ServiceInfo): Hash =
   return service.id.hash()
