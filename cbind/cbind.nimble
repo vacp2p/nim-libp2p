@@ -36,7 +36,7 @@ proc buildCBindings(libType: string, params = "") =
   let app = if libType == "static": "staticlib" else: "lib"
 
   exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header --undef:metrics" &
+    " --opt:size --noMain --mm:refc --header -d:metrics" &
     " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
 
 task libDynamic, "Generate dynamic bindings":

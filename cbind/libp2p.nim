@@ -8,7 +8,11 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libp2p.so".}
 
-import std/[typetraits, tables, atomics], chronos, chronicles
+import
+  std/[typetraits, tables, atomics, json, jsonutils, strutils, times, locks, sets],
+  chronos,
+  chronicles,
+  metrics
 import
   ./libp2p_thread/libp2p_thread,
   ./[ffi_types, types],
@@ -1466,6 +1470,107 @@ proc libp2p_peerstore_delete_peer(
     callback,
     userData,
   ).cint
+
+type
+  LabelPair = object
+    name: string
+    value: string
+
+  MetricEntry = object
+    name: string
+    `type`: string
+    help: string
+    labels: seq[LabelPair]
+    value: float64
+    timestamp: int64
+
+const UntypedMetricKind = "untyped"
+
+proc parseMetricType(typeLine: string): string =
+  ## `typeLine` is the collector's pre-formatted "# TYPE <name> <kind>\n";
+  ## returns <kind>, or "untyped" when the line is empty or malformed.
+  let tokens = typeLine.splitWhitespace()
+  if tokens.len < 4:
+    return UntypedMetricKind
+  tokens[^1]
+
+proc parseMetricHelp(helpLine: string): string =
+  ## `helpLine` is the collector's pre-formatted "# HELP <name> <text>\n";
+  ## returns <text> (which itself may contain whitespace), or "" when absent.
+  const PrefixTokens = 3 # "#", "HELP", "<name>"
+  let tokens = helpLine.splitWhitespace(maxsplit = PrefixTokens)
+  if tokens.len <= PrefixTokens:
+    return ""
+  tokens[PrefixTokens].strip()
+
+proc addMetricEntry(
+    entries: ptr seq[MetricEntry],
+    metricType: string,
+    help: string,
+    name: string,
+    value: float64,
+    labels, labelValues: openArray[string],
+    timestamp: Time,
+) {.gcsafe, raises: [].} =
+  # _created entries are OpenMetrics creation-timestamp metadata that nim-metrics
+  # auto-emits per counter/summary; they carry no measurement, so skip them.
+  if name.endsWith("_created"):
+    return
+  doAssert labels.len == labelValues.len, "metric label count mismatch"
+  var labelPairs = newSeq[LabelPair](labels.len)
+  for i in 0 ..< labels.len:
+    labelPairs[i] = LabelPair(name: labels[i], value: labelValues[i])
+  entries[].add MetricEntry(
+    name: name,
+    `type`: metricType,
+    help: help,
+    labels: labelPairs,
+    value: value,
+    timestamp: timestamp.toMilliseconds(),
+  )
+
+proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] =
+  var entries: seq[MetricEntry]
+  withLock registry.lock:
+    for collector in registry.collectors:
+      let metricType = parseMetricType(collector.typ)
+      let help = parseMetricHelp(collector.help)
+      let entriesPtr = addr entries
+      collector.collect(
+        proc(
+            name: string,
+            value: float64,
+            labels, labelValues: openArray[string],
+            timestamp: Time,
+        ) {.gcsafe, raises: [].} =
+          addMetricEntry(
+            entriesPtr, metricType, help, name, value, labels, labelValues, timestamp
+          )
+      )
+  entries
+
+proc libp2p_collect_metrics(
+    ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl, raises: [].} =
+  ## Synchronously walks the metrics registry, serializes it to JSON, and
+  ## hands the bytes to `callback(RET_OK, buf, len, userData)`. `buf` is not
+  ## null-terminated and points into a local string whose storage only lives
+  ## for the duration of this call — the callback must consume or copy the
+  ## bytes before returning.
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  var jsonText: string
+  try:
+    jsonText = $collectRegistryMetrics(defaultRegistry).toJson()
+  except CatchableError as e:
+    failWithMsg(callback, userData, "failed to serialize metrics: " & e.msg)
+
+  var msgPtr: ptr cchar = nil
+  if jsonText.len > 0:
+    msgPtr = cast[ptr cchar](addr jsonText[0])
+  callback(RET_OK.cint, msgPtr, cast[csize_t](jsonText.len), userData)
+  RET_OK.cint
 
 ### End of exported procs
 ################################################################################
