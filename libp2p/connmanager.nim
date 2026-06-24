@@ -419,9 +419,7 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
 
 proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
 
-proc triggerTrimAfter(
-    c: ConnManager, fut: Future[void]
-) {.async: (raises: []).} =
+proc triggerTrimAfter(c: ConnManager, fut: Future[void]) {.async: (raises: []).} =
   try:
     await fut
   except CancelledError:
