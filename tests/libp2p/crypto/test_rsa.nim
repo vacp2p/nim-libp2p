@@ -4,8 +4,8 @@
 {.used.}
 
 import nimcrypto/utils
+import protobuf_serialization
 import ../../../libp2p/crypto/[crypto, minasn1, rsa]
-import ../../../libp2p/protobuf/minprotobuf
 import ../../tools/[unittest, crypto]
 
 const
@@ -659,12 +659,11 @@ suite "RSA 2048/3072/4096 test suite":
     b.finish()
     b.buffer
 
-  proc libp2pPublicKeyBytes(rawDer: openArray[byte]): seq[byte] =
-    var pb = initProtoBuffer()
-    pb.write(1, uint64(PKScheme.RSA))
-    pb.write(2, rawDer)
-    pb.finish()
-    pb.buffer
+  proc libp2pPublicKeyBytes(rawDer: seq[byte]): seq[byte] =
+    var pb = memoryOutput()
+    pb.writeField(1, puint64(PKScheme.RSA))
+    pb.writeField(2, pbytes(rawDer))
+    pb.getOutput(seq[byte])
 
   test "[rsa2047] DER imports rejected":
     let modulus = rsa2047BitModulus()
