@@ -15,6 +15,7 @@ import
     protocols/pubsub/rpc/protobuf,
   ]
 import ../../tools/[unittest, crypto as cryptoTools]
+import converters
 
 suite "Message":
   const topic = "foobar"
@@ -78,7 +79,7 @@ suite "Message":
       peer = PeerInfo.new(seckey)
 
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
-    msg.fromPeer = PeerId()
+    msg.fromPeer = Opt.none(PeerId)
     let msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -133,7 +134,7 @@ suite "Message":
     let controlPrune = ControlPrune(
       topicID: "uvw", # 3 bytes
       peers: @[peerInfo, peerInfo], # (1 + 2) * 2 = 6 bytes
-      backoff: 12345678, # 8 bytes for uint64
+      backoff: 12345678.uint64, # 8 bytes for uint64
     )
 
     let control = ControlMessage(
@@ -195,19 +196,79 @@ suite "Message":
       114, 24, 10, 42, 3, 10, 1, 123,
     ]
 
-    let actualEncoded = encodeRpcMsg(message, true)
+    let actualEncoded = message.encode(true)
     check:
       actualEncoded == expectedEncoded
 
-    let actualDecoded = decodeRpcMsg(expectedEncoded).value
+    let actualDecoded = RPCMsg.decode(expectedEncoded).get()
     check:
       actualDecoded == message
 
   asyncTest "RPCMsg:testExtension - encoding and decoding":
     let messageWith = RPCMsg(testExtension: Opt.some(TestExtensionRPC()))
-    var decoded = decodeRpcMsg(encodeRpcMsg(messageWith, true)).value
+    var decoded = RPCMsg.decode(encode(messageWith, true)).get()
     check decoded.testExtension.isSome()
 
     let messageWithout = RPCMsg(testExtension: Opt.none(TestExtensionRPC))
-    decoded = decodeRpcMsg(encodeRpcMsg(messageWithout, true)).value
+    decoded = RPCMsg.decode(encode(messageWithout, true)).get()
     check decoded.testExtension.isNone()
+
+  test "anonymize Message - anonymize=true strips identity fields":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(true)
+    check:
+      anon.data == msg.data
+      anon.topic == msg.topic
+      anon.fromPeer.isNone
+      anon.seqno.isNone
+      anon.signature.isNone
+      anon.key.isNone
+
+  test "anonymize Message - anonymize=false returns message unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(false)
+    check:
+      anon.fromPeer == msg.fromPeer
+      anon.seqno == msg.seqno
+      anon.signature == msg.signature
+      anon.key == msg.key
+      anon.data == msg.data
+      anon.topic == msg.topic
+
+  test "anonymize RPCMsg - anonymize=true strips identity fields from all messages":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg1 =
+      Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let msg2 =
+      Message.init(Opt.some(peer), @[2'u8], topic, Opt.some(2'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg1, msg2])
+    let anon = rpc.anonymize(true)
+    for m in anon.messages:
+      check:
+        m.fromPeer.isNone
+        m.seqno.isNone
+        m.signature.isNone
+        m.key.isNone
+    check:
+      anon.messages[0].data == msg1.data
+      anon.messages[1].data == msg2.data
+
+  test "anonymize RPCMsg - anonymize=false returns RPCMsg unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg = Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg])
+    let anon = rpc.anonymize(false)
+    check:
+      anon.messages[0].fromPeer == msg.fromPeer
+      anon.messages[0].seqno == msg.seqno
+      anon.messages[0].signature == msg.signature
+      anon.messages[0].key == msg.key
+
+  test "anonymize RPCMsg - anonymize=true with no messages returns unchanged":
+    let rpc = RPCMsg(subscriptions: @[SubOpts(subscribe: true, topic: topic)])
+    let anon = rpc.anonymize(true)
+    check anon.messages.len == 0

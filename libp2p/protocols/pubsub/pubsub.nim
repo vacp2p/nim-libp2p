@@ -202,11 +202,18 @@ type
     knownTopics*: HashSet[string]
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
 
-proc topicLabel*(p: PubSub, topic: string): string =
+proc topicLabel*(p: PubSub, topic: string | Opt[string]): string =
   ## returns value to be used for `topic` labels.
-  ## 
+  let t =
+    when topic is Opt[string]:
+      if topic.isSome:
+        topic.get()
+      else:
+        return "unset"
+    else:
+      topic
 
-  if p.knownTopics.contains(topic): topic else: "generic"
+  if p.knownTopics.contains(t): t else: "generic"
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -256,7 +263,7 @@ proc broadcast*(
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
-    if sub.subscribe:
+    if sub.isSubscribe:
       libp2p_pubsub_broadcast_subscriptions.inc(
         npeers, labelValues = [p.topicLabel(sub.topic)]
       )
@@ -293,7 +300,7 @@ proc broadcast*(
       p.send(peer, msg, priority, useCustomStream)
   else:
     # Fast path that only encodes message once
-    let encoded = encodeRpcMsg(msg, p.anonymize)
+    let encoded = msg.encode(p.anonymize)
     for peer in sendPeers:
       peer.trackSend(peer.sendEncoded(encoded, priority, useCustomStream))
 
@@ -304,7 +311,7 @@ proc sendSubs*(
 
   var subscriptions = newSeq[SubOpts]()
   for topic in subTopics:
-    var subOpt = SubOpts(subscribe: subscribe, topic: topic)
+    var subOpt = SubOpts(subscribe: Opt.some(subscribe), topic: Opt.some(topic))
     if subscribe:
       p.topics.withValue(topic, topicData):
         subOpt.requestsPartial = Opt.some(topicData[].requestsPartial)
@@ -324,7 +331,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    if sub.subscribe:
+    if sub.isSubscribe:
       libp2p_pubsub_received_subscriptions.inc(labelValues = [p.topicLabel(sub.topic)])
     else:
       libp2p_pubsub_received_unsubscriptions.inc(
@@ -659,6 +666,7 @@ method validate*(
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
   let topic = message.topic
+
   trace "looking for validators on topic",
     topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:

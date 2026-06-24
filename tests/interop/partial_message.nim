@@ -63,22 +63,22 @@ proc partialMessageInteropTest*(
     # in this callback code asserts that other peer
     # has published exactly that message and that nim peer has received.
 
-    if rpc.topicID != partialTopic:
+    if rpc.topicID.get() != partialTopic:
       error "partial message topic did not match",
-        got = $rpc.topicID, expected = $partialTopic
+        got = $rpc.topicID.get(), expected = $partialTopic
       requestFulfilled.complete(false)
       return
 
     let pm = makePartialMessage()
     let expectedMetadata = MyPartsMetadata.have(toSeq(pm.data.keys))
 
-    if rpc.groupID != pm.groupId:
+    if rpc.groupID.get() != pm.groupId:
       error "partial message groupId did not match",
-        got = $rpc.groupID, expected = $pm.groupId
+        got = $rpc.groupID.get(), expected = $pm.groupId
       requestFulfilled.complete(false)
       return
 
-    if rpc.partsMetadata != expectedMetadata:
+    if rpc.partsMetadata.isNone or rpc.partsMetadata.get() != expectedMetadata:
       error "parts metadata does not match"
       requestFulfilled.complete(false)
       return
