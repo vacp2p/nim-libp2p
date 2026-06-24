@@ -23,7 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - id: groups
-        run: echo "groups=$(jq -c 'keys + [\"multiformat\"]' tests/test_groups.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          groups=$(jq -c 'keys + ["multiformat"]' tests/test_groups.json)
+          echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
   test:
     needs: compute-matrix

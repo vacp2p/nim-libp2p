@@ -9,7 +9,7 @@ import std/sequtils
 import std/strutils
 
 ## Partitions the test corpus into named subsystem groups, one CI job each, so a
-## failing job names the affected area instead of an opaque slice number.
+## failing job names the affected subsystem directly.
 ## tests/test_groups.json is the single source of truth: the CI matrix derives
 ## its job list from it (see .github/workflows/ci.yml) and this module reads the
 ## same file to decide which files each group compiles. The group with an empty
