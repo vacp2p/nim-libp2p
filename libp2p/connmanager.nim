@@ -419,7 +419,9 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
 
 proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
 
-proc triggerTrimAfter(c: ConnManager, fut: Future[void]) {.async: (raises: []).} =
+proc triggerTrimAfter(
+    c: ConnManager, fut: Future[void].Raising([CancelledError])
+) {.async: (raises: []).} =
   try:
     await fut
   except CancelledError:
@@ -471,7 +473,7 @@ proc storeMuxer*(
   c.notifyPeerReady(peerId)
   await connectedEvent
 
-  var joinedEvent: Future[void]
+  var joinedEvent: Future[void].Raising([CancelledError])
   if isNewPeer:
     joinedEvent = c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
