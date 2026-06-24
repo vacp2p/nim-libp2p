@@ -1,0 +1,9 @@
+{
+  "pubsub": ["/pubsub/"],
+  "discovery": ["/discovery/", "/service_discovery/", "/kademlia/"],
+  "transports": ["/transports/", "/muxers/", "/stream/"],
+  "protocols": ["/protocols/", "/services/", "/autotls/"],
+  "crypto": ["/crypto/"],
+  "utils": ["/utils/", "/multiformat/"],
+  "misc": []
+}

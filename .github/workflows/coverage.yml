@@ -56,10 +56,10 @@ jobs:
       - name: Run test suite with coverage flags
         run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          # amd64 (64-bit): compile and run the test binaries concurrently. Each
-          # binary keeps its own nimcache, so the per-source .gcda files stay
-          # isolated and lcov still captures all of nimcache/ recursively.
-          make TEST_JOBS=3 test
+          # Build the whole suite in one job (all groups + multiformat) so every
+          # source's .gcda files accumulate under nimcache/ for a single combined
+          # lcov report. lcov captures all of nimcache/ recursively.
+          make test
 
       - name: Run coverage
         run: |

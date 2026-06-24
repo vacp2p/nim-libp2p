@@ -70,8 +70,20 @@ jobs:
         run: |
           echo "Pinned dependencies requested; skipping newest dependency resolution."
 
+  # Derive the per-subsystem test job list from tests/test_groups.json so the
+  # matrix and the test harness can never drift. `multiformat` is appended: it
+  # is built with extension defines rather than as a path group.
+  compute-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: groups
+        run: echo "groups=$(jq -c 'keys + [\"multiformat\"]' tests/test_groups.json)" >> "$GITHUB_OUTPUT"
+
   test:
-    needs: [delete_cache, resolve_deps]
+    needs: [delete_cache, resolve_deps, compute-matrix]
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 55
@@ -80,12 +92,16 @@ jobs:
       matrix:
         config: ${{ fromJSON(inputs.configuration) }}
         nim: ${{ fromJSON(inputs.nim) }}
+        # One job per subsystem group (+ multiformat), derived from
+        # tests/test_groups.json by the compute-matrix job above, so each job's
+        # log is self-contained and a failure names the affected subsystem.
+        group: ${{ fromJSON(needs.compute-matrix.outputs.groups) }}
 
     defaults:
       run:
         shell: ${{ matrix.config.shell }}
 
-    name: "${{ matrix.config.os }} (nim ${{ matrix.nim.ref }} / ${{ matrix.config.cc }})"
+    name: "${{ matrix.config.os }} (nim ${{ matrix.nim.ref }} / ${{ matrix.config.cc }}) ${{ matrix.group }}"
     runs-on: ${{ matrix.config.builder }}
     steps:
       - name: Checkout
@@ -166,6 +182,8 @@ jobs:
           nimble install -y $DEPS
 
       - name: Run tests
+        env:
+          GROUP: ${{ matrix.group }}
         run: |
           nim --version
           nimble --version
@@ -181,16 +199,16 @@ jobs:
           fi
           export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
 
-          # Build/run test binaries concurrently; fewer lanes on 32-bit to stay
-          # under the ~3 GB address cap.
-          TEST_JOBS=3
-          if [[ '${{ matrix.config.cpu }}' == 'i386' ]]; then
-            TEST_JOBS=2
+          if [ "$GROUP" = multiformat ]; then
+            make test_multiformat_exts
+          else
+            make test_group GROUP="$GROUP"
           fi
-          make TEST_JOBS=$TEST_JOBS test
 
+      # Pinned to the catch-all 'misc' job so integration runs exactly once per
+      # linux-amd64 config instead of repeating for every test group.
       - name: Run integration tests
-        if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
+        if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' && matrix.group == 'misc' }}
         run: |
           export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
           make test_integration

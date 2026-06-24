@@ -13,7 +13,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Derive the per-subsystem test job list from tests/test_groups.json so the
+  # matrix and the test harness can never drift. `multiformat` is appended: it
+  # is built with extension defines rather than as a path group.
+  compute-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: groups
+        run: echo "groups=$(jq -c 'keys + [\"multiformat\"]' tests/test_groups.json)" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: compute-matrix
     env:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
@@ -47,6 +60,10 @@ jobs:
             memory_management: refc
           - ref: v2.2.10
             memory_management: orc
+        # One job per subsystem group (+ multiformat), derived from
+        # tests/test_groups.json by the compute-matrix job above, so each job's
+        # log is self-contained and a failure names the affected subsystem.
+        group: ${{ fromJSON(needs.compute-matrix.outputs.groups) }}
         include:
           - platform:
               os: linux
@@ -75,7 +92,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }})"
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }}) ${{ matrix.group }}"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -162,6 +179,8 @@ jobs:
 
       - name: Run tests
         id: run-tests
+        env:
+          GROUP: ${{ matrix.group }}
         run: |
           nim --version
           nimble --version
@@ -177,13 +196,11 @@ jobs:
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
 
-          # Build/run test binaries concurrently; fewer lanes on 32-bit to stay
-          # under the ~3 GB address cap.
-          TEST_JOBS=3
-          if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
-            TEST_JOBS=2
+          if [ "$GROUP" = multiformat ]; then
+            make test_multiformat_exts
+          else
+            make test_group GROUP="$GROUP"
           fi
-          make TEST_JOBS=$TEST_JOBS test
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}

@@ -1,17 +1,11 @@
-# test_all is compiled in `TEST_ALL_SLICES` translation units. Each slice
-# imports a deterministic 1/N subset of the test files (see tests/imports.nim).
-# On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
-# of address space; the unsharded TU overran that on orc. Two slices halve the
-# memory footprint enough to fit, and the overhead is small on 64-bit targets.
-# Number of test binaries to compile and run concurrently; 1 keeps `make test`
-# serial. CI raises it, using fewer lanes on 32-bit to stay under the ~3 GB cap.
-TEST_JOBS ?= 1
+# The test suite is partitioned into named subsystem groups (tests/test_groups.json).
+# CI runs one `test_group` job per group (see .github/workflows/ci.yml) so each
+# job's log is self-contained and a failure names the affected subsystem. Each
+# group is also a small enough translation unit to keep the 32-bit Nim compiler
+# (a 32-bit process capped at ~3 GB) under its address limit, which the
+# unsharded suite overran on orc.
 
-TEST_ALL_SLICES ?= 2
-TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
-TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
-
-.PHONY: all build deps cbind clean test _run_all_tests $(TEST_ALL_SLICE_TARGETS) \
+.PHONY: all build deps cbind clean test _run_all_tests test_group \
         test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
@@ -143,7 +137,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 
 test: nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
-	$(MAKE) -j$(TEST_JOBS) _run_all_tests
+	$(MAKE) _run_all_tests
 else
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -152,17 +146,24 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-_run_all_tests: $(TEST_ALL_SLICE_TARGETS) test_multiformat_exts
-
-# Per-target nimcache, always: concurrent compiles must not share one.
-$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
+# Local convenience: every group in one binary plus the multiformat suite. CI
+# instead runs one `test_group` job per group for clean, per-subsystem logs.
+_run_all_tests: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
-	  --nimcache:nimcache/test_all_$* \
-	  -d:sliceTotal=$(TEST_ALL_SLICES) \
-	  -d:sliceIdx=$* \
-	  -o:tests/test_all_$* \
+	  --nimcache:nimcache/test_all \
 	  tests/test_all.nim
-	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+	$(MAKE) test_multiformat_exts
+
+# One subsystem group, e.g. `make test_group GROUP=pubsub`. Group names and the
+# directories they cover are defined in tests/test_groups.json.
+test_group: nimble.paths nat_libs
+	$(NIMC) c $(NIM_FLAGS) \
+	  --nimcache:nimcache/test_$(GROUP) \
+	  -d:testGroup=$(GROUP) \
+	  -o:tests/test_$(GROUP) \
+	  tests/test_all.nim
+	./tests/test_$(GROUP) $(RUNNER_FLAGS) --xml:tests/results_$(GROUP).xml
 
 test_multiformat_exts: nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
