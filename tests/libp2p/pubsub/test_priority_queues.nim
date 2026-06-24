@@ -287,7 +287,7 @@ suite "Priority queue behavior":
     let conn = createPendingConnection()
     defer:
       await conn.close()
-      peer.stopSendNonHighPriorityTask()
+      peer.stopTasks()
 
     peer.sendStream = conn
 
