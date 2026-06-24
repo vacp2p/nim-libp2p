@@ -158,13 +158,19 @@ method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
+  if session.isClosed:
+    await noCancel session.join()
+    return
+
+  session.isClosed = true
+
   let streams = session.streams
   session.streams.clear()
   await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
   when defined(libp2p_agents_metrics):
     session.untrackPeerIdentity()
-  await procCall P2PConnection(session).close()
+  await procCall P2PConnection(session).closeImpl()
 
 proc getStream(
     session: QuicSession, direction = Direction.In
