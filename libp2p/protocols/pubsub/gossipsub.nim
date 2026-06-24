@@ -39,6 +39,10 @@ declareCounter(
   "number of invalid topic subscriptions that happened",
 )
 declareCounter(
+  libp2p_gossipsub_over_topics_high_subscription,
+  "number of subscriptions rejected for exceeding topicsHigh",
+)
+declareCounter(
   libp2p_gossipsub_duplicate_during_validation,
   "number of duplicates received during message validation",
 )
@@ -52,6 +56,8 @@ declareCounter(
 )
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+
+const SubscriptionFloodPenalty = 0.1 ## behaviour penalty for subscription abuse
 
 when defined(libp2p_expensive_metrics):
   declareCounter(
@@ -378,10 +384,16 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       libp2p_gossipsub_invalid_topic_subscription.inc()
       return
 
+    if peer.subscribedTopics >= g.topicsHigh and not g.gossipsub.hasPeer(topic, peer):
+      trace "ignoring subscription over topicsHigh limit", limit = g.topicsHigh
+      libp2p_gossipsub_over_topics_high_subscription.inc()
+      peer.behaviourPenalty += SubscriptionFloodPenalty
+      return
+
     trace "peer subscribed to topic"
 
-    # subscribe remote peer to the topic
-    discard g.gossipsub.addPeer(topic, peer)
+    if g.gossipsub.addPeer(topic, peer):
+      peer.subscribedTopics.inc()
     if peer.peerId in g.parameters.directPeers:
       discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
@@ -393,6 +405,8 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.pruned(peer, topic)
 
     # unsubscribe remote peer from the topic
+    if g.gossipsub.hasPeer(topic, peer):
+      peer.subscribedTopics.dec()
     g.gossipsub.removePeer(topic, peer)
 
     g.fanout.removePeer(topic, peer)
@@ -650,7 +664,7 @@ method rpcHandler*(
   if rpcMsg.subscriptions.len > g.topicsHigh:
     debug "received an rpc message with an oversized amount of subscriptions",
       peer, size = rpcMsg.subscriptions.len, limit = g.topicsHigh
-    peer.behaviourPenalty += 0.1
+    peer.behaviourPenalty += SubscriptionFloodPenalty
 
   for i in 0 ..< rpcMsg.messages.len(): # for every message
     template msg(): untyped =
