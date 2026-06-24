@@ -88,6 +88,18 @@ proc handlePartialMessage(
 ) =
   ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: Opt.some(rpc)))
 
+proc sendGroupMetadata(
+    ext: PartialMessageExtension, peerId: PeerId, topic, groupId: string
+) =
+  ext.handlePartialMessage(
+    peerId,
+    PartialMessageExtensionRPC(
+      topicID: topic,
+      groupID: groupId.toBytes,
+      partsMetadata: MyPartsMetadata.want(@[1]),
+    ),
+  )
+
 suite "GossipSub Extensions :: Partial Message Extension":
   let peerId = PeerId.random(rng()).get()
   let groupId = "group-id-1".toBytes
@@ -669,3 +681,111 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # because peer already knows the same parts metadata.
     ext.onHeartbeat()
     check cr.sentRPC.len == 1
+
+  test "heartbeat trims groups to global limit":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 3
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    # distinct peers each adding one group so per-peer cap is not the limiter
+    for i in 0 ..< 10:
+      let p = PeerId.random(rng()).get()
+      ext.sendGroupMetadata(p, topic, "g-" & $i)
+
+    # all groups are accepted; the global limit is enforced lazily on heartbeat
+    check ext.trackedGroups == 10
+    ext.onHeartbeat()
+    check ext.trackedGroups == 3
+
+  test "heartbeat trims least-recently-used groups first":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 2
+    cfg.maxPartialGroupsPerPeer = 100
+    cfg.heartbeatsTillEviction = 10
+    var ext = PartialMessageExtension.new(cfg)
+
+    let p1 = PeerId.random(rng()).get()
+    let p2 = PeerId.random(rng()).get()
+    let p3 = PeerId.random(rng()).get()
+
+    ext.sendGroupMetadata(p1, topic, "g-1")
+    ext.sendGroupMetadata(p2, topic, "g-2")
+    ext.onHeartbeat() # ages g-1 and g-2 equally
+
+    ext.sendGroupMetadata(p1, topic, "g-1") # refresh g-1, making g-2 the oldest
+    ext.sendGroupMetadata(p3, topic, "g-3") # fresh group, total now exceeds limit
+    check ext.trackedGroups == 3
+
+    ext.onHeartbeat() # trims down to 2, evicting the least-recently-used g-2
+    check:
+      ext.trackedGroups == 2
+      ext.hasGroup(topic, "g-1".toBytes)
+      ext.hasGroup(topic, "g-3".toBytes)
+      not ext.hasGroup(topic, "g-2".toBytes)
+
+  test "group store enforces per-peer limit":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 100
+    cfg.maxPartialGroupsPerPeer = 2
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    for i in 0 ..< 10:
+      ext.sendGroupMetadata(peerId, topic, "g-" & $i)
+
+    # single peer cannot exceed its own budget despite global budget remaining
+    check ext.trackedGroups == 2
+
+    # a different peer still has its own budget
+    let otherPeer = PeerId.random(rng()).get()
+    ext.sendGroupMetadata(otherPeer, topic, "other")
+    check ext.trackedGroups == 3
+
+  test "removing a peer frees its group budget":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 100
+    cfg.maxPartialGroupsPerPeer = 1
+    cfg.heartbeatsTillEviction = 100
+    var ext = PartialMessageExtension.new(cfg)
+
+    ext.sendGroupMetadata(peerId, topic, "g-1")
+    ext.sendGroupMetadata(peerId, topic, "g-2") # rejected, peer at budget
+    check ext.trackedGroups == 1
+
+    # removal evicts the empty group the peer created instead of orphaning it
+    ext.onRemovePeer(peerId)
+    check ext.trackedGroups == 0
+
+    ext.sendGroupMetadata(peerId, topic, "g-3") # budget reclaimed
+    check ext.trackedGroups == 1
+
+  test "heartbeat eviction frees group budget":
+    const topic = "partial-topic"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.maxPartialGroups = 1
+    cfg.maxPartialGroupsPerPeer = 1
+    cfg.heartbeatsTillEviction = 1
+    var ext = PartialMessageExtension.new(cfg)
+
+    ext.sendGroupMetadata(peerId, topic, "g-1")
+    check ext.trackedGroups == 1
+
+    ext.sendGroupMetadata(peerId, topic, "g-2") # at capacity, rejected
+    check ext.trackedGroups == 1
+
+    # heartbeat reclaims the expired group, freeing both global and per-peer budget
+    ext.onHeartbeat()
+    check ext.trackedGroups == 0
+
+    ext.sendGroupMetadata(peerId, topic, "g-3")
+    check ext.trackedGroups == 1

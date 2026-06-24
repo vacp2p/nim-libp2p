@@ -46,6 +46,11 @@ template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
     fut.cancelSoon()
 
+proc trackFut*[T](futs: var seq[T], fut: T) =
+  ## Prune finished futures, then take ownership of `fut` for later teardown.
+  futs.keepItIf(not it.finished())
+  futs.add(fut)
+
 proc allFuturesWaitOrTimeout*[Fut](
     futs: seq[Fut], timeout: Duration
 ) {.async: (raises: [CancelledError]).} =

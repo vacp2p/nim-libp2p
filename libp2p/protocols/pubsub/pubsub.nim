@@ -294,7 +294,7 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, priority, useCustomStream)
+      peer.trackSend(peer.sendEncoded(encoded, priority, useCustomStream))
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
@@ -742,10 +742,14 @@ proc init*[PubParams: object | bool](
   proc peerEventHandler(
       peerId: PeerId, event: PeerEvent
   ) {.async: (raises: [CancelledError]).} =
-    if event.kind == PeerEventKind.Joined:
+    case event.kind
+    of PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
-    else:
+    of PeerEventKind.Left:
       pubsub.unsubscribePeer(peerId)
+    of PeerEventKind.Identified:
+      # Identified events are handled by IdentifyPusher service
+      discard
 
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
