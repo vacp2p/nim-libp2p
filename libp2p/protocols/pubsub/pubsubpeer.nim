@@ -177,6 +177,8 @@ type
     maxLowPriorityQueueLen*: int
     disconnected: bool
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
+    connectFut: Future[void]
+    sendFuts: seq[Future[void]]
 
   RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
     async: (raises: [CancelledError])
@@ -398,8 +400,14 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
 proc connect*(p: PubSubPeer) =
   if p.connected:
     return
+  if not p.connectFut.isNil() and not p.connectFut.finished():
+    return
 
-  asyncSpawn connectImpl(p)
+  p.connectFut = connectImpl(p)
+
+proc trackSend*(p: PubSubPeer, fut: Future[void]) =
+  ## Take ownership of an in-flight send future on this peer.
+  p.sendFuts.trackFut(fut)
 
 proc hasSendStream*(p: PubSubPeer): bool =
   p.sendStream != nil
@@ -669,11 +677,11 @@ proc send*(
   if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
       var ownedEncodedSplitMsg = encodedSplitMsg
-      asyncSpawn p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream)
+      p.trackSend(p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream))
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(move(encoded), priority, useCustomStream)
+    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -724,11 +732,21 @@ proc startSendNonHighPriorityTask(p: PubSubPeer) =
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
-proc stopSendNonHighPriorityTask*(p: PubSubPeer) =
-  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
+proc stopTasks*(p: PubSubPeer) =
+  ## Peer-wide teardown: cancels the connector loop, in-flight sends, and the
+  ## non-high-priority sender task; clears its priority queues.
+  if not p.connectFut.isNil():
+    p.connectFut.cancelSoon()
+    p.connectFut = nil
+  for fut in p.sendFuts:
+    fut.cancelSoon()
+  p.sendFuts = @[]
+  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
     debug "stopping sendNonHighPriorityTask", p
     p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonHighPriorityTask = nil
+    for fut in p.rpcmessagequeue.sendPriorityQueue:
+      fut.cancelSoon()
     p.rpcmessagequeue.sendPriorityQueue.clear()
     p.rpcmessagequeue.mediumPriorityQueue.clear()
     p.rpcmessagequeue.lowPriorityQueue.clear()
