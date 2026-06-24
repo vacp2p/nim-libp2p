@@ -48,7 +48,7 @@ proc makeServiceId*(id: byte = 1'u8): ServiceId =
   return buf
 
 proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
-  ServiceInfo(id: id, data: @[1, 2, 3, 4])
+  ServiceInfo(id: id, data: @[1'u8, 2, 3, 4])
 
 proc makeTicket*(): Ticket =
   Ticket(

@@ -139,7 +139,7 @@ suite "Priority queue behavior":
     )
     let conn = createPendingConnection()
     defer:
-      peer.stopSendNonHighPriorityTask()
+      peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -180,7 +180,7 @@ suite "Priority queue behavior":
     )
     let conn = createRecorderConnection()
     defer:
-      peer.stopSendNonHighPriorityTask()
+      peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -215,7 +215,7 @@ suite "Priority queue behavior":
     )
     let conn = createRecorderConnection()
     defer:
-      peer.stopSendNonHighPriorityTask()
+      peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -248,8 +248,8 @@ suite "Priority queue behavior":
     let mediumConn = createPendingConnection()
     let lowConn = createPendingConnection()
     defer:
-      mediumPeer.stopSendNonHighPriorityTask()
-      lowPeer.stopSendNonHighPriorityTask()
+      mediumPeer.stopTasks()
+      lowPeer.stopTasks()
 
     # This is required so we can test the send path
     mediumPeer.sendStream = mediumConn
