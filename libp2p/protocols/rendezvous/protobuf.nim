@@ -71,5 +71,4 @@ type
 Protobuf.serializerFor(
   [Cookie, Register, RegisterResponse, Unregister, Discover, DiscoverResponse]
 )
-
 Protobuf.serializerFor([Message], withMetrics = true, domain = "rendezvous")
