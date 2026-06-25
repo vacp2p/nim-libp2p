@@ -423,7 +423,8 @@ proc triggerTrimAfter(
     c: ConnManager, fut: Future[void].Raising([CancelledError])
 ) {.async: (raises: []).} =
   try:
-    await fut
+    if not fut.isNil:
+      await fut
   except CancelledError:
     return
   if c.watermark.isSome and c.muxerStore.countPeers() > c.watermark.get().highWater:
@@ -486,10 +487,7 @@ proc storeMuxer*(
     if isNewPeer:
       c.connectedAt[peerId] = Moment.now()
     if c.muxerStore.countPeers() > c.watermark.get().highWater:
-      if joinedEvent.isNil:
-        c.triggerTrim()
-      else:
-        c.peerEventFuts.trackFut(c.triggerTrimAfter(joinedEvent))
+      c.peerEventFuts.trackFut(c.triggerTrimAfter(joinedEvent))
 
   trace "Stored muxer",
     muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
