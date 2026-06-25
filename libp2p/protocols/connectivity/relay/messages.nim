@@ -49,7 +49,6 @@ type
     dstPeer* {.fieldNumber: 3.}: Opt[RelayPeer]
     status* {.fieldNumber: 4, ext.}: Opt[StatusV1]
 
-Protobuf.serializerFor([RelayPeer])
 Protobuf.serializerFor([RelayMessage], withMetrics = true, domain = "relay-v1")
 
 # Circuit Relay V2 Messages
@@ -106,7 +105,7 @@ type
     limit* {.fieldNumber: 3.}: Opt[Limit]
     status* {.fieldNumber: 4, ext.}: Opt[StatusV2]
 
-Protobuf.serializerFor([Peer, Reservation, Limit, Voucher])
+Protobuf.serializerFor([Voucher])
 Protobuf.serializerFor(
   [StopMessage, HopMessage], withMetrics = true, domain = "relay-v2"
 )

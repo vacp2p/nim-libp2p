@@ -75,7 +75,6 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
-Protobuf.serializerFor([Delta])
 Protobuf.serializerFor([IdentifyMsg], withMetrics = true, domain = "identify")
 
 chronicles.expandIt(IdentifyMsg):

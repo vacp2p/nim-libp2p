@@ -2,26 +2,16 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import nimcrypto, results
+import results
 import
   ../../../libp2p/
     [multiaddress, peerid, protocols/kademlia, protocols/kademlia/protobuf]
 import ../../tools/unittest
 import ./utils
 
-template checkEncodeDecode(obj: untyped) =
-  check obj == decode(typeof(obj), obj.encode()).get()
-
 suite "KadDHT Protobuffers":
   test "encode/decode":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
-    checkEncodeDecode(
-      Record(
-        key: @[1'u8, 2, 3],
-        value: @[4'u8, 5, 6],
-        timeReceived: Opt.some("2025-05-12T12:00:00Z"),
-      )
-    )
     # encode with hideConnectionStatus=false to preserve connection type for round-trip check
     let peer =
       Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ConnectionStatus.connected)

@@ -32,7 +32,7 @@ type
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
     services* {.fieldNumber: 4.}: seq[ServiceInfo]
 
-Protobuf.serializerFor([ServiceInfo, ExtendedPeerRecord])
+Protobuf.serializerFor([ExtendedPeerRecord])
 
 proc init*(
     T: typedesc[ExtendedPeerRecord],
