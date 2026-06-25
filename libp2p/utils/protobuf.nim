@@ -8,13 +8,13 @@ import std/macros, results, protobuf_serialization
 when defined(libp2p_protobuf_metrics):
   import ./protobuf_metrics
 
-template trackEncodeBytes*(count: int64, label: string, domain: string) =
+template trackEncodeBytes*(count: int64, typeName: string, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_write.inc(count, labelValues = [domain & "." & label])
+    libp2p_protobuf_bytes_write.inc(count, labelValues = [domain & "." & typeName])
 
-template trackDecodeBytes*(count: int64, label: string, domain: string) =
+template trackDecodeBytes*(count: int64, typeName: string, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_read.inc(count, labelValues = [domain & "." & label])
+    libp2p_protobuf_bytes_read.inc(count, labelValues = [domain & "." & typeName])
 
 macro decodeFor*(
     _: type Protobuf, Types: untyped, withMetrics: bool = false, domain: string = ""
