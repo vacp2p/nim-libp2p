@@ -6,8 +6,17 @@
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
 import
-  ../../../libp2p/protocols/pubsub/
-    [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
+  ../../../libp2p/protocols/pubsub/[
+    floodsub,
+    gossipsub,
+    gossipsub/extensions,
+    gossipsub/partial_message,
+    mcache,
+    peertable,
+    pubsubpeer,
+    rpc/message,
+    rpc/protobuf,
+  ]
 import ../../tools/[unittest, bufferstream, crypto, switch_builder, multiaddress]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
@@ -353,6 +362,55 @@ suite "GossipSub":
       gossipSub.gossipsub.hasKey(topic & "late")
 
     await conn.close()
+
+  asyncTest "rpcHandler - extensions only see accepted subscriptions":
+    proc unionPartsMetadata(
+        a, b: PartsMetadata
+    ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
+      ok(a & b)
+
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      ok()
+
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    let gossipSub = TestGossipSub.init(
+      makeStandardSwitch(),
+      rng = rng(),
+      parameters = GossipSubParams.init(
+        partialMessageExtensionConfig = Opt.some(
+          PartialMessageExtensionConfig(
+            unionPartsMetadata: unionPartsMetadata,
+            validateRPC: validateRPC,
+            onIncomingRPC: onIncomingRPC,
+            heartbeatsTillEviction: 1,
+          )
+        )
+      ),
+    )
+    gossipSub.topicsHigh = 2
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    var subs: seq[SubOpts]
+    for i in 0 .. gossipSub.topicsHigh:
+      subs.add(
+        SubOpts(subscribe: true, topic: topic & $i, requestsPartial: Opt.some(true))
+      )
+
+    await gossipSub.rpcHandler(peer, encode(RPCMsg.withSubscriptions(subs), false))
+
+    check:
+      gossipSub.extensionsState.peerRequestsPartial(peerId, topic & "0")
+      not gossipSub.extensionsState.peerRequestsPartial(
+        peerId, topic & $gossipSub.topicsHigh
+      )
 
   asyncTest "rpcHandler - invalid message bytes":
     let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
