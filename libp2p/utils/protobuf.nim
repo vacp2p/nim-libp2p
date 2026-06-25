@@ -10,7 +10,9 @@ when defined(libp2p_protobuf_metrics):
 
 template trackEncodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_write.inc(count.int64, labelValues = [domain & "." & $msgType])
+    libp2p_protobuf_bytes_write.inc(
+      count.int64, labelValues = [domain & "." & $msgType]
+    )
 
 template trackDecodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
