@@ -273,7 +273,7 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
   ## first or the loop won't exit and `cancelAndWait` would hang.
   if not m.session.isNil:
     await noCancel m.session.close()
-  
+
   if not m.handleFut.isNil:
     await noCancel m.handleFut.cancelAndWait()
 
