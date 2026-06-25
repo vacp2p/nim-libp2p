@@ -103,7 +103,8 @@ proc `==`*(a, b: Peer): bool =
 Protobuf.serializerFor([Record, Ticket, RegisterMessage, GetAdsMessage])
 
 # Peer and Message have custom encode because of additional hideConnectionStatus parameter
-Protobuf.decodeFor([Peer, Message])
+Protobuf.decodeFor([Peer])
+Protobuf.decodeFor([Message], withMetrics = true, domain = "kademlia")
 
 proc encode*(
     msg: Peer, hideConnectionStatus: bool = true
@@ -121,7 +122,10 @@ proc encode*(
       p.connection = p.connection.hide(hideConnectionStatus)
     for p in m.providerPeers.mitems:
       p.connection = p.connection.hide(hideConnectionStatus)
-  Protobuf.encode(m)
+
+  let buffer = Protobuf.encode(m)
+  trackEncodeBytes(buffer.len, $Message, "kademlia")
+  buffer
 
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   ## Returns the canonical byte representation of a Ticket used for signing.
