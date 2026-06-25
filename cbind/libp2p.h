@@ -302,8 +302,12 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 */
 
 // topic/data are only valid during the handler call; copy if needed.
-typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
-                          void *userData);
+// Return 0 once the message has been accepted (copied/handed off). Return a
+// nonzero value to signal the consumer is full and could not accept it; the
+// message is then dropped on the libp2p side. This is the only backpressure
+// channel across the FFI boundary, since delivery is otherwise fire-and-forget.
+typedef int TopicHandler(const char *topic, uint8_t *data, size_t len,
+                         void *userData);
 
 // addrs/addrsLen are relay addresses (without /p2p-circuit suffix),
 // valid only during the callback.
