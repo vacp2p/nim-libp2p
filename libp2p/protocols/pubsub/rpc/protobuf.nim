@@ -29,10 +29,14 @@ proc decode*(_: type Message, buf: seq[byte]): Result[Message, string] =
     err("failed to decode Message from protobuf bytes. " & e.msg)
 
 proc encode*(msg: RPCMsg, anonymize: bool): seq[byte] =
-  encode(Protobuf, msg.anonymize(anonymize))
+  let encoded = encode(Protobuf, msg.anonymize(anonymize))
+  trackEncodeBytes(encoded.len, RPCMsg, "gossipsub")
+  encoded
 
 proc decodeRPCMessage(buf: seq[byte]): RPCMsg {.raises: [SerializationError].} =
-  decode(Protobuf, buf, RPCMsg)
+  trackDecodeBytes(buf.len, RPCMsg, "gossipsub")
+  let msg = decode(Protobuf, buf, RPCMsg)
+  msg
 
 proc decode*(_: type RPCMsg, buf: seq[byte]): Result[RPCMsg, string] =
   try:

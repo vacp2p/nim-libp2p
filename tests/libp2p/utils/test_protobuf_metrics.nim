@@ -12,11 +12,11 @@ when defined(libp2p_protobuf_metrics):
   type MetricsTestMsg* {.proto2.} = object
     value* {.fieldNumber: 1, required, pint.}: uint64
 
-  Protobuf.serializerFor([MetricsTestMsg], withMetrics = true)
+  Protobuf.serializerFor([MetricsTestMsg], withMetrics = true, domain = "test")
 
   template counterValue(counter: untyped, label: string): float64 =
     try:
-      counter.value([label])
+      counter.value(["test." & label])
     except exceptions.KeyError:
       0.0
 
