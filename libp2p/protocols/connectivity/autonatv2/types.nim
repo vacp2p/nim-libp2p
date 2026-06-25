@@ -102,12 +102,7 @@ type
   AutonatV2Msg* {.proto3.} = object
     oneof* {.oneof.}: AutonatV2MsgOneof
 
-Protobuf.serializerFor(
-  [
-    DialRequest, DialResponse, DialBack, DialBackResponse, DialDataRequest,
-    DialDataResponse,
-  ]
-)
+Protobuf.serializerFor([DialBack, DialBackResponse])
 Protobuf.serializerFor([AutonatV2Msg], withMetrics = true, domain = "autonat-v2")
 
 # Custom `==` is needed to ensure consistent comparison with Opt-based fields

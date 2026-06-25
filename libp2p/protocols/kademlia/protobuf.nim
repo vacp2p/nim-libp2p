@@ -100,7 +100,7 @@ proc hash*(peer: Peer): Hash =
 proc `==`*(a, b: Peer): bool =
   a.id == b.id
 
-Protobuf.serializerFor([Record, Ticket, RegisterMessage, GetAdsMessage])
+Protobuf.serializerFor([Record])
 
 # Peer and Message have custom encode because of additional hideConnectionStatus parameter
 Protobuf.decodeFor([Peer])
