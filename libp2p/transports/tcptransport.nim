@@ -34,6 +34,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
+    closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
 
@@ -79,7 +80,7 @@ proc connHandler*(
 
   self.clients[dir].add(client)
 
-  asyncSpawn onClose()
+  self.closeFuts.trackFut(onClose())
 
   return conn
 
@@ -177,6 +178,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
         await acceptFut.value().closeWait()
     self.acceptFuts = @[]
 
+    discard await noCancel allFinished(self.closeFuts)
+    self.closeFuts = @[]
+
     if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
       # Future updates could consider turning this warn into an assert since
       # it should never happen if the shutdown code is correct
@@ -193,6 +197,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
     doAssert self.clients[Direction.In].len == 0,
       "No incoming connections possible without start"
     await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
+
+    discard await noCancel allFinished(self.closeFuts)
+    self.closeFuts = @[]
 
 method accept*(
     self: TcpTransport

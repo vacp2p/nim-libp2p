@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sets, hashes, tables]
+import std/[sets, hashes, tables, sequtils]
 import chronos, chronicles, metrics
 import
   ./pubsub,
@@ -71,16 +71,19 @@ proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bo
     return
 
   if subscribe:
+    if peer.subscribedTopics >= f.topicsHigh and not f.floodsub.hasPeer(topic, peer):
+      trace "ignoring subscription over topicsHigh limit", peer, limit = f.topicsHigh
+      return
+
     trace "adding subscription for topic", peer, topic
 
-    # subscribe the peer to the topic
-    f.floodsub.mgetOrPut(topic, HashSet[PubSubPeer]()).incl(peer)
+    if f.floodsub.addPeer(topic, peer):
+      peer.subscribedTopics.inc()
   else:
-    f.floodsub.withValue(topic, peers):
+    if f.floodsub.hasPeer(topic, peer):
       trace "removing subscription for topic", peer, topic
-
-      # unsubscribe the peer from the topic
-      peers[].excl(peer)
+      f.floodsub.removePeer(topic, peer)
+      peer.subscribedTopics.dec()
 
 method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   ## handle peer disconnects
@@ -90,15 +93,15 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   if pubSubPeer.isNil:
     return
 
-  for _, v in f.floodsub.mpairs():
-    v.excl(pubSubPeer)
+  for t in toSeq(f.floodsub.keys):
+    f.floodsub.removePeer(t, pubSubPeer)
 
   procCall PubSub(f).unsubscribePeer(peer)
 
 method rpcHandler*(
     f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
-  var rpcMsg = decodeRpcMsg(move(data)).valueOr:
+  var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
@@ -110,7 +113,7 @@ method rpcHandler*(
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    f.handleSubscribe(peer, sub.topic, sub.subscribe)
+    f.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
 
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
@@ -128,12 +131,12 @@ method rpcHandler*(
       trace "Dropping already-seen message", msgId, peer
       continue
 
-    if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
+    if (msg.signature.isSome or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
       continue
 
-    if msg.seqno.len > 0 and msg.seqno.len != 8:
+    if msg.seqno.isSome and msg.seqno.get().len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
       continue
@@ -157,11 +160,14 @@ method rpcHandler*(
     if topic notin f.topics:
       debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue
+    let data = msg.data.valueOr:
+      debug "Dropping message after validation, reason: data not set", msgId, peer
+      continue
 
     f.floodsub.withValue(topic, peers):
       toSendPeers.incl(peers[])
 
-    await handleData(f, topic, msg.data)
+    await handleData(f, topic, data)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages

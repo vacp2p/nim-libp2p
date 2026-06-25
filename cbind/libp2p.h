@@ -478,6 +478,15 @@ int libp2p_service_disco_start_advertising(
     libp2p_ctx_t *ctx, const char *serviceId, const uint8_t *serviceData,
     size_t serviceDataLen, Libp2pCallback callback, void *userData);
 
+// Builds and signs an Extended Peer Record (XPR) for the node's own peer with
+// its private key. peerId comes from the node; empty addrs uses the node's
+// listen addresses; seqNo 0 defaults to the current unix time. callback
+// receives the signed, protobuf-encoded XPR bytes, valid only during the call.
+int libp2p_create_xpr(libp2p_ctx_t *ctx, const char **addrs, size_t addrsLen,
+                      const Libp2pServiceInfo *services, size_t servicesLen,
+                      uint64_t seqNo, Libp2pBufferCallback callback,
+                      void *userData);
+
 int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
                                           const char *serviceId,
                                           Libp2pCallback callback,
@@ -556,6 +565,13 @@ int libp2p_peerstore_set_peer_protocols(libp2p_ctx_t *ctx, const char *peerId,
 // Removes peerId from all peerstore books.
 int libp2p_peerstore_delete_peer(libp2p_ctx_t *ctx, const char *peerId,
                                  Libp2pCallback callback, void *userData);
+
+// Delivers the metrics registry as a JSON array of
+// {name,type,help,labels,value,timestamp} objects via callback's (msg, len).
+// The buffer lives only for the synchronous duration of this call and is
+// not null-terminated; consume or copy it before the callback returns.
+int libp2p_collect_metrics(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                           void *userData);
 
 #ifdef __cplusplus
 }

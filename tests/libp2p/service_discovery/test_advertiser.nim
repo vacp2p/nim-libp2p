@@ -164,7 +164,7 @@ suite "Advertiser - record creation":
     let svc = recordValid.get().data.services[0]
     check:
       svc.isValid()
-      svc.data.len == MaxServiceDataSize
+      svc.data.get().len == MaxServiceDataSize
 
     let oversizedData = newSeq[byte](MaxServiceDataSize + 1)
     let badSvc = ServiceInfo(id: "service", data: oversizedData)

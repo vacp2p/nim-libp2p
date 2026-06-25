@@ -22,7 +22,9 @@
 import os
 import nimcrypto/utils, stew/endians2
 import
-  protobuf/minprotobuf,
+  protobuf_serialization,
+  protobuf_serialization/pkg/results,
+  protobuf_serialization/std/enums,
   stream/connection,
   protocols/secure/secure,
   multiaddress,
@@ -40,14 +42,14 @@ type
     Outgoing
     Incoming
 
-  ProtoMessage* = object
-    timestamp*: uint64
-    direction*: FlowDirection
-    message*: seq[byte]
-    seqID*: Opt[uint64]
-    mtype*: Opt[uint64]
-    local*: Opt[MultiAddress]
-    remote*: Opt[MultiAddress]
+  ProtoMessage* {.proto2.} = object
+    seqID* {.fieldNumber: 1, pint.}: Opt[uint64]
+    timestamp* {.fieldNumber: 2, required, pint.}: uint64
+    mtype* {.fieldNumber: 3, pint.}: Opt[uint64]
+    direction* {.fieldNumber: 4, required, ext.}: FlowDirection
+    local* {.fieldNumber: 5, ext.}: Opt[MultiAddress]
+    remote* {.fieldNumber: 6, ext.}: Opt[MultiAddress]
+    message* {.fieldNumber: 7, required.}: seq[byte]
 
 const libp2p_dump_dir* {.strdefine.} = "nim-libp2p"
   ## default directory where all the dumps will be stored, if the path
@@ -68,13 +70,20 @@ proc getTimedate(value: uint64): string =
 proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[byte]) =
   ## Store unencrypted message ``data`` to dump file, all the metadata will be
   ## extracted from ``conn`` instance.
-  var pb = initProtoBuffer(options = {WithVarintLength})
-  pb.write(2, getTimestamp())
-  pb.write(4, uint64(direction))
-  conn.observedAddr.withValue(oaddr):
-    pb.write(6, oaddr)
-  pb.write(7, data)
-  pb.finish()
+  let pbMsg = ProtoMessage(
+    timestamp: getTimestamp(),
+    direction: direction,
+    remote: conn.observedAddr,
+    message: @data,
+  )
+
+  let bytes =
+    try:
+      var writer = ProtobufWriter.init(memoryOutput(), {VarIntLengthPrefix})
+      writer.writeValue(pbMsg)
+      writer.finish()
+    except IOError:
+      return
 
   let dirName =
     if isAbsolute(libp2p_dump_dir):
@@ -96,52 +105,17 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[by
   var handle: File
   try:
     if open(handle, pathName, fmAppend):
-      discard writeBuffer(handle, addr pb.buffer[pb.offset], pb.getLen())
+      if bytes.len > 0:
+        discard writeBuffer(handle, unsafeAddr bytes[0], bytes.len)
   finally:
     close(handle)
 
 proc decodeDumpMessage*(data: openArray[byte]): Opt[ProtoMessage] =
   ## Decode protobuf's message ProtoMessage from array of bytes ``data``.
-  var
-    pb = initProtoBuffer(data)
-    value: uint64
-    ma1, ma2: MultiAddress
-    pmsg: ProtoMessage
-
-  let
-    r2 = pb.getField(2, pmsg.timestamp)
-    r4 = pb.getField(4, value)
-    r7 = pb.getField(7, pmsg.message)
-  if not r2.get(false) or not r4.get(false) or not r7.get(false):
-    return Opt.none(ProtoMessage)
-
-  # `case` statement could not work here with an error "selector must be of an
-  # ordinal type, float or string"
-  pmsg.direction =
-    if value == uint64(Outgoing):
-      Outgoing
-    elif value == uint64(Incoming):
-      Incoming
-    else:
-      return Opt.none(ProtoMessage)
-
-  let r1 = pb.getField(1, value)
-  if r1.get(false):
-    pmsg.seqID = Opt.some(value)
-
-  let r3 = pb.getField(3, value)
-  if r3.get(false):
-    pmsg.mtype = Opt.some(value)
-
-  let
-    r5 = pb.getField(5, ma1)
-    r6 = pb.getField(6, ma2)
-  if r5.get(false):
-    pmsg.local = Opt.some(ma1)
-  if r6.get(false):
-    pmsg.remote = Opt.some(ma2)
-
-  Opt.some(pmsg)
+  try:
+    Opt.some(decode(Protobuf, @data, ProtoMessage))
+  except SerializationError, IOError:
+    Opt.none(ProtoMessage)
 
 iterator messages*(data: seq[byte]): Opt[ProtoMessage] =
   ## Iterate over sequence of bytes and decode all the ``ProtoMessage``
