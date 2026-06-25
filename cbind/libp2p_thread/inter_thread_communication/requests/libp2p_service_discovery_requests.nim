@@ -173,6 +173,15 @@ proc processCreateXpr*(
 
   ok(allocReadResponse(xpr.encode()))
 
+proc decodeXpr*(encoded: seq[byte]): Result[ptr Libp2pExtendedPeerRecord, string] =
+  let sxpr = SignedExtendedPeerRecord.decode(encoded).valueOr:
+    return err("failed to decode signed extended peer record: " & $error)
+
+  sxpr.checkValid().isOkOr:
+    return err("invalid XPR signature: " & $error)
+
+  buildExtendedPeerRecord(sxpr.data)
+
 proc processLookup*(
     self: ptr ServiceDiscoveryRequest, kadOpt: Opt[KadDHT]
 ): Future[Result[ptr RandomRecordsResult, string]] {.async: (raises: [CancelledError]).} =
