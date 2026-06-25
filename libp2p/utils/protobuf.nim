@@ -8,15 +8,22 @@ import std/macros, results, protobuf_serialization
 when defined(libp2p_protobuf_metrics):
   import ./protobuf_metrics
 
+func makeLabel(domain, msgType: string): string =
+  if domain == "":
+    return msgType
+  return domain & "." & msgType
+
 template trackEncodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
     libp2p_protobuf_bytes_write.inc(
-      count.int64, labelValues = [domain & "." & $msgType]
+      count.int64, labelValues = [makeLabel(domain, $msgType)]
     )
 
 template trackDecodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_read.inc(count.int64, labelValues = [domain & "." & $msgType])
+    libp2p_protobuf_bytes_read.inc(
+      count.int64, labelValues = [makeLabel(domain, $msgType)]
+    )
 
 macro decodeFor*(
     _: type Protobuf, Types: untyped, withMetrics: bool = false, domain: string = ""
@@ -26,7 +33,7 @@ macro decodeFor*(
   var stmts = newStmtList()
   for T in Types:
     let decodeName = ident("decode" & $T)
-    let metricLabel = newLit(domain.strVal & "." & $T)
+    let metricLabel = newLit(makeLabel(domain.strVal, $T))
     stmts.add quote do:
       proc `decodeName`(buf2: seq[byte]): `T` {.raises: [SerializationError].} =
         when defined(libp2p_protobuf_metrics) and `doMetrics`:
