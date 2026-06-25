@@ -8,14 +8,6 @@ import ../../../utils/[protobuf]
 import ../../../[peerid]
 import messages
 
-Protobuf.serializerFor(
-  [
-    PeerInfoMsg, SubOpts, ControlGraft, ControlIHave, ControlIWant, ControlPrune,
-    ControlExtensions, ControlMessage, Preamble, IMReceiving, TestExtensionRPC,
-    PartialMessageExtensionRPC, PingPongExtensionRPC, PreambleExtensionRPC,
-  ]
-)
-
 proc encode*(msg: Message, anonymize: bool): seq[byte] =
   encode(Protobuf, msg.anonymize(anonymize))
 
