@@ -34,8 +34,8 @@ proc encode*(msg: RPCMsg, anonymize: bool): seq[byte] =
   encoded
 
 proc decodeRPCMessage(buf: seq[byte]): RPCMsg {.raises: [SerializationError].} =
-  let msg = decode(Protobuf, buf, RPCMsg)
   trackDecodeBytes(buf.len, RPCMsg, "gossipsub")
+  let msg = decode(Protobuf, buf, RPCMsg)
   msg
 
 proc decode*(_: type RPCMsg, buf: seq[byte]): Result[RPCMsg, string] =
