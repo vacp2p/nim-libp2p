@@ -9,6 +9,8 @@ import chronos, chronicles
 logScope:
   topics = "libp2p futures"
 
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
 type AllFuturesFailedError* = object of CatchableError
 
 proc anyCompleted*[T](
