@@ -206,7 +206,7 @@ method getWrapped*(self: QuicSession): P2PConnection =
 type QuicMuxer* = ref object of Muxer
   session: QuicSession
   handleFut: Future[void]
-  handlerFuts: seq[Future[void]]
+  handleStreamFuts: seq[Future[void]]
 
 proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
@@ -252,7 +252,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   while not (m.session.atEof or m.session.closed):
     try:
       let stream = await m.session.getStream(Direction.In)
-      m.handlerFuts.trackFut(handleStream(stream))
+      m.handleStreamFuts.trackFut(handleStream(stream))
     except ConnectionClosedError:
       break # stop handling, connection was closed
     except CancelledError:
@@ -266,18 +266,21 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     await m.session.close()
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
-  try:
-    ## Closes the session and joins the accept loop. The session must be closed
-    ## first or the loop won't exit and `cancelAndWait` would hang.
-    await m.session.close()
+  if m.isNil:
+    return
 
-    if not m.handleFut.isNil:
-      ## Cancels in-flight stream handlers so each stream is torn down here
-      ## (handlers run closeWithEOF on cancel) instead of being aborted during GC.
-      let handlerFuts = move m.handlerFuts
-      await noCancel handlerFuts.cancelAndWait()
-  except CatchableError:
-    discard
+  ## Closes the session and joins the accept loop. The session must be closed
+  ## first or the loop won't exit and `cancelAndWait` would hang.
+  if not m.session.isNil:
+    await noCancel m.session.close()
+  
+  if not m.handleFut.isNil:
+    await noCancel m.handleFut.cancelAndWait()
+
+  ## Cancels in-flight stream handlers so each stream is torn down here
+  ## (handlers run closeWithEOF on cancel) instead of being aborted during GC.
+  let handleStreamFuts = move m.handleStreamFuts
+  await noCancel handleStreamFuts.cancelAndWait()
 
 # Transport
 type QuicUpgrade = ref object of Upgrade
