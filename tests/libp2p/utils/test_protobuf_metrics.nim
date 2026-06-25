@@ -22,20 +22,21 @@ when defined(libp2p_protobuf_metrics):
     except exceptions.KeyError:
       0.0
 
+  proc makePeerRecord(): PeerRecord =
+    PeerRecord.init(
+      PeerId.random(rng()).get(), @[MultiAddress.init("/ip4/127.0.0.1/tcp/1234").get()]
+    )
+
   suite "protobuf_metrics":
     test "PeerRecord encode does not increment write counter (withMetrics = false)":
-      let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234").tryGet()
-      let peerId = PeerId.init(KeyPair.random(ECDSA, rng()).get().seckey).get()
-      let record = PeerRecord.init(peerId, @[ma])
+      let record = makePeerRecord()
       let before = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       discard encode(record)
       let after = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       check after == before
 
     test "PeerRecord decode does not increment read counter (withMetrics = false)":
-      let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234").tryGet()
-      let peerId = PeerId.init(KeyPair.random(ECDSA, rng()).get().seckey).get()
-      let record = PeerRecord.init(peerId, @[ma])
+      let record = makePeerRecord()
       let encoded = encode(record)
       let before = counterValue(libp2p_protobuf_bytes_read, "PeerRecord")
       discard PeerRecord.decode(encoded)
