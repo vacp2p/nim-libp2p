@@ -4,7 +4,10 @@
 {.push raises: [].}
 
 import std/sequtils
-import chronos
+import chronos, chronicles
+
+logScope:
+  topics = "libp2p futures"
 
 type AllFuturesFailedError* = object of CatchableError
 
@@ -36,9 +39,23 @@ template newFutureCompleted*[T](): auto =
   fut.complete()
   fut
 
+proc warnNilCancelAndWait(firstNonNilProc = "", firstNonNilLoc = "") =
+  if firstNonNilProc.len > 0:
+    warn "cancelAndWait called on nil future", firstNonNilProc, firstNonNilLoc
+  else:
+    warn "cancelAndWait called on nil future"
+
 template cancelAndWait*[T](futs: seq[T]): auto =
   var cancelFuts = newSeqOfCap[Future[void].Raising([])](futs.len)
   for fut in futs:
+    if fut.isNil:
+      let nonNil = futs.filterIt(not it.isNil)
+      if nonNil.len > 0:
+        let loc = nonNil[0].location[LocationKind.Create]
+        warnNilCancelAndWait($loc.procedure, $loc.file & ":" & $loc.line)
+      else:
+        warnNilCancelAndWait()
+      continue
     cancelFuts.add(fut.cancelAndWait())
   allFutures(cancelFuts)
 
