@@ -5,7 +5,9 @@
 
 import std/[sequtils, tables]
 import chronos
-import ../../libp2p/[peerstore, peerinfo, multiaddress, switch, protocols/kademlia]
+import
+  ../../libp2p/
+    [peerstore, peerinfo, multiaddress, switch, connmanager, protocols/kademlia]
 import ../tools/[unittest, multiaddress, switch_builder, lifecycle, topology]
 import ./kademlia/utils
 
@@ -15,8 +17,8 @@ suite "PeerStore Address TTL - Component":
 
   asyncTest "identify stores peer addresses at Medium confidence":
     let
-      listener = makeStandardSwitch(TcpAutoAddress)
-      dialer = makeStandardSwitch(TcpAutoAddress)
+      listener = makeStandardSwitch()
+      dialer = makeStandardSwitch()
     startAndDeferStop(@[listener, dialer])
 
     await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
@@ -31,8 +33,8 @@ suite "PeerStore Address TTL - Component":
 
   asyncTest "successful dial records address at High confidence":
     let
-      listener = makeStandardSwitch(TcpAutoAddress)
-      dialer = makeStandardSwitch(TcpAutoAddress)
+      listener = makeStandardSwitch()
+      dialer = makeStandardSwitch()
     startAndDeferStop(@[listener, dialer])
 
     await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
@@ -68,17 +70,29 @@ suite "PeerStore Address TTL - Component":
 
   asyncTest "later identify update does not downgrade a verified High address":
     let
-      listener = makeStandardSwitch(TcpAutoAddress)
-      dialer = makeStandardSwitch(TcpAutoAddress)
+      listener = makeStandardSwitch()
+      dialer = makeStandardSwitch()
     startAndDeferStop(@[listener, dialer])
+
+    # Wait for the listener to finish identifying the dialer,
+    # so IdentifyPusher has the dialer in its pushPeers set.
+    let listenerIdentified = newFuture[void]("listenerIdentified")
+    proc onIdentified(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if not listenerIdentified.finished:
+        listenerIdentified.complete()
+
+    listener.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
 
     await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs)
 
-    # Wait for the dialed address to reach High before the update.
     checkUntilTimeout:
       dialer.peerStore[AddressBook].entries(listener.peerInfo.peerId).anyIt(
         it.confidence == AddressConfidence.High
       )
+
+    await listenerIdentified.wait(10.seconds)
 
     # The listener announces an extra address.
     # Its IdentifyPusher pushes the updated PeerInfo to the dialer at Medium.
@@ -97,7 +111,7 @@ suite "PeerStore Address TTL - Component":
       )
 
   asyncTest "addresses of every confidence are pruned after their TTL":
-    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+    let switch = makeStandardSwitchBuilder()
       .withAddressConfidenceTtls(
         AddressConfidenceTtls(
           low: 10.milliseconds, medium: 20.milliseconds, high: 30.milliseconds
@@ -135,7 +149,7 @@ suite "PeerStore Address TTL - Component":
     # A zero TTL disables expiry for that confidence band.
     # Infinite confidence never expires regardless of the configured TTLs.
     # The High TTL is intentionally short so the control entry expires quickly.
-    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+    let switch = makeStandardSwitchBuilder()
       .withAddressConfidenceTtls(
         AddressConfidenceTtls(
           low: 0.seconds, medium: 10.milliseconds, high: 20.milliseconds
@@ -171,3 +185,37 @@ suite "PeerStore Address TTL - Component":
       # The non-expiring entries were spared.
       switch.peerStore[AddressBook].entries(zeroTtlPeer).len == 1
       switch.peerStore[AddressBook].entries(infinitePeer).len == 1
+
+  asyncTest "connected-but-idle address expires while still connected":
+    # An address only gets a fresh timestamp when it is written again:
+    # on a re-dial, an identify, or an identify push from the peer.
+    # If a connection does none of these, the address gets stale and the
+    # prune loop drops it while we are still connected to the peer.
+    let
+      listener = makeStandardSwitch()
+      # low is small so the prune loop runs often.
+      # medium and high are large so the address does not expire on its own during setup.
+      dialer = makeStandardSwitchBuilder()
+        .withAddressConfidenceTtls(
+          AddressConfidenceTtls(low: 50.milliseconds, medium: 1.hours, high: 1.hours)
+        )
+        .build()
+    startAndDeferStop(@[listener, dialer])
+
+    let peerId = listener.peerInfo.peerId
+    await dialer.connect(peerId, listener.peerInfo.addrs)
+
+    # The dial stores the listener's address.
+    checkUntilTimeout:
+      dialer.peerStore[AddressBook].entries(peerId).len > 0
+
+    # Nothing refreshes the address.
+    # Back-date the entries beyond the TTL.
+    for i in 0 ..< dialer.peerStore[AddressBook].book[peerId].len:
+      dialer.peerStore[AddressBook].book[peerId][i].lastUpdated = Moment.now() - 2.hours
+
+    # The prune loop drops the old address while the connection is still open.
+    checkUntilTimeout:
+      dialer.peerStore[AddressBook].entries(peerId).len == 0
+
+    check dialer.isConnected(peerId)
