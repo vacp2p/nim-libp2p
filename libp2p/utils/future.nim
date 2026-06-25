@@ -9,8 +9,6 @@ import chronos, chronicles
 logScope:
   topics = "libp2p futures"
 
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
 type AllFuturesFailedError* = object of CatchableError
 
 proc anyCompleted*[T](
@@ -41,6 +39,12 @@ template newFutureCompleted*[T](): auto =
   fut.complete()
   fut
 
+proc warnNilCancelAndWait(firstNonNilProc = "", firstNonNilLoc = "") =
+  if firstNonNilProc.len > 0:
+    warn "cancelAndWait called on nil future", firstNonNilProc, firstNonNilLoc
+  else:
+    warn "cancelAndWait called on nil future"
+
 template cancelAndWait*[T](futs: seq[T]): auto =
   var cancelFuts = newSeqOfCap[Future[void].Raising([])](futs.len)
   for fut in futs:
@@ -48,10 +52,9 @@ template cancelAndWait*[T](futs: seq[T]): auto =
       let nonNil = futs.filterIt(not it.isNil)
       if nonNil.len > 0:
         let loc = nonNil[0].location[LocationKind.Create]
-        warn "cancelAndWait called on nil future",
-          firstNonNilProc = $loc.procedure, firstNonNilLoc = $loc.file & ":" & $loc.line
+        warnNilCancelAndWait($loc.procedure, $loc.file & ":" & $loc.line)
       else:
-        warn "cancelAndWait called on nil future"
+        warnNilCancelAndWait()
       continue
     cancelFuts.add(fut.cancelAndWait())
   allFutures(cancelFuts)

@@ -25,8 +25,6 @@ export transport
 logScope:
   topics = "libp2p quictransport"
 
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
 type
   P2PConnection = connection.Connection
   QuicConnection = lsquic.Connection
