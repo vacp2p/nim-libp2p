@@ -22,7 +22,9 @@ proc config(c: CallbackRecorder, peerBudgetBytes: int = 6400): PingPongExtension
 
   return PingPongExtensionConfig(sendPong: sendPong, peerBudgetBytes: peerBudgetBytes)
 
-proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
+proc handlePingPong(
+    ext: PingPongExtension, peerId: PeerId, ping: seq[byte] | Opt[seq[byte]]
+) =
   ext.onHandleRPC(peerId, RPCMsg.withPing(ping))
 
 suite "GossipSub Extensions :: PingPong Extension":
@@ -60,11 +62,11 @@ suite "GossipSub Extensions :: PingPong Extension":
       cr.sentPongs.len == 1
       cr.sentPongs[0] == PeerPong(peerId: peerId, pong: pingBytes)
 
-  test "empty ping does not trigger pong":
+  test "unset ping does not trigger pong":
     var cr = CallbackRecorder()
     let ext = PingPongExtension.new(cr.config())
 
-    ext.handlePingPong(peerId, @[])
+    ext.handlePingPong(peerId, Opt.none(seq[byte]))
 
     check cr.sentPongs.len == 0
 

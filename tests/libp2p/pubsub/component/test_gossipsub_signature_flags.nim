@@ -36,13 +36,13 @@ suite "GossipSub Component - Signature Flags":
     checkUntilTimeout:
       receivedMessages[].len > 0
 
-    let receivedMessage = receivedMessages[][0]
+    let rm = receivedMessages[][0]
     check:
-      receivedMessage.data == testData
-      receivedMessage.fromPeer.data.len > 0
-      receivedMessage.seqno.len > 0
-      receivedMessage.signature.len > 0
-      receivedMessage.key.len > 0
+      rm.data == testData
+      rm.fromPeer.isSome
+      rm.seqno.isSome and rm.seqno.get().len > 0
+      rm.signature.isSome and rm.signature.get().len > 0
+      rm.key.isSome and rm.key.get().len > 0
 
   asyncTest "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
@@ -64,11 +64,11 @@ suite "GossipSub Component - Signature Flags":
     checkUntilTimeout:
       receivedMessages[].len > 0
 
-    let receivedMessage = receivedMessages[][0]
+    let rm = receivedMessages[][0]
     check:
-      receivedMessage.data == testData
-      receivedMessage.signature.len == 0
-      receivedMessage.key.len == 0
+      rm.data.get() == testData
+      rm.signature.isNone
+      rm.key.isNone
 
   asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
@@ -90,13 +90,13 @@ suite "GossipSub Component - Signature Flags":
     checkUntilTimeout:
       receivedMessages[].len > 0
 
-    let receivedMessage = receivedMessages[][0]
+    let rm = receivedMessages[][0]
     check:
-      receivedMessage.data == testData
-      receivedMessage.fromPeer.data.len == 0
-      receivedMessage.seqno.len == 0
-      receivedMessage.signature.len == 0
-      receivedMessage.key.len == 0
+      rm.data.get() == testData
+      rm.fromPeer.isNone
+      rm.seqno.isNone
+      rm.signature.isNone
+      rm.key.isNone
 
   type NodeConfig = object
     sign: bool

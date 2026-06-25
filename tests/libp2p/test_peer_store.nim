@@ -229,6 +229,17 @@ suite "AddressBook TTL / confidence":
     b.ttls = AddressConfidenceTtls(low: low, medium: medium, high: high)
     b
 
+  proc newRecorder(book: AddressBook): ref seq[PeerId] =
+    ## Record the peerId of every change-handler notification.
+    var recorded: ref seq[PeerId]
+    new(recorded)
+    recorded[] = @[]
+    book.addHandler(
+      proc(peerId: PeerId) {.gcsafe, raises: [].} =
+        recorded[].add(peerId)
+    )
+    recorded
+
   test "isExpired - Low expires after low TTL":
     let ttls = AddressConfidenceTtls(low: 1.seconds, medium: 1.hours, high: 24.hours)
     let entry = AddressEntry(
@@ -413,3 +424,144 @@ suite "AddressBook TTL / confidence":
 
     book.set(peerId1, @[relayAddr, relayAddrWithDst], AddressConfidence.Low)
     check book[peerId1] == @[relayAddr]
+
+  test "[] hides expired entries while entries returns them raw":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1, addr2], AddressConfidence.Low)
+    # Back-date addr2 past the low TTL, addr1 stays fresh.
+    book.book[peerId1][1].lastUpdated = Moment.now() - 2.seconds
+    check:
+      # [] filters expired entries lazily, without any pruning.
+      book[peerId1] == @[addr1]
+      # entries returns the raw list, expired entry included.
+      book.entries(peerId1).len == 2
+      book.entries(peerId1).anyIt(it.address == addr2)
+
+  test "contains reflects only non-expired entries":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.set(peerId2, @[addr2], AddressConfidence.Low)
+    # Expire peerId2's only entry without pruning it.
+    book.book[peerId2][0].lastUpdated = Moment.now() - 2.seconds
+    check:
+      peerId1 in book
+      # All expired entries makes 'contains' false, the raw entry remains.
+      peerId2 notin book
+      book.entries(peerId2).len == 1
+
+  test "reads on an absent peer return empty and do not crash":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    check:
+      book[peerId1].len == 0
+      book.entries(peerId1).len == 0
+      peerId1 notin book
+
+  test "extend notifies subscribers":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    book.extend(peerId1, @[addr1], AddressConfidence.Low)
+    check recorded[] == @[peerId1]
+
+  test "markConnected notifies subscribers":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    book.markConnected(peerId1, addr1)
+    check recorded[] == @[peerId1]
+
+  test "set fires a change handler even when clearing an absent peer":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    let recorded = newRecorder(book)
+    # Clearing a peer that was never stored changes nothing,
+    # yet set still notifies through its unconditional defer.
+    # This differs from del and pruneExpired, which notify only on a real change.
+    book.set(peerId1, newSeq[MultiAddress]())
+    check recorded[] == @[peerId1]
+
+  test "pruneExpired notifies changed peers and skips untouched ones":
+    let
+      book = makeBook(1.seconds, 1.hours, 24.hours)
+      peerId3 = PeerId.random(rng()).get()
+    # peerId1 keeps a fresh address but loses an expired one (partial eviction).
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.extend(peerId1, @[addr2], AddressConfidence.Medium)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    # peerId2's only address is expired (full eviction).
+    book.set(peerId2, @[addr1], AddressConfidence.Low)
+    book.book[peerId2][0].lastUpdated = Moment.now() - 2.seconds
+    # peerId3 stays fresh and must not be touched.
+    book.set(peerId3, @[addr2], AddressConfidence.Low)
+
+    # Register after setup so only the prune notifications are recorded.
+    let recorded = newRecorder(book)
+    book.pruneExpired()
+
+    check:
+      peerId1 in recorded[]
+      peerId2 in recorded[]
+      peerId3 notin recorded[]
+
+suite "AddressBook TTL pruning loop":
+  let
+    peerId1 = PeerId.random(rng()).get()
+    addr1 = MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get()
+
+  proc makeStore(low, medium, high: Duration): PeerStore =
+    PeerStore.new(
+      nil, addressTtls = AddressConfidenceTtls(low: low, medium: medium, high: high)
+    )
+
+  proc addExpiredLow(peerStore: PeerStore) =
+    # Store a Low address and back-date it past any short low TTL.
+    peerStore[AddressBook].set(peerId1, @[addr1], AddressConfidence.Low)
+    peerStore[AddressBook].book[peerId1][0].lastUpdated = Moment.now() - 1.seconds
+
+  asyncTest "startAddressPruning runs the loop and prunes an expired entry":
+    # low is the smallest positive TTL, so the loop interval tracks it.
+    # medium and high are large, proving the cadence follows the minimum.
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    defer:
+      peerStore.close()
+
+    peerStore.addExpiredLow()
+
+    peerStore.startAddressPruning()
+    check not peerStore.pruneHandle.isNil
+
+    checkUntilTimeout:
+      peerStore[AddressBook].entries(peerId1).len == 0
+
+  asyncTest "startAddressPruning does not start a loop when all TTLs are zero":
+    # All-zero TTLs disable expiry, so the loop is never started.
+    let peerStore = makeStore(0.seconds, 0.seconds, 0.seconds)
+    peerStore.startAddressPruning()
+    check peerStore.pruneHandle.isNil
+
+  asyncTest "startAddressPruning is idempotent":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    defer:
+      peerStore.close()
+
+    peerStore.startAddressPruning()
+    let handle = peerStore.pruneHandle
+    check not handle.isNil
+
+    # A second call must not spawn a second loop or replace the handle.
+    peerStore.startAddressPruning()
+    check peerStore.pruneHandle == handle
+
+  asyncTest "close cancels the loop and clears the handle":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    peerStore.startAddressPruning()
+    let handle = peerStore.pruneHandle
+    check not handle.isNil
+
+    peerStore.close()
+    check peerStore.pruneHandle.isNil
+    # cancelSoon only schedules cancellation, so wait until the loop terminates.
+    checkUntilTimeout:
+      handle.finished()
+
+  asyncTest "close on a store that never started is a no-op":
+    let peerStore = makeStore(10.milliseconds, 1.hours, 24.hours)
+    peerStore.close()
+    check peerStore.pruneHandle.isNil
