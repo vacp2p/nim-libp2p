@@ -105,9 +105,10 @@ type
 Protobuf.serializerFor(
   [
     DialRequest, DialResponse, DialBack, DialBackResponse, DialDataRequest,
-    DialDataResponse, AutonatV2Msg,
+    DialDataResponse,
   ]
 )
+Protobuf.serializerFor([AutonatV2Msg], withMetrics = true, domain = "autonat-v2")
 
 # Custom `==` is needed to ensure consistent comparison with Opt-based fields
 proc `==`*(a, b: AutonatV2Msg): bool =
