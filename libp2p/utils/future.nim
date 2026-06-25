@@ -47,8 +47,7 @@ template cancelAndWait*[T](futs: seq[T]): auto =
       if nonNil.len > 0:
         let loc = nonNil[0].location[LocationKind.Create]
         warn "cancelAndWait called on nil future",
-          firstNonNilProc = $loc.procedure,
-          firstNonNilLoc = $loc.file & ":" & $loc.line
+          firstNonNilProc = $loc.procedure, firstNonNilLoc = $loc.file & ":" & $loc.line
       else:
         warn "cancelAndWait called on nil future"
       continue
