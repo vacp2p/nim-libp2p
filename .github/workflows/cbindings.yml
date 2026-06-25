@@ -74,3 +74,8 @@ jobs:
           nimble buildffi
           nimble genbindings_cpp
           nimble genbindings_cddl
+
+      - name: Build and run C++ bindings examples
+        run: |
+          cd cbind
+          nimble examples
