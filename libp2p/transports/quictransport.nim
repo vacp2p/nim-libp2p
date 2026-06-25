@@ -265,23 +265,17 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   if not m.session.isClosed:
     await m.session.close()
 
-proc stopAcceptLoop(m: QuicMuxer) {.async: (raises: []).} =
-  ## Closes the session and joins the accept loop. The session must be closed
-  ## first or the loop won't exit and `cancelAndWait` would hang.
-  await m.session.close()
-  if not m.handleFut.isNil():
-    await noCancel m.handleFut.cancelAndWait()
-
-proc cancelStreamHandlers(m: QuicMuxer) {.async: (raises: []).} =
-  ## Cancels in-flight stream handlers so each stream is torn down here
-  ## (handlers run closeWithEOF on cancel) instead of being aborted during GC.
-  await noCancel m.handlerFuts.cancelAndWait()
-  m.handlerFuts = @[]
-
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
-    await m.stopAcceptLoop()
-    await m.cancelStreamHandlers()
+    ## Closes the session and joins the accept loop. The session must be closed
+    ## first or the loop won't exit and `cancelAndWait` would hang.
+    await m.session.close()
+
+    if not m.handleFut.isNil:
+      ## Cancels in-flight stream handlers so each stream is torn down here
+      ## (handlers run closeWithEOF on cancel) instead of being aborted during GC.
+      let handlerFuts = move m.handlerFuts
+      await noCancel handlerFuts.cancelAndWait()
   except CatchableError:
     discard
 
