@@ -36,7 +36,7 @@ type
 
   DcutrError* = object of LPError
 
-Protobuf.serializerFor([DcutrMsg])
+Protobuf.serializerFor([DcutrMsg], withMetrics = true, domain = "dcutr")
 
 proc expectDcutrConnection*(
     connManager: ConnManager, peerId: PeerId, dir: Direction

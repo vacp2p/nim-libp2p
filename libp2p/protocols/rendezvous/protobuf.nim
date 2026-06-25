@@ -69,5 +69,7 @@ type
     discoverResponse* {.fieldNumber: 6.}: Opt[DiscoverResponse]
 
 Protobuf.serializerFor(
-  [Cookie, Register, RegisterResponse, Unregister, Discover, DiscoverResponse, Message]
+  [Cookie, Register, RegisterResponse, Unregister, Discover, DiscoverResponse]
 )
+
+Protobuf.serializerFor([Message], withMetrics = true, domain = "rendezvous")
