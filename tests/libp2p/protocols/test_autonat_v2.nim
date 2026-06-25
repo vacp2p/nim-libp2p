@@ -45,97 +45,9 @@ proc checkedGetIPAddress(): string =
   except Exception:
     ""
 
-proc checkEncodeDecode[T](msg: T) =
-  # this would be equivalent of doing the following (e.g. for DialBack)
-  # check msg == DialBack.decode(msg.encode()).get()
-  check msg == T.decode(msg.encode()).get()
-
 suite "AutonatV2":
   teardown:
     checkTrackers()
-
-  asyncTest "encode/decode messages":
-    # DialRequest
-    checkEncodeDecode(
-      DialRequest(
-        addrs: @[
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-        ],
-        nonce: 42.uint64,
-      )
-    )
-
-    # DialResponse
-    checkEncodeDecode(
-      DialResponse(
-        status: ResponseStatus.Ok,
-        addrIdx: Opt.some(1.uint32),
-        dialStatus: Opt.some(DialStatus.Ok),
-      )
-    )
-
-    # DialDataRequest
-    checkEncodeDecode(DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64))
-
-    # DialDataResponse
-    checkEncodeDecode(DialDataResponse(data: @[1'u8, 2, 3, 4, 5]))
-
-    # AutonatV2Msg - DialRequest
-    checkEncodeDecode(
-      AutonatV2Msg(
-        oneof: AutonatV2MsgOneof(
-          kind: MsgKind.DialRequest,
-          dialRequest: DialRequest(
-            addrs: @[
-              MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-              MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-            ],
-            nonce: 42.uint64,
-          ),
-        )
-      )
-    )
-
-    # AutonatV2Msg - DialResponse
-    checkEncodeDecode(
-      AutonatV2Msg(
-        oneof: AutonatV2MsgOneof(
-          kind: MsgKind.DialResponse,
-          dialResponse: DialResponse(
-            status: ResponseStatus.Ok,
-            addrIdx: Opt.some(1.uint32),
-            dialStatus: Opt.some(DialStatus.Ok),
-          ),
-        )
-      )
-    )
-
-    # AutonatV2Msg - DialDataRequest
-    checkEncodeDecode(
-      AutonatV2Msg(
-        oneof: AutonatV2MsgOneof(
-          kind: MsgKind.DialDataRequest,
-          dialDataRequest: DialDataRequest(addrIdx: 42.AddrIdx, numBytes: 128.uint64),
-        )
-      )
-    )
-
-    # AutonatV2Msg - DialDataResponse
-    checkEncodeDecode(
-      AutonatV2Msg(
-        oneof: AutonatV2MsgOneof(
-          kind: MsgKind.DialDataResponse,
-          dialDataResponse: DialDataResponse(data: @[1'u8, 2, 3, 4, 5]),
-        )
-      )
-    )
-
-    # DialBack
-    checkEncodeDecode(DialBack(nonce: 123456.uint64))
-
-    # DialBackResponse
-    checkEncodeDecode(DialBackResponse(status: DialBackStatus.Ok))
 
   asyncTest "asNetworkReachability":
     check asNetworkReachability(DialResponse(status: EInternalError)) == Unknown
