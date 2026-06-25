@@ -57,7 +57,7 @@ macro serializerFor*(
   var stmts = newStmtList()
   for T in Types:
     let decodeName = ident("decode" & $T)
-    let metricLabel = newLit(domain.strVal & "." & $T)
+    let metricLabel = newLit(makeLabel(domain.strVal, $T))
     stmts.add quote do:
       proc encode*(c: `T`): seq[byte] =
         let buf = encode(Protobuf, c)
