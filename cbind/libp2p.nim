@@ -199,11 +199,17 @@ type PeerStoreEntryResponse {.ffi.} = object
   agentVersion: string
   protoVersion: string
 
-proc onIncomingStream*(
-  proto: string, streamId: uint64
-) {.ffiEvent: "on_incoming_stream".}
+type IncomingStreamEvent {.ffi.} = object
+  proto: string
+  streamId: uint64
 
-proc onPubsubMessage*(topic: string, data: seq[byte]) {.ffiEvent: "on_pubsub_message".}
+type PubsubMessageEvent {.ffi.} = object
+  topic: string
+  data: seq[byte]
+
+proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent: "on_incoming_stream".}
+
+proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent: "on_pubsub_message".}
 
 proc parseTransport(v: int): Result[TransportType, string] =
   case v
@@ -607,7 +613,7 @@ proc libp2pMountProtocol*(
       Future[void].Raising([CancelledError]).init("cbind custom protocol release")
     lib.streamReleaseWaiters[streamId] = releaseWaiter
     try:
-      onIncomingStream(selectedProto, streamId)
+      onIncomingStream(IncomingStreamEvent(proto: selectedProto, streamId: streamId))
       await releaseWaiter
     finally:
       lib.streamReleaseWaiters.del(streamId)
@@ -639,7 +645,7 @@ proc libp2pGossipsubSubscribe*(
     return err("gossipsub not initialized")
   if not lib.topicHandlers.hasKey(topic):
     let handler = proc(t: string, data: seq[byte]): Future[void] {.async.} =
-      onPubsubMessage(t, data)
+      onPubsubMessage(PubsubMessageEvent(topic: t, data: data))
     lib.topicHandlers[topic] = handler
     gossipSub.subscribe(topic, handler)
   ok(true)
