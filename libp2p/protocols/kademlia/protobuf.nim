@@ -124,7 +124,7 @@ proc encode*(
       p.connection = p.connection.hide(hideConnectionStatus)
 
   let buffer = Protobuf.encode(m)
-  trackEncodeBytes(buffer.len, $Message, "kademlia")
+  trackEncodeBytes(buffer.len, Message, "kademlia")
   buffer
 
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
