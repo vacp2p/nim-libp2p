@@ -364,7 +364,9 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
+proc handleSubscribe(
+    g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool
+): bool =
   logScope:
     peer
     topic
@@ -376,19 +378,19 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
     # and eventually remove this workaround
     if peer.peerId notin g.peers:
       trace "ignoring unknown peer"
-      return
+      return false
 
     if not (isNil(g.subscriptionValidator)) and not (g.subscriptionValidator(topic)):
       # this is a violation, so warn should be in order
       trace "ignoring invalid topic subscription", topic, peer
       libp2p_gossipsub_invalid_topic_subscription.inc()
-      return
+      return false
 
     if peer.subscribedTopics >= g.topicsHigh and not g.gossipsub.hasPeer(topic, peer):
       trace "ignoring subscription over topicsHigh limit", limit = g.topicsHigh
       libp2p_gossipsub_over_topics_high_subscription.inc()
       peer.behaviourPenalty += SubscriptionFloodPenalty
-      return
+      return false
 
     trace "peer subscribed to topic"
 
@@ -414,6 +416,7 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
+  true
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
@@ -651,13 +654,16 @@ method rpcHandler*(
   # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
 
-  g.extensionsState.handleRPC(peer.peerId, rpcMsg)
-
+  var extensionsRpcMsg = rpcMsg
+  extensionsRpcMsg.subscriptions = @[]
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
+    if g.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe):
+      extensionsRpcMsg.subscriptions.add(sub)
+
+  g.extensionsState.handleRPC(peer.peerId, extensionsRpcMsg)
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
