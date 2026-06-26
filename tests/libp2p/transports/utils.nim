@@ -80,7 +80,7 @@ proc createQuicTransport*(
     isServer: bool = false,
     withInvalidCert: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
-    address: MultiAddress = QuicAutoAddress,
+    addresses: seq[MultiAddress] = @[QuicAutoAddress],
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:
@@ -95,8 +95,7 @@ proc createQuicTransport*(
       QuicTransport.new(Upgrade(), key)
 
   if isServer: # servers are started because they need to listen
-    let ma = @[address]
-    await trans.start(ma)
+    await trans.start(addresses)
 
   return trans
 
@@ -108,6 +107,13 @@ type StreamProvider* =
   proc(conn: RawConn, handle: bool = true): Muxer {.gcsafe, raises: [].}
 
 type StreamHandler* = proc(stream: MuxedStream) {.async: (raises: []).}
+
+proc addrByFamily*(addrs: seq[MultiAddress], family: MaPattern): MultiAddress =
+  ## First address whose leading ip component matches `family` (IP4 or IP6).
+  for a in addrs:
+    if family.matchPartial(a):
+      return a
+  raiseAssert "no address for the requested family"
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
