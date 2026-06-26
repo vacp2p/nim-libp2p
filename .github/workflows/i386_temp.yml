@@ -75,8 +75,6 @@ jobs:
             --verbosity:2 \
             --skipUserCfg \
             -f \
-            --threads:on \
-            --opt:speed \
             --mm:orc \
             -d:useMalloc \
             -d:chronicles_log_level=TRACE \
