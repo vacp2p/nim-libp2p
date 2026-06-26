@@ -16,7 +16,8 @@ jobs:
   test:
     env:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
-    timeout-minutes: 55
+    # The i386 + orc lane compiles the suite under AddressSanitizer (~3x slower), so it needs a larger budget than the default.
+    timeout-minutes: ${{ (matrix.platform.os == 'linux' && matrix.platform.cpu == 'i386' && matrix.nim.memory_management == 'orc') && 120 || 55 }}
     strategy:
       fail-fast: false
       matrix:
@@ -174,7 +175,10 @@ jobs:
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
 
           if [[ '${{ matrix.platform.os }}' == 'linux' && '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
-            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address"
+            # --opt:none overrides the Makefile's --opt:speed: ASAN gains nothing from -O3 but pays a steep compile cost for it, so dropping optimization slashes build time.
+            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --opt:none --passC:-fsanitize=address --passL:-fsanitize=address"
+            # Keep ASAN's memory-error detection but drop LeakSanitizer: ORC frees nothing at process exit, so every still-reachable allocation is reported as a leak.
+            export ASAN_OPTIONS="detect_leaks=0"
           fi
 
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then

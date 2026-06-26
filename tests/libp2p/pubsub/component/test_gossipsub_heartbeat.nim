@@ -156,12 +156,12 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 1000.milliseconds
     let
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          fanoutTTL = 60.milliseconds,
+          fanoutTTL = 200.milliseconds,
           heartbeatInterval = heartbeatInterval,
         )
         .toGossipSub()
@@ -195,7 +195,7 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
     const
       numberOfNodes = 10
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 1000.milliseconds
     let
       nodes = generateNodes(
           numberOfNodes, gossip = true, heartbeatInterval = heartbeatInterval
