@@ -73,7 +73,6 @@ jobs:
           nim c \
             --styleCheck:usages --styleCheck:error \
             --skipUserCfg \
-            -f \
             --mm:orc \
             -d:useMalloc \
             -d:chronicles_log_level=TRACE \
