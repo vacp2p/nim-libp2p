@@ -106,6 +106,39 @@ suite "Quic transport":
     expect QuicTransportDialError:
       discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
 
+  asyncTest "should allow multiple local addresses":
+    let server = await createQuicTransport(
+      isServer = true, addresses = @[QuicAutoAddress, QuicAutoAddress]
+    )
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      server.addrs[0] != server.addrs[1]
+      extractPort(server.addrs[0]) > 0
+      extractPort(server.addrs[1]) > 0
+
+    # Dial to both addresses and verify connections are accepted
+    let client1 = await createQuicTransport()
+    let client2 = await createQuicTransport()
+    defer:
+      await allFutures(client1.stop(), client2.stop())
+
+    let acceptFut1 = server.accept()
+    let conn1 = await client1.dial("", server.addrs[0])
+    let serverConn1 = await acceptFut1
+
+    let acceptFut2 = server.accept()
+    let conn2 = await client2.dial("", server.addrs[1])
+    let serverConn2 = await acceptFut2
+
+    check:
+      not conn1.closed()
+      not conn2.closed()
+      not serverConn1.closed()
+      not serverConn2.closed()
+
   asyncTest "dial reuses listener endpoint when available":
     let client = await createQuicTransport(isServer = true)
     let server = await createQuicTransport(isServer = true)

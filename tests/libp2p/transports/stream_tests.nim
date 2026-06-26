@@ -101,43 +101,6 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTest "should allow multiple local addresses":
-    if isTorTransport(addressIP4):
-      skip() # Tor uses fixed onion ports, not duplicate port-0 listeners
-      return
-
-    let server = transportProvider()
-    # two port-0 addresses of the same family get distinct OS-assigned ports
-    await server.start(@[addressIP4, addressIP4])
-    defer:
-      await server.stop()
-
-    check:
-      server.addrs.len == 2
-      server.addrs[0] != server.addrs[1]
-      extractPort(server.addrs[0]) > 0
-      extractPort(server.addrs[1]) > 0
-
-    # dial both addresses and verify a single accept() services either listener
-    let client1 = transportProvider()
-    let client2 = transportProvider()
-    defer:
-      await allFutures(client1.stop(), client2.stop())
-
-    let acceptFut1 = server.accept()
-    let conn1 = await client1.dial("", server.addrs[0])
-    let serverConn1 = await acceptFut1
-
-    let acceptFut2 = server.accept()
-    let conn2 = await client2.dial("", server.addrs[1])
-    let serverConn2 = await acceptFut2
-
-    check:
-      not conn1.closed()
-      not conn2.closed()
-      not serverConn1.closed()
-      not serverConn2.closed()
-
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
