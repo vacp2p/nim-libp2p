@@ -55,6 +55,8 @@ proc createCSR*(domain: string, certKeyPair: KeyPair): string {.raises: [ACMEErr
     raise newException(ACMEError, "Failed to get seckey raw bytes (DER)")
   let certKey = cert_new_key_t(rawSeckey).valueOr:
     raise newException(ACMEError, "Failed to convert key pair to cert_key_t")
+  defer:
+    cert_free_key(certKey)
 
   # create CSR
   let derCSR = cert_signing_req(domain, certKey).valueOr:
