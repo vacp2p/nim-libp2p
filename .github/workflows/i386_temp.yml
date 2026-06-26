@@ -72,29 +72,30 @@ jobs:
         run: |
           nim c \
             --styleCheck:usages --styleCheck:error \
-            --verbosity:0 \
+            --verbosity:2 \
             --skipUserCfg \
             -f \
             --threads:on \
             --opt:speed \
             --mm:orc \
             -d:useMalloc \
+            -d:chronicles_log_level=TRACE \
             --passC:-fsanitize=address \
             --passL:-fsanitize=address \
             -o:tests/libp2p/pubsub/component/test_gossipsub_message_handling \
             tests/libp2p/pubsub/component/test_gossipsub_message_handling.nim
 
       - name: Run (1/5)
-        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling --output-level=VERBOSE --console
 
       - name: Run (2/5)
-        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling --output-level=VERBOSE --console
 
       - name: Run (3/5)
-        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling --output-level=VERBOSE --console
 
       - name: Run (4/5)
-        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling --output-level=VERBOSE --console
 
       - name: Run (5/5)
-        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling --output-level=VERBOSE --console
