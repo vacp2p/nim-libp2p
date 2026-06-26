@@ -72,7 +72,6 @@ jobs:
         run: |
           nim c \
             --styleCheck:usages --styleCheck:error \
-            --verbosity:2 \
             --skipUserCfg \
             -f \
             --mm:orc \
