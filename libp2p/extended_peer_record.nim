@@ -8,14 +8,7 @@
 import std/[sequtils, times, hashes]
 import pkg/results
 import protobuf_serialization, protobuf_serialization/pkg/results
-import
-  multiaddress,
-  multicodec,
-  peerid,
-  protobuf/minprotobuf,
-  signed_envelope,
-  routing_record,
-  utils/protobuf
+import multiaddress, multicodec, peerid, signed_envelope, routing_record, utils/protobuf
 
 export peerid, multiaddress, signed_envelope
 
@@ -39,7 +32,7 @@ type
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
     services* {.fieldNumber: 4.}: seq[ServiceInfo]
 
-Protobuf.serializerFor([ServiceInfo, ExtendedPeerRecord])
+Protobuf.serializerFor([ExtendedPeerRecord])
 
 proc init*(
     T: typedesc[ExtendedPeerRecord],
@@ -81,6 +74,25 @@ proc isValid*(xpr: SignedExtendedPeerRecord): bool =
   if encoded.len == 0 or encoded.len > MaxXPRSize:
     return false
   true
+
+proc build*(
+    T: typedesc[SignedExtendedPeerRecord],
+    privateKey: PrivateKey,
+    record: ExtendedPeerRecord,
+): Result[SignedExtendedPeerRecord, string] =
+  for svc in record.services:
+    if not svc.isValid():
+      return err(
+        "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
+      )
+
+  let signed = SignedExtendedPeerRecord.init(privateKey, record).valueOr:
+    return err("failed to create signed extended peer record: " & $error)
+
+  if not signed.isValid():
+    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
+
+  ok(signed)
 
 # This is for internal use only
 proc hash*(service: ServiceInfo): Hash =

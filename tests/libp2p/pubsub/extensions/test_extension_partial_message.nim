@@ -10,6 +10,7 @@ import
     [gossipsub/extension_partial_message, gossipsub/extensions_types, rpc/messages]
 import ../../../tools/[unittest, crypto]
 import ./my_partial_message
+import ../converters
 
 proc isPartialTopic(topic: string): bool =
   # convention: in this test file, topics that have "partial" in their name will be considered
@@ -327,7 +328,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
             topicID: topic,
             partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
               # only metadata are sent because peer has not asked for any parts
-            partialMessage: @[],
+            partialMessage: Opt.none(seq[byte]),
           ),
         )
 
@@ -428,7 +429,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
             groupID: groupId,
             topicID: topic,
             partsMetadata: MyPartsMetadata.want(@[1, 2]),
-            partialMessage: @[],
+            partialMessage: Opt.none(seq[byte]),
           ),
         )
 
@@ -464,7 +465,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
             groupID: groupId,
             topicID: topic,
             partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
-            partialMessage: @[],
+            partialMessage: Opt.none(seq[byte]),
           ),
         )
 
@@ -496,11 +497,11 @@ suite "GossipSub Extensions :: Partial Message Extension":
     let stateOnlyRPC = cr.sentRPC.filterIt(it.peerId == stateOnlyPeerId)
     check:
       publishTargetRPC.len == 1
-      publishTargetRPC[0].rpc.partialMessage.len == 0
+      publishTargetRPC[0].rpc.partialMessage.isNone
         # default publish target has sent no group metadata, gets announcement only
       publishTargetRPC[0].rpc.partsMetadata == MyPartsMetadata.have(@[1])
       stateOnlyRPC.len == 1
-      stateOnlyRPC[0].rpc.partialMessage.len == 0
+      stateOnlyRPC[0].rpc.partialMessage.isNone
         # reached via peerState.keys fallback, not subscribed, so metadata-only
       stateOnlyRPC[0].rpc.partsMetadata == MyPartsMetadata.have(@[1])
 
@@ -580,7 +581,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
             topicID: topic,
             groupID: groupId,
             partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
-            partialMessage: @[],
+            partialMessage: Opt.none(seq[byte]),
           ),
         )
 

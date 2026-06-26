@@ -112,7 +112,7 @@ type
       ## When set, inbound peer addresses are filtered through the shared
       ## policy before they are stored or redistributed.
     addressTtls*: AddressConfidenceTtls ## Per-confidence TTLs for address expiry.
-    pruneHandle: Future[void]
+    pruneHandle*: Future[void]
 
 proc new*(
     Self: type PeerStore,

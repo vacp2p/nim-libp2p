@@ -6,8 +6,17 @@
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
 import
-  ../../../libp2p/protocols/pubsub/
-    [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
+  ../../../libp2p/protocols/pubsub/[
+    floodsub,
+    gossipsub,
+    gossipsub/extensions,
+    gossipsub/partial_message,
+    mcache,
+    peertable,
+    pubsubpeer,
+    rpc/message,
+    rpc/protobuf,
+  ]
 import ../../tools/[unittest, bufferstream, crypto, switch_builder, multiaddress]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
@@ -220,9 +229,7 @@ suite "GossipSub":
     gossipSub.parameters.directPeers[peer.peerId] = @[]
 
     # When a subscribe message is sent via RPC handler
-    await gossipSub.rpcHandler(
-      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], true), false)
-    )
+    await gossipSub.rpcHandler(peer, RPCMsg.withSubs(@[topic], true).encode(false))
 
     # Then the peer is added to gossipsub for the topic
     # And the peer is added to subscribedDirectPeers
@@ -235,9 +242,7 @@ suite "GossipSub":
     discard gossipSub.fanout.addPeer(topic, peer)
 
     # And an unsubscribe message is sent via RPC handler
-    await gossipSub.rpcHandler(
-      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], false), false)
-    )
+    await gossipSub.rpcHandler(peer, RPCMsg.withSubs(@[topic], false).encode(false))
 
     # Then the peer is removed from gossipsub, mesh and fanout
     # And the peer is removed from subscribedDirectPeers
@@ -260,9 +265,7 @@ suite "GossipSub":
     peer.peerId = nonExistentPeerId # override PeerId
 
     # When a subscribe message is sent via RPC handler
-    await gossipSub.rpcHandler(
-      peer, encodeRpcMsg(RPCMsg.withSubs(@[topic], true), false)
-    )
+    await gossipSub.rpcHandler(peer, RPCMsg.withSubs(@[topic], true).encode(false))
 
     # Then the peer is ignored
     check:
@@ -303,7 +306,7 @@ suite "GossipSub":
       inc seqno
       let msg =
         Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, Opt.some(seqno))
-      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+      await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     check gossipSub.mcache.msgs.len == 0
 
@@ -321,13 +324,93 @@ suite "GossipSub":
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
 
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(lotOfSubs, false))
+    await gossipSub.rpcHandler(peer, encode(lotOfSubs, false))
 
     check:
       gossipSub.gossipsub.len == gossipSub.topicsHigh
       peer.behaviourPenalty > 0.0
 
     await conn.close()
+
+  asyncTest "rpcHandler - cumulative subscription limit across messages":
+    let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
+    gossipSub.topicsHigh = 10
+
+    let conn = TestBufferStream.new(noop)
+    let peerId = randomPeerId()
+    conn.peerId = peerId
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    for i in 0 .. gossipSub.topicsHigh + 10:
+      let sub = RPCMsg.withSubs(@[topic & $i], true)
+      await gossipSub.rpcHandler(peer, encode(sub, false))
+
+    check:
+      gossipSub.gossipsub.len == gossipSub.topicsHigh
+      peer.subscribedTopics == gossipSub.topicsHigh
+      not gossipSub.gossipsub.hasKey(topic & $gossipSub.topicsHigh)
+      peer.behaviourPenalty > 0.0
+
+    let unsub = RPCMsg.withSubs(@[topic & "0"], false)
+    await gossipSub.rpcHandler(peer, encode(unsub, false))
+    check peer.subscribedTopics == gossipSub.topicsHigh - 1
+
+    let lateSub = RPCMsg.withSubs(@[topic & "late"], true)
+    await gossipSub.rpcHandler(peer, encode(lateSub, false))
+    check:
+      peer.subscribedTopics == gossipSub.topicsHigh
+      gossipSub.gossipsub.hasKey(topic & "late")
+
+    await conn.close()
+
+  asyncTest "rpcHandler - extensions only see accepted subscriptions":
+    proc unionPartsMetadata(
+        a, b: PartsMetadata
+    ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
+      ok(a & b)
+
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      ok()
+
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    let gossipSub = TestGossipSub.init(
+      makeStandardSwitch(),
+      rng = rng(),
+      parameters = GossipSubParams.init(
+        partialMessageExtensionConfig = Opt.some(
+          PartialMessageExtensionConfig(
+            unionPartsMetadata: unionPartsMetadata,
+            validateRPC: validateRPC,
+            onIncomingRPC: onIncomingRPC,
+            heartbeatsTillEviction: 1,
+          )
+        )
+      ),
+    )
+    gossipSub.topicsHigh = 2
+
+    let peerId = randomPeerId()
+    let peer = gossipSub.getPubSubPeer(peerId)
+
+    var subs: seq[SubOpts]
+    for i in 0 .. gossipSub.topicsHigh:
+      subs.add(
+        SubOpts(subscribe: true, topic: topic & $i, requestsPartial: Opt.some(true))
+      )
+
+    await gossipSub.rpcHandler(peer, encode(RPCMsg.withSubscriptions(subs), false))
+
+    check:
+      gossipSub.extensionsState.peerRequestsPartial(peerId, topic & "0")
+      not gossipSub.extensionsState.peerRequestsPartial(
+        peerId, topic & $gossipSub.topicsHigh
+      )
 
   asyncTest "rpcHandler - invalid message bytes":
     let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
@@ -368,13 +451,13 @@ suite "GossipSub":
     # When the GossipSub processes the message
     # Then it throws an exception due to peer disconnection
     expect PeerRateLimitError:
-      await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+      await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # And the rate limit hit counter is incremented
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decode fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -403,7 +486,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "rpcHandler - peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is punished and rate limit is hit when overhead rate limit is exceeded when decode fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -437,7 +520,7 @@ suite "GossipSub":
       currentRateLimitHits("unknown") == rateLimitHits + 1
       peer.behaviourPenalty == 0.1
 
-  asyncTest "rpcHandler - peer is punished when decodeRpcMsg fails":
+  asyncTest "rpcHandler - peer is punished when decode fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -470,7 +553,7 @@ suite "GossipSub":
 
     # And a message is created
     let msg = Message.init(peer.peerId, "bar".toBytes, topic, Opt.some(1'u64))
-    let data = encodeRpcMsg(RPCMsg.withMessages(msg), false)
+    let data = RPCMsg.withMessages(msg).encode(false)
 
     # And the message ID is marked as already seen
     let messageId = gossipSub.msgIdProvider(msg).get
@@ -501,7 +584,7 @@ suite "GossipSub":
     msg.seqno = ("1").toBytes()
 
     # When the GossipSub processes the message
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented 
     check:
@@ -527,7 +610,7 @@ suite "GossipSub":
     var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, Opt.some(1'u64))
 
     # When the GossipSub processes the message
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
     check:
@@ -548,7 +631,7 @@ suite "GossipSub":
     var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, Opt.some(1'u64))
 
     # When the GossipSub processes the message
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
     check:
@@ -578,7 +661,7 @@ suite "GossipSub":
     var msg = Message.init(peer.peerId, ("bar").toBytes(), topic, Opt.some(1'u64))
 
     # When the GossipSub processes the message
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the peer's invalidMessageDeliveries counter is incremented
     check:
@@ -608,7 +691,7 @@ suite "GossipSub":
     let msgId = gossipSub.msgIdProvider(msg).tryGet()
 
     # When the message is processed via rpcHandler
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the message should not be cached
     check:
@@ -643,7 +726,7 @@ suite "GossipSub":
     let msgId = gossipSub.msgIdProvider(msg).tryGet()
 
     # When the message is processed via rpcHandler
-    await gossipSub.rpcHandler(peer, encodeRpcMsg(RPCMsg.withMessages(msg), false))
+    await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
     # Then the message should be cached
     checkUntilTimeout:

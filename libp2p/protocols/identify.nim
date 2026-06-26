@@ -75,7 +75,7 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
-Protobuf.serializerFor([IdentifyMsg, Delta])
+Protobuf.serializerFor([IdentifyMsg], withMetrics = true, domain = "identify")
 
 chronicles.expandIt(IdentifyMsg):
   pubkey = ($it.publicKey).shortLog

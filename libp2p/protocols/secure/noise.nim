@@ -91,7 +91,7 @@ type
 
 # Utility
 
-Protobuf.serializerFor([NoiseHandshakePayloadMsg])
+Protobuf.serializerFor([NoiseHandshakePayloadMsg], withMetrics = true, domain = "noise")
 
 func shortLog*(conn: NoiseConnection): auto =
   try:

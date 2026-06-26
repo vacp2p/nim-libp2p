@@ -158,13 +158,19 @@ method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
+  if session.isClosed:
+    await noCancel session.join()
+    return
+
+  session.isClosed = true
+
   let streams = session.streams
   session.streams.clear()
   await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
   when defined(libp2p_agents_metrics):
     session.untrackPeerIdentity()
-  await procCall P2PConnection(session).close()
+  await procCall P2PConnection(session).closeImpl()
 
 proc getStream(
     session: QuicSession, direction = Direction.In
@@ -200,7 +206,7 @@ method getWrapped*(self: QuicSession): P2PConnection =
 type QuicMuxer* = ref object of Muxer
   session: QuicSession
   handleFut: Future[void]
-  handlerFuts: seq[Future[void]]
+  handleStreamFuts: seq[Future[void]]
 
 proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
@@ -246,7 +252,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   while not (m.session.atEof or m.session.closed):
     try:
       let stream = await m.session.getStream(Direction.In)
-      m.handlerFuts.trackFut(handleStream(stream))
+      m.handleStreamFuts.trackFut(handleStream(stream))
     except ConnectionClosedError:
       break # stop handling, connection was closed
     except CancelledError:
@@ -259,25 +265,22 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   if not m.session.isClosed:
     await m.session.close()
 
-proc stopAcceptLoop(m: QuicMuxer) {.async: (raises: []).} =
+method close*(m: QuicMuxer) {.async: (raises: []).} =
+  if m.isNil:
+    return
+
   ## Closes the session and joins the accept loop. The session must be closed
   ## first or the loop won't exit and `cancelAndWait` would hang.
-  await m.session.close()
-  if not m.handleFut.isNil():
+  if not m.session.isNil:
+    await noCancel m.session.close()
+
+  if not m.handleFut.isNil:
     await noCancel m.handleFut.cancelAndWait()
 
-proc cancelStreamHandlers(m: QuicMuxer) {.async: (raises: []).} =
   ## Cancels in-flight stream handlers so each stream is torn down here
   ## (handlers run closeWithEOF on cancel) instead of being aborted during GC.
-  await noCancel m.handlerFuts.cancelAndWait()
-  m.handlerFuts = @[]
-
-method close*(m: QuicMuxer) {.async: (raises: []).} =
-  try:
-    await m.stopAcceptLoop()
-    await m.cancelStreamHandlers()
-  except CatchableError:
-    discard
+  let handleStreamFuts = move m.handleStreamFuts
+  await noCancel handleStreamFuts.cancelAndWait()
 
 # Transport
 type QuicUpgrade = ref object of Upgrade

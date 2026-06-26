@@ -46,7 +46,9 @@ method onHandleRPC*(
     ext: PingPongExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   rpc.pingpongExtension.withValue(ppe):
-    if ppe.ping.len > 0 and
-        ext.usedBudget.getOrDefault(peerId) + ppe.ping.len <= ext.config.peerBudgetBytes:
-      ext.usedBudget[peerId] = ext.usedBudget.getOrDefault(peerId) + ppe.ping.len
-      ext.config.sendPong(peerId, ppe.ping)
+    if ppe.ping.isNone:
+      return
+    let ping = ppe.ping.get(@[])
+    if ext.usedBudget.getOrDefault(peerId) + ping.len <= ext.config.peerBudgetBytes:
+      ext.usedBudget[peerId] = ext.usedBudget.getOrDefault(peerId) + ping.len
+      ext.config.sendPong(peerId, ping)

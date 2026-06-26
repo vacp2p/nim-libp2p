@@ -65,7 +65,7 @@ when supported(PKScheme.ECDSA):
   # These used to be declared in `crypto` itself
   export ecnist.ephemeral, ecnist.ECDHEScheme
 
-import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
+import ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils

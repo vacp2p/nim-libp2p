@@ -39,6 +39,10 @@ declareCounter(
   "number of invalid topic subscriptions that happened",
 )
 declareCounter(
+  libp2p_gossipsub_over_topics_high_subscription,
+  "number of subscriptions rejected for exceeding topicsHigh",
+)
+declareCounter(
   libp2p_gossipsub_duplicate_during_validation,
   "number of duplicates received during message validation",
 )
@@ -52,6 +56,8 @@ declareCounter(
 )
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+
+const SubscriptionFloodPenalty = 0.1 ## behaviour penalty for subscription abuse
 
 when defined(libp2p_expensive_metrics):
   declareCounter(
@@ -358,7 +364,9 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
+proc handleSubscribe(
+    g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool
+): bool =
   logScope:
     peer
     topic
@@ -370,18 +378,24 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
     # and eventually remove this workaround
     if peer.peerId notin g.peers:
       trace "ignoring unknown peer"
-      return
+      return false
 
     if not (isNil(g.subscriptionValidator)) and not (g.subscriptionValidator(topic)):
       # this is a violation, so warn should be in order
       trace "ignoring invalid topic subscription", topic, peer
       libp2p_gossipsub_invalid_topic_subscription.inc()
-      return
+      return false
+
+    if peer.subscribedTopics >= g.topicsHigh and not g.gossipsub.hasPeer(topic, peer):
+      trace "ignoring subscription over topicsHigh limit", limit = g.topicsHigh
+      libp2p_gossipsub_over_topics_high_subscription.inc()
+      peer.behaviourPenalty += SubscriptionFloodPenalty
+      return false
 
     trace "peer subscribed to topic"
 
-    # subscribe remote peer to the topic
-    discard g.gossipsub.addPeer(topic, peer)
+    if g.gossipsub.addPeer(topic, peer):
+      peer.subscribedTopics.inc()
     if peer.peerId in g.parameters.directPeers:
       discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
@@ -393,6 +407,8 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.pruned(peer, topic)
 
     # unsubscribe remote peer from the topic
+    if g.gossipsub.hasPeer(topic, peer):
+      peer.subscribedTopics.dec()
     g.gossipsub.removePeer(topic, peer)
 
     g.fanout.removePeer(topic, peer)
@@ -400,6 +416,7 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
+  true
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
@@ -481,8 +498,7 @@ proc validateAndRelay(
   defer:
     g.validationSeen.del(saltedId) # drop bookkeeping even if cancelled mid-task
   try:
-    template topic(): string =
-      msg.topic
+    let topic = msg.topic
 
     proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
       g.floodsub.withValue(topic, peers):
@@ -493,13 +509,14 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if isLargeMessage(msg.data.len, msgId):
+    if isLargeMessage(msg.data.get(@[]).len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
       # Also exclude the original message publisher so we don't send IDontWant
       # to a peer we won't relay to after the fix below.
-      g.peers.withValue(msg.fromPeer, sourcePeer):
-        peersToSendIDontWant.excl(sourcePeer[])
+      msg.fromPeer.withValue(fromPeer):
+        g.peers.withValue(fromPeer, sourcePeer):
+          peersToSendIDontWant.excl(sourcePeer[])
       g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
@@ -507,7 +524,8 @@ proc validateAndRelay(
     let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(
-      (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
+      (msg.data.get(@[]).len * seenPeers.len).int64,
+      labelValues = ["validation_duplicate"],
     )
 
     case validation
@@ -543,15 +561,16 @@ proc validateAndRelay(
     # Also exclude the original message publisher to prevent relaying back to
     # them. This handles the case where the message arrived via an intermediate
     # relay node (e.g., A→B→C: when C relays, it should not send back to A).
-    g.peers.withValue(msg.fromPeer, sourcePeer):
-      toSendPeers.excl(sourcePeer[])
+    msg.fromPeer.withValue(fromPeer):
+      g.peers.withValue(fromPeer, sourcePeer):
+        toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(
-            msg.data.len.int64, labelValues = ["idontwant"]
+            msg.data.get(@[]).len.int64, labelValues = ["idontwant"]
           )
           return true
       return false
@@ -559,7 +578,8 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     g.extensionsState.preambleBroadcastIfNotReceiving(
-      RPCMsg.withPreamble(topic, msgId, msg.data.len), toSendPeers.mapIt(it.peerId)
+      RPCMsg.withPreamble(topic, msgId, msg.data.get(@[]).len),
+      toSendPeers.mapIt(it.peerId),
     )
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -571,14 +591,14 @@ proc validateAndRelay(
       toSendPeers.len.int64, labelValues = [g.topicLabel(topic)]
     )
 
-    await handleData(g, topic, msg.data)
-  except CancelledError as exc:
-    info "validateAndRelay failed", description = exc.msg
+    await handleData(g, topic, msg.data.get())
+  except CancelledError:
+    info "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
     info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
+  msgs.mapIt(it.data.get(@[]).len + it.topic.len).foldl(a + b, 0)
 
 proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
   # In this way we count even ignored fields by protobuf
@@ -614,7 +634,7 @@ method rpcHandler*(
     g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
-  var rpcMsg = decodeRpcMsg(move(data)).valueOr:
+  var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
@@ -634,20 +654,23 @@ method rpcHandler*(
   # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
 
-  g.extensionsState.handleRPC(peer.peerId, rpcMsg)
-
+  var extensionsRpcMsg = rpcMsg
+  extensionsRpcMsg.subscriptions = @[]
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic, sub.subscribe)
+    if g.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe):
+      extensionsRpcMsg.subscriptions.add(sub)
+
+  g.extensionsState.handleRPC(peer.peerId, extensionsRpcMsg)
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
   if rpcMsg.subscriptions.len > g.topicsHigh:
     debug "received an rpc message with an oversized amount of subscriptions",
       peer, size = rpcMsg.subscriptions.len, limit = g.topicsHigh
-    peer.behaviourPenalty += 0.1
+    peer.behaviourPenalty += SubscriptionFloodPenalty
 
   for i in 0 ..< rpcMsg.messages.len(): # for every message
     template msg(): untyped =
@@ -668,7 +691,7 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
-    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
+    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.get(@[]).len)
 
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
@@ -696,13 +719,13 @@ method rpcHandler*(
         msgId = shortLog(msgId), peer
       continue
 
-    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
+    if (msg.signature.isSome or g.verifySignature) and not msg.verify():
       debug "Dropping message due to failed signature verification", msg = msg
 
       await g.punishInvalidMessage(peer, msg)
       continue
 
-    if msg.seqno.len > 0 and msg.seqno.len != 8:
+    if msg.seqno.isSome and msg.seqno.get().len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
@@ -723,7 +746,7 @@ method rpcHandler*(
 
   # Now, check subscription to update the meshes if required
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
-    let topic = rpcMsg.subscriptions[i].topic
+    let topic = rpcMsg.subscriptions[i].topic.get()
     if topic in g.topics and g.mesh.peers(topic) < g.parameters.dLow:
       # rebalance but don't update metrics here, we do that only in the heartbeat
       g.rebalanceMesh(topic, metrics = nil)
@@ -900,12 +923,12 @@ method publish*(
     g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish:
-    if not pubParams.skipIDontWant and isLargeMessage(msg.data.len, msgId):
+    if not pubParams.skipIDontWant and isLargeMessage(msg.data.get().len, msgId):
       g.sendIDontWant(topic, msgId, peers)
 
     if not pubParams.skipPreamble:
       g.extensionsState.preambleBroadcast(
-        RPCMsg.withPreamble(topic, msgId, msg.data.len), peers.mapIt(it.peerId)
+        RPCMsg.withPreamble(topic, msgId, msg.data.get().len), peers.mapIt(it.peerId)
       )
 
   g.broadcast(
