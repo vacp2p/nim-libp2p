@@ -1,0 +1,100 @@
+name: i386 temp
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 120
+    name: "linux-i386 orc+asan test_gossipsub_message_handling"
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install i386 build dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install \
+            --no-install-recommends -yq gcc-multilib g++-multilib \
+            libssl-dev:i386
+          mkdir -p external/bin
+          cat << 'EOF' > external/bin/gcc
+          #!/bin/bash
+          exec $(which gcc) -m32 "$@"
+          EOF
+          cat << 'EOF' > external/bin/g++
+          #!/bin/bash
+          exec $(which g++) -m32 "$@"
+          EOF
+          chmod 755 external/bin/gcc external/bin/g++
+          echo "$GITHUB_WORKSPACE/external/bin" >> $GITHUB_PATH
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: i386
+          shell: bash
+          nim_ref: v2.2.10
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-linux-i386-gcc-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: nimble install_pinned
+
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
+      - name: Compile test_gossipsub_message_handling
+        run: |
+          nim c \
+            --styleCheck:usages --styleCheck:error \
+            --verbosity:0 \
+            --skipUserCfg \
+            -f \
+            --threads:on \
+            --opt:speed \
+            --mm:orc \
+            -d:useMalloc \
+            --passC:-fsanitize=address \
+            --passL:-fsanitize=address \
+            -o:tests/libp2p/pubsub/component/test_gossipsub_message_handling \
+            tests/libp2p/pubsub/component/test_gossipsub_message_handling.nim
+
+      - name: Run (1/5)
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+
+      - name: Run (2/5)
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+
+      - name: Run (3/5)
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+
+      - name: Run (4/5)
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
+
+      - name: Run (5/5)
+        run: ./tests/libp2p/pubsub/component/test_gossipsub_message_handling
