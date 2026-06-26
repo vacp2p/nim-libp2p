@@ -154,15 +154,15 @@ proc serverHandlerSingleStream*(
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
-proc clientRunSingleStream*(
-    server: Transport,
+proc clientRunSingleStreamTo*(
+    address: MultiAddress,
     transportProvider: TransportProvider,
     streamProvider: StreamProvider,
     handler: StreamHandler,
 ) {.async: (raises: []).} =
   try:
     let client = transportProvider()
-    let conn = await client.dial("", server.addrs[0])
+    let conn = await client.dial("", address)
     let muxer = streamProvider(conn)
 
     let stream = await muxer.newStream()
@@ -173,6 +173,16 @@ proc clientRunSingleStream*(
     await client.stop()
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
+
+proc clientRunSingleStream*(
+    server: Transport,
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    handler: StreamHandler,
+) {.async: (raises: []).} =
+  await clientRunSingleStreamTo(
+    server.addrs[0], transportProvider, streamProvider, handler
+  )
 
 proc runSingleStreamScenario*(
     multiAddress: seq[MultiAddress],
@@ -190,6 +200,38 @@ proc runSingleStreamScenario*(
     server, transportProvider, streamProvider, clientStreamHandler
   )
   await allFutures(clientTask, serverTask)
+  await server.stop()
+
+proc dualStackStreamScenario*(
+    listenAddrs: seq[MultiAddress],
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    serverStreamHandler: StreamHandler,
+    clientStreamHandler: StreamHandler,
+) {.async: (raises: [CancelledError, LPError]).} =
+  ## Start one server on `listenAddrs`, then dial it once per address family from
+  ## a fresh client, serving each accepted connection with `serverStreamHandler`.
+  let server = transportProvider()
+  await server.start(listenAddrs)
+
+  # dial the server's resolved address of each family, not the wildcard input
+  let targets = @[server.addrs.addrByFamily(IP4), server.addrs.addrByFamily(IP6)]
+
+  # accept() is single-consumer, so serve the clients one after another
+  proc serveAll() {.async: (raises: []).} =
+    for _ in targets:
+      await serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+  let serverTask = serveAll()
+  var clientTasks: seq[Future[void]]
+  for target in targets:
+    clientTasks.add(
+      clientRunSingleStreamTo(
+        target, transportProvider, streamProvider, clientStreamHandler
+      )
+    )
+  await allFutures(clientTasks)
+  await serverTask
   await server.stop()
 
 proc countTransitions*(readOrder: seq[byte]): int =

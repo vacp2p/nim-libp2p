@@ -39,8 +39,6 @@ const
     "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
     "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
   ]
-  # multiaddress exports QUIC_V1_IP4 but has no IPv6 counterpart
-  QUIC_V1_IP6 = mapAnd(IP6, mapEq("udp"), mapEq("quic-v1"))
 
 suite "Quic transport":
   teardown:
@@ -56,35 +54,6 @@ suite "Quic transport":
     Opt.some(MultiAddress.init(addressIP6).get()),
     streamProvider,
   )
-
-  asyncTest "Connection.reset aborts the initiator stream":
-    var serverResetDone = newFuture[void]()
-
-    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        let msg = await stream.readLp(100)
-        check msg == fromHex("1234")
-        await stream.reset()
-        serverResetDone.complete()
-
-    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        await stream.writeLp(fromHex("1234"))
-        await serverResetDone
-
-        var buffer: array[1, byte]
-        check (await stream.readOnce(addr buffer[0], 1)) == 0
-
-        expect LPStreamResetError:
-          await stream.writeLp(fromHex("1234"))
-
-    await runSingleStreamScenario(
-      @[MultiAddress.init(addressIP4).get()],
-      quicTransProvider,
-      streamProvider,
-      serverStreamHandler,
-      clientStreamHandler,
-    )
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
@@ -136,39 +105,6 @@ suite "Quic transport":
 
     expect QuicTransportDialError:
       discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
-
-  asyncTest "should allow multiple local addresses":
-    let server = await createQuicTransport(
-      isServer = true, addresses = @[QuicAutoAddress, QuicAutoAddress]
-    )
-    defer:
-      await server.stop()
-
-    check:
-      server.addrs.len == 2
-      server.addrs[0] != server.addrs[1]
-      extractPort(server.addrs[0]) > 0
-      extractPort(server.addrs[1]) > 0
-
-    # Dial to both addresses and verify connections are accepted
-    let client1 = await createQuicTransport()
-    let client2 = await createQuicTransport()
-    defer:
-      await allFutures(client1.stop(), client2.stop())
-
-    let acceptFut1 = server.accept()
-    let conn1 = await client1.dial("", server.addrs[0])
-    let serverConn1 = await acceptFut1
-
-    let acceptFut2 = server.accept()
-    let conn2 = await client2.dial("", server.addrs[1])
-    let serverConn2 = await acceptFut2
-
-    check:
-      not conn1.closed()
-      not conn2.closed()
-      not serverConn1.closed()
-      not serverConn2.closed()
 
   asyncTest "dial reuses listener endpoint when available":
     let client = await createQuicTransport(isServer = true)
@@ -234,20 +170,6 @@ suite "Quic transport":
       extractPort(serverConn.observedAddr.get()) ==
         extractPort(clientConn.localAddr.get())
 
-  asyncTest "start binds both IPv4 and IPv6 addresses":
-    let server = await createQuicTransport(
-      isServer = true, addresses = @[QuicAutoAddressIP4, QuicAutoAddressIP6]
-    )
-    defer:
-      await server.stop()
-
-    check:
-      server.addrs.len == 2
-      countAddressesWithPattern(server.addrs, QUIC_V1_IP4) == 1
-      countAddressesWithPattern(server.addrs, QUIC_V1_IP6) == 1
-      extractPort(server.addrs[0]) > 0
-      extractPort(server.addrs[1]) > 0
-
   asyncTest "dual-stack dialer reuses the matching-family listener":
     # Dialing from the listener endpoint makes the remote observe the listen port.
     # Port reuse and DCUtR hole punching depend on that.
@@ -295,55 +217,6 @@ suite "Quic transport":
       serverConn.observedAddr.isSome()
       # a different port than the IPv4 listener means a separate endpoint was used
       extractPort(serverConn.observedAddr.get()) != dialerIPv4Port
-
-  asyncTest "dual-stack server exchanges data with IPv4 and IPv6 clients":
-    # A single accept() returns connections arriving on either listener, so one
-    # dual-stack server can serve both an IPv4 and an IPv6 client.
-    const
-      clientMsg = "client"
-      serverMsg = "server"
-
-    let server = await createQuicTransport(
-      isServer = true, addresses = @[QuicAutoAddressIP4, QuicAutoAddressIP6]
-    )
-    defer:
-      await server.stop()
-
-    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        var buffer: array[clientMsg.len, byte]
-        await stream.readExactly(addr buffer, clientMsg.len)
-        check string.fromBytes(buffer) == clientMsg
-        await stream.write(serverMsg)
-
-    proc runClient(address: MultiAddress) {.async.} =
-      let client = await createQuicTransport()
-      let conn = await client.dial("", address)
-      let muxer = streamProvider(conn)
-
-      let stream = await muxer.newStream()
-      await stream.write(clientMsg)
-
-      var buffer: array[serverMsg.len, byte]
-      await stream.readExactly(addr buffer, serverMsg.len)
-      check string.fromBytes(buffer) == serverMsg
-
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await client.stop()
-
-    # accept() is single-consumer, so serve the two clients one after another
-    proc serveBoth() {.async.} =
-      await serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-      await serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    let serverTask = serveBoth()
-    await allFutures(
-      runClient(server.addrs.addrByFamily(IP4)),
-      runClient(server.addrs.addrByFamily(IP6)),
-    )
-    await serverTask
 
   asyncTest "server not accepting":
     let server = await createQuicTransport(isServer = true)

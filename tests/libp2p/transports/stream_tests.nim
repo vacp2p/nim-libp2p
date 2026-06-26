@@ -4,7 +4,8 @@
 {.used.}
 
 import chronos, stew/byteutils, std/random
-import ../../../libp2p/[stream/connection, transports/transport, muxers/muxer]
+import
+  ../../../libp2p/[stream/connection, transports/transport, muxers/muxer, multiaddress]
 import ../../tools/[stream, sync]
 import ./utils
 
@@ -57,6 +58,86 @@ template streamTransportTest*(
 
     runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
+  asyncTest "start binds both IPv4 and IPv6 addresses":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      extractPort(server.addrs.addrByFamily(IP4)) > 0
+      extractPort(server.addrs.addrByFamily(IP6)) > 0
+
+  asyncTest "dual-stack server exchanges data with IPv4 and IPv6 clients":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+
+    await dualStackStreamScenario(
+      @[addressIP4, addressIP6.get()],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "should allow multiple local addresses":
+    if isTorTransport(addressIP4):
+      skip() # Tor uses fixed onion ports, not duplicate port-0 listeners
+      return
+
+    let server = transportProvider()
+    # two port-0 addresses of the same family get distinct OS-assigned ports
+    await server.start(@[addressIP4, addressIP4])
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      server.addrs[0] != server.addrs[1]
+      extractPort(server.addrs[0]) > 0
+      extractPort(server.addrs[1]) > 0
+
+    # dial both addresses and verify a single accept() services either listener
+    let client1 = transportProvider()
+    let client2 = transportProvider()
+    defer:
+      await allFutures(client1.stop(), client2.stop())
+
+    let acceptFut1 = server.accept()
+    let conn1 = await client1.dial("", server.addrs[0])
+    let serverConn1 = await acceptFut1
+
+    let acceptFut2 = server.accept()
+    let conn2 = await client2.dial("", server.addrs[1])
+    let serverConn2 = await acceptFut2
+
+    check:
+      not conn1.closed()
+      not conn2.closed()
+      not serverConn1.closed()
+      not serverConn2.closed()
+
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -67,6 +148,35 @@ template streamTransportTest*(
       noExceptionWithStreamClose(stream):
         await stream.writeLp(fromHex("1234"))
         check (await stream.readLp(100)) == fromHex("5678")
+
+    await runSingleStreamScenario(
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "Connection.reset aborts the initiator stream":
+    var serverResetDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        let msg = await stream.readLp(100)
+        check msg == fromHex("1234")
+        await stream.reset()
+        serverResetDone.complete()
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.writeLp(fromHex("1234"))
+        await serverResetDone
+
+        var buffer: array[1, byte]
+        check (await stream.readOnce(addr buffer[0], 1)) == 0
+
+        expect LPStreamResetError:
+          await stream.writeLp(fromHex("1234"))
 
     await runSingleStreamScenario(
       @[addressIP4],
