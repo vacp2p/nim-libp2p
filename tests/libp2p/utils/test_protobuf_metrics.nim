@@ -5,8 +5,10 @@
 
 when defined(libp2p_protobuf_metrics):
   import protobuf_serialization
-  import ../../../libp2p/[routing_record, utils/protobuf, utils/protobuf_metrics]
-  import ../../tools/[unittest]
+  import
+    ../../../libp2p/
+      [routing_record, utils/protobuf, utils/protobuf_metrics, crypto/crypto]
+  import ../../tools/[unittest, crypto]
 
   # A type that explicitly opts into metrics tracking.
   type MetricsTestMsg* {.proto2.} = object
@@ -20,22 +22,25 @@ when defined(libp2p_protobuf_metrics):
     except exceptions.KeyError:
       0.0
 
+  proc makePeerRecord(): PeerRecord =
+    PeerRecord.init(
+      PeerId.random(rng()).get(), @[MultiAddress.init("/ip4/127.0.0.1/tcp/1234").get()]
+    )
+
   suite "protobuf_metrics":
-    test "AddressInfo encode does not increment write counter (withMetrics = false)":
-      let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234").tryGet()
-      let record = AddressInfo(address: ma)
-      let before = counterValue(libp2p_protobuf_bytes_write, "AddressInfo")
+    test "PeerRecord encode does not increment write counter (withMetrics = false)":
+      let record = makePeerRecord()
+      let before = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       discard encode(record)
-      let after = counterValue(libp2p_protobuf_bytes_write, "AddressInfo")
+      let after = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       check after == before
 
-    test "AddressInfo decode does not increment read counter (withMetrics = false)":
-      let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234").tryGet()
-      let record = AddressInfo(address: ma)
+    test "PeerRecord decode does not increment read counter (withMetrics = false)":
+      let record = makePeerRecord()
       let encoded = encode(record)
-      let before = counterValue(libp2p_protobuf_bytes_read, "AddressInfo")
-      discard AddressInfo.decode(encoded)
-      let after = counterValue(libp2p_protobuf_bytes_read, "AddressInfo")
+      let before = counterValue(libp2p_protobuf_bytes_read, "PeerRecord")
+      discard PeerRecord.decode(encoded)
+      let after = counterValue(libp2p_protobuf_bytes_read, "PeerRecord")
       check after == before
 
     test "write counter incremented on encode":
@@ -89,10 +94,10 @@ when defined(libp2p_protobuf_metrics):
     test "counters track bytes per type label independently":
       let msg = MetricsTestMsg(value: 42)
       let beforeMsg = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
-      let beforeOther = counterValue(libp2p_protobuf_bytes_write, "AddressInfo")
+      let beforeOther = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       discard encode(msg)
       let afterMsg = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
-      let afterOther = counterValue(libp2p_protobuf_bytes_write, "AddressInfo")
+      let afterOther = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
       check afterMsg > beforeMsg
       check afterOther == beforeOther
 

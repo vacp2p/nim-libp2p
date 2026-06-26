@@ -22,7 +22,7 @@ type
     seqNo* {.fieldNumber: 2, required, pint.}: uint64
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
 
-Protobuf.serializerFor([AddressInfo, PeerRecord])
+Protobuf.serializerFor([PeerRecord])
 
 proc init*(
     T: typedesc[PeerRecord],
