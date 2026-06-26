@@ -20,7 +20,7 @@ const
   MaxSendQueueSize = 256000
   MaxChannelCount* = 256
   MaxSendWindow = int64(high(uint32))
-  
+
 when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
   declareHistogram libp2p_yamux_send_queue,
