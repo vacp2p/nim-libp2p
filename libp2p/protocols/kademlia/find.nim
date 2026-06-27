@@ -21,6 +21,7 @@ type LookupState* = ref object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
+  inflight*: Table[PeerId, seq[FutureBase]]
 
 type DispatchProc* = proc(
   kad: KadDHT, peer: PeerId, target: Key
@@ -262,9 +263,10 @@ proc lookOnce*(
     let msg = await dispatch(kad, peerId, target)
     return (peerId, msg)
 
-  let
-    rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
-    completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+  let rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
+  for (fut, peerId) in zip(rpcBatch, toQuery):
+    state.inflight.mgetOrPut(peerId, @[]).add(FutureBase(fut))
+  let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
 
   for (fut, peerId) in zip(rpcBatch, toQuery):
     if not fut.finished():
@@ -286,6 +288,15 @@ proc lookOnce*(
     kad.switch.updatePeers(kad.config.addressPolicy, rtable, newPeerInfos)
     await onReply(peerId, Opt.some(reply), state)
 
+  var doneFuts: seq[FutureBase]
+  for peerId in toQuery:
+    if state.responded.hasKey(peerId) or
+        state.attempts.getOrDefault(peerId, 0) > kad.config.retries:
+      doneFuts.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
+      state.inflight.del(peerId)
+  if doneFuts.len > 0:
+    await doneFuts.cancelAndWait()
+
   return true
 
 proc iterativeLookup*(
@@ -301,6 +312,12 @@ proc iterativeLookup*(
   while not stopCond(state):
     if not await kad.lookOnce(state, rtable, dispatch, onReply):
       break
+
+  var leftover: seq[FutureBase]
+  for futs in state.inflight.values:
+    leftover.add(futs.filterIt(not it.finished()))
+  if leftover.len > 0:
+    await leftover.cancelAndWait()
 
   state
 
