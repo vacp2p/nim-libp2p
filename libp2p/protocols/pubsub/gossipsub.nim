@@ -668,6 +668,25 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
+    # avoid processing messages we are not interested in
+    if topic notin g.topics:
+      debug "Dropping message of topic without subscription",
+        msgId = shortLog(msgId), peer
+      continue
+
+    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
+      debug "Dropping message due to failed signature verification", msg = msg
+
+      await g.punishInvalidMessage(peer, msg)
+      continue
+
+    if msg.seqno.len > 0 and msg.seqno.len != 8:
+      # if we have seqno should be 8 bytes long
+      debug "Dropping message due to invalid seqno length",
+        msgId = shortLog(msgId), peer
+      await g.punishInvalidMessage(peer, msg)
+      continue
+
     g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
 
     if g.addSeen(msgIdSalted):
@@ -689,25 +708,6 @@ method rpcHandler*(
       continue
 
     libp2p_gossipsub_received.inc()
-
-    # avoid processing messages we are not interested in
-    if topic notin g.topics:
-      debug "Dropping message of topic without subscription",
-        msgId = shortLog(msgId), peer
-      continue
-
-    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      debug "Dropping message due to failed signature verification", msg = msg
-
-      await g.punishInvalidMessage(peer, msg)
-      continue
-
-    if msg.seqno.len > 0 and msg.seqno.len != 8:
-      # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length",
-        msgId = shortLog(msgId), peer
-      await g.punishInvalidMessage(peer, msg)
-      continue
 
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages

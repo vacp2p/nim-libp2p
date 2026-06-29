@@ -123,9 +123,10 @@ method rpcHandler*(
     let
       msgId = msgIdResult.get
       saltedId = f.salt(msgId)
+      topic = msg.topic
 
-    if f.addSeen(saltedId):
-      trace "Dropping already-seen message", msgId, peer
+    if topic notin f.topics:
+      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue
 
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
@@ -136,6 +137,10 @@ method rpcHandler*(
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
+      continue
+
+    if f.addSeen(saltedId):
+      trace "Dropping already-seen message", msgId, peer
       continue
 
     # g.anonymize needs no evaluation when receiving messages
@@ -153,10 +158,6 @@ method rpcHandler*(
       discard
 
     var toSendPeers = initHashSet[PubSubPeer]()
-    let topic = msg.topic
-    if topic notin f.topics:
-      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
-      continue
 
     f.floodsub.withValue(topic, peers):
       toSendPeers.incl(peers[])
