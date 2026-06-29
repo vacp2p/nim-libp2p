@@ -71,4 +71,10 @@ jobs:
       - name: Compile test_gossipsub_message_handling
         run: |
           export NIMFLAGS="--mm:orc"
-          make test
+          nim c --styleCheck:usages --styleCheck:error \
+            --verbosity:0 --skipUserCfg -f --threads:on --opt:speed \
+            --mm:orc -d:path=test_gossipsub_message_handling tests/test_all.nim
+
+      - name: Run test_gossipsub_message_handling
+        run: ./tests/test_all --output-level=VERBOSE --console
+
