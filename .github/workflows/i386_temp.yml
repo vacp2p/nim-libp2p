@@ -71,19 +71,4 @@ jobs:
       - name: Compile test_gossipsub_message_handling
         run: |
           export NIMFLAGS="--mm:orc"
-          make TEST_PATH=libp2p/pubsub/component/test_gossipsub_message_handling test
-
-      - name: Run (1/5)
-        run: ./tests/test_all --output-level=VERBOSE --console
-
-      - name: Run (2/5)
-        run: ./tests/test_all --output-level=VERBOSE --console
-
-      - name: Run (3/5)
-        run: ./tests/test_all --output-level=VERBOSE --console
-
-      - name: Run (4/5)
-        run: ./tests/test_all --output-level=VERBOSE --console
-
-      - name: Run (5/5)
-        run: ./tests/test_all --output-level=VERBOSE --console
+          make test
