@@ -32,7 +32,6 @@ NIM_FLAGS = \
   --styleCheck:usages --styleCheck:error \
   $(VERBOSITY_FLAG) \
   --skipUserCfg \
-  -f \
   --threads:on \
   --opt:speed \
   $(NIMFLAGS)
