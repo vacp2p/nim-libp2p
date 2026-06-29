@@ -1,7 +1,6 @@
-name: i386 temp
+name: temp i386
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - master
@@ -16,35 +15,29 @@ jobs:
     env:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 120
-    name: "linux-i386 orc+asan test_gossipsub_message_handling"
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        nim:
+          - ref: v2.2.10
+            memory_management: orc
+
     defaults:
       run:
         shell: bash
+
+    name: "linux-i386 orc+asan test_gossipsub_message_handling"
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
-      - name: Install i386 build dependencies
-        run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install \
-            --no-install-recommends -yq gcc-multilib g++-multilib \
-            libssl-dev:i386 libasan6:i386
-          mkdir -p external/bin
-          cat << 'EOF' > external/bin/gcc
-          #!/bin/bash
-          exec $(which gcc) -m32 "$@"
-          EOF
-          cat << 'EOF' > external/bin/g++
-          #!/bin/bash
-          exec $(which g++) -m32 "$@"
-          EOF
-          chmod 755 external/bin/gcc external/bin/g++
-          echo "$GITHUB_WORKSPACE/external/bin" >> $GITHUB_PATH
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
@@ -52,7 +45,7 @@ jobs:
           os: linux
           cpu: i386
           shell: bash
-          nim_ref: v2.2.10
+          nim_ref: ${{ matrix.nim.ref }}
 
       - name: Restore deps from cache
         id: deps-cache
@@ -62,19 +55,23 @@ jobs:
           key: nimbledeps-linux-i386-gcc-${{ hashFiles('.pinned') }}
 
       - name: Install deps
-        if: steps.deps-cache.outputs.cache-hit != 'true'
-        run: nimble install_pinned
-
-      - name: Build prerequisites
-        run: make nimble.paths nat_libs
-
-      - name: Compile test_gossipsub_message_handling
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          export NIMFLAGS="--mm:orc"
-          nim c --styleCheck:usages --styleCheck:error \
-            --verbosity:0 --skipUserCfg -f --threads:on --opt:speed \
-            --mm:orc -d:path=test_gossipsub_message_handling tests/test_all.nim
+          nimble install_pinned
 
-      - name: Run test_gossipsub_message_handling
-        run: ./tests/test_all --output-level=VERBOSE --console
+      - name: Run tests
+        id: run-tests
+        run: |
+          nim --version
+          nimble --version
+          gcc --version
 
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+
+          if [[ '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address"
+          fi
+
+          # Build/run test binaries with fewer lanes on 32-bit to stay under
+          # the ~3 GB address cap.
+          make TEST_JOBS=2 TEST_PATH=libp2p/pubsub/component/test_gossipsub_message_handling test
