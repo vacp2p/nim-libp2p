@@ -15,15 +15,15 @@ func makeLabel(domain, msgType: string): string =
 
 template trackEncodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_write.inc(
-      count.int64, labelValues = [makeLabel(domain, $msgType)]
-    )
+    let label = makeLabel(domain, $msgType)
+    libp2p_protobuf_bytes_sent.inc(count.int64, labelValues = [label])
+    libp2p_protobuf_messages_sent.inc(labelValues = [label])
 
 template trackDecodeBytes*(count: int, msgType: typedesc, domain: string) =
   when defined(libp2p_protobuf_metrics):
-    libp2p_protobuf_bytes_read.inc(
-      count.int64, labelValues = [makeLabel(domain, $msgType)]
-    )
+    let label = makeLabel(domain, $msgType)
+    libp2p_protobuf_bytes_received.inc(count.int64, labelValues = [label])
+    libp2p_protobuf_messages_received.inc(labelValues = [label])
 
 macro decodeFor*(
     _: type Protobuf, Types: untyped, withMetrics: bool = false, domain: string = ""
@@ -37,7 +37,10 @@ macro decodeFor*(
     stmts.add quote do:
       proc `decodeName`(buf2: seq[byte]): `T` {.raises: [SerializationError].} =
         when defined(libp2p_protobuf_metrics) and `doMetrics`:
-          libp2p_protobuf_bytes_read.inc(buf2.len.int64, labelValues = [`metricLabel`])
+          libp2p_protobuf_bytes_received.inc(
+            buf2.len.int64, labelValues = [`metricLabel`]
+          )
+          libp2p_protobuf_messages_received.inc(labelValues = [`metricLabel`])
 
         decode(Protobuf, buf2, `T`)
 
@@ -62,12 +65,16 @@ macro serializerFor*(
       proc encode*(c: `T`): seq[byte] =
         let buf = encode(Protobuf, c)
         when defined(libp2p_protobuf_metrics) and `doMetrics`:
-          libp2p_protobuf_bytes_write.inc(buf.len.int64, labelValues = [`metricLabel`])
+          libp2p_protobuf_bytes_sent.inc(buf.len.int64, labelValues = [`metricLabel`])
+          libp2p_protobuf_messages_sent.inc(labelValues = [`metricLabel`])
         buf
 
       proc `decodeName`(buf2: seq[byte]): `T` {.raises: [SerializationError].} =
         when defined(libp2p_protobuf_metrics) and `doMetrics`:
-          libp2p_protobuf_bytes_read.inc(buf2.len.int64, labelValues = [`metricLabel`])
+          libp2p_protobuf_bytes_received.inc(
+            buf2.len.int64, labelValues = [`metricLabel`]
+          )
+          libp2p_protobuf_messages_received.inc(labelValues = [`metricLabel`])
 
         decode(Protobuf, buf2, `T`)
 
