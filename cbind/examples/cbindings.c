@@ -23,8 +23,8 @@ static void waitForCallback(void);
 static void free_peerinfo(PeerInfo *pi);
 static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
-static void topic_handler(const char *topic, uint8_t *data, size_t len,
-                          void *userData);
+static int topic_handler(const char *topic, uint8_t *data, size_t len,
+                         void *userData);
 static void peers_handler(int callerRet, const char **peerIds,
                           size_t peerIdsLen, const char *msg, size_t len,
                           void *userData);
@@ -349,12 +349,13 @@ static int permissive_kad_selector(const uint8_t *key, size_t keyLen,
   return 0;
 }
 
-static void topic_handler(const char *topic, uint8_t *data, size_t len,
-                          void *userData) {
+static int topic_handler(const char *topic, uint8_t *data, size_t len,
+                         void *userData) {
   const char *resolved_topic = topic != NULL ? topic : "(null topic)";
   const char *payload = (const char *)data;
   printf("Topic '%s' received (%zu bytes): %.*s\n", resolved_topic, len,
          (int)len, payload != NULL ? payload : "");
+  return 0;
 }
 
 static void peers_handler(int callerRet, const char **peerIds,

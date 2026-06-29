@@ -118,7 +118,7 @@ type Libp2pProtocolHandler* = proc(
 
 type PubsubTopicHandler* = proc(
   topic: cstring, data: ptr byte, len: csize_t, userData: pointer
-) {.cdecl, gcsafe, raises: [].}
+): cint {.cdecl, gcsafe, raises: [].}
 
 type ReadResponse* = object
   data*: ptr byte

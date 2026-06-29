@@ -2,9 +2,12 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/tables
-import chronos, results
+import chronicles, chronos, results
 import ../../../[types, ffi_types, alloc]
 import ../../../../libp2p/protocols/pubsub/gossipsub
+
+logScope:
+  topics = "libp2p cbind pubsub"
 
 type PubSubMsgType* = enum
   SUBSCRIBE
@@ -69,7 +72,7 @@ proc process*(
     let tpair = (topic: $self.topic, handler: pubsubTopicHandler)
     if not libp2p[].topicHandlers.hasKey(tpair):
       let topicHandler = proc(topic: string, data: seq[byte]): Future[void] {.async.} =
-        pubsubTopicHandler(
+        let status = pubsubTopicHandler(
           topic.cstring,
           if data.len > 0:
             data[0].addr
@@ -78,6 +81,8 @@ proc process*(
           data.len.csize_t,
           topicUserData,
         )
+        if status != 0:
+          trace "consumer rejected message, dropping", topic, len = data.len, status
       libp2p[].topicHandlers[tpair] = (handler: topicHandler, userData: topicUserData)
       gossipSub.subscribe($self.topic, topicHandler)
   of UNSUBSCRIBE:
