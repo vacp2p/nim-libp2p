@@ -63,11 +63,19 @@ static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
 static void create_xpr_handler(int callerRet, const uint8_t *data,
                                size_t dataLen, const char *msg, size_t len,
                                void *userData);
+static void decode_xpr_handler(int callerRet,
+                               const Libp2pExtendedPeerRecord *record,
+                               const char *msg, size_t len, void *userData);
 static void print_bytes(const char *label, const uint8_t *data, size_t dataLen);
 
 // libp2p Context
 libp2p_ctx_t *ctx1;
 libp2p_ctx_t *ctx2;
+
+// Holds the signed XPR bytes produced by create_xpr_handler so they can be fed
+// back into libp2p_decode_xpr.
+static uint8_t signed_xpr[1024];
+static size_t signed_xpr_len;
 
 int main(int argc, char **argv) {
   int status = 1;
@@ -249,6 +257,11 @@ int main(int argc, char **argv) {
   libp2p_create_xpr(ctx1, NULL, 0, xpr_services,
                     sizeof(xpr_services) / sizeof(xpr_services[0]), 0,
                     create_xpr_handler, NULL);
+  waitForCallback();
+
+  // Decode and verify the XPR we just produced, recovering node1's record.
+  printf("Decoding signed XPR:\n");
+  libp2p_decode_xpr(signed_xpr, signed_xpr_len, decode_xpr_handler, NULL);
   waitForCallback();
 
   // Peerstore operations
@@ -601,6 +614,32 @@ static void create_xpr_handler(int callerRet, const uint8_t *data,
   }
 
   print_bytes("Signed XPR bytes", data, dataLen);
+
+  signed_xpr_len = dataLen <= sizeof(signed_xpr) ? dataLen : sizeof(signed_xpr);
+  memcpy(signed_xpr, data, signed_xpr_len);
+
+  signal_callback_executed();
+}
+
+static void decode_xpr_handler(int callerRet,
+                               const Libp2pExtendedPeerRecord *record,
+                               const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Decode XPR error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("Decoded XPR:\n");
+  printf("  peerId: %s\n", record->peerId);
+  printf("  seqNo: %llu\n", (unsigned long long)record->seqNo);
+  printf("  addresses (%zu):\n", record->addrsLen);
+  for (size_t i = 0; i < record->addrsLen; i++)
+    printf("    %s\n", record->addrs[i]);
+  printf("  services (%zu):\n", record->servicesLen);
+  for (size_t i = 0; i < record->servicesLen; i++)
+    print_bytes(record->services[i].id, record->services[i].data,
+                record->services[i].dataLen);
 
   signal_callback_executed();
 }
