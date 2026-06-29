@@ -28,79 +28,142 @@ when defined(libp2p_protobuf_metrics):
     )
 
   suite "protobuf_metrics":
-    test "PeerRecord encode does not increment write counter (withMetrics = false)":
+    test "PeerRecord encode does not increment sent counter (withMetrics = false)":
       let record = makePeerRecord()
-      let before = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
+      let before = counterValue(libp2p_protobuf_bytes_sent, "PeerRecord")
       discard encode(record)
-      let after = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
+      let after = counterValue(libp2p_protobuf_bytes_sent, "PeerRecord")
       check after == before
 
-    test "PeerRecord decode does not increment read counter (withMetrics = false)":
+    test "PeerRecord decode does not increment received counter (withMetrics = false)":
       let record = makePeerRecord()
       let encoded = encode(record)
-      let before = counterValue(libp2p_protobuf_bytes_read, "PeerRecord")
+      let before = counterValue(libp2p_protobuf_bytes_received, "PeerRecord")
       discard PeerRecord.decode(encoded)
-      let after = counterValue(libp2p_protobuf_bytes_read, "PeerRecord")
+      let after = counterValue(libp2p_protobuf_bytes_received, "PeerRecord")
       check after == before
 
-    test "write counter incremented on encode":
+    test "sent counter incremented on encode":
       let msg = MetricsTestMsg(value: 42)
-      let before = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let before = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       let encoded = encode(msg)
-      let after = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let after = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       check after == before + float64(encoded.len)
 
-    test "read counter incremented on decode":
+    test "received counter incremented on decode":
       let msg = MetricsTestMsg(value: 42)
       let encoded = encode(msg)
-      let before = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let before = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       let decoded = MetricsTestMsg.decode(encoded)
-      let after = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let after = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       check decoded.isOk
       check after == before + float64(encoded.len)
 
-    test "encode does not increment read counter":
+    test "encode does not increment received counter":
       let msg = MetricsTestMsg(value: 42)
-      let beforeRead = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let beforeRead = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       discard encode(msg)
-      let afterRead = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let afterRead = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       check afterRead == beforeRead
 
-    test "decode does not increment write counter":
+    test "decode does not increment sent counter":
       let msg = MetricsTestMsg(value: 42)
       let encoded = encode(msg)
-      let beforeWrite = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let beforeWrite = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       discard MetricsTestMsg.decode(encoded)
-      let afterWrite = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let afterWrite = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       check afterWrite == beforeWrite
 
-    test "multiple encodes accumulate write counter":
+    test "multiple encodes accumulate sent counter":
       let msg = MetricsTestMsg(value: 42)
-      let before = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let before = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       let enc1 = encode(msg)
       let enc2 = encode(msg)
-      let after = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
+      let after = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
       check after == before + float64(enc1.len + enc2.len)
 
-    test "multiple decodes accumulate read counter":
+    test "multiple decodes accumulate received counter":
       let msg = MetricsTestMsg(value: 42)
       let encoded = encode(msg)
-      let before = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let before = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       discard MetricsTestMsg.decode(encoded)
       discard MetricsTestMsg.decode(encoded)
-      let after = counterValue(libp2p_protobuf_bytes_read, "MetricsTestMsg")
+      let after = counterValue(libp2p_protobuf_bytes_received, "MetricsTestMsg")
       check after == before + float64(encoded.len * 2)
 
     test "counters track bytes per type label independently":
       let msg = MetricsTestMsg(value: 42)
-      let beforeMsg = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
-      let beforeOther = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
+      let beforeMsg = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
+      let beforeOther = counterValue(libp2p_protobuf_bytes_sent, "PeerRecord")
       discard encode(msg)
-      let afterMsg = counterValue(libp2p_protobuf_bytes_write, "MetricsTestMsg")
-      let afterOther = counterValue(libp2p_protobuf_bytes_write, "PeerRecord")
+      let afterMsg = counterValue(libp2p_protobuf_bytes_sent, "MetricsTestMsg")
+      let afterOther = counterValue(libp2p_protobuf_bytes_sent, "PeerRecord")
       check afterMsg > beforeMsg
       check afterOther == beforeOther
 
     test "counter for unregistered label returns zero":
-      check counterValue(libp2p_protobuf_bytes_read, "NonExistentType") == 0.0
-      check counterValue(libp2p_protobuf_bytes_write, "NonExistentType") == 0.0
+      check counterValue(libp2p_protobuf_bytes_received, "NonExistentType") == 0.0
+      check counterValue(libp2p_protobuf_bytes_sent, "NonExistentType") == 0.0
+
+    test "messages_sent counter incremented on encode":
+      let msg = MetricsTestMsg(value: 42)
+      let before = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      discard encode(msg)
+      let after = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      check after == before + 1.0
+
+    test "messages_received counter incremented on decode":
+      let msg = MetricsTestMsg(value: 42)
+      let encoded = encode(msg)
+      let before = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      discard MetricsTestMsg.decode(encoded)
+      let after = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      check after == before + 1.0
+
+    test "encode does not increment messages_received counter":
+      let msg = MetricsTestMsg(value: 42)
+      let before = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      discard encode(msg)
+      let after = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      check after == before
+
+    test "decode does not increment messages_sent counter":
+      let msg = MetricsTestMsg(value: 42)
+      let encoded = encode(msg)
+      let before = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      discard MetricsTestMsg.decode(encoded)
+      let after = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      check after == before
+
+    test "multiple encodes accumulate messages_sent counter":
+      let msg = MetricsTestMsg(value: 42)
+      let before = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      discard encode(msg)
+      discard encode(msg)
+      let after = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      check after == before + 2.0
+
+    test "multiple decodes accumulate messages_received counter":
+      let msg = MetricsTestMsg(value: 42)
+      let encoded = encode(msg)
+      let before = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      discard MetricsTestMsg.decode(encoded)
+      discard MetricsTestMsg.decode(encoded)
+      let after = counterValue(libp2p_protobuf_messages_received, "MetricsTestMsg")
+      check after == before + 2.0
+
+    test "messages counters track per type label independently":
+      let msg = MetricsTestMsg(value: 42)
+      let beforeMsg = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      let beforeOther = counterValue(libp2p_protobuf_messages_sent, "PeerRecord")
+      discard encode(msg)
+      let afterMsg = counterValue(libp2p_protobuf_messages_sent, "MetricsTestMsg")
+      let afterOther = counterValue(libp2p_protobuf_messages_sent, "PeerRecord")
+      check afterMsg > beforeMsg
+      check afterOther == beforeOther
+
+    test "messages_sent counter for unregistered label returns zero":
+      check counterValue(libp2p_protobuf_messages_sent, "NonExistentType") == 0.0
+
+    test "messages_received counter for unregistered label returns zero":
+      check counterValue(libp2p_protobuf_messages_received, "NonExistentType") == 0.0
