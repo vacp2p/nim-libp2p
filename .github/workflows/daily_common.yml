@@ -85,7 +85,7 @@ jobs:
       run:
         shell: ${{ matrix.config.shell }}
 
-    name: "${{ matrix.config.os }} (nim ${{ matrix.nim.ref }} / ${{ matrix.config.cc }})"
+    name: "${{ matrix.config.os }}-${{ matrix.config.cpu }} (${{ matrix.nim.ref }}; ${{ matrix.config.cc }}; ${{ matrix.nim.memory_management }})"
     runs-on: ${{ matrix.config.builder }}
     steps:
       - name: Checkout
