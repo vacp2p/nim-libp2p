@@ -400,7 +400,7 @@ proc lookOnce*(
   let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
 
   for (fut, peerId) in zip(rpcBatch, toQuery):
-    if not fut.finished():
+    if not fut.finished() or fut.cancelled():
       continue
     if fut.failed():
       state.responded[peerId] = RespondedStatus.Failed
@@ -412,6 +412,7 @@ proc lookOnce*(
       else:
         state.responded[peerId] = RespondedStatus.Success
 
+  var toCancel: seq[FutureBase]
   for (peerId, res) in completedRPCBatch:
     let reply = res.valueOr:
       continue
@@ -422,14 +423,18 @@ proc lookOnce*(
     )
     await onReply(peerId, Opt.some(reply), state)
 
-  var doneFuts: seq[FutureBase]
+  # Evicted peers are no longer eligible for retries, so cancel any abandoned RPCs.
+  for peerId in state.inflight.keys.toSeq:
+    if not state.shortlist.hasKey(peerId):
+      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
+      state.inflight.del(peerId)
+
   for peerId in toQuery:
     if state.responded.hasKey(peerId) or
         state.attempts.getOrDefault(peerId, 0) > kad.config.retries:
-      doneFuts.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
+      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
       state.inflight.del(peerId)
-  if doneFuts.len > 0:
-    await doneFuts.cancelAndWait()
+  await toCancel.cancelAndWait()
 
   return true
 
