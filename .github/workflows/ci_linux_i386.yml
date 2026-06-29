@@ -1,0 +1,107 @@
+name: Linux i386 CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        nim:
+          - ref: v2.2.4
+            memory_management: refc
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+          - ref: v2.2.10
+            memory_management: refc
+          - ref: v2.2.10
+            memory_management: orc
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "linux-i386 (Nim ${{ matrix.nim.ref }} / gcc)"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: i386
+          shell: bash
+          nim_ref: ${{ matrix.nim.ref }}
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          # Scope by os/cpu/cc: nimbledeps contains pre-built .a files for
+          # nim-nat-traversal's vendored miniupnpc/libnatpmp, rebuilt by
+          # `make nat_libs` against the host toolchain. Sharing the cache
+          # across mismatched toolchains (linux<->windows, gcc<->clang)
+          # produced broken artifacts last time. Keep this key in sync
+          # with the other workflows that cache nimbledeps so cache
+          # entries are reusable across them.
+          key: nimbledeps-linux-i386-gcc-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          nim --version
+          nimble --version
+          gcc --version
+
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+
+          if [[ '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address"
+          fi
+
+          # Build/run test binaries with fewer lanes on 32-bit to stay under
+          # the ~3 GB address cap.
+          make TEST_JOBS=2 test
+
+      - name: Fix xml newlines
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        run: |
+          nim c -r tools/fix_xml_newlines.nim
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        with:
+          name: Test Report
+          path: tests/results_*.xml
+          reporter: jest-junit
+          list-suites: 'failed'
+          list-tests: 'failed'
+          fail-on-error: 'false'
