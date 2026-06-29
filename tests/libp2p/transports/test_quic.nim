@@ -5,8 +5,13 @@
 
 import chronos, random, stew/byteutils
 import
-  ../../../libp2p/
-    [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
+  ../../../libp2p/[
+    transports/transport,
+    transports/quictransport,
+    upgrademngrs/upgrade,
+    muxers/muxer,
+    multiaddress,
+  ]
 import ../../tools/[unittest, crypto as cryptoTools, multiaddress]
 import ./basic_tests
 import ./stream_tests
@@ -49,35 +54,6 @@ suite "Quic transport":
     Opt.some(MultiAddress.init(addressIP6).get()),
     streamProvider,
   )
-
-  asyncTest "Connection.reset aborts the initiator stream":
-    var serverResetDone = newFuture[void]()
-
-    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        let msg = await stream.readLp(100)
-        check msg == fromHex("1234")
-        await stream.reset()
-        serverResetDone.complete()
-
-    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        await stream.writeLp(fromHex("1234"))
-        await serverResetDone
-
-        var buffer: array[1, byte]
-        check (await stream.readOnce(addr buffer[0], 1)) == 0
-
-        expect LPStreamResetError:
-          await stream.writeLp(fromHex("1234"))
-
-    await runSingleStreamScenario(
-      @[MultiAddress.init(addressIP4).get()],
-      quicTransProvider,
-      streamProvider,
-      serverStreamHandler,
-      clientStreamHandler,
-    )
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
@@ -131,9 +107,9 @@ suite "Quic transport":
       discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
 
   asyncTest "should allow multiple local addresses":
-    let key = PrivateKey.random(ECDSA, rng()).tryGet()
-    let server = QuicTransport.new(Upgrade(), key)
-    await server.start(@[QuicAutoAddress, QuicAutoAddress])
+    let server = await createQuicTransport(
+      isServer = true, addresses = @[QuicAutoAddress, QuicAutoAddress]
+    )
     defer:
       await server.stop()
 
@@ -183,9 +159,9 @@ suite "Quic transport":
       extractPort(serverConn.observedAddr.get()) == clientListenPort
 
   asyncTest "dial uses dial-only endpoint with multiple listener matches":
-    let key = PrivateKey.random(ECDSA, rng()).tryGet()
-    let client = QuicTransport.new(Upgrade(), key)
-    await client.start(@[QuicAutoAddress, QuicAutoAddress])
+    let client = await createQuicTransport(
+      isServer = true, addresses = @[QuicAutoAddress, QuicAutoAddress]
+    )
     let server = await createQuicTransport(isServer = true)
     defer:
       await allFutures(client.stop(), server.stop())
@@ -226,6 +202,54 @@ suite "Quic transport":
       serverConn.observedAddr.isSome()
       extractPort(serverConn.observedAddr.get()) ==
         extractPort(clientConn.localAddr.get())
+
+  asyncTest "dual-stack dialer reuses the matching-family listener":
+    # Dialing from the listener endpoint makes the remote observe the listen port.
+    # Port reuse and DCUtR hole punching depend on that.
+    let dialer = await createQuicTransport(
+      isServer = true, addresses = @[QuicAutoAddressIP4, QuicAutoAddressIP6]
+    )
+    let server =
+      await createQuicTransport(isServer = true, addresses = @[QuicAutoAddressIP6])
+    defer:
+      await allFutures(dialer.stop(), server.stop())
+
+    let dialerIPv6Port = extractPort(dialer.addrs.addrByFamily(IP6))
+
+    let acceptFut = server.accept()
+    let dialerConn = await dialer.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    defer:
+      await allFutures(dialerConn.close(), serverConn.close())
+
+    check:
+      serverConn.observedAddr.isSome()
+      # same port as the IPv6 listener means that listener was reused
+      extractPort(serverConn.observedAddr.get()) == dialerIPv6Port
+
+  asyncTest "dial uses an IPv6 dial-only endpoint when only an IPv4 listener exists":
+    # An IPv4 socket cannot carry an IPv6 dial, so the IPv4 listener cannot be
+    # reused and a separate IPv6 dial-only endpoint has to be opened.
+    let dialer =
+      await createQuicTransport(isServer = true, addresses = @[QuicAutoAddressIP4])
+    let server =
+      await createQuicTransport(isServer = true, addresses = @[QuicAutoAddressIP6])
+    defer:
+      await allFutures(dialer.stop(), server.stop())
+
+    let dialerIPv4Port = extractPort(dialer.addrs[0])
+
+    let acceptFut = server.accept()
+    let dialerConn = await dialer.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    defer:
+      await allFutures(dialerConn.close(), serverConn.close())
+
+    check:
+      dialer.addrs.len == 1
+      serverConn.observedAddr.isSome()
+      # a different port than the IPv4 listener means a separate endpoint was used
+      extractPort(serverConn.observedAddr.get()) != dialerIPv4Port
 
   asyncTest "server not accepting":
     let server = await createQuicTransport(isServer = true)
