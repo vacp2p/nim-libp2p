@@ -10,7 +10,7 @@ import os, strutils
 
 # Most deps come from the parent libp2p.nimble via nimble.paths; nim-ffi pulls in the rest.
 requires "taskpools >= 0.1.0"
-requires "https://github.com/logos-messaging/nim-ffi#feat/type-mappings"
+requires "https://github.com/logos-messaging/nim-ffi#4bac7a7bc6716a4db681fb2ed20a601ae19de032"
 
 proc getLibExt(): string =
   when defined(windows):
