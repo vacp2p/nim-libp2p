@@ -21,4 +21,4 @@ nat_traversal;https://github.com/status-im/nim-nat-traversal@#860e18c37667b5dd00
 npeg;https://github.com/zevv/npeg@#409f6796d0e880b3f0222c964d1da7de6e450811
 taskpools;https://github.com/status-im/nim-taskpools@#9e8ccc754631ac55ac2fd495e167e74e86293edb
 cbor_serialization;https://github.com/vacp2p/nim-cbor-serialization@#1664160e04d153573373afddc552b9cbf6fbe4dc
-ffi;https://github.com/logos-messaging/nim-ffi@#362ce635a0e79b70d50b1483429807b0417fb707
+ffi;https://github.com/logos-messaging/nim-ffi@#4bac7a7bc6716a4db681fb2ed20a601ae19de032

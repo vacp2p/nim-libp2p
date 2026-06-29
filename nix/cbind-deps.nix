@@ -2,10 +2,9 @@
 # Do not edit manually
 #
 # NOTE: the `ffi` and `cbor_serialization` entries below were added by hand for
-# the nim-ffi migration. Their `sha256` values are placeholders
-# (`lib.fakeSha256`); regenerate this file with `make -C cbind deps` (runs
-# tools/gen-deps.sh against an updated nimble.lock) to fill in the real hashes,
-# or run `nix build .#cbind` once and copy the hashes Nix reports.
+# the nim-ffi migration. Keep their `rev` in sync with `.pinned`; regenerate the
+# file with `make -C cbind deps` (runs tools/gen-deps.sh against an updated
+# nimble.lock), or run `nix build .#cbind` and copy the hashes Nix reports.
 { pkgs }:
 
 {
@@ -19,14 +18,14 @@
   cbor_serialization = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-cbor-serialization";
     rev = "1664160e04d153573373afddc552b9cbf6fbe4dc";
-    sha256 = pkgs.lib.fakeSha256;
+    sha256 = "0c1rj4fk0fcqvsf0yqhxvm8h10aww75gi4yfsjhlczh88ypywii2";
     fetchSubmodules = true;
   };
 
   ffi = pkgs.fetchgit {
     url = "https://github.com/logos-messaging/nim-ffi";
-    rev = "feat/type-mappings";
-    sha256 = pkgs.lib.fakeSha256;
+    rev = "4bac7a7bc6716a4db681fb2ed20a601ae19de032";
+    sha256 = "1fl8rcd8akam1v0g56nbq939d0zmq7kyvgwm352j7d73vpcarvb6";
     fetchSubmodules = true;
   };
 
