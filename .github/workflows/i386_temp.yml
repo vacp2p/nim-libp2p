@@ -59,19 +59,26 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Run tests
-        id: run-tests
-        run: |
+      - name: Compile test_gossipsub_message_handling
+        id: compile-test
           nim --version
           nimble --version
-          gcc --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nim c --styleCheck:usages --styleCheck:error --verbosity:0 --skipUserCfg  --opt:speed  --mm:orc -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address \
+          -d:path=libp2p/pubsub/component/test_gossipsub_message_handling \
+          tests/test_all.nim
 
-          if [[ '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
-            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address"
-          fi
+      - name: Run (1/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
 
-          # Build/run test binaries with fewer lanes on 32-bit to stay under
-          # the ~3 GB address cap.
-          make TEST_JOBS=2 TEST_PATH=libp2p/pubsub/component/test_gossipsub_message_handling test
+      - name: Run (2/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (3/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (4/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (5/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
