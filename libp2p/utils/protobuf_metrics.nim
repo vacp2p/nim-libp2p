@@ -7,8 +7,19 @@ when defined(libp2p_protobuf_metrics):
   import metrics
   export metrics
 
-  declareCounter(libp2p_protobuf_bytes_read, "protobuf bytes read", labels = ["kind"])
-  declareCounter(libp2p_protobuf_bytes_write, "protobuf bytes write", labels = ["kind"])
+  declareCounter(
+    libp2p_protobuf_bytes_received, "protobuf bytes received", labels = ["kind"]
+  )
+  declareCounter(libp2p_protobuf_bytes_sent, "protobuf bytes sent", labels = ["kind"])
+
+  declareCounter(
+    libp2p_protobuf_messages_received, "protobuf messages received", labels = ["kind"]
+  )
+  declareCounter(
+    libp2p_protobuf_messages_sent, "protobuf messages sent", labels = ["kind"]
+  )
 
   when defined(libp2p_testing):
-    export libp2p_protobuf_bytes_read, libp2p_protobuf_bytes_write
+    export
+      libp2p_protobuf_bytes_received, libp2p_protobuf_bytes_sent,
+      libp2p_protobuf_messages_received, libp2p_protobuf_messages_sent
