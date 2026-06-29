@@ -75,6 +75,8 @@ jobs:
             --skipUserCfg \
             --mm:orc \
             --cpu:i386 \
+            --opt:none \
+            --parallelBuild:0 \
             -o:tests/libp2p/pubsub/component/test_gossipsub_message_handling \
             tests/libp2p/pubsub/component/test_gossipsub_message_handling.nim
 
