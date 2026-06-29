@@ -213,6 +213,8 @@ proc dualStackStreamScenario*(
   ## a fresh client, serving each accepted connection with `serverStreamHandler`.
   let server = transportProvider()
   await server.start(listenAddrs)
+  defer:
+    await server.stop()
 
   # dial the server's resolved address of each family, not the wildcard input
   let targets = @[server.addrs.addrByFamily(IP4), server.addrs.addrByFamily(IP6)]
@@ -232,7 +234,6 @@ proc dualStackStreamScenario*(
     )
   await allFutures(clientTasks)
   await serverTask
-  await server.stop()
 
 proc countTransitions*(readOrder: seq[byte]): int =
   var transitions = 0
