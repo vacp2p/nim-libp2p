@@ -74,6 +74,7 @@ jobs:
             --styleCheck:usages --styleCheck:error \
             --skipUserCfg \
             --mm:orc \
+            --cpu:i386 \
             -o:tests/libp2p/pubsub/component/test_gossipsub_message_handling \
             tests/libp2p/pubsub/component/test_gossipsub_message_handling.nim
 
