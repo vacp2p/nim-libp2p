@@ -145,7 +145,7 @@ jobs:
           runner.os == 'Windows' &&
           matrix.platform.cc == 'clang'
         run: |
-          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.nim.cpu }}/bin" >> $GITHUB_PATH
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.platform.cpu }}/bin" >> $GITHUB_PATH
           echo "." >> $GITHUB_PATH
 
       - name: Install nasm (Windows)
