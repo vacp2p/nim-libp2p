@@ -33,7 +33,7 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install \
             --no-install-recommends -yq gcc-multilib g++-multilib \
-            libssl-dev:i386
+            libssl-dev:i386 libasan6:i386
           mkdir -p external/bin
           cat << 'EOF' > external/bin/gcc
           #!/bin/bash
