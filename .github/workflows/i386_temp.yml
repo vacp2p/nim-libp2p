@@ -70,7 +70,7 @@ jobs:
           nimble --version
           gcc --version
 
-          nim c --styleCheck:usages --styleCheck:error --verbosity:0 --skipUserCfg --opt:speed --mm:orc \
+          nim c --styleCheck:usages --styleCheck:error --verbosity:0 --skipUserCfg --opt:speed --mm:orc --threads:on  \
             -d:path=libp2p/pubsub/component/test_gossipsub_message_handling \
             -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address \
             tests/test_all.nim
