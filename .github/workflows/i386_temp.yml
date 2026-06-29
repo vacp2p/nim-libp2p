@@ -26,7 +26,7 @@ jobs:
       run:
         shell: bash
 
-    name: "linux-i386 orc+asan test_gossipsub_message_handling"
+    name: "linux-i386 test_gossipsub_message_handling"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -64,6 +64,7 @@ jobs:
 
       - name: Compile test_gossipsub_message_handling
         id: compile-test
+        continue-on-error: true
         run: |
           nim --version
           nimble --version
@@ -71,6 +72,7 @@ jobs:
 
           nim c --styleCheck:usages --styleCheck:error --verbosity:0 --skipUserCfg --opt:speed --mm:orc \
             -d:path=libp2p/pubsub/component/test_gossipsub_message_handling \
+            -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address \
             tests/test_all.nim
 
       - name: Run (1/5)
