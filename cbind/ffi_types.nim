@@ -97,6 +97,14 @@ type RandomRecordsCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
+type ExtendedPeerRecordCallback* = proc(
+  callerRet: cint,
+  record: ptr Libp2pExtendedPeerRecord,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type Libp2pStream* = object
   stream*: pointer
 
