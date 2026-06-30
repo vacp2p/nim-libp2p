@@ -34,7 +34,6 @@ NIM_FLAGS = \
   --skipUserCfg \
   -f \
   --threads:on \
-  --opt:speed \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
