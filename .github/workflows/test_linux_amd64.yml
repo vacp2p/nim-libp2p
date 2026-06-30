@@ -61,7 +61,6 @@ jobs:
             --opt:speed \
             --styleCheck:usages \
             --styleCheck:error \
-            --incremental:on \
             --parallelBuild:0 \
             --threads:on \
             --skipUserCfg \
