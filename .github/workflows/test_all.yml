@@ -174,7 +174,7 @@ jobs:
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
+          if [[ '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
             # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
             # space and cannot compile the full test_all in one go. Split the
             # test corpus into `sliceTotal` translation units; each slice
