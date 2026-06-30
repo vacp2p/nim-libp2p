@@ -11,7 +11,7 @@ import
     connection,
   ]
 
-export random_find, types, discoverer, advertiser
+export chronicles, random_find, types, discoverer, advertiser
 
 logScope:
   topics = "service-discovery"
