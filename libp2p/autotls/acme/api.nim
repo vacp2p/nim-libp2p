@@ -7,8 +7,8 @@ import chronos/apps/http/httpclient, results, chronicles
 
 import ./jws
 import ./utils
-import ../../crypto/crypto
 import ../../crypto/rsa
+import ../../utils/opt
 
 export ACMEError, ACMENetworkError
 
@@ -108,7 +108,7 @@ type ACMECertificateResponse* = object
 type ACMECertificate* = object
   rawCertificate*: string
   certificateExpiry*: DateTime
-  certKeyPair*: KeyPair
+  certKeyPair*: RsaPrivateKey
 
 const
   Alg = "RS256"
@@ -242,17 +242,14 @@ method requestNonce*(
 
 # TODO: save n and e in account so we don't have to recalculate every time
 proc acmeHeader(
-    self: ACMEApi, uri: Uri, key: KeyPair, needsJwk: bool, kid: Opt[Kid]
+    self: ACMEApi, uri: Uri, key: RsaPrivateKey, needsJwk: bool, kid: Opt[Kid]
 ): Future[ACMERequestHeader] {.async: (raises: [ACMEError, CancelledError]).} =
   if not needsJwk and kid.isNone():
     raise newException(ACMEError, "kid not set")
 
-  if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
-    raise newException(ACMEError, "Unsupported signing key type")
-
   let newNonce = await self.requestNonce()
   if needsJwk:
-    let pubkey = key.pubkey.rsakey
+    let pubkey = key.getPublicKey()
     let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
     let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
     ACMERequestHeader(
@@ -302,19 +299,16 @@ proc createSignedAcmeRequest(
     self: ACMEApi,
     uri: Uri,
     payload: auto,
-    key: KeyPair,
+    key: RsaPrivateKey,
     needsJwk: bool = false,
     kid: Opt[Kid] = Opt.none(Kid),
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
-  if key.pubkey.scheme != PKScheme.RSA or key.seckey.scheme != PKScheme.RSA:
-    raise newException(ACMEError, "Unsupported signing key type")
-
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
   handleError("createSignedAcmeRequest"):
-    $toFlattenedJws(%*acmeHeader, %*payload, key.seckey.rsakey)
+    $toFlattenedJws(%*acmeHeader, %*payload, key)
 
 proc requestRegister*(
-    self: ACMEApi, key: KeyPair
+    self: ACMEApi, key: RsaPrivateKey
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   let registerRequest = ACMERegisterRequest(termsOfServiceAgreed: true)
   handleError("acmeRegister"):
@@ -333,7 +327,7 @@ proc requestRegister*(
     )
 
 proc requestNewOrder*(
-    self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
+    self: ACMEApi, domains: seq[Domain], key: RsaPrivateKey, kid: Kid
 ): Future[ACMEChallengeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   # request challenge from ACME server
   let orderRequest = ACMEChallengeRequest(
@@ -359,7 +353,7 @@ proc requestNewOrder*(
     )
 
 proc requestAuthorizations*(
-    self: ACMEApi, authorizations: seq[Authorization], key: KeyPair, kid: Kid
+    self: ACMEApi, authorizations: seq[Authorization], key: RsaPrivateKey, kid: Kid
 ): Future[ACMEAuthorizationsResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestAuthorizations"):
     doAssert authorizations.len > 0
@@ -379,7 +373,7 @@ proc requestAuthorizations*(
     ACMEAuthorizationsResponse(challenges: challenges)
 
 proc requestChallenge*(
-    self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
+    self: ACMEApi, domains: seq[Domain], key: RsaPrivateKey, kid: Kid
 ): Future[ACMEChallengeDns01Response] {.async: (raises: [ACMEError, CancelledError]).} =
   let orderResp = await self.requestNewOrder(domains, key, kid)
 
@@ -399,7 +393,7 @@ proc requestChallenge*(
   )
 
 proc requestCheck*(
-    self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: KeyPair, kid: Kid
+    self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
     let acmeResponse = await self.get(checkURL)
@@ -434,7 +428,7 @@ proc requestCheck*(
         )
 
 proc sendChallengeCompleted*(
-    self: ACMEApi, chalURL: Uri, key: KeyPair, kid: Kid
+    self: ACMEApi, chalURL: Uri, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECompletedResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("sendChallengeCompleted"):
     let payload =
@@ -445,7 +439,7 @@ proc sendChallengeCompleted*(
 proc checkChallengeCompleted*(
     self: ACMEApi,
     checkURL: Uri,
-    key: KeyPair,
+    key: RsaPrivateKey,
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
@@ -467,7 +461,7 @@ proc checkChallengeCompleted*(
 proc completeChallenge*(
     self: ACMEApi,
     chalURL: Uri,
-    key: KeyPair,
+    key: RsaPrivateKey,
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
@@ -479,8 +473,8 @@ proc requestFinalize*(
     self: ACMEApi,
     domain: Domain,
     finalize: Uri,
-    certKeyPair: KeyPair,
-    key: KeyPair,
+    certKeyPair: RsaPrivateKey,
+    key: RsaPrivateKey,
     kid: Kid,
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestFinalize"):
@@ -494,7 +488,7 @@ proc requestFinalize*(
 proc checkCertFinalized*(
     self: ACMEApi,
     order: Uri,
-    key: KeyPair,
+    key: RsaPrivateKey,
     kid: Kid,
     retries: int = DefaultChalCompletedRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
@@ -517,8 +511,8 @@ proc certificateFinalized*(
     domain: Domain,
     finalize: Uri,
     order: Uri,
-    certKeyPair: KeyPair,
-    key: KeyPair,
+    certKeyPair: RsaPrivateKey,
+    key: RsaPrivateKey,
     kid: Kid,
     retries: int = DefaultFinalizeRetries,
 ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
