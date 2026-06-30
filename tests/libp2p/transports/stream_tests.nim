@@ -101,6 +101,107 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
+  asyncTest "dial cancellation leaves established connection working":
+    if addressIP6.isNone:
+      skip() # scoped to dual-stack transports (tcp, quic)
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    # establish a connection on the first address
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(conn)
+
+    # a completed exchange proves the server has accepted the connection and is
+    # now serving its streams
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # serverTask calls accept() only once and already used it on the established
+    # connection, so this dial is never accepted on the server side.
+    # cancelAndWait runs before the dial coroutine can resume, so the in-flight
+    # dial is cancelled rather than completed
+    let dialer = transportProvider()
+    let connFut = dialer.dial("", server.addrs[1])
+    await connFut.cancelAndWait()
+    check connFut.cancelled
+
+    # the established connection still exchanges data after the cancellation
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # closing the muxer ends the session so serverTask returns
+    await muxer.close()
+    await conn.close()
+    await allFutures(client.stop(), dialer.stop())
+    await serverTask
+
+  asyncTest "accept cancellation leaves established connection working":
+    if addressIP6.isNone:
+      skip() # scoped to dual-stack transports (tcp, quic)
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(conn)
+
+    # serverTask has accepted the connection and moved on to serving its
+    # streams, so the only in-flight accept below is the one we start and cancel
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # a fresh accept with nobody dialing, cancelling it must not disturb
+    # the established connection, and no new connection forms
+    let acceptFut = server.accept()
+    await acceptFut.cancelAndWait()
+    check acceptFut.cancelled
+
+    # the established connection still exchanges data after the cancellation
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    await muxer.close()
+    await conn.close()
+    await client.stop()
+    await serverTask
+
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
