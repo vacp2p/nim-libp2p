@@ -35,8 +35,10 @@ NIM_FLAGS = \
   -f \
   --threads:on \
   --opt:speed \
-  --stackTrace:on \
-  --lineTrace:on \
+  --debugger:native \
+  --stacktrace:off \
+  --import:libbacktrace \
+  --define:nimStackTraceOverride \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
