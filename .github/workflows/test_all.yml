@@ -180,7 +180,6 @@ jobs:
             # test corpus into `sliceTotal` translation units; each slice
             # compiles a deterministic subset of the test files.
             NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
-            NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
             nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
             nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
           else
