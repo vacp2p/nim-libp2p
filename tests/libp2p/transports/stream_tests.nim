@@ -4,7 +4,8 @@
 {.used.}
 
 import chronos, stew/byteutils, std/random
-import ../../../libp2p/[stream/connection, transports/transport, muxers/muxer]
+import
+  ../../../libp2p/[stream/connection, transports/transport, muxers/muxer, multiaddress]
 import ../../tools/[stream, sync]
 import ./utils
 
@@ -57,6 +58,49 @@ template streamTransportTest*(
 
     runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
+  asyncTest "start binds both IPv4 and IPv6 addresses":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      extractPort(server.addrs.addrByFamily(IP4)) > 0
+      extractPort(server.addrs.addrByFamily(IP6)) > 0
+
+  asyncTest "dual-stack server exchanges data with IPv4 and IPv6 clients":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+
+    await dualStackStreamScenario(
+      @[addressIP4, addressIP6.get()],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -67,6 +111,35 @@ template streamTransportTest*(
       noExceptionWithStreamClose(stream):
         await stream.writeLp(fromHex("1234"))
         check (await stream.readLp(100)) == fromHex("5678")
+
+    await runSingleStreamScenario(
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "Connection.reset aborts the initiator stream":
+    var serverResetDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        let msg = await stream.readLp(100)
+        check msg == fromHex("1234")
+        await stream.reset()
+        serverResetDone.complete()
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.writeLp(fromHex("1234"))
+        await serverResetDone
+
+        var buffer: array[1, byte]
+        check (await stream.readOnce(addr buffer[0], 1)) == 0
+
+        expect LPStreamResetError:
+          await stream.writeLp(fromHex("1234"))
 
     await runSingleStreamScenario(
       @[addressIP4],

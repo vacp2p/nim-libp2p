@@ -1,0 +1,89 @@
+name: temp i386
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        nim:
+          - ref: v2.2.10
+            memory_management: orc
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "linux-i386 test_gossipsub_message_handling"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: i386
+          shell: bash
+          nim_ref: ${{ matrix.nim.ref }}
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-linux-i386-gcc-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
+      - name: Compile test_gossipsub_message_handling
+        id: compile-test
+        run: |
+          nim --version
+          nimble --version
+          gcc --version
+
+          nim c --styleCheck:usages --styleCheck:error --verbosity:0 --skipUserCfg --opt:speed --mm:orc --threads:on  \
+            -d:path=libp2p/pubsub/component/test_gossipsub_message_handling \
+            tests/test_all.nim
+
+      - name: Run (1/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (2/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (3/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (4/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
+
+      - name: Run (5/5)
+        run: ./tests/test_all --output-level=VERBOSE --console
