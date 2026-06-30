@@ -68,6 +68,17 @@ template failWithBufferMsg(
   callback(RET_ERR.cint, nil, 0, msgPtr, msgLen, userData)
   return RET_ERR.cint
 
+template failWithRecordMsg(
+    callback: ExtendedPeerRecordCallback, userData: pointer, msg: string
+) =
+  let localMsg = msg
+  let msgLen = cast[csize_t](len(localMsg))
+  var msgPtr: ptr cchar = nil
+  if msgLen > 0:
+    msgPtr = cast[ptr cchar](addr localMsg[0])
+  callback(RET_ERR.cint, nil, msgPtr, msgLen, userData)
+  return RET_ERR.cint
+
 template failIfStreamNil(
     stream: ptr Libp2pStream, callback: Libp2pCallback, userData: pointer, msg: string
 ) =
@@ -1108,6 +1119,35 @@ proc libp2p_create_xpr(
     callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
+  RET_OK.cint
+
+proc libp2p_decode_xpr(
+    encoded: ptr byte,
+    encodedLen: csize_t,
+    callback: ExtendedPeerRecordCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  ## Decodes a signed, protobuf-encoded XPR, verifies its signature, and returns
+  ## the decoded record. This is a pure operation that needs no running node.
+
+  initializeLibrary()
+
+  if callback.isNil():
+    return RET_MISSING_CALLBACK.cint
+
+  if encoded.isNil() or encodedLen == 0:
+    failWithRecordMsg(callback, userData, "encoded XPR is not set")
+
+  var bytes = newSeq[byte](encodedLen.int)
+  copyMem(addr bytes[0], encoded, encodedLen.int)
+
+  let record = decodeXpr(bytes).valueOr:
+    failWithRecordMsg(callback, userData, error)
+
+  foreignThreadGc:
+    callback(RET_OK.cint, record, nil, 0, userData)
+
+  deallocExtendedPeerRecord(record)
   RET_OK.cint
 
 proc libp2p_service_disco_stop_advertising(

@@ -118,6 +118,12 @@ proc deallocLibp2pExtendedPeerRecord*(record: var Libp2pExtendedPeerRecord) =
         deallocShared(servicesArr[i].data)
     deallocShared(servicesArr)
 
+proc deallocExtendedPeerRecord*(record: ptr Libp2pExtendedPeerRecord) =
+  if record.isNil():
+    return
+  deallocLibp2pExtendedPeerRecord(record[])
+  deallocShared(record)
+
 proc deallocRandomRecordsResult*(res: ptr RandomRecordsResult) =
   if res.isNil():
     return
@@ -201,6 +207,28 @@ proc buildProvidersResult(
 
   ok(resPtr)
 
+proc fillExtendedPeerRecord(
+    dst: var Libp2pExtendedPeerRecord, record: ExtendedPeerRecord
+) =
+  dst.peerId = ($record.peerId).alloc()
+  dst.seqNo = record.seqNo
+
+  let addrs = record.addresses.mapIt($it.address)
+  dst.addrsLen = addrs.len.csize_t
+  dst.addrs = allocCStringArrayFromSeq(addrs)
+
+  dst.servicesLen = record.services.len.csize_t
+  dst.services = allocServiceInfoArrayFromSeq(record.services)
+
+proc buildExtendedPeerRecord*(
+    record: ExtendedPeerRecord
+): Result[ptr Libp2pExtendedPeerRecord, string] =
+  let resPtr =
+    cast[ptr Libp2pExtendedPeerRecord](createShared(Libp2pExtendedPeerRecord, 1))
+  fillExtendedPeerRecord(resPtr[], record)
+
+  ok(resPtr)
+
 proc buildRandomRecordsResult*(
     records: seq[ExtendedPeerRecord]
 ): Result[ptr RandomRecordsResult, string] =
@@ -216,21 +244,8 @@ proc buildRandomRecordsResult*(
   ))
   let arr = cast[ptr UncheckedArray[Libp2pExtendedPeerRecord]](resPtr[].records)
 
-  try:
-    for i, record in records:
-      arr[i].peerId = ($record.peerId).alloc()
-      arr[i].seqNo = record.seqNo
-
-      let addrs = record.addresses.mapIt($it.address)
-      arr[i].addrsLen = addrs.len.csize_t
-      arr[i].addrs = allocCStringArrayFromSeq(addrs)
-
-      let services = record.services
-      arr[i].servicesLen = services.len.csize_t
-      arr[i].services = allocServiceInfoArrayFromSeq(services)
-  except LPError as exc:
-    deallocRandomRecordsResult(resPtr)
-    return err(exc.msg)
+  for i, record in records:
+    fillExtendedPeerRecord(arr[i], record)
 
   ok(resPtr)
 
