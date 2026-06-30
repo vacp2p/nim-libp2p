@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos
+import chronos, net
 import ../../../libp2p/[multiaddress, utils/ipaddr]
 import ../../tools/[unittest]
 
