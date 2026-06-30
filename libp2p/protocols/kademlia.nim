@@ -8,7 +8,9 @@ import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
 import ./kademlia/kademlia_metrics
 
-export routing_table, protobuf, types, find, get, put, provider, ping, kademlia_metrics
+export
+  chronicles, routing_table, protobuf, types, find, get, put, provider, ping,
+  kademlia_metrics
 
 logScope:
   topics = "kad-dht"
