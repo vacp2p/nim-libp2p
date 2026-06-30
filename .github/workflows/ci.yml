@@ -75,7 +75,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }})"
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }} / ${{ matrix.nim.memory_management }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -172,10 +172,6 @@ jobs:
           fi
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-
-          if [[ '${{ matrix.platform.os }}' == 'linux' && '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
-            export NIMFLAGS="${NIMFLAGS} -d:useMalloc --passC:-fsanitize=address --passL:-fsanitize=address"
-          fi
 
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
