@@ -146,12 +146,12 @@ jobs:
           if [[ '${{ needs.pick-platform.outputs.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          nim c $NIMFLAGS ./tests/test_multiformat_exts
+          nim c $NIMFLAGS ./tests/test_all
 
       - name: Run tests
         id: run-tests
         run: |
-          ./tests/test_multiformat_exts --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
