@@ -33,7 +33,7 @@ NIM_FLAGS = \
   $(VERBOSITY_FLAG) \
   --skipUserCfg \
   --threads:on \
-  --opt:speed \
+  --incremental:on \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
