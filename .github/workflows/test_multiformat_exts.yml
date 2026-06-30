@@ -20,6 +20,8 @@ jobs:
       cc: ${{ steps.pick.outputs.cc }}
       builder: ${{ steps.pick.outputs.builder }}
       shell: ${{ steps.pick.outputs.shell }}
+      nim_ref: ${{ steps.pick.outputs.nim_ref }}
+      nim_mm: ${{ steps.pick.outputs.nim_mm }}
     steps:
       - name: Pick random platform
         id: pick
@@ -29,12 +31,18 @@ jobs:
           declare -a CCS=("gcc" "gcc" "gcc" "clang" "clang" "gcc")
           declare -a BUILDERS=("ubuntu-22.04" "ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
           declare -a SHELLS=("bash" "bash" "bash" "bash" "bash" "msys2 {0}")
-          INDEX=$((RANDOM % 6))
-          echo "os=${OSS[$INDEX]}" >> $GITHUB_OUTPUT
-          echo "cpu=${CPUS[$INDEX]}" >> $GITHUB_OUTPUT
-          echo "cc=${CCS[$INDEX]}" >> $GITHUB_OUTPUT
-          echo "builder=${BUILDERS[$INDEX]}" >> $GITHUB_OUTPUT
-          echo "shell=${SHELLS[$INDEX]}" >> $GITHUB_OUTPUT
+          PLATFORM_INDEX=$((RANDOM % 6))
+          echo "os=${OSS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
+          echo "cpu=${CPUS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
+          echo "cc=${CCS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
+          echo "builder=${BUILDERS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
+          echo "shell=${SHELLS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
+
+          declare -a NIM_REFS=("v2.2.4" "v2.2.10" "v2.2.10")
+          declare -a NIM_MMS=("refc" "refc" "orc")
+          NIM_INDEX=$((RANDOM % 3))
+          echo "nim_ref=${NIM_REFS[$NIM_INDEX]}" >> $GITHUB_OUTPUT
+          echo "nim_mm=${NIM_MMS[$NIM_INDEX]}" >> $GITHUB_OUTPUT
 
   test:
     needs: pick-platform
@@ -42,7 +50,7 @@ jobs:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
     runs-on: ${{ needs.pick-platform.outputs.builder }}
-    name: "test_multiformat_exts (${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }})"
+    name: "test_multiformat_exts (${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
     defaults:
       run:
         shell: ${{ needs.pick-platform.outputs.shell }}
@@ -58,7 +66,7 @@ jobs:
           os: ${{ needs.pick-platform.outputs.os }}
           cpu: ${{ needs.pick-platform.outputs.cpu }}
           shell: ${{ needs.pick-platform.outputs.shell }}
-          nim_ref: v2.2.10
+          nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
 
       - name: Restore dependencies from cache
         id: deps-cache
@@ -121,14 +129,14 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimcache
-          key: ${{ github.ref_name }}-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-refc
+          key: ${{ github.ref_name }}-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ needs.pick-platform.outputs.nim_ref }}-${{ needs.pick-platform.outputs.nim_mm }}
           restore-keys: |
-            master-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-refc
+            master-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ needs.pick-platform.outputs.nim_ref }}-${{ needs.pick-platform.outputs.nim_mm }}
 
       - name: Build test_multiformat_exts
         id: build-test
         run: |
-          NIMFLAGS="--nimcache:nimcache/test_multiformat_exts --mm:refc --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="--nimcache:nimcache/test_multiformat_exts --mm:${{ needs.pick-platform.outputs.nim_mm }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim"
@@ -138,12 +146,12 @@ jobs:
           if [[ '${{ needs.pick-platform.outputs.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          nim c $NIMFLAGS ./tests/test_all
+          nim c $NIMFLAGS ./tests/test_multiformat_exts
 
       - name: Run tests
         id: run-tests
         run: |
-          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
+          ./tests/test_multiformat_exts --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
