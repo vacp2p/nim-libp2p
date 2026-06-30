@@ -32,6 +32,7 @@ jobs:
           os: linux
           cpu: amd64
           shell: bash
+          nim_ref: v2.2.10
 
       - name: Restore deps from cache
         id: deps-cache
@@ -47,19 +48,28 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-coverage-linux-amd64-gcc-2.2.10
+          restore-keys: |
+            master-nimcache-coverage-linux-amd64-gcc-2.2.10
+
       - name: Setup coverage
         run: |
           sudo apt-get update
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
 
-      - name: Run test suite with coverage flags
+      - name: Build test_all
         run: |
-          export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          # amd64 (64-bit): compile and run the test binaries concurrently. Each
-          # binary keeps its own nimcache, so the per-source .gcda files stay
-          # isolated and lcov still captures all of nimcache/ recursively.
-          make TEST_JOBS=3 test
+          NIMFLAGS="--nimcache:nimcache/test_all --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage --threads:on --skipUserCfg"
+          nim c $NIMFLAGS ./tests/test_all
+
+      - name: Run tests
+        run: |
+          ./tests/test_all
 
       - name: Run coverage
         run: |

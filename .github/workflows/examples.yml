@@ -54,6 +54,14 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-examples-linux-amd64-gcc-v2.2.10
+          restore-keys: |
+            master-nimcache-examples-linux-amd64-gcc-v2.2.10
+
       - name: Build and run examples
         run: |
           nim --version
