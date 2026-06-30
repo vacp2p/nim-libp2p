@@ -171,6 +171,16 @@ jobs:
         id: build-test-all
         run: |
           NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+            NIMFLAGS="$NIMFLAGS --cc:clang"
+          fi
+          if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
+            # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
+            # space and cannot compile the full test_all in one go. Split the
+            # test corpus into `sliceTotal` translation units; each slice
+            # compiles a deterministic subset of the test files.
+            NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
+            NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
             nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
             nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
           else
@@ -182,7 +192,7 @@ jobs:
       # CI runs, avoiding a full rebuild from scratch.
       - name: Save build cache
         uses: actions/cache/save@v5
-        if: ${{ !cancelled() && steps.build-test-all.conclusion == 'success' }}
+        if: ${{ steps.build-test-all.conclusion == 'success' }}
         with:
           path: nimcache
           key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
