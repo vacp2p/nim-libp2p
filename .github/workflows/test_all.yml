@@ -170,7 +170,7 @@ jobs:
       - name: Build test_all
         id: build-test-all
         run: |
-          NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
