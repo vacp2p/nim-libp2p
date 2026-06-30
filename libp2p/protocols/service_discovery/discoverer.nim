@@ -96,6 +96,7 @@ proc processResponse(
   for ad in response.ads:
     if found.len >= limit:
       break
+    notice "found peer offering service", peerId = ad.data.peerId, serviceId
     found.incl(ad)
 
 proc drainCompletedPeers(
@@ -148,6 +149,8 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## here. This only prepopulates the per-service routing table to make subsequent
   ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
+
+  notice "starting interest for service", service = serviceId
 
   debug "register interest", service = serviceId, serviceId = serviceHash
 
