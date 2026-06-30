@@ -35,6 +35,8 @@ NIM_FLAGS = \
   -f \
   --threads:on \
   --opt:speed \
+  --stackTrace:on \
+  --lineTrace:on \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
