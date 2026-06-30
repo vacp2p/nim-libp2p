@@ -61,6 +61,7 @@ suite "IpAddr Utils":
     check isPublic("172.32.0.1")
 
   test "isPrivate classifies every IPv6 address as non-private":
+    # TODO: nim-libp2p#2710
     # ULA (fc00::/7)
     check not isPrivate("fd00::1")
     check isPublic("fd00::1")
