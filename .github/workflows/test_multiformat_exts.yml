@@ -1,0 +1,156 @@
+name: Test Multiformat Extensions
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pick-platform:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.pick.outputs.os }}
+      cpu: ${{ steps.pick.outputs.cpu }}
+      cc: ${{ steps.pick.outputs.cc }}
+      builder: ${{ steps.pick.outputs.builder }}
+      shell: ${{ steps.pick.outputs.shell }}
+    steps:
+      - name: Pick random platform
+        id: pick
+        run: |
+          declare -a OSS=("linux" "linux" "linux-gcc-14" "macos-15" "windows" "windows")
+          declare -a CPUS=("amd64" "i386" "amd64" "arm64" "amd64" "amd64")
+          declare -a CCS=("gcc" "gcc" "gcc" "clang" "clang" "gcc")
+          declare -a BUILDERS=("ubuntu-22.04" "ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
+          declare -a SHELLS=("bash" "bash" "bash" "bash" "bash" "msys2 {0}")
+          INDEX=$((RANDOM % 6))
+          echo "os=${OSS[$INDEX]}" >> $GITHUB_OUTPUT
+          echo "cpu=${CPUS[$INDEX]}" >> $GITHUB_OUTPUT
+          echo "cc=${CCS[$INDEX]}" >> $GITHUB_OUTPUT
+          echo "builder=${BUILDERS[$INDEX]}" >> $GITHUB_OUTPUT
+          echo "shell=${SHELLS[$INDEX]}" >> $GITHUB_OUTPUT
+
+  test:
+    needs: pick-platform
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 55
+    runs-on: ${{ needs.pick-platform.outputs.builder }}
+    name: "test_multiformat_exts (${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }})"
+    defaults:
+      run:
+        shell: ${{ needs.pick-platform.outputs.shell }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ needs.pick-platform.outputs.os }}
+          cpu: ${{ needs.pick-platform.outputs.cpu }}
+          shell: ${{ needs.pick-platform.outputs.shell }}
+          nim_ref: v2.2.10
+
+      - name: Restore dependencies from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned') }}
+
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v5
+        with:
+          path: external/mingw-${{ needs.pick-platform.outputs.cpu }}
+          key: 'mingw-llvm-17-${{ needs.pick-platform.outputs.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          needs.pick-platform.outputs.cc == 'clang'
+        run: |
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip"
+          7z x -y "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip" -oexternal/mingw-${{ needs.pick-platform.outputs.cpu }}/
+          mv external/mingw-${{ needs.pick-platform.outputs.cpu }}/**/* ./external/mingw-${{ needs.pick-platform.outputs.cpu }}
+
+      - name: Use gcc 14
+        if: needs.pick-platform.outputs.os == 'linux-gcc-14'
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          needs.pick-platform.outputs.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ needs.pick-platform.outputs.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-refc
+          restore-keys: |
+            master-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-refc
+
+      - name: Build test_multiformat_exts
+        id: build-test
+        run: |
+          NIMFLAGS="--nimcache:nimcache/test_multiformat_exts --mm:refc --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          if [[ '${{ needs.pick-platform.outputs.cc }}' == 'clang' ]]; then
+            NIMFLAGS="$NIMFLAGS --cc:clang"
+          fi
+          nim c $NIMFLAGS ./tests/test_multiformat_exts
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          ./tests/test_multiformat_exts --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
+
+      - name: Fix xml newlines
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        run: |
+          nim c -r tools/fix_xml_newlines.nim
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        with:
+          name: Test Report
+          path: tests/results_*.xml
+          reporter: jest-junit
+          list-suites: 'failed'
+          list-tests: 'failed'
+          fail-on-error: 'false'
