@@ -160,8 +160,7 @@ jobs:
         run: make nimble.paths nat_libs
 
       - name: Restore build cache
-
-        uses: actions/cache/restore@v5
+        uses: actions/cache@v5
         with:
           path: nimcache
           key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
@@ -186,16 +185,6 @@ jobs:
           else
             nim c $NIMFLAGS ./tests/test_all
           fi
-
-      # Save the build cache immediately after a successful build, before the
-      # test step. If tests fail, the cache is still preserved for subsequent
-      # CI runs, avoiding a full rebuild from scratch.
-      - name: Save build cache
-        uses: actions/cache/save@v5
-        if: ${{ steps.build-test-all.conclusion == 'success' }}
-        with:
-          path: nimcache
-          key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
 
       - name: Run tests
         id: run-tests
