@@ -129,15 +129,21 @@ jobs:
         id: build-test
         run: |
           NIMFLAGS="--nimcache:nimcache/test_multiformat_exts --mm:refc --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim"
+          NIMFLAGS="$NIMFLAGS -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim"
+          NIMFLAGS="$NIMFLAGS -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim"
+          NIMFLAGS="$NIMFLAGS -d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim"
+          NIMFLAGS="$NIMFLAGS -d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim"
+          NIMFLAGS="$NIMFLAGS -d:path=multiformat_exts"
           if [[ '${{ needs.pick-platform.outputs.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          nim c $NIMFLAGS ./tests/test_multiformat_exts
+          nim c $NIMFLAGS ./tests/test_all
 
       - name: Run tests
         id: run-tests
         run: |
-          ./tests/test_multiformat_exts --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_multiformat_exts.xml
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
