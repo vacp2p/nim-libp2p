@@ -9,6 +9,13 @@
     sha256 = "1d2d9pv3x3i7im1cbnbj3qg9rvqg34f320pzjb1xriay89d30kr7";
     fetchSubmodules = true;
   };
+  
+  libbacktrace = pkgs.fetchgit {
+    url = "https://github.com/status-im/nim-libbacktrace";
+    rev = "af60500cb0383231065f1d6624beeeefa308d085";
+    sha256 = "0gmdjb04qqj1hpm79apnbdlk150ns2w59ky5g511wzkacyv81ki3";
+    fetchSubmodules = true;
+  };
 
   unittest2 = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-unittest2.git";
