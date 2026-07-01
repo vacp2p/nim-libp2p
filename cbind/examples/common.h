@@ -34,8 +34,8 @@ static inline bool wait_done(atomic_int* done) {
   return atomic_load(done) != 0;
 }
 
-// start/stop/connect/mount/subscribe/publish/write/release/close all reply with
-// just a bool, so one waiter and callback cover them.
+// start/stop/connect/mount/subscribe/write/release/close all reply with just a
+// bool, so one waiter and callback cover them.
 typedef struct {
   atomic_int done;
   int err_code;
@@ -128,7 +128,7 @@ static inline void on_peerinfo(
 
 static inline bool await_peerinfo(LibP2PCtx* ctx, PeerInfoWaiter* w, const char* label) {
   memset(w, 0, sizeof(*w));
-  libp2p_ctx_peerinfo(ctx, on_peerinfo, w);
+  libp2p_ctx_peer_info(ctx, on_peerinfo, w);
   if (!wait_done(&w->done) || w->err_code != 0) {
     fprintf(stderr, "%s: %s\n", label, w->err[0] ? w->err : "unknown");
     return false;

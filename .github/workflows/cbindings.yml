@@ -70,6 +70,7 @@ jobs:
 
           nimble setup
           cd cbind
+          nimble install_pinned
           nimble setup
           nimble buildffi
           nimble genbindings_c

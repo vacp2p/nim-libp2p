@@ -13,6 +13,25 @@ static const char* Topic = "/cbind/demo";
 static atomic_int g_got = 0;
 static char g_received[512];
 
+// gossipsub_publish replies with a PublishResponse carrying the number of peers
+// the message was forwarded to, so it needs its own waiter rather than on_bool.
+typedef struct {
+  atomic_int done;
+  int err_code;
+  char err[256];
+  int64_t peerCount;
+} PublishWaiter;
+
+static void on_publish(int ec, const PublishResponse* reply, const char* em, void* ud) {
+  PublishWaiter* w = (PublishWaiter*)ud;
+  w->err_code = ec;
+  if (reply)
+    w->peerCount = reply->peerCount;
+  if (em)
+    snprintf(w->err, sizeof(w->err), "%s", em);
+  atomic_store(&w->done, 1);
+}
+
 static void onPubsubMessage(const PubsubMessageEvent* evt, void* ud) {
   (void)ud;
   size_t len = evt->data.len < sizeof(g_received) - 1 ? evt->data.len
@@ -80,9 +99,14 @@ int main(void) {
   printf("Publishing: %s\n", message);
   NimFfiBytes payload = {(uint8_t*)message, strlen(message)};
   PublishRequest pubReq = {nimffi_str(Topic), payload};
-  if (!AWAIT_BOOL(bw, libp2p_ctx_gossipsub_publish(publisher, &pubReq, on_bool, &bw),
-                  "publish"))
+  PublishWaiter pubw;
+  memset(&pubw, 0, sizeof(pubw));
+  libp2p_ctx_gossipsub_publish(publisher, &pubReq, on_publish, &pubw);
+  if (!wait_done(&pubw.done) || pubw.err_code != 0) {
+    fprintf(stderr, "publish: %s\n", pubw.err[0] ? pubw.err : "unknown");
     goto cleanup;
+  }
+  printf("Published to %lld peer(s)\n", (long long)pubw.peerCount);
 
   if (wait_done(&g_got)) {
     printf("Subscriber received: %s\n", g_received);
