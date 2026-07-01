@@ -185,7 +185,7 @@ jobs:
             nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
             nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
           else
-            nim ic $NIMFLAGS ./tests/test_all
+            nim c $NIMFLAGS ./tests/test_all
           fi
 
       - name: Save build cache
