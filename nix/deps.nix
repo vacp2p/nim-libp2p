@@ -24,7 +24,7 @@
     fetchSubmodules = true;
   };
 
- bearssl = pkgs.fetchgit {
+  bearssl = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-bearssl";
     rev = "25197fec8a3988d1153be7a1a79890b70e69d6db";
     sha256 = "04nhfvrfm72nmhb821q3ikvbfq65idn88gd355c5xhig63jwhv6j";
