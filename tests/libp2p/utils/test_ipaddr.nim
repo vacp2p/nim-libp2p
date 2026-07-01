@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos
+import chronos, net
 import ../../../libp2p/[multiaddress, utils/ipaddr]
 import ../../tools/[unittest]
 
@@ -33,6 +33,8 @@ suite "IpAddr Utils":
         MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
       ]
     ) == (true, true)
+    check ipSupport(@[MultiAddress.init("/dns4/example.com/tcp/4040").get()]) ==
+      (false, false)
 
   test "isPrivate, isPublic":
     check isPrivate("192.168.1.100")
@@ -43,7 +45,42 @@ suite "IpAddr Utils":
     check not isPublic("169.254.12.34")
     check isPrivate("172.31.200.8")
     check not isPublic("172.31.200.8")
+    check isPrivate("172.16.0.1")
+    check not isPublic("172.16.0.1")
+    check isPrivate("127.0.0.1")
+    check not isPublic("127.0.0.1")
     check not isPrivate("1.1.1.1")
     check isPublic("1.1.1.1")
     check not isPrivate("185.199.108.153")
     check isPublic("185.199.108.153")
+    check not isPrivate("8.8.8.8")
+    check isPublic("8.8.8.8")
+    check not isPrivate("172.15.0.1")
+    check isPublic("172.15.0.1")
+    check not isPrivate("172.32.0.1")
+    check isPublic("172.32.0.1")
+
+  test "isPrivate classifies every IPv6 address as non-private":
+    # TODO: nim-libp2p#2710
+    # ULA (fc00::/7)
+    check not isPrivate("fd00::1")
+    check isPublic("fd00::1")
+    # link-local (fe80::/10)
+    check not isPrivate("fe80::1")
+    check isPublic("fe80::1")
+    # loopback
+    check not isPrivate("::1")
+    check isPublic("::1")
+    # public IPv6
+    check not isPrivate("2001:db8::1")
+    check isPublic("2001:db8::1")
+    check not isPrivate("2606:4700::1")
+    check isPublic("2606:4700::1")
+
+  test "isIPv4, isIPv6":
+    let ipv4 = parseIpAddress("1.2.3.4")
+    let ipv6 = parseIpAddress("2001:db8::1")
+    check ipv4.isIPv4()
+    check not ipv4.isIPv6()
+    check ipv6.isIPv6()
+    check not ipv6.isIPv4()
