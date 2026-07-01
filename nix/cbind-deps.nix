@@ -24,8 +24,8 @@
 
   ffi = pkgs.fetchgit {
     url = "https://github.com/logos-messaging/nim-ffi";
-    rev = "4bac7a7bc6716a4db681fb2ed20a601ae19de032";
-    sha256 = "1fl8rcd8akam1v0g56nbq939d0zmq7kyvgwm352j7d73vpcarvb6";
+    rev = "82c399fb2379f9a80a5e13840031ec7d36bfe522";
+    sha256 = "1zy1r7zpkmgzc010g839w9p2gl6zm19b52bhq7rbpg82l83vrcz7";
     fetchSubmodules = true;
   };
 
