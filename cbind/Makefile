@@ -1,6 +1,14 @@
-.PHONY: all deps build clean
+.PHONY: all build genbindings deps nixbuild clean
 
-all: build
+all: build genbindings
+
+# Builds ../build/libp2p.so plus the C++/CDDL bindings. Run `nimble setup` once first.
+build:
+	nimble buildffi
+
+genbindings:
+	nimble genbindings_cpp
+	nimble genbindings_cddl
 
 nimble.lock:
 	nimble lock
@@ -10,9 +18,9 @@ nimble.lock:
 
 deps: ../nix/cbind-deps.nix
 
-build: deps
+nixbuild: deps
 	nix build .#cbind
 
 clean:
 	$(RM) nimble.lock ../nix/cbind-deps.nix
-
+	$(RM) -r cpp_bindings cddl_bindings nimcache nimcache_cpp nimcache_cddl

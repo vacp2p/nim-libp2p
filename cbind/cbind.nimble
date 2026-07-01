@@ -3,77 +3,40 @@ mode = ScriptMode.Verbose
 packageName = "cbind"
 version = "0.1.0"
 author = "Status Research & Development GmbH"
-description = "C bindings for LibP2P implementation"
+description = "C/C++ bindings for nim-libp2p, generated via nim-ffi"
 license = "MIT"
 
-import os, strutils
+import os
 
-# The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
+# Most deps come from the parent libp2p.nimble via nimble.paths; nim-ffi pulls in the rest.
 requires "taskpools >= 0.1.0"
+requires "https://github.com/logos-messaging/nim-ffi#feat/type-mappings"
 
-proc getLibExt(libType: string): string =
-  if libType == "static":
-    "a"
+proc getLibExt(): string =
+  when defined(windows):
+    "dll"
+  elif defined(macosx):
+    "dylib"
   else:
-    when defined(windows):
-      "dll"
-    elif defined(macosx):
-      "dylib"
-    else:
-      "so"
+    "so"
 
-proc buildCBindings(libType: string, params = "") =
+task buildffi, "Build the FFI shared library":
   let buildDir = "../build"
-
   if not dirExists buildDir:
     mkDir buildDir
+  # `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol nim-ffi's `declareLibrary` imports.
+  exec "nim c --out:" & buildDir & "/libp2p." & getLibExt() &
+    " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
+    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+proc genBindingsFor(lang, outDir: string) =
+  exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
+    " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
+    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & " --nimcache:nimcache_" &
+    lang & " -o:/dev/null libp2p.nim"
 
-  let ext = getLibExt(libType)
-  let app = if libType == "static": "staticlib" else: "lib"
+task genbindings_cpp, "Generate C++ bindings (cbind/cpp_bindings)":
+  genBindingsFor("cpp", "cpp_bindings")
 
-  exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header -d:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
-
-task libDynamic, "Generate dynamic bindings":
-  buildCBindings "dynamic", ""
-
-task libStatic, "Generate static bindings":
-  buildCBindings "static", ""
-
-proc findNatPkgDir(): string =
-  # Match the top-level Makefile: nimble installs deps under pkgs2 on newer
-  # versions and pkgs on older ones; resolve from either.
-  for base in ["../nimbledeps/pkgs2", "../nimbledeps/pkgs"]:
-    if dirExists(base):
-      for d in listDirs(base):
-        if d.extractFilename().startsWith("nat_traversal-"):
-          return d
-  quit "nat_traversal package not found under ../nimbledeps/pkgs2 or " &
-    "../nimbledeps/pkgs; run 'nimble install_pinned' first"
-
-task examples, "Build and run C bindings examples":
-  buildCBindings "static", ""
-  # libp2p.a transitively references miniupnpc and libnatpmp via nat_traversal.
-  # Build the vendored .a's via the parent Makefile and link them in.
-  exec "make -C .. nat_libs"
-  let natPkg = findNatPkgDir()
-  # miniupnpc's unix Makefile drops the .a under build/, but its Makefile.mingw
-  # drops it at the package root. Match the parent Makefile's per-OS choice.
-  let upnpA =
-    when defined(windows):
-      natPkg / "vendor/miniupnp/miniupnpc/libminiupnpc.a"
-    else:
-      natPkg / "vendor/miniupnp/miniupnpc/build/libminiupnpc.a"
-  let pmpA = natPkg / "vendor/libnatpmp-upstream/libnatpmp.a"
-  let natLibs = upnpA & " " & pmpA
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
-    natLibs & " -pthread"
-  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &
-    " -pthread"
-  exec "../build/cbindings"
-  exec "../build/echo"
+task genbindings_cddl, "Generate CDDL schema (cbind/cddl_bindings)":
+  genBindingsFor("cddl", "cddl_bindings")
