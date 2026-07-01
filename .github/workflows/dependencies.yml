@@ -9,11 +9,21 @@ on:
   pull_request:
     types: [labeled, synchronize, opened, reopened]
   workflow_dispatch:
+    inputs:
+      libp2p_ref:
+        description: "nim-libp2p branch, tag, or SHA to test"
+        required: false
+        default: ""
 
 jobs:
   bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-ci')
+    # Scheduled runs proceed when DEPENDENCIES_AUTOBUMP_ENABLED is unset or true; set it to false to disable.
+    if: >
+      (github.event_name != 'schedule' ||
+        vars.DEPENDENCIES_AUTOBUMP_ENABLED == '' ||
+        vars.DEPENDENCIES_AUTOBUMP_ENABLED == 'true') &&
+      (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-ci'))
     runs-on: ubuntu-latest
     name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
@@ -50,12 +60,13 @@ jobs:
           nim-version: '2.2.4' # should be the same as the one in logos-delivery/nimbus/codex
 
       - name: Checkout this ref in target repository
+        env:
+          LIBP2P_REF: ${{ inputs.libp2p_ref || github.event.pull_request.head.sha || github.sha }}
         run: |
           cd nbc
-          GITHUB_SHA=${{ github.event.pull_request.head.sha || github.sha }}
           if [ "${{ matrix.target.nimble }}" = "true" ]; then
-            # Update waku.nimble: replace commit after 'nim-libp2p.git#' with current commit
-            sed -i -E "s|(https://github.com/vacp2p/nim-libp2p\.git#)[a-f0-9]+|\1$GITHUB_SHA|" waku.nimble
+            # Update waku.nimble: replace ref after 'nim-libp2p.git#' with selected ref
+            perl -0pi -e 's|(https://github[.]com/vacp2p/nim-libp2p[.]git#)[^"[:space:]]+|$1$ENV{LIBP2P_REF}|' waku.nimble
 
             # Clean previous state
             rm -rf nimble.lock nimbledeps nimble.paths
@@ -70,8 +81,8 @@ jobs:
 
             git submodule update --init vendor/nim-libp2p
             cd vendor/nim-libp2p
-            git fetch https://github.com/vacp2p/nim-libp2p.git $GITHUB_SHA
-            git checkout $GITHUB_SHA
+            git fetch https://github.com/vacp2p/nim-libp2p.git "$LIBP2P_REF"
+            git checkout FETCH_HEAD
 
           fi
 
