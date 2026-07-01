@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## C/C++ FFI bindings for nim-libp2p, built on top of `nim-ffi`.
+## C FFI bindings for nim-libp2p, built on top of `nim-ffi`.
 ##
 ## The whole FFI runtime (worker thread, request channel, CBOR codec, event
-## queue and the generated C++/CDDL bindings) is provided by `nim-ffi`. This
+## queue and the generated C/CDDL bindings) is provided by `nim-ffi`. This
 ## file only declares the library state, the request/response shapes and the
 ## libp2p-specific bodies; `genBindings()` at the bottom emits the foreign
 ## bindings consumed by `logos-co/logos-libp2p-module`.

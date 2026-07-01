@@ -62,14 +62,14 @@ pkgs.stdenv.mkDerivation {
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
 
     echo "== Building FFI library (dynamic/shared) =="
-    nim c $commonArgs --app:lib --out:build/libp2p.${libExt} cbind/libp2p.nim
+    nim c $commonArgs --app:lib --out:build/liblibp2p.${libExt} cbind/libp2p.nim
 
     echo "== Building FFI library (static) =="
-    nim c $commonArgs --app:staticlib --out:build/libp2p.a cbind/libp2p.nim
+    nim c $commonArgs --app:staticlib --out:build/liblibp2p.a cbind/libp2p.nim
 
-    echo "== Generating C++ bindings =="
-    nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=cpp \
-      -d:ffiOutputDir=cbind/cpp_bindings -d:ffiSrcPath=libp2p.nim \
+    echo "== Generating C bindings =="
+    nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=c \
+      -d:ffiOutputDir=cbind/c_bindings -d:ffiSrcPath=libp2p.nim \
       -o:/dev/null cbind/libp2p.nim
 
     echo "== Generating CDDL schema =="
@@ -80,13 +80,13 @@ pkgs.stdenv.mkDerivation {
 
   installPhase = ''
     mkdir -p $out/lib $out/include
-    cp build/libp2p.${libExt} $out/lib
-    cp build/libp2p.a         $out/lib
+    cp build/liblibp2p.${libExt} $out/lib
+    cp build/liblibp2p.a         $out/lib
     # libp2p.a references these via {.passl.}; install them so static linking resolves.
     cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib
     cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib
     # Install the nim-ffi generated bindings instead of a hand-written header.
-    cp -r cbind/cpp_bindings  $out/include/
+    cp -r cbind/c_bindings    $out/include/
     cp -r cbind/cddl_bindings $out/include/
   '';
 }

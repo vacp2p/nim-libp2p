@@ -3,14 +3,14 @@ mode = ScriptMode.Verbose
 packageName = "cbind"
 version = "0.1.0"
 author = "Status Research & Development GmbH"
-description = "C/C++ bindings for nim-libp2p, generated via nim-ffi"
+description = "C bindings for nim-libp2p, generated via nim-ffi"
 license = "MIT"
 
 import os, strutils
 
 # Most deps come from the parent libp2p.nimble via nimble.paths; nim-ffi pulls in the rest.
 requires "taskpools >= 0.1.0"
-requires "https://github.com/logos-messaging/nim-ffi#4bac7a7bc6716a4db681fb2ed20a601ae19de032"
+requires "https://github.com/logos-messaging/nim-ffi#82c399fb2379f9a80a5e13840031ec7d36bfe522"
 
 proc getLibExt(): string =
   when defined(windows):
@@ -24,8 +24,10 @@ proc buildFfiLib() =
   let buildDir = "../build"
   if not dirExists buildDir:
     mkDir buildDir
-  # `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol nim-ffi's `declareLibrary` imports.
-  exec "nim c --out:" & buildDir & "/libp2p." & getLibExt() &
+  # Name the output `lib<name>` so the file matches the soname nim derives from
+  # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
+  # nim-ffi's `declareLibrary` imports.
+  exec "nim c --out:" & buildDir & "/liblibp2p." & getLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
     " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
@@ -38,8 +40,8 @@ proc genBindingsFor(lang, outDir: string) =
     " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & " --nimcache:nimcache_" &
     lang & " -o:/dev/null libp2p.nim"
 
-task genbindings_cpp, "Generate C++ bindings (cbind/cpp_bindings)":
-  genBindingsFor("cpp", "cpp_bindings")
+task genbindings_c, "Generate C bindings (cbind/c_bindings)":
+  genBindingsFor("c", "c_bindings")
 
 task genbindings_cddl, "Generate CDDL schema (cbind/cddl_bindings)":
   genBindingsFor("cddl", "cddl_bindings")
@@ -63,15 +65,14 @@ proc findFfiVendorDir(): string =
     IOError, "could not locate nim-ffi's vendored tinycbor; run `nimble setup` first"
   )
 
-task examples, "Build and run the C++ bindings examples":
-  let lib = "../build/libp2p." & getLibExt()
+task examples, "Build and run the C bindings examples":
+  let lib = "../build/liblibp2p." & getLibExt()
   if not fileExists(lib):
     buildFfiLib()
-  if not fileExists("cpp_bindings/libp2p.hpp"):
-    genBindingsFor("cpp", "cpp_bindings")
+  if not fileExists("c_bindings/libp2p.h"):
+    genBindingsFor("c", "c_bindings")
 
   let vendor = findFfiVendorDir()
-  # TinyCBOR is C99; compile it with the C compiler (g++ would treat .c as C++).
   var cborObjs: seq[string]
   for name in [
     "cborencoder", "cborencoder_close_container_checked", "cborparser",
@@ -85,6 +86,6 @@ task examples, "Build and run the C++ bindings examples":
 
   for example in ["echo", "gossipsub"]:
     let outBin = "../build/" & example
-    exec "g++ -std=c++20 -O2 -I cpp_bindings -I " & vendor & " examples/" & example &
-      ".cpp " & cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
+    exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
+      cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
     exec outBin

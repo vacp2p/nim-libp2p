@@ -2,12 +2,12 @@
 
 all: build genbindings
 
-# Builds ../build/libp2p.so plus the C++/CDDL bindings. Run `nimble setup` once first.
+# Builds ../build/libp2p.so plus the C/CDDL bindings. Run `nimble setup` once first.
 build:
 	nimble buildffi
 
 genbindings:
-	nimble genbindings_cpp
+	nimble genbindings_c
 	nimble genbindings_cddl
 
 nimble.lock:
@@ -23,4 +23,4 @@ nixbuild: deps
 
 clean:
 	$(RM) nimble.lock ../nix/cbind-deps.nix
-	$(RM) -r cpp_bindings cddl_bindings nimcache nimcache_cpp nimcache_cddl
+	$(RM) -r c_bindings cddl_bindings nimcache nimcache_c nimcache_cddl

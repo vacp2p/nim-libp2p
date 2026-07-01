@@ -3,7 +3,7 @@ nimble.paths
 nimbledeps
 nimble.lock
 nimcache
-nimcache_cpp
+nimcache_c
 nimcache_cddl
-cpp_bindings
+c_bindings
 cddl_bindings
