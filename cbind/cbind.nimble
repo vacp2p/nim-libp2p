@@ -3,77 +3,96 @@ mode = ScriptMode.Verbose
 packageName = "cbind"
 version = "0.1.0"
 author = "Status Research & Development GmbH"
-description = "C bindings for LibP2P implementation"
+description = "C bindings for nim-libp2p, generated via nim-ffi"
 license = "MIT"
 
-import os, strutils
+import os, strutils, sequtils
 
-# The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
+# Most deps come from the parent libp2p.nimble via nimble.paths; nim-ffi pulls in the rest.
 requires "taskpools >= 0.1.0"
+requires "https://github.com/logos-messaging/nim-ffi#7e3fd96e7417528fecdd0d685fc8fd29a3fd6bfd"
 
-proc getLibExt(libType: string): string =
-  if libType == "static":
-    "a"
+task install_pinned,
+  "Install cbind's pinned deps (taskpools, cbor_serialization, nim-ffi)":
+  # cbind-scoped lock; kept out of the repo-root .pinned so the main libp2p CI
+  # (which doesn't use these) and its Nim 2.2.4 job stay untouched.
+  let deps = readFile(".pinned").splitWhitespace().mapIt(it.split(";", 1)[1])
+  exec "nimble install -y " & deps.join(" ")
+
+proc getLibExt(): string =
+  when defined(windows):
+    "dll"
+  elif defined(macosx):
+    "dylib"
   else:
-    when defined(windows):
-      "dll"
-    elif defined(macosx):
-      "dylib"
-    else:
-      "so"
+    "so"
 
-proc buildCBindings(libType: string, params = "") =
+proc buildFfiLib() =
   let buildDir = "../build"
-
   if not dirExists buildDir:
     mkDir buildDir
+  # Name the output `lib<name>` so the file matches the soname nim derives from
+  # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
+  # nim-ffi's `declareLibrary` imports.
+  exec "nim c --out:" & buildDir & "/liblibp2p." & getLibExt() &
+    " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
+    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+task buildffi, "Build the FFI shared library":
+  buildFfiLib()
 
-  let ext = getLibExt(libType)
-  let app = if libType == "static": "staticlib" else: "lib"
+proc genBindingsFor(lang, outDir: string) =
+  exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
+    " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
+    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & " --nimcache:nimcache_" &
+    lang & " -o:/dev/null libp2p.nim"
 
-  exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header -d:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
+task genbindings_c, "Generate C bindings (cbind/c_bindings)":
+  genBindingsFor("c", "c_bindings")
 
-task libDynamic, "Generate dynamic bindings":
-  buildCBindings "dynamic", ""
+task genbindings_cddl, "Generate CDDL schema (cbind/cddl_bindings)":
+  genBindingsFor("cddl", "cddl_bindings")
 
-task libStatic, "Generate static bindings":
-  buildCBindings "static", ""
+proc findFfiVendorDir(): string =
+  ## Locates the TinyCBOR sources vendored inside the installed nim-ffi package.
+  var bases = @["../nimbledeps/pkgs2"]
+  let home = getEnv("HOME")
+  if home.len > 0:
+    bases.add home & "/.nimble/pkgs2"
+  for base in bases:
+    if not dirExists(base):
+      continue
+    for entry in listDirs(base):
+      if not entry.extractFilename.startsWith("ffi-"):
+        continue
+      let vendor = entry & "/ffi/codegen/templates/cpp/vendor"
+      if fileExists(vendor & "/tinycbor/cbor.h"):
+        return vendor
+  raise newException(
+    IOError, "could not locate nim-ffi's vendored tinycbor; run `nimble setup` first"
+  )
 
-proc findNatPkgDir(): string =
-  # Match the top-level Makefile: nimble installs deps under pkgs2 on newer
-  # versions and pkgs on older ones; resolve from either.
-  for base in ["../nimbledeps/pkgs2", "../nimbledeps/pkgs"]:
-    if dirExists(base):
-      for d in listDirs(base):
-        if d.extractFilename().startsWith("nat_traversal-"):
-          return d
-  quit "nat_traversal package not found under ../nimbledeps/pkgs2 or " &
-    "../nimbledeps/pkgs; run 'nimble install_pinned' first"
+task examples, "Build and run the C bindings examples":
+  let lib = "../build/liblibp2p." & getLibExt()
+  if not fileExists(lib):
+    buildFfiLib()
+  if not fileExists("c_bindings/libp2p.h"):
+    genBindingsFor("c", "c_bindings")
 
-task examples, "Build and run C bindings examples":
-  buildCBindings "static", ""
-  # libp2p.a transitively references miniupnpc and libnatpmp via nat_traversal.
-  # Build the vendored .a's via the parent Makefile and link them in.
-  exec "make -C .. nat_libs"
-  let natPkg = findNatPkgDir()
-  # miniupnpc's unix Makefile drops the .a under build/, but its Makefile.mingw
-  # drops it at the package root. Match the parent Makefile's per-OS choice.
-  let upnpA =
-    when defined(windows):
-      natPkg / "vendor/miniupnp/miniupnpc/libminiupnpc.a"
-    else:
-      natPkg / "vendor/miniupnp/miniupnpc/build/libminiupnpc.a"
-  let pmpA = natPkg / "vendor/libnatpmp-upstream/libnatpmp.a"
-  let natLibs = upnpA & " " & pmpA
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
-    natLibs & " -pthread"
-  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &
-    " -pthread"
-  exec "../build/cbindings"
-  exec "../build/echo"
+  let vendor = findFfiVendorDir()
+  var cborObjs: seq[string]
+  for name in [
+    "cborencoder", "cborencoder_close_container_checked", "cborparser",
+    "cborparser_dup_string", "cborerrorstrings",
+  ]:
+    let obj = "../build/" & name & ".o"
+    exec "gcc -std=c99 -O2 -fPIC -I " & vendor & " -I " & vendor & "/tinycbor -c " &
+      vendor & "/tinycbor/" & name & ".c -o " & obj
+    cborObjs.add obj
+  let cborObjsStr = cborObjs.join(" ")
+
+  for example in ["echo", "gossipsub"]:
+    let outBin = "../build/" & example
+    exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
+      cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
+    exec outBin

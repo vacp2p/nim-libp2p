@@ -1,375 +1,195 @@
-#include "../../cbind/libp2p.h"
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// Echo over a custom `/cbind/echo/1.0.0` protocol: a server node echoes the
+// bytes it reads; a client node dials, sends a payload and verifies the echo.
+// The generated bindings are asynchronous, so every call is wrapped with the
+// blocking helpers in common.h. nim-ffi rejects reentrant calls (a method may
+// not be invoked from a callback running on its dispatch thread) and its worker
+// threads own the Nim GC state, so all calls are made from `main`: the incoming-
+// stream handler only hands `main` the stream id, which it then serves inline.
+#include "common.h"
 
-#define ECHO_PROTO "/cbind/echo/1.0.0"
-#define ECHO_MAX_SIZE 4096
+// TransportType / MuxerType ordinals, mirrored from cbind/libp2p.nim.
+static const int64_t TransportTcp = 1;
+static const int64_t MuxerMplex = 0;
+
+static const char* EchoProto = "/cbind/echo/1.0.0";
+static const int64_t EchoMaxSize = 4096;
+
+// Single-slot hand-off from the incoming-stream event to main.
+static atomic_int g_have_stream = 0;
+static uint64_t g_stream_id = 0;
+
+static void onIncomingStream(const IncomingStreamEvent* evt, void* ud) {
+  (void)ud;
+  g_stream_id = evt->streamId;
+  atomic_store(&g_have_stream, 1);
+}
 
 typedef struct {
-  char peerId[256];
-  const char **addrs;
-  size_t addrCount;
-} PeerInfo;
+  atomic_int done;
+  int err_code;
+  char err[256];
+  uint8_t data[4096];
+  size_t len;
+} ReadWaiter;
+
+static void on_read(int ec, const ReadResponse* reply, const char* em, void* ud) {
+  ReadWaiter* w = (ReadWaiter*)ud;
+  w->err_code = ec;
+  if (reply && reply->data.data) {
+    w->len = reply->data.len < sizeof(w->data) ? reply->data.len : sizeof(w->data);
+    memcpy(w->data, reply->data.data, w->len);
+  }
+  if (em)
+    snprintf(w->err, sizeof(w->err), "%s", em);
+  atomic_store(&w->done, 1);
+}
+
+// Reads the request off the accepted stream, echoes it back and releases it.
+static bool serveEcho(LibP2PCtx* server) {
+  if (!wait_done(&g_have_stream)) {
+    fprintf(stderr, "server: no incoming stream\n");
+    return false;
+  }
+  uint64_t streamId = g_stream_id;
+
+  ReadWaiter rw;
+  memset(&rw, 0, sizeof(rw));
+  StreamReadLpRequest readReq = {streamId, EchoMaxSize};
+  libp2p_ctx_stream_read_lp(server, &readReq, on_read, &rw);
+  if (!wait_done(&rw.done) || rw.err_code != 0) {
+    fprintf(stderr, "server read: %s\n", rw.err[0] ? rw.err : "unknown");
+    return false;
+  }
+
+  BoolWaiter bw;
+  NimFfiBytes payload = {rw.data, rw.len};
+  StreamWriteRequest writeReq = {streamId, payload};
+  bool ok = AWAIT_BOOL(bw, libp2p_ctx_stream_write_lp(server, &writeReq, on_bool, &bw),
+                       "server write");
+  AWAIT_BOOL(bw, libp2p_ctx_stream_release(server, streamId, on_bool, &bw),
+             "server release");
+  return ok;
+}
 
 typedef struct {
-  libp2p_ctx_t *ctx;
-  libp2p_stream_t *stream;
-} EchoState;
+  atomic_int done;
+  int err_code;
+  char err[256];
+  uint64_t streamId;
+} DialWaiter;
 
-// The sample waits synchronously in main, but libp2p operations complete
-// through callbacks. Server-side protocol callbacks do not use this condition
-// variable: they must keep their own state and continue asynchronously.
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-static int callback_executed = 0;
+static void on_dial(int ec, const DialResponse* reply, const char* em, void* ud) {
+  DialWaiter* w = (DialWaiter*)ud;
+  w->err_code = ec;
+  if (reply)
+    w->streamId = reply->streamId;
+  if (em)
+    snprintf(w->err, sizeof(w->err), "%s", em);
+  atomic_store(&w->done, 1);
+}
 
-static libp2p_stream_t *client_stream = NULL;
-static const char *expected_echo = "hello from cbind echo";
-static int echo_matched = 0;
-
-static void waitForCallback(void);
-static void signal_callback_executed(void);
-static void free_peerinfo(PeerInfo *pi);
-static void event_handler(int callerRet, const char *msg, size_t len,
-                          void *userData);
-static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
-                             const char *msg, size_t len, void *userData);
-static void stream_handler(int callerRet, libp2p_stream_t *stream,
-                           const char *msg, size_t len, void *userData);
-static void client_read_handler(int callerRet, const uint8_t *data,
-                                size_t dataLen, const char *msg, size_t len,
-                                void *userData);
-static void echo_protocol_handler(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
-                                  const char *proto, size_t protoLen,
-                                  void *userData);
-static void echo_read_handler(int callerRet, const uint8_t *data,
-                              size_t dataLen, const char *msg, size_t len,
-                              void *userData);
-static void echo_write_handler(int callerRet, const char *msg, size_t len,
-                               void *userData);
-static void echo_close_handler(int callerRet, const char *msg, size_t len,
-                               void *userData);
-static void echo_release_handler(int callerRet, const char *msg, size_t len,
-                                 void *userData);
+static LibP2PCtx* createNode(const char* listenAddr, const char* label) {
+  NimFfiStr addrSlot = nimffi_str(listenAddr);
+  Libp2pConfig cfg;
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.addrs.data = &addrSlot;
+  cfg.addrs.len = 1;
+  cfg.muxer = MuxerMplex;
+  cfg.transport = TransportTcp;
+  return await_create(&cfg, label);
+}
 
 int main(void) {
-  int status = 1;
-  libp2p_ctx_t *server = NULL;
-  libp2p_ctx_t *client = NULL;
-  PeerInfo serverInfo = {0};
-
-  const char *server_addrs[] = {"/ip4/127.0.0.1/tcp/5013"};
-
-  libp2p_config_t serverCfg = libp2p_new_default_config();
-  serverCfg.mount_gossipsub = 0;
-  serverCfg.mount_kad = 0;
-  serverCfg.mount_service_discovery = 0;
-  serverCfg.addrs = server_addrs;
-  serverCfg.addrsLen = 1;
-  serverCfg.muxer = LIBP2P_MUXER_MPLEX;
-  serverCfg.transport = LIBP2P_TRANSPORT_TCP;
-
-  server = libp2p_new(&serverCfg, event_handler, NULL);
-  waitForCallback();
+  LibP2PCtx* server = createNode("/ip4/127.0.0.1/tcp/5013", "server");
+  if (!server)
+    return 1;
 
   // Mount before start so peers learn about the protocol during identify.
-  // Mounting after start is supported too, but existing peers may need another
-  // identify exchange before they discover the new protocol.
-  libp2p_mount_protocol(server, ECHO_PROTO, echo_protocol_handler,
-                        event_handler, NULL);
-  waitForCallback();
+  libp2p_ctx_add_on_incoming_stream_listener(server, onIncomingStream, NULL);
 
-  libp2p_start(server, event_handler, NULL);
-  waitForCallback();
-
-  libp2p_peerinfo(server, peerinfo_handler, &serverInfo);
-  waitForCallback();
-
-  printf("Echo server started: %s\n", serverInfo.peerId);
-  for (size_t i = 0; i < serverInfo.addrCount; i++) {
-    printf("  %s\n", serverInfo.addrs[i]);
+  BoolWaiter bw;
+  if (!AWAIT_BOOL(bw,
+                  libp2p_ctx_mount_protocol(server, nimffi_str(EchoProto), on_bool, &bw),
+                  "mount_protocol") ||
+      !AWAIT_BOOL(bw, libp2p_ctx_start(server, on_bool, &bw), "start server")) {
+    libp2p_ctx_destroy(server);
+    return 1;
   }
 
-  const char *client_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+  PeerInfoWaiter pw;
+  if (!await_peerinfo(server, &pw, "peerinfo")) {
+    libp2p_ctx_destroy(server);
+    return 1;
+  }
+  printf("Echo server started: %s\n", pw.peerId);
+  for (size_t i = 0; i < pw.naddrs; i++)
+    printf("  %s\n", pw.addrs[i]);
 
-  libp2p_config_t clientCfg = libp2p_new_default_config();
-  clientCfg.mount_gossipsub = 0;
-  clientCfg.mount_kad = 0;
-  clientCfg.mount_service_discovery = 0;
-  clientCfg.muxer = LIBP2P_MUXER_MPLEX;
-  clientCfg.transport = LIBP2P_TRANSPORT_TCP;
-  clientCfg.addrs = client_addrs;
-  clientCfg.addrsLen = 1;
+  LibP2PCtx* client = createNode("/ip4/127.0.0.1/tcp/0", "client");
+  if (!client) {
+    libp2p_ctx_destroy(server);
+    return 1;
+  }
 
-  client = libp2p_new(&clientCfg, event_handler, NULL);
-  waitForCallback();
+  int status = 1;
+  if (!AWAIT_BOOL(bw, libp2p_ctx_start(client, on_bool, &bw), "start client"))
+    goto cleanup;
 
-  libp2p_start(client, event_handler, NULL);
-  waitForCallback();
+  // Establish the peer connection first, then open a protocol stream via dial.
+  NimFfiStr connAddrs[16];
+  for (size_t i = 0; i < pw.naddrs; i++)
+    connAddrs[i] = nimffi_str(pw.addrs[i]);
+  ConnectRequest connReq = {nimffi_str(pw.peerId), {connAddrs, pw.naddrs}, 0};
+  if (!AWAIT_BOOL(bw, libp2p_ctx_connect(client, &connReq, on_bool, &bw), "connect"))
+    goto cleanup;
 
-  // Establish a peer connection first, then open a protocol stream with dial.
-  libp2p_connect(client, serverInfo.peerId, serverInfo.addrs,
-                 serverInfo.addrCount, 0, event_handler, NULL);
-  waitForCallback();
-
-  libp2p_dial(client, serverInfo.peerId, ECHO_PROTO, stream_handler, NULL);
-  waitForCallback();
-  if (client_stream == NULL) {
-    printf("Error: dial did not return a stream\n");
+  DialWaiter dw;
+  memset(&dw, 0, sizeof(dw));
+  DialRequest dialReq = {nimffi_str(pw.peerId), nimffi_str(EchoProto)};
+  libp2p_ctx_dial(client, &dialReq, on_dial, &dw);
+  if (!wait_done(&dw.done) || dw.err_code != 0) {
+    fprintf(stderr, "dial: %s\n", dw.err[0] ? dw.err : "unknown");
     goto cleanup;
   }
+  uint64_t streamId = dw.streamId;
 
-  printf("Client sending: %s\n", expected_echo);
-  libp2p_stream_writeLp(client, client_stream, (const uint8_t *)expected_echo,
-                        strlen(expected_echo), event_handler, NULL);
-  waitForCallback();
+  const char* sent = "hello from cbind echo";
+  printf("Client sending: %s\n", sent);
+  NimFfiBytes sentBytes = {(uint8_t*)sent, strlen(sent)};
+  StreamWriteRequest writeReq = {streamId, sentBytes};
+  if (!AWAIT_BOOL(bw, libp2p_ctx_stream_write_lp(client, &writeReq, on_bool, &bw),
+                  "stream_write_lp"))
+    goto cleanup;
 
-  libp2p_stream_readLp(client, client_stream, ECHO_MAX_SIZE,
-                       client_read_handler, NULL);
-  waitForCallback();
+  // The server side runs on this thread too: read the request and echo it back
+  // before the client reads the reply.
+  if (!serveEcho(server))
+    goto cleanup;
 
-  if (!echo_matched) {
-    printf("Error: echoed payload did not match\n");
+  ReadWaiter rw;
+  memset(&rw, 0, sizeof(rw));
+  StreamReadLpRequest readReq = {streamId, EchoMaxSize};
+  libp2p_ctx_stream_read_lp(client, &readReq, on_read, &rw);
+  if (!wait_done(&rw.done) || rw.err_code != 0) {
+    fprintf(stderr, "stream_read_lp: %s\n", rw.err[0] ? rw.err : "unknown");
     goto cleanup;
   }
+  printf("Client received: %.*s\n", (int)rw.len, (const char*)rw.data);
 
-  libp2p_stream_closeWithEOF(client, client_stream, event_handler, NULL);
-  waitForCallback();
+  if (rw.len == strlen(sent) && memcmp(rw.data, sent, rw.len) == 0)
+    status = 0;
+  else
+    fprintf(stderr, "Error: echoed payload did not match\n");
 
-  libp2p_stream_release(client, client_stream, event_handler, NULL);
-  waitForCallback();
-  client_stream = NULL;
-
-  status = 0;
+  AWAIT_BOOL(bw, libp2p_ctx_stream_close_with_eof(client, streamId, on_bool, &bw),
+             "stream_close_with_eof");
+  AWAIT_BOOL(bw, libp2p_ctx_stream_release(client, streamId, on_bool, &bw),
+             "stream_release");
 
 cleanup:
-  free_peerinfo(&serverInfo);
-
-  if (client_stream != NULL && client != NULL) {
-    libp2p_stream_release(client, client_stream, event_handler, NULL);
-    waitForCallback();
-    client_stream = NULL;
-  }
-
-  if (client != NULL) {
-    libp2p_stop(client, event_handler, NULL);
-    waitForCallback();
-    libp2p_destroy(client, event_handler, NULL);
-    waitForCallback();
-  }
-
-  if (server != NULL) {
-    libp2p_stop(server, event_handler, NULL);
-    waitForCallback();
-    libp2p_destroy(server, event_handler, NULL);
-    waitForCallback();
-  }
-
+  AWAIT_BOOL(bw, libp2p_ctx_stop(client, on_bool, &bw), "stop client");
+  AWAIT_BOOL(bw, libp2p_ctx_stop(server, on_bool, &bw), "stop server");
+  libp2p_ctx_destroy(client);
+  libp2p_ctx_destroy(server);
   return status;
-}
-
-static void event_handler(int callerRet, const char *msg, size_t len,
-                          void *userData) {
-  (void)userData;
-  if (callerRet != RET_OK) {
-    printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
-    exit(1);
-  }
-
-  signal_callback_executed();
-}
-
-static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
-                             const char *msg, size_t len, void *userData) {
-  PeerInfo *pi = (PeerInfo *)userData;
-
-  if (callerRet != RET_OK || info == NULL) {
-    printf("PeerInfo error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-    exit(1);
-  }
-
-  free_peerinfo(pi);
-
-  if (info->peerId != NULL) {
-    strncpy(pi->peerId, info->peerId, sizeof(pi->peerId) - 1);
-    pi->peerId[sizeof(pi->peerId) - 1] = '\0';
-  }
-
-  // PeerInfo fields are owned by the callback and become invalid on return.
-  // Copy the listen addresses because the client uses them after this callback.
-  pi->addrCount = info->addrsLen;
-  if (info->addrsLen > 0 && info->addrs != NULL) {
-    pi->addrs = (const char **)calloc(info->addrsLen, sizeof(char *));
-    if (pi->addrs == NULL) {
-      printf("Error: out of memory copying peerinfo addrs\n");
-      exit(1);
-    }
-
-    for (size_t i = 0; i < info->addrsLen; i++) {
-      const char *addr = info->addrs[i];
-      if (addr == NULL)
-        continue;
-
-      size_t addrLen = strlen(addr);
-      char *copy = (char *)malloc(addrLen + 1);
-      if (copy == NULL) {
-        printf("Error: out of memory copying peerinfo addr\n");
-        exit(1);
-      }
-      memcpy(copy, addr, addrLen + 1);
-      pi->addrs[i] = copy;
-    }
-  }
-
-  signal_callback_executed();
-}
-
-static void stream_handler(int callerRet, libp2p_stream_t *stream,
-                           const char *msg, size_t len, void *userData) {
-  (void)userData;
-  if (callerRet != RET_OK) {
-    printf("Dial error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-    exit(1);
-  }
-
-  client_stream = stream;
-  signal_callback_executed();
-}
-
-static void client_read_handler(int callerRet, const uint8_t *data,
-                                size_t dataLen, const char *msg, size_t len,
-                                void *userData) {
-  (void)userData;
-  if (callerRet != RET_OK) {
-    printf("Client read error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-    exit(1);
-  }
-
-  printf("Client received: %.*s\n", (int)dataLen,
-         data != NULL ? (char *)data : "");
-  echo_matched = data != NULL && dataLen == strlen(expected_echo) &&
-                 memcmp(data, expected_echo, dataLen) == 0;
-  signal_callback_executed();
-}
-
-static void echo_protocol_handler(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
-                                  const char *proto, size_t protoLen,
-                                  void *userData) {
-  (void)userData;
-  EchoState *state = (EchoState *)calloc(1, sizeof(EchoState));
-  if (state == NULL) {
-    printf("Echo server: out of memory\n");
-    libp2p_stream_release(ctx, stream, echo_release_handler, NULL);
-    return;
-  }
-
-  state->ctx = ctx;
-  state->stream = stream;
-
-  printf("Echo server accepted protocol: %.*s\n", (int)protoLen,
-         proto != NULL ? proto : "");
-  // The protocol handler must not block on this read. libp2p keeps this
-  // incoming stream alive until echo_release_handler calls
-  // libp2p_stream_release.
-  libp2p_stream_readLp(ctx, stream, ECHO_MAX_SIZE, echo_read_handler, state);
-}
-
-static void echo_read_handler(int callerRet, const uint8_t *data,
-                              size_t dataLen, const char *msg, size_t len,
-                              void *userData) {
-  EchoState *state = (EchoState *)userData;
-  if (state == NULL)
-    return;
-
-  if (callerRet != RET_OK) {
-    printf("Echo server read error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-    libp2p_stream_release(state->ctx, state->stream, echo_release_handler,
-                          state);
-    return;
-  }
-
-  printf("Echo server echoing %zu bytes\n", dataLen);
-  // The read buffer is valid only for this callback, but writeLp copies it
-  // before returning, so it is safe to pass through directly here.
-  libp2p_stream_writeLp(state->ctx, state->stream, data, dataLen,
-                        echo_write_handler, state);
-}
-
-static void echo_write_handler(int callerRet, const char *msg, size_t len,
-                               void *userData) {
-  EchoState *state = (EchoState *)userData;
-  if (state == NULL)
-    return;
-
-  if (callerRet != RET_OK) {
-    printf("Echo server write error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-    libp2p_stream_release(state->ctx, state->stream, echo_release_handler,
-                          state);
-    return;
-  }
-
-  // closeWithEOF tells the client no more frames are coming; release below
-  // returns ownership of the incoming stream handle to the binding.
-  libp2p_stream_closeWithEOF(state->ctx, state->stream, echo_close_handler,
-                             state);
-}
-
-static void echo_close_handler(int callerRet, const char *msg, size_t len,
-                               void *userData) {
-  EchoState *state = (EchoState *)userData;
-  if (state == NULL)
-    return;
-
-  if (callerRet != RET_OK) {
-    printf("Echo server close error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-  }
-
-  libp2p_stream_release(state->ctx, state->stream, echo_release_handler, state);
-}
-
-static void echo_release_handler(int callerRet, const char *msg, size_t len,
-                                 void *userData) {
-  EchoState *state = (EchoState *)userData;
-  if (callerRet != RET_OK) {
-    printf("Echo server release error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
-  }
-  free(state);
-}
-
-static void signal_callback_executed(void) {
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
-}
-
-static void waitForCallback(void) {
-  pthread_mutex_lock(&mutex);
-  while (!callback_executed) {
-    pthread_cond_wait(&cond, &mutex);
-  }
-  callback_executed = 0;
-  pthread_mutex_unlock(&mutex);
-}
-
-static void free_peerinfo(PeerInfo *pi) {
-  if (pi == NULL)
-    return;
-
-  for (size_t i = 0; i < pi->addrCount; i++) {
-    free((void *)pi->addrs[i]);
-  }
-  free(pi->addrs);
-  pi->addrs = NULL;
-  pi->addrCount = 0;
-  pi->peerId[0] = '\0';
 }

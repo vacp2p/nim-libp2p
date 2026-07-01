@@ -41,7 +41,7 @@ nim-libp2p/
 │   ├── integration/            # Integration tests (WebSocket, AutoTLS, peer ID auth)
 │   └── interop/                # Cross-implementation interoperability tests
 ├── examples/                   # Tutorial and example applications
-├── cbind/                      # C/FFI bindings layer
+├── cbind/                      # C/CDDL FFI bindings (generated via nim-ffi)
 ├── docs/                       # Documentation
 │   ├── README.md               # Documentation index
 │   ├── development.md          # Setup and testing guide
@@ -206,7 +206,8 @@ These flags are used in CI and tests:
 
 ### Memory Management
 - Memory model: `--mm:refc` (reference counting)
-- For C bindings (`cbind/`): use `createShared`/`freeShared` for cross-thread objects
+- For C bindings (`cbind/`): the FFI runtime (threads, request channel, shared
+  memory, CBOR codec) is provided by `nim-ffi`; annotate procs/types instead
 
 ### Style
 
@@ -454,28 +455,37 @@ These flags are used in CI and tests:
 
 ---
 
-## C Bindings (`cbind/`)
+## C/CDDL Bindings (`cbind/`)
 
-The `cbind/` directory contains the C/FFI layer for using nim-libp2p from C/C++:
+The `cbind/` directory exposes nim-libp2p to C via the [`nim-ffi`](https://github.com/logos-messaging/nim-ffi)
+framework. nim-ffi provides the worker thread, request channel, shared memory,
+CBOR codec and event queue, and *generates* the C/CDDL bindings from the
+annotations in `libp2p.nim`:
 
-- `libp2p.nim` — FFI function implementations (exported with `{.exportc.}`)
-- `libp2p.h` — Generated C header
-- `ffi_types.nim` — C-compatible type definitions
-- `types.nim` — Additional C-compatible type implementations
-- `alloc.nim` — Cross-thread memory allocation helpers
-- `libp2p_thread/` — Thread management for async operations from C
-- `examples/cbindings.c`, `examples/echo.c` — C usage examples
+- `libp2p.nim` — the only source file: `declareLibrary` + `{.ffi.}` /
+  `{.ffiCtor.}` / `{.ffiDtor.}` / `{.ffiEvent.}` annotations and the ported
+  libp2p logic; `genBindings()` emits the bindings.
+- `c_bindings/` — generated C header (`libp2p.h`), consumed by
+  `logos-co/logos-libp2p-module`.
+- `cddl_bindings/` — generated CDDL schema for the CBOR wire format.
 
 ```sh
 cd cbind
-nimble libDynamic    # Build .so/.dylib/.dll
-nimble libStatic     # Build .a
-nimble examples      # Build and run C examples
+nimble setup
+nimble buildffi         # Build ../build/libp2p.{so,dylib,dll}
+nimble genbindings_c    # Generate c_bindings/libp2p.h
+nimble genbindings_cddl # Generate the CDDL schema
 ```
 
 **cbind conventions**:
-- Validate all `cstring` pointer parameters for `nil` before use; call the callback with `RET_ERR` if nil
-- Use `valueOr` (not `tryGet()`) when converting cstring multiaddresses to `MultiAddress` objects
+- Requests/responses are CBOR; declare `{.ffi.}` object types for them — never
+  raw `ptr`/`pointer` across the boundary.
+- Stream handles are plain `uint64` ids tracked in `LibP2P` state (nim-ffi has
+  no handle type for incoming streams).
+- Convert config-parsing failures to `return err(...)`; never `raiseAssert` on
+  host-supplied input (the constructor returns a `Result`).
+- Protocol/pubsub handlers are `{.ffiEvent.}` — host code subscribes via the
+  generated `libp2p_add_event_listener`.
 
 ---
 
@@ -490,7 +500,7 @@ nimble examples      # Build and run C examples
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
 | `daily_runnable_examples.yml` | Daily runnable examples checks |
 | `daily_tests_no_flags.yml` | Tests without experimental flags |
-| `cbindings.yml` | C bindings compilation and tests |
+| `cbindings.yml` | FFI library build + C/CDDL binding generation |
 | `coverage.yml` | Code coverage (uploads to codecov) |
 | `linters.yml` | nph formatting checks |
 | `pr_lint.yml` | PR title/description linting |

@@ -1,4 +1,4 @@
-name: C bindings examples
+name: C bindings
 
 on:
   push:
@@ -62,7 +62,7 @@ jobs:
           restore-keys: |
             master-nimcache-cbindings-linux-amd64-gcc-v2.2.10
 
-      - name: Build and run c bindings examples
+      - name: Build FFI library and generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
@@ -70,5 +70,13 @@ jobs:
 
           nimble setup
           cd cbind
+          nimble install_pinned
           nimble setup
+          nimble buildffi
+          nimble genbindings_c
+          nimble genbindings_cddl
+
+      - name: Build and run C bindings examples
+        run: |
+          cd cbind
           nimble examples
