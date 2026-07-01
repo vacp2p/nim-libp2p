@@ -4,9 +4,11 @@
 {.push raises: [].}
 
 import uri
+import nimcrypto/sha2
 import chronos, chronicles, results, stew/byteutils
-import ../../crypto/crypto
 import ../../crypto/rsa
+import ../../crypto/rng
+import ../../utils/opt
 import ./api
 import ./utils
 
@@ -16,7 +18,7 @@ type KeyAuthorization* = string
 
 type ACMEClient* = ref object
   api: ACMEApi
-  key*: KeyPair
+  key*: RsaPrivateKey
   kid*: Kid
 
 logScope:
@@ -26,11 +28,11 @@ proc new*(
     T: typedesc[ACMEClient],
     rng: Rng,
     api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
-    key: Opt[KeyPair] = Opt.none(KeyPair),
+    key: Opt[RsaPrivateKey] = Opt.none(RsaPrivateKey),
     kid: Kid = Kid(""),
 ): T {.raises: [].} =
   let key = key.valueOr:
-    KeyPair.random(PKScheme.RSA, rng).get()
+    RsaPrivateKey.random(rng).get()
   T(api: api, key: key, kid: kid)
 
 proc getOrInitKid*(
@@ -52,7 +54,7 @@ proc getChallenge*(
 proc getCertificate*(
     self: ACMEClient,
     domain: api.Domain,
-    certKeyPair: KeyPair,
+    certKeyPair: RsaPrivateKey,
     challenge: ACMEChallengeDns01Response,
     acmeRetries: int = 10,
     finalizeRetries: int = 10,

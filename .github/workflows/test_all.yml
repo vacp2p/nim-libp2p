@@ -1,11 +1,10 @@
-name: Continuous Integration
+name: Test All
 
 on:
   push:
     branches:
       - master
   pull_request:
-  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -96,7 +95,7 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
-      - name: Restore deps from cache
+      - name: Restore dependencies from cache
         id: deps-cache
         uses: actions/cache@v5
         with:
@@ -134,10 +133,7 @@ jobs:
       - name: Use gcc 14
         if: ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
-          # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
-
-          # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Path to cached dependencies (Windows)
@@ -160,30 +156,45 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
+          restore-keys: |
+            master-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
+
+      - name: Build test_all
+        id: build-test-all
+        run: |
+          NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+            NIMFLAGS="$NIMFLAGS --cc:clang"
+          fi
+          if [[ '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+            # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
+            # space and cannot compile the full test_all in one go. Split the
+            # test corpus into `sliceTotal` translation units; each slice
+            # compiles a deterministic subset of the test files.
+            NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
+            nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
+            nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
+          else
+            nim c $NIMFLAGS ./tests/test_all
+          fi
+
       - name: Run tests
         id: run-tests
         run: |
-          nim --version
-          nimble --version
-          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
-            clang --version
+          if [[ -f ./tests/test_all_0 && -f ./tests/test_all_1 ]]; then
+            ./tests/test_all_0 --output-level=VERBOSE --console --xml:tests/results_test_all_0.xml
+            ./tests/test_all_1 --output-level=VERBOSE --console --xml:tests/results_test_all_1.xml
           else
-            gcc --version
+            ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
           fi
-
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-
-          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
-            export NIMFLAGS="${NIMFLAGS} --cc:clang"
-          fi
-
-          # Build/run test binaries concurrently; fewer lanes on 32-bit to stay
-          # under the ~3 GB address cap.
-          TEST_JOBS=3
-          if [[ '${{ matrix.platform.cpu }}' == 'i386' ]]; then
-            TEST_JOBS=2
-          fi
-          make TEST_JOBS=$TEST_JOBS test
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
