@@ -12,8 +12,8 @@
 
   libbacktrace = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-libbacktrace";
-    rev = "ebc972d99769633b9ef3ee766778ee5aa1996499";
-    sha256 = "192wwixwp36r6wiq495d7yr3nbskay75447p99snqq359bqv9snb";
+    rev = "af60500cb0383231065f1d6624beeeefa308d085";
+    sha256 = "0gmdjb04qqj1hpm79apnbdlk150ns2w59ky5g511wzkacyv81ki3";
     fetchSubmodules = true;
   };
 
@@ -24,7 +24,7 @@
     fetchSubmodules = true;
   };
 
-  bearssl = pkgs.fetchgit {
+ bearssl = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-bearssl";
     rev = "25197fec8a3988d1153be7a1a79890b70e69d6db";
     sha256 = "04nhfvrfm72nmhb821q3ikvbfq65idn88gd355c5xhig63jwhv6j";
