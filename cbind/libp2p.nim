@@ -28,6 +28,14 @@ import ../libp2p/protocols/service_discovery/[random_find, types]
 import ../libp2p/protocols/connectivity/relay/client
 import ../libp2p/extended_peer_record
 
+type StreamRegistry = object
+  ## Owns the live streams handed out across the FFI boundary and the
+  ## release-waiter futures that keep custom-protocol handlers alive until the
+  ## host is done with the stream.
+  streams: Table[uint64, Stream]
+  nextStreamId: uint64
+  releaseWaiters: Table[uint64, Future[void].Raising([CancelledError])]
+
 type LibP2P* = ref object
   ## Main library state. The FFI context owns one instance; its tables mutate
   ## through the `lib` receiver of every `{.ffi.}` proc.
@@ -38,11 +46,35 @@ type LibP2P* = ref object
   relayClient: Opt[RelayClient]
   topicHandlers: Table[string, TopicHandler]
   customProtocols: Table[string, LPProtocol]
-  streams: Table[uint64, Stream]
-  nextStreamId: uint64
-  streamReleaseWaiters: Table[uint64, Future[void].Raising([CancelledError])]
+  streams: StreamRegistry
 
 declareLibrary("libp2p", LibP2P)
+
+proc register(reg: var StreamRegistry, stream: Stream): uint64 =
+  reg.nextStreamId.inc()
+  let id = reg.nextStreamId
+  reg.streams[id] = stream
+  id
+
+func get(reg: StreamRegistry, id: uint64): Result[Stream, string] =
+  let stream = reg.streams.getOrDefault(id, nil)
+  if stream.isNil():
+    return err("unknown stream handle")
+  ok(stream)
+
+proc release(reg: var StreamRegistry, id: uint64) =
+  # Completes the waiting protocol handler so multistream doesn't close the stream early.
+  let releaseWaiter = reg.releaseWaiters.getOrDefault(id, nil)
+  if not releaseWaiter.isNil():
+    reg.releaseWaiters.del(id)
+    if not releaseWaiter.finished():
+      releaseWaiter.complete()
+  reg.streams.del(id)
+
+const MaxReadBytes = 64 * 1024 * 1024
+  ## Upper bound on a single stream read. Caps the buffer an untrusted peer can
+  ## make us pre-allocate before any byte arrives; well above libp2p's largest
+  ## framed messages, so legitimate reads are unaffected.
 
 type TransportType {.pure.} = enum
   QUIC
@@ -63,6 +95,8 @@ type Libp2pConfig {.ffi.} = object
   mountServiceDiscovery: bool
   dnsResolver: string
   addrs: seq[string]
+  # `MuxerType`/`TransportType` ordinals, passed as `int` because nim-ffi can't
+  # yet carry a Nim enum across the wire (see parseMuxer/parseTransport).
   muxer: int
   transport: int
   bootstrapNodes: seq[BootstrapNode]
@@ -119,6 +153,9 @@ type StreamReadLpRequest {.ffi.} = object
 type PublishRequest {.ffi.} = object
   topic: string
   data: seq[byte]
+
+type PublishResponse {.ffi.} = object
+  peerCount: int ## number of peers the message was forwarded to
 
 type CreateCidRequest {.ffi.} = object
   version: int
@@ -211,7 +248,7 @@ proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent: "on_incoming_stre
 
 proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent: "on_pubsub_message".}
 
-proc parseTransport(v: int): Result[TransportType, string] =
+func parseTransport(v: int): Result[TransportType, string] =
   case v
   of ord(TransportType.QUIC):
     ok(TransportType.QUIC)
@@ -220,7 +257,7 @@ proc parseTransport(v: int): Result[TransportType, string] =
   else:
     err("invalid transport")
 
-proc parseMuxer(v: int): Result[MuxerType, string] =
+func parseMuxer(v: int): Result[MuxerType, string] =
   case v
   of ord(MuxerType.MPLEX):
     ok(MuxerType.MPLEX)
@@ -243,6 +280,14 @@ proc parseBootstrapNodes(
       addrs.add(ma)
     response.add((peerId, addrs))
   ok(response)
+
+proc parseMultiaddrs(addrs: seq[string]): Result[seq[MultiAddress], string] =
+  var parsed: seq[MultiAddress]
+  for a in addrs:
+    let ma = MultiAddress.init(a).valueOr:
+      return err("invalid multiaddress '" & a & "': " & $error)
+    parsed.add(ma)
+  ok(parsed)
 
 proc mountGossipsub(lib: LibP2P, config: Libp2pConfig): Result[void, string] =
   if not config.mountGossipsub:
@@ -379,12 +424,6 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
   ok(lib)
 
-proc registerStream(lib: LibP2P, stream: Stream): uint64 =
-  lib.nextStreamId.inc()
-  let id = lib.nextStreamId
-  lib.streams[id] = stream
-  id
-
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   try:
     return createLibp2pNode(config)
@@ -422,11 +461,8 @@ proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
 proc libp2pConnect*(
     lib: LibP2P, req: ConnectRequest
 ): Future[Result[bool, string]] {.ffi.} =
-  var multiaddresses: seq[MultiAddress]
-  for a in req.multiaddrs:
-    let ma = MultiAddress.init(a).valueOr:
-      return err("invalid multiaddress: " & a)
-    multiaddresses.add(ma)
+  let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
+    return err(error)
 
   let peerId = PeerId.init(req.peerId).valueOr:
     return err($error)
@@ -454,7 +490,7 @@ proc libp2pDisconnect*(
   await lib.switch.disconnect(pid)
   ok(true)
 
-proc libp2pPeerinfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
+proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
   let peerInfo = lib.switch.peerInfo
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
@@ -488,7 +524,7 @@ proc libp2pDial*(
       await lib.switch.dial(peerId, req.proto)
     except DialFailedError as e:
       return err(e.msg)
-  ok(DialResponse(streamId: lib.registerStream(stream)))
+  ok(DialResponse(streamId: lib.streams.register(stream)))
 
 proc libp2pDialCircuitRelay*(
     lib: LibP2P, req: DialCircuitRelayRequest
@@ -502,17 +538,25 @@ proc libp2pDialCircuitRelay*(
       await lib.switch.dial(dstPeerId, @[relayCircuitAddr], req.proto)
     except DialFailedError as e:
       return err(e.msg)
-  ok(DialResponse(streamId: lib.registerStream(stream)))
+  ok(DialResponse(streamId: lib.streams.register(stream)))
+
+proc validateReadLength(n: int64): Result[int, string] =
+  ## Guards attacker-controlled read lengths before they size an allocation:
+  ## rejects negatives, the `MaxReadBytes` DoS ceiling, and any value that
+  ## would truncate when narrowed to a 32-bit `int` (e.g. linux-i386 CI).
+  if n < 0:
+    return err("invalid read length")
+  if n > MaxReadBytes:
+    return err("read length exceeds maximum")
+  if n > int.high:
+    return err("read length too large")
+  ok(int(n))
 
 proc libp2pStreamReadExactly*(
     lib: LibP2P, req: StreamReadExactlyRequest
 ): Future[Result[ReadResponse, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(req.streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
-  if req.numBytes < 0:
-    return err("invalid read length")
-  let expected = int(req.numBytes)
+  let stream = ?lib.streams.get(req.streamId)
+  let expected = ?validateReadLength(req.numBytes)
   if expected == 0:
     return ok(ReadResponse(data: @[]))
   var buf = newSeqUninit[byte](expected)
@@ -525,12 +569,11 @@ proc libp2pStreamReadExactly*(
 proc libp2pStreamReadLp*(
     lib: LibP2P, req: StreamReadLpRequest
 ): Future[Result[ReadResponse, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(req.streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
+  let stream = ?lib.streams.get(req.streamId)
+  let maxSize = ?validateReadLength(req.maxSize)
   let data =
     try:
-      await stream.readLp(int(req.maxSize))
+      await stream.readLp(maxSize)
     except LPStreamError as e:
       return err(e.msg)
   ok(ReadResponse(data: data))
@@ -538,9 +581,7 @@ proc libp2pStreamReadLp*(
 proc libp2pStreamWrite*(
     lib: LibP2P, req: StreamWriteRequest
 ): Future[Result[bool, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(req.streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
+  let stream = ?lib.streams.get(req.streamId)
   try:
     await stream.write(req.data)
   except LPStreamError as e:
@@ -550,9 +591,7 @@ proc libp2pStreamWrite*(
 proc libp2pStreamWriteLp*(
     lib: LibP2P, req: StreamWriteRequest
 ): Future[Result[bool, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(req.streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
+  let stream = ?lib.streams.get(req.streamId)
   try:
     await stream.writeLp(req.data)
   except LPStreamError as e:
@@ -562,35 +601,22 @@ proc libp2pStreamWriteLp*(
 proc libp2pStreamClose*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
+  let stream = ?lib.streams.get(streamId)
   await stream.close()
   ok(true)
 
 proc libp2pStreamCloseWithEof*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
-  let stream = lib.streams.getOrDefault(streamId, nil)
-  if stream.isNil():
-    return err("unknown stream handle")
+  let stream = ?lib.streams.get(streamId)
   await stream.closeWithEOF()
   ok(true)
 
 proc libp2pStreamRelease*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
-  if not lib.streams.hasKey(streamId):
-    return err("unknown stream handle")
-
-  # Completes the waiting protocol handler so multistream doesn't close the stream early.
-  let releaseWaiter = lib.streamReleaseWaiters.getOrDefault(streamId, nil)
-  if not releaseWaiter.isNil():
-    lib.streamReleaseWaiters.del(streamId)
-    if not releaseWaiter.finished:
-      releaseWaiter.complete()
-
-  lib.streams.del(streamId)
+  discard ?lib.streams.get(streamId)
+  lib.streams.release(streamId)
   ok(true)
 
 proc libp2pMountProtocol*(
@@ -608,16 +634,15 @@ proc libp2pMountProtocol*(
   proc handle(
       stream: Stream, selectedProto: string
   ) {.async: (raises: [CancelledError]).} =
-    let streamId = lib.registerStream(stream)
+    let streamId = lib.streams.register(stream)
     let releaseWaiter =
       Future[void].Raising([CancelledError]).init("cbind custom protocol release")
-    lib.streamReleaseWaiters[streamId] = releaseWaiter
+    lib.streams.releaseWaiters[streamId] = releaseWaiter
     try:
       onIncomingStream(IncomingStreamEvent(proto: selectedProto, streamId: streamId))
       await releaseWaiter
     finally:
-      lib.streamReleaseWaiters.del(streamId)
-      lib.streams.del(streamId)
+      lib.streams.release(streamId)
 
   let mountedProtocol = LPProtocol.new(codecs = @[proto], handler = handle)
   await mountedProtocol.start()
@@ -632,11 +657,11 @@ proc libp2pMountProtocol*(
 
 proc libp2pGossipsubPublish*(
     lib: LibP2P, req: PublishRequest
-): Future[Result[bool, string]] {.ffi.} =
+): Future[Result[PublishResponse, string]] {.ffi.} =
   let gossipSub = lib.gossipSub.valueOr:
     return err("gossipsub not initialized")
-  discard await gossipSub.publish(req.topic, req.data)
-  ok(true)
+  let peerCount = await gossipSub.publish(req.topic, req.data)
+  ok(PublishResponse(peerCount: peerCount))
 
 proc libp2pGossipsubSubscribe*(
     lib: LibP2P, topic: string
@@ -661,24 +686,15 @@ proc libp2pGossipsubUnsubscribe*(
     gossipSub.unsubscribe(topic, handler)
   ok(true)
 
-proc toExtendedRecordEntry(record: ExtendedPeerRecord): ExtendedPeerRecordEntry =
+func toExtendedRecordEntry(record: ExtendedPeerRecord): ExtendedPeerRecordEntry =
   ExtendedPeerRecordEntry(
     peerId: $record.peerId,
     seqNo: record.seqNo,
     addrs: record.addresses.mapIt($it.address),
-    services: record.services.mapIt(
-      ServiceInfoEntry(
-        id: it.id,
-        data:
-          if it.data.isSome:
-            it.data.get()
-          else:
-            @[],
-      )
-    ),
+    services: record.services.mapIt(ServiceInfoEntry(id: it.id, data: it.data.get(@[]))),
   )
 
-proc toExtendedRecordsResponse(
+func toExtendedRecordsResponse(
     records: seq[ExtendedPeerRecord]
 ): ExtendedRecordsResponse =
   ExtendedRecordsResponse(records: records.mapIt(toExtendedRecordEntry(it)))
@@ -778,23 +794,20 @@ proc libp2pKadGetProviders*(
     providers.add(ProviderInfo(peerId: $peerId, addrs: provider.addrs.mapIt($it)))
   ok(ProvidersResponse(providers: providers))
 
-proc libp2pKadRandomRecords*(
-    lib: LibP2P
-): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
-  let kad = lib.kad.valueOr:
-    return err("kad-dht not initialized")
-  if not (kad of ServiceDiscovery):
-    return err("ServiceDiscovery is not mounted")
-  let disco = ServiceDiscovery(kad)
-  let records = await disco.lookupRandom()
-  ok(toExtendedRecordsResponse(records))
-
 proc resolveServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
   let kad = lib.kad.valueOr:
     return err("service discovery not initialized")
   if not (kad of ServiceDiscovery):
     return err("service discovery not mounted")
   ok(ServiceDiscovery(kad))
+
+proc libp2pKadRandomRecords*(
+    lib: LibP2P
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let records = await disco.lookupRandom()
+  ok(toExtendedRecordsResponse(records))
 
 proc libp2pServiceDiscoStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   let disco = resolveServiceDiscovery(lib).valueOr:
@@ -856,11 +869,8 @@ proc libp2pServiceDiscoLookup*(
 proc libp2pServiceDiscoRandomLookup*(
     lib: LibP2P
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
-  let kad = lib.kad.valueOr:
-    return err("kad-dht not initialized")
-  if not (kad of ServiceDiscovery):
-    return err("ServiceDiscovery is not mounted")
-  let disco = ServiceDiscovery(kad)
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
   let records = await disco.lookupRandom()
   ok(toExtendedRecordsResponse(records))
 
@@ -871,11 +881,8 @@ proc libp2pCreateXpr*(
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
 
-  var addresses: seq[MultiAddress]
-  for a in req.addrs:
-    let ma = MultiAddress.init(a).valueOr:
-      return err("invalid multiaddress '" & a & "': " & $error)
-    addresses.add(ma)
+  var addresses = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
   if addresses.len == 0:
     addresses = peerInfo.addrs
 
@@ -907,11 +914,8 @@ proc libp2pCircuitRelayReserve*(
   let peerId = PeerId.init(req.relayPeerId).valueOr:
     return err($error)
 
-  var multiaddresses: seq[MultiAddress]
-  for a in req.relayAddrs:
-    let ma = MultiAddress.init(a).valueOr:
-      return err("invalid multiaddress: " & a)
-    multiaddresses.add(ma)
+  let multiaddresses = parseMultiaddrs(req.relayAddrs).valueOr:
+    return err(error)
 
   let rsvp =
     try:
@@ -961,11 +965,8 @@ proc libp2pPeerstoreAddPeer*(
   if req.addrs.len == 0:
     return err("at least one address is required")
 
-  var addrs: seq[MultiAddress]
-  for a in req.addrs:
-    let parsedAddr = MultiAddress.init(a).valueOr:
-      return err($error)
-    addrs.add(parsedAddr)
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
 
   let peerStore = lib.switch.peerStore
   peerStore[AddressBook].extend(pid, addrs)
@@ -979,11 +980,8 @@ proc libp2pPeerstoreSetPeerAddresses*(
   let pid = PeerId.init(req.peerId).valueOr:
     return err($error)
 
-  var addrs: seq[MultiAddress]
-  for a in req.addrs:
-    let parsedAddr = MultiAddress.init(a).valueOr:
-      return err($error)
-    addrs.add(parsedAddr)
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
 
   lib.switch.peerStore[AddressBook][pid] = addrs
   ok(true)
