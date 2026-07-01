@@ -164,10 +164,11 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: nimcache
-          key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-${{ github.sha }}
           restore-keys: |
             ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-
             master-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-
+            master-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
 
       - name: Build test_all
         id: build-test-all
