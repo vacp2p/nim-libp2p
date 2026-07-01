@@ -12,6 +12,7 @@ when defined(linux) and defined(amd64):
       autotls/acme/api,
       autotls/acme/client,
       autotls/service,
+      crypto/rsa,
       autotls/utils,
       multiaddress,
       utils/ipaddr,
@@ -35,7 +36,7 @@ when defined(linux) and defined(amd64):
       checkTrackers()
 
     asyncTest "request challenge without ACMEClient (ACMEApi only)":
-      let key = KeyPair.random(PKScheme.RSA, rng()).get()
+      let key = RsaPrivateKey.random(rng()).get()
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
