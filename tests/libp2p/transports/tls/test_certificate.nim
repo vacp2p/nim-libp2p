@@ -152,6 +152,8 @@ suite "utilities test":
     # make seckey into certKey
     let certKey = cert_new_key_t(rawSeckey).valueOr:
       raiseAssert("Failed to create key")
+    defer:
+      cert_free_key(certKey)
 
     # make certKey back into seq[byte]
     let rawSeckeyBack = cert_serialize_privk(certKey, CERT_FORMAT_DER).valueOr:
@@ -162,6 +164,8 @@ suite "utilities test":
 
   test "CSR generation":
     let certKey = cert_generate_key().expect("could not generate key")
+    defer:
+      cert_free_key(certKey)
 
     check:
       cert_signing_req("my.domain.string", certKey).isOk()
