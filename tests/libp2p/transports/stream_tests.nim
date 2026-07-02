@@ -20,9 +20,7 @@ template runTransportTest(
 ) =
   proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
     noExceptionWithStreamClose(stream):
-      var buffer: array[clientMessage.len, byte]
-      await stream.readExactly(addr buffer, clientMessage.len)
-      check string.fromBytes(buffer) == clientMessage
+      check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
       await stream.write(serverMessage)
 
@@ -30,9 +28,7 @@ template runTransportTest(
     noExceptionWithStreamClose(stream):
       await stream.write(clientMessage)
 
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
+      check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
   await runSingleStreamScenario(
     @[address],
@@ -80,18 +76,14 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(clientMessage)
 
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
     await dualStackStreamScenario(
       @[addressIP4, addressIP6.get()],
@@ -108,17 +100,13 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(clientMessage)
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
     let server = transportProvider()
     await server.start(@[addressIP4, addressIP6.get()])
@@ -161,17 +149,13 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(clientMessage)
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
     let server = transportProvider()
     await server.start(@[addressIP4, addressIP6.get()])
@@ -255,10 +239,9 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
+        var buffer: array[1, byte]
         # First readOnce after EOF
         let bytesRead = await stream.readOnce(addr buffer, 1)
         check bytesRead == 0
@@ -295,9 +278,7 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # step 2: read message from client (ensure connection is established)
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
         # and notify this to client
         serverReadDone.complete()
 
@@ -386,11 +367,10 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Client reads server data
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
         # Server has closed write side, so further reads should EOF
+        var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer, 1)
         check bytesRead == 0
 
@@ -408,9 +388,7 @@ template streamTransportTest*(
           await stream.write("should fail")
 
         # Server should still be able to read from client
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
     await runSingleStreamScenario(
       @[addressIP4],
@@ -474,9 +452,7 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         try:
-          var buffer: array[clientMessage.len, byte]
-          await stream.readExactly(addr buffer[0], clientMessage.len)
-          check string.fromBytes(buffer) == clientMessage
+          check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
           successfulReadsWG.done()
         except LPStreamIncompleteError:
