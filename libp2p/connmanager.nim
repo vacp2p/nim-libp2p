@@ -108,6 +108,7 @@ type
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     readyEvents: Table[PeerId, Future[void].Raising([CancelledError])]
+    readyWaiters: Table[PeerId, int]
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
@@ -251,6 +252,17 @@ proc waitForPeerReady*(
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
+  c.readyWaiters.mgetOrPut(peerId, 0) += 1
+  defer:
+    c.readyWaiters.withValue(peerId, waiters):
+      waiters[] -= 1
+      if waiters[] <= 0:
+        c.readyWaiters.del(peerId)
+        c.readyEvents.withValue(peerId, readyEvent):
+          if not readyEvent[].finished:
+            # All waiters timed out, but peer never completed an upgrade,
+            # so neither notifyPeerReady nor clearPeerReadyState were called.
+            c.readyEvents.del(peerId)
 
   let readyJoin = readyEvent.join()
   if timeout <= 0.seconds:
