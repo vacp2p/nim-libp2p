@@ -3,13 +3,11 @@
 
 {.used.}
 
-import chronos, chronicles, results, sets, sequtils, tables
+import chronos, results, sets, sequtils, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
 import ../../tools/[lifecycle, topology, unittest]
 import ./[mock_kademlia, utils]
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 proc isAtMaxCapacity(providerRecords: ProviderRecords): bool =
   providerRecords.len == providerRecords.capacity

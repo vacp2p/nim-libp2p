@@ -73,6 +73,24 @@ template basicTransportTest*(
         clientConn.closed()
         serverConn.closed()
 
+    asyncTest "stopping transport unblocks a pending accept":
+      # TODO: nim-libp2p#2713
+      let ma = @[MultiAddress.init(address).tryGet()]
+
+      let server = transportProvider()
+      await server.start(ma)
+
+      # park an accept with nothing dialing, then stop the transport under it
+      let acceptFut = server.accept()
+      await server.stop()
+
+      # quic resolves the parked accept to nil, the rest raise a stopped error
+      if isQuicTransport(ma[0]):
+        check (await acceptFut).isNil
+      else:
+        expect TransportClosedError:
+          discard await acceptFut
+
     asyncTest "transport start/stop events":
       let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()

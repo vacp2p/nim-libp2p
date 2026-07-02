@@ -247,6 +247,11 @@ typedef void (*RandomRecordsCallback)(int callerRet,
                                       size_t recordsLen, const char *msg,
                                       size_t len, void *userData);
 
+// record is only valid during the callback; copy if needed.
+typedef void (*ExtendedPeerRecordCallback)(
+    int callerRet, const Libp2pExtendedPeerRecord *record, const char *msg,
+    size_t len, void *userData);
+
 // peerIds is only valid during the callback; copy if needed.
 typedef void (*PeersCallback)(int callerRet, const char **peerIds,
                               size_t peerIdsLen, const char *msg, size_t len,
@@ -486,6 +491,13 @@ int libp2p_create_xpr(libp2p_ctx_t *ctx, const char **addrs, size_t addrsLen,
                       const Libp2pServiceInfo *services, size_t servicesLen,
                       uint64_t seqNo, Libp2pBufferCallback callback,
                       void *userData);
+
+// Decodes a signed, protobuf-encoded XPR (as produced by libp2p_create_xpr),
+// verifies its signature, and passes the decoded record to the callback. This
+// is a pure operation and needs no running node, so it takes no context. The
+// record is only valid for the duration of the callback; copy if needed.
+int libp2p_decode_xpr(const uint8_t *encoded, size_t encodedLen,
+                      ExtendedPeerRecordCallback callback, void *userData);
 
 int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
                                           const char *serviceId,

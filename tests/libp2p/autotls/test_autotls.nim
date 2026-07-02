@@ -10,13 +10,14 @@ import
     upgrademngrs/upgrade,
     autotls/acme/mockapi,
     autotls/acme/client,
+    crypto/rsa,
     wire,
   ]
 import ../../tools/[unittest, crypto]
 
 suite "AutoTLS ACME API":
   var api {.threadvar.}: MockACMEApi
-  var key {.threadvar.}: KeyPair
+  var key {.threadvar.}: RsaPrivateKey
 
   asyncTeardown:
     await api.close()
@@ -24,7 +25,7 @@ suite "AutoTLS ACME API":
 
   asyncSetup:
     api = await MockACMEApi.new()
-    key = KeyPair.random(PKScheme.RSA, rng()).get()
+    key = RsaPrivateKey.random(rng()).get()
 
   asyncTest "register to acme server":
     api.mockedResponses.add(
@@ -87,13 +88,6 @@ suite "AutoTLS ACME API":
     check dns01.`type` == ACMEChallengeType.DNS01
     check dns01.token == ACMEChallengeToken("expected-dns01-token")
     check dns01.status == ACMEChallengeStatus.PENDING
-
-  asyncTest "register with unsupported keys":
-    let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
-    for scheme in unsupportedSchemes:
-      let unsupportedKey = KeyPair.random(scheme, rng()).get()
-      expect(ACMEError):
-        discard await api.requestRegister(unsupportedKey)
 
   asyncTest "challenge completed successful":
     api.mockedResponses.add(
@@ -179,7 +173,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      KeyPair.random(PKScheme.RSA, rng()).get,
+      RsaPrivateKey.random(rng()).get,
       key,
       "kid",
     )
@@ -198,7 +192,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      KeyPair.random(PKScheme.RSA, rng()).get,
+      RsaPrivateKey.random(rng()).get,
       key,
       "kid",
       retries = 1,
@@ -222,7 +216,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      KeyPair.random(PKScheme.RSA, rng()).get,
+      RsaPrivateKey.random(rng()).get,
       key,
       "kid",
     )
@@ -315,7 +309,7 @@ suite "AutoTLS ACME API":
       discard await api.requestFinalize(
         "some-domain",
         parseUri("http://example.com/some-finalize-url"),
-        KeyPair.random(PKScheme.RSA, rng()).get,
+        RsaPrivateKey.random(rng()).get,
         key,
         "kid",
       )
@@ -389,5 +383,5 @@ suite "AutoTLS ACME Client":
     )
     expect(ACMEError):
       discard await acme.getCertificate(
-        api.Domain("some.domain"), KeyPair.random(PKScheme.RSA, rng()).get, challenge
+        api.Domain("some.domain"), RsaPrivateKey.random(rng()).get, challenge
       )

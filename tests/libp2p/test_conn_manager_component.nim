@@ -458,10 +458,9 @@ suite "Connection Manager Watermark/Scoring Component":
     expect DialFailedError:
       await connect(peers[2], node)
 
-  asyncTest "Left is emitted before Joined when the trim prunes the new connection":
-    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
-    # gossipsub unsubscribes on Left as a no-op, then the late Joined subscribes the pruned peer.
-    # the wrong order needs a Connected handler that awaits I/O, which delays Joined past the prune.
+  asyncTest "gossipsub drops peers pruned after Joined is emitted":
+    # When the trim prunes a just-stored connection, gossipsub must observe Joined
+    # before Left so it does not keep a pruned peer subscribed.
     const
       lowWater = 1
       highWater = 2
@@ -479,7 +478,7 @@ suite "Connection Manager Watermark/Scoring Component":
     proc connectedHandler(
         peerId: PeerId, event: ConnEvent
     ) {.async: (raises: [CancelledError]).} =
-      # simulates a Connected handler with I/O operation, delaying Joined for the pruned peer
+      # Simulates a Connected handler with I/O that used to delay Joined past the prune.
       if peerId == prunedId:
         await sleepAsync(connectedHandlerDelay)
 
@@ -490,14 +489,13 @@ suite "Connection Manager Watermark/Scoring Component":
     await connect(peers[1], node)
     node.connManager.protect(peers[0].peerInfo.peerId, "keep")
 
-    # peers[2] triggers the trim, which prunes its own just-stored connection
-    expect DialFailedError:
-      await connect(peers[2], node)
+    # peers[2] triggers the trim, which prunes its own just-stored connection.
+    await connect(peers[2], node)
 
-    # Joined event arrives late and subscribes
+    # Joined is handled before Left, so the prune removes the peer from gossipsub.
     checkUntilTimeout:
-      prunedId in gossip.peers
       not node.isConnected(prunedId)
+      prunedId notin gossip.peers
 
   asyncTest "score and protection are persisted between disconnections":
     let node = newWatermarkSwitch(1, 2)

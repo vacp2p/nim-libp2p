@@ -11,7 +11,7 @@ license = "MIT"
 
 proc buildSample(filename: string, run = false) =
   # Add parent directory to search path for libp2p imports  
-  var excstr = "nim c --mm:refc -p:../"
+  var excstr = "nim c --nimcache:nimcache/examples --mm:refc -p:../"
   excstr.add(" " & filename)
   exec excstr
   if run:

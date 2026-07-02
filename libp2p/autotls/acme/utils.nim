@@ -3,9 +3,9 @@
 
 import base64, strutils, json
 import chronos/apps/http/httpclient
+import nimcrypto/sha2
 import ../../errors
 import ../../transports/tls/certificate_ffi
-import ../../crypto/crypto
 import ../../crypto/rsa
 
 type ACMEError* = object of LPError
@@ -23,9 +23,8 @@ proc base64UrlEncode*(data: seq[byte]): string =
   encoded.removeSuffix("=")
   return encoded
 
-proc thumbprint*(key: KeyPair): string =
-  doAssert key.seckey.scheme == PKScheme.RSA, "unsupported keytype"
-  let pubkey = key.pubkey.rsakey
+proc thumbprint*(key: RsaPrivateKey): string =
+  let pubkey = key.getPublicKey()
   let nArray = @(getArray(pubkey.buffer, pubkey.key.n, pubkey.key.nlen))
   let eArray = @(getArray(pubkey.buffer, pubkey.key.e, pubkey.key.elen))
 
@@ -49,10 +48,11 @@ proc getResponseBody*(
     raise
       newException(ACMEError, "Unexpected error occurred while getting body bytes", exc)
 
-proc createCSR*(domain: string, certKeyPair: KeyPair): string {.raises: [ACMEError].} =
-  # convert KeyPair to cert_key_t
-  let rawSeckey: seq[byte] = certKeyPair.seckey.getRawBytes.valueOr:
-    raise newException(ACMEError, "Failed to get seckey raw bytes (DER)")
+proc createCSR*(
+    domain: string, certKeyPair: RsaPrivateKey
+): string {.raises: [ACMEError].} =
+  let rawSeckey: seq[byte] = certKeyPair.getBytes.valueOr:
+    raise newException(ACMEError, "Failed to get RSA private key bytes (DER)")
   let certKey = cert_new_key_t(rawSeckey).valueOr:
     raise newException(ACMEError, "Failed to convert key pair to cert_key_t")
   defer:
