@@ -260,6 +260,62 @@ suite "Connection Manager":
     check (await connMngr.waitForPeerReady(peerId, 10.millis)) == false
     await connMngr.close()
 
+  asyncTest "does not emit Joined when muxer is dropped before connected handlers finish":
+    let connMngr = newMaxTotal()
+    defer:
+      await connMngr.close()
+
+    let
+      muxer = makeMuxer(peerId)
+      connectedStarted = newAsyncEvent()
+      unblockConnected = newAsyncEvent()
+    var events: seq[string]
+
+    proc connectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        events.add("Connected")
+        connectedStarted.fire()
+        await unblockConnected.wait()
+
+    proc disconnectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        events.add("Disconnected")
+
+    proc peerHandler(kind: string): PeerEventHandler =
+      return proc(
+          handlerPeerId: PeerId, event: PeerEvent
+      ) {.async: (raises: [CancelledError]).} =
+        if handlerPeerId == peerId:
+          events.add(kind)
+
+    connMngr.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
+    connMngr.addConnEventHandler(disconnectedHandler, ConnEventKind.Disconnected)
+    connMngr.addPeerEventHandler(peerHandler("Joined"), PeerEventKind.Joined)
+    connMngr.addPeerEventHandler(peerHandler("Left"), PeerEventKind.Left)
+
+    let storeFut = connMngr.storeMuxer(muxer)
+
+    check await connectedStarted.wait().withTimeout(1.seconds)
+    check muxer in connMngr
+
+    await connMngr.dropPeer(peerId)
+    check peerId notin connMngr
+
+    unblockConnected.fire()
+    await storeFut
+
+    checkUntilTimeout:
+      "Disconnected" in events
+
+    check:
+      "Connected" in events
+      "Left" in events
+      "Joined" notin events
+
   asyncTest "drop connections for peer":
     let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
