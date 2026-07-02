@@ -370,40 +370,37 @@ proc withIWant*(
 ): ControlMessage =
   ControlMessage(iwant: @[ControlIWant(messageIDs: move(msgIds))])
 
-proc withIWant*(_: typedesc[ControlMessage], msgId: sink MessageId): ControlMessage =
-  ControlMessage.withIWant(@[move(msgId)])
+proc withIWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage.withIWant(@[msgId])
 
 proc withIDontWant*(
     _: typedesc[ControlMessage], msgIds: sink seq[MessageId]
 ): ControlMessage =
   ControlMessage(idontwant: @[ControlIWant(messageIDs: move(msgIds))])
 
-proc withIDontWant*(
-    _: typedesc[ControlMessage], msgId: sink MessageId
-): ControlMessage =
-  ControlMessage.withIDontWant(@[move(msgId)])
+proc withIDontWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage.withIDontWant(@[msgId])
 
 proc withIHave*(
-    _: typedesc[ControlMessage], topicID: sink string, messageIDs: sink seq[MessageId]
+    _: typedesc[ControlMessage], topicID: string, messageIDs: sink seq[MessageId]
 ): ControlMessage =
   ControlMessage(
-    ihave:
-      @[ControlIHave(topicID: Opt.some(move(topicID)), messageIDs: move(messageIDs))]
+    ihave: @[ControlIHave(topicID: Opt.some(topicID), messageIDs: move(messageIDs))]
   )
 
-proc withGraft*(_: typedesc[ControlMessage], topicID: sink string): ControlMessage =
-  ControlMessage(graft: @[ControlGraft(topicID: Opt.some(move(topicID)))])
+proc withGraft*(_: typedesc[ControlMessage], topicID: string): ControlMessage =
+  ControlMessage(graft: @[ControlGraft(topicID: Opt.some(topicID))])
 
 proc withPrune*(
     _: typedesc[ControlMessage],
-    topicID: sink string,
+    topicID: string,
     backoff: uint64,
     peers: sink seq[PeerInfoMsg],
 ): ControlMessage =
   ControlMessage(
     prune: @[
       ControlPrune(
-        topicID: Opt.some(move(topicID)), peers: move(peers), backoff: Opt.some(backoff)
+        topicID: Opt.some(topicID), peers: move(peers), backoff: Opt.some(backoff)
       )
     ]
   )
@@ -452,13 +449,13 @@ proc withPreamble*(
   RPCMsg.withPreamble(preambles)
 
 proc withPreamble*(
-    _: typedesc[RPCMsg], topic: sink string, msgId: sink MessageId, messageLength: int
+    _: typedesc[RPCMsg], topic: string, msgId: MessageId, messageLength: int
 ): RPCMsg =
   RPCMsg.withPreamble(
     @[
       Preamble(
-        topicID: Opt.some(move(topic)),
-        messageID: Opt.some(move(msgId)),
+        topicID: Opt.some(topic),
+        messageID: Opt.some(msgId),
         messageLength: Opt.some(messageLength.uint32),
       )
     ]
