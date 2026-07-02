@@ -262,8 +262,9 @@ proc waitForPeerReady*(
   c.readyWaiters.mgetOrPut(peerId, 0).inc()
   defer:
     c.readyWaiters.withValue(peerId, waiters):
-      waiters[].dec()
-      if waiters[] <= 0:
+      waiters[].dec() # remove myself as waiter
+      let noMoreWaiters = waiter[] <= 0
+      if noMoreWaiters:
         c.readyWaiters.del(peerId)
         c.clearReadyEvent(peerId)
 
