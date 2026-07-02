@@ -396,6 +396,7 @@ proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} 
   c.clearPeerReadyState(peerId)
   c.connectedAt.del(peerId)
   if not c.peerStore.isNil:
+    c.peerStore.markPeerDisconnected(peerId)
     c.peerStore.cleanup(peerId)
   libp2p_peers.set(c.muxerStore.countPeers.int64)
   await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -479,6 +480,9 @@ proc storeMuxer*(
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
+
+  if isNewPeer and not c.peerStore.isNil:
+    c.peerStore.markPeerConnected(peerId)
 
   c.onCloseFuts.trackFut(c.onClose(muxer))
 

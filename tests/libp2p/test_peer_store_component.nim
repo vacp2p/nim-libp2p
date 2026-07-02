@@ -186,11 +186,9 @@ suite "PeerStore Address TTL - Component":
       switch.peerStore[AddressBook].entries(zeroTtlPeer).len == 1
       switch.peerStore[AddressBook].entries(infinitePeer).len == 1
 
-  asyncTest "connected-but-idle address expires while still connected":
-    # An address only gets a fresh timestamp when it is written again:
-    # on a re-dial, an identify, or an identify push from the peer.
-    # If a connection does none of these, the address gets stale and the
-    # prune loop drops it while we are still connected to the peer.
+  asyncTest "connected-but-idle address stays fresh while still connected":
+    # Connected peers keep already-known addresses visible and periodically
+    # refreshed, so an idle long-lived connection stays redialable.
     let
       listener = makeStandardSwitch()
       # low is small so the prune loop runs often.
@@ -209,13 +207,26 @@ suite "PeerStore Address TTL - Component":
     checkUntilTimeout:
       dialer.peerStore[AddressBook].entries(peerId).len > 0
 
-    # Nothing refreshes the address.
-    # Back-date the entries beyond the TTL.
+    # Back-date the entries beyond the TTL to emulate an idle connection.
     for i in 0 ..< dialer.peerStore[AddressBook].book[peerId].len:
       dialer.peerStore[AddressBook].book[peerId][i].lastUpdated = Moment.now() - 2.hours
 
-    # The prune loop drops the old address while the connection is still open.
-    checkUntilTimeout:
-      dialer.peerStore[AddressBook].entries(peerId).len == 0
-
     check dialer.isConnected(peerId)
+    check dialer.peerStore[AddressBook][peerId].len > 0
+
+    # The prune loop refreshes the old address while the connection is still open.
+    checkUntilTimeout:
+      dialer.peerStore[AddressBook].entries(peerId).len > 0
+      dialer.peerStore[AddressBook].entries(peerId).allIt(
+        not it.isExpired(dialer.peerStore[AddressBook].ttls)
+      )
+      dialer.peerStore[AddressBook][peerId].len > 0
+
+    await dialer.disconnect(peerId)
+
+    checkUntilTimeout:
+      not dialer.isConnected(peerId)
+
+    check:
+      dialer.peerStore[AddressBook][peerId].len > 0
+      peerId in dialer.peerStore[AddressBook]
