@@ -199,8 +199,9 @@ proc runSingleStreamScenario*(
   let clientTask = clientRunSingleStream(
     server, transportProvider, streamProvider, clientStreamHandler
   )
-  await allFutures(clientTask, serverTask)
+  await clientTask
   await server.stop()
+  await serverTask
 
 proc dualStackStreamScenario*(
     listenAddrs: seq[MultiAddress],
