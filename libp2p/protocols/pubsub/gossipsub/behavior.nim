@@ -763,10 +763,9 @@ proc onHeartbeat(g: GossipSub) =
 
   for peer, control in g.makeGossipControlMessages():
     # only ihave from here
-    g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
-
     for ihave in control.ihave:
       libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
+    g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
 
   g.mcache.shift() # shift the cache
 
