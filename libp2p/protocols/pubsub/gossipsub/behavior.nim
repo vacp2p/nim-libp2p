@@ -765,7 +765,7 @@ proc onHeartbeat(g: GossipSub) =
   for peer, control in peers:
     # only ihave from here
     g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
-    
+
     for ihave in control.ihave:
       libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
 
