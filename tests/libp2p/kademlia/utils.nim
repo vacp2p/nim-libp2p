@@ -2,12 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import algorithm, chronos, chronicles, results, sequtils, sets, tables
+import algorithm, chronos, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)

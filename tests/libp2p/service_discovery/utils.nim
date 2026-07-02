@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, chronicles, results, sequtils, tables
+import chronos, results, sequtils, tables
 import
   ../../../libp2p/[
     builders,
@@ -21,8 +21,6 @@ import
 import ../../tools/[crypto, switch_builder, multiaddress]
 
 export protobuf, registrar, routing_table_manager, types
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 converter toOptMoment*(a: Moment): Opt[Moment] =
   Opt.some(a)

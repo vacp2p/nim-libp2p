@@ -229,8 +229,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   var privKey = Opt.none(PrivateKey)
   if config.privKey.data != nil and config.privKey.dataLen > 0:
     let keySeq = config.privKey.toByteSeq()
-    PrivateKey.init(keySeq).withValue(copyKey):
-      privKey = Opt.some(copyKey)
+    let key = PrivateKey.init(keySeq).valueOr:
+      raise newException(LPError, "invalid private key: " & $error)
+    privKey = Opt.some(key)
 
   var addrs: seq[MultiAddress] = @[]
   if config.addrsLen > 0 and not config.addrs.isNil():
