@@ -697,6 +697,11 @@ proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
       allPeers.setLen(target)
 
     for peer in allPeers:
+      if g.extensionsState.peerRequestsPartial(peer.peerId, topic):
+        # add IHAVE only if peer has not requested partial for topic.
+        # these peers will receive gossip of partial metadata via extension.
+        continue
+
       control.mgetOrPut(peer, ControlMessage()).ihave.add(ihave)
       for msgId in ihave.messageIDs:
         peer.sentIHaves[0].incl(msgId)
@@ -759,14 +764,10 @@ proc onHeartbeat(g: GossipSub) =
   let peers = g.getGossipPeers()
   for peer, control in peers:
     # only ihave from here
+    g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
+    
     for ihave in control.ihave:
       libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
-
-      if ihave.topicID.isSome and
-          not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID.get()):
-        # send IHAVE only if peer has not requested partial for topic.
-        # these peers will receive gossip of partial metadata via extension.
-        g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
 
   g.mcache.shift() # shift the cache
 
