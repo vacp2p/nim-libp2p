@@ -818,7 +818,7 @@ suite "GossipSub Behavior":
     check topic1 notin gossipSub.fanout
     check topic2 in gossipSub.fanout
 
-  asyncTest "getGossipPeers - should gather up to degree D non intersecting peers":
+  asyncTest "makeGossipControlMessages - should gather up to degree D non intersecting peers":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(45, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -850,13 +850,13 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len == 15
     check gossipSub.gossipsub[topic].len == 15
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
     for p in gossipPeers.keys:
       check not gossipSub.fanout.hasPeerId(topic, p.peerId)
       check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
-  asyncTest "getGossipPeers - should not crash on missing topics in mesh":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in mesh":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -877,10 +877,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in fanout":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in fanout":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -902,10 +902,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in gossip":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in gossip":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -927,10 +927,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == 0
 
-  asyncTest "getGossipPeers - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
+  asyncTest "makeGossipControlMessages - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) =
@@ -948,7 +948,7 @@ suite "GossipSub Behavior":
     gossipSub.mcache.put(id, Message(topic: topic))
 
     # When Node selects peers for IHave broadcast
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
 
     # Then peer is not selected
     check:
