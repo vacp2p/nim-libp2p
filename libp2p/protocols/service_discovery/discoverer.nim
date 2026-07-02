@@ -150,8 +150,6 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
 
-  notice "starting interest for service", service = serviceId
-
   debug "register interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.addService(
@@ -175,12 +173,10 @@ proc lookup*(
   ## Look up providers for a specific service id.
   cd_lookup_requests.inc()
 
-  let added = disco.rtManager.addService(
+  discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  if added:
-    notice "starting interest for service", serviceId
 
   let searchTable = disco.rtManager.getTable(serviceId).valueOr:
     return err("service table not found for service id: " & $serviceId)

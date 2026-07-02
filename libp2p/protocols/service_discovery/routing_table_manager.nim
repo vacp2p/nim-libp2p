@@ -32,6 +32,7 @@ proc addService*(
     bucketsCount: int,
     status: ServiceStatus,
 ): bool =
+  notice "starting interest for service", serviceId
   # Fast path: service already exists
   manager.serviceStatus.withValue(serviceId, currentStatus):
     # No change needed
