@@ -196,6 +196,16 @@ jobs:
           path: nimcache
           key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
 
+      - name: Prune old nimcache entries for this ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREFIX="${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-"
+          KEEP="${{ steps.nimcache-restore.outputs.cache-primary-key }}"
+          gh cache list --ref "${{ github.ref }}" --limit 100 --json id,key \
+            --jq ".[] | select(.key | startswith(\"$PREFIX\")) | select(.key != \"$KEEP\") | .id" \
+            | xargs -r -n1 gh cache delete
+
       - name: Run tests
         id: run-tests
         run: |
