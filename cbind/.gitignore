@@ -1,3 +1,9 @@
 nimble.develop
 nimble.paths
 nimbledeps
+nimble.lock
+nimcache
+nimcache_cpp
+nimcache_cddl
+cpp_bindings
+cddl_bindings

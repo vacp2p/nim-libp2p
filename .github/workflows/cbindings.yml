@@ -1,4 +1,4 @@
-name: C bindings examples
+name: C++ bindings
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       run:
         shell: bash
 
-    name: "Build C bindings"
+    name: "Build C++ bindings"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -54,7 +54,15 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Build and run c bindings examples
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-cbindings-linux-amd64-gcc-v2.2.10
+          restore-keys: |
+            master-nimcache-cbindings-linux-amd64-gcc-v2.2.10
+
+      - name: Build FFI library and generate C++/CDDL bindings
         run: |
           nim --version
           nimble --version
@@ -63,4 +71,6 @@ jobs:
           nimble setup
           cd cbind
           nimble setup
-          nimble examples
+          nimble buildffi
+          nimble genbindings_cpp
+          nimble genbindings_cddl
