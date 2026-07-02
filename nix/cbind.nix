@@ -85,8 +85,9 @@ pkgs.stdenv.mkDerivation {
     # libp2p.a references these via {.passl.}; install them so static linking resolves.
     cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib
     cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib
-    # Install the nim-ffi generated bindings instead of a hand-written header.
-    cp -r cbind/c_bindings    $out/include/
+    # Install nim-ffi's headers (libp2p.h + companions) flat: consumers stage
+    # them via `cp $out/include/*.h`, so a nested dir would be missed.
+    cp cbind/c_bindings/*.h   $out/include/
     cp -r cbind/cddl_bindings $out/include/
   '';
 }
