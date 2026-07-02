@@ -240,6 +240,13 @@ proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
     readyEvent[].cancelSoon()
     c.readyEvents.del(peerId)
 
+func clearReadyEvent(c: ConnManager, peerId: PeerId) =
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      # All waiters timed out, but peer never completed an upgrade,
+      # so neither notifyPeerReady nor clearPeerReadyState were called.
+      c.readyEvents.del(peerId)
+
 proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
 ): Future[bool] {.async: (raises: [CancelledError]).} =
@@ -252,17 +259,13 @@ proc waitForPeerReady*(
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
-  c.readyWaiters.mgetOrPut(peerId, 0) += 1
+  c.readyWaiters.mgetOrPut(peerId, 0).inc()
   defer:
     c.readyWaiters.withValue(peerId, waiters):
-      waiters[] -= 1
+      waiters[].dec()
       if waiters[] <= 0:
         c.readyWaiters.del(peerId)
-        c.readyEvents.withValue(peerId, readyEvent):
-          if not readyEvent[].finished:
-            # All waiters timed out, but peer never completed an upgrade,
-            # so neither notifyPeerReady nor clearPeerReadyState were called.
-            c.readyEvents.del(peerId)
+        c.clearReadyEvent(peerId)
 
   let readyJoin = readyEvent.join()
   if timeout <= 0.seconds:
