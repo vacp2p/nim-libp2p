@@ -184,6 +184,14 @@ proc clientRunSingleStream*(
     server.addrs[0], transportProvider, streamProvider, handler
   )
 
+proc runStreamHandler*(muxer: Muxer, handler: StreamHandler) {.async: (raises: []).} =
+  ## Open a new stream on an already-established muxer and run `handler` on it.
+  try:
+    let stream = await muxer.newStream()
+    await handler(stream)
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
 proc runSingleStreamScenario*(
     multiAddress: seq[MultiAddress],
     transportProvider: TransportProvider,
