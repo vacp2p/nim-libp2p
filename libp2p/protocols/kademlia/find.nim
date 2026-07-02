@@ -21,6 +21,7 @@ type LookupState* = ref object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
+  inflight*: Table[PeerId, seq[FutureBase]]
 
 type DispatchProc* = proc(
   kad: KadDHT, peer: PeerId, target: Key
@@ -393,12 +394,13 @@ proc lookOnce*(
     let msg = await dispatch(kad, peerId, target)
     return (peerId, msg)
 
-  let
-    rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
-    completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+  let rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
+  for (fut, peerId) in zip(rpcBatch, toQuery):
+    state.inflight.mgetOrPut(peerId, @[]).add(FutureBase(fut))
+  let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
 
   for (fut, peerId) in zip(rpcBatch, toQuery):
-    if not fut.finished():
+    if not fut.finished() or fut.cancelled():
       continue
     if fut.failed():
       state.responded[peerId] = RespondedStatus.Failed
@@ -410,6 +412,7 @@ proc lookOnce*(
       else:
         state.responded[peerId] = RespondedStatus.Success
 
+  var toCancel: seq[FutureBase]
   for (peerId, res) in completedRPCBatch:
     let reply = res.valueOr:
       continue
@@ -419,6 +422,19 @@ proc lookOnce*(
       kad.config.limits.maxPeersPerIpv4Subnet, kad.config.limits.maxPeersPerIpv6Subnet,
     )
     await onReply(peerId, Opt.some(reply), state)
+
+  # Evicted peers are no longer eligible for retries, so cancel any abandoned RPCs.
+  for peerId in state.inflight.keys.toSeq:
+    if not state.shortlist.hasKey(peerId):
+      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
+      state.inflight.del(peerId)
+
+  for peerId in toQuery:
+    if state.responded.hasKey(peerId) or
+        state.attempts.getOrDefault(peerId, 0) > kad.config.retries:
+      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
+      state.inflight.del(peerId)
+  await toCancel.cancelAndWait()
 
   return true
 
@@ -435,6 +451,12 @@ proc iterativeLookup*(
   while not stopCond(state):
     if not await kad.lookOnce(state, rtable, dispatch, onReply):
       break
+
+  var leftover: seq[FutureBase]
+  for futs in state.inflight.values:
+    leftover.add(futs.filterIt(not it.finished()))
+  if leftover.len > 0:
+    await leftover.cancelAndWait()
 
   state
 
