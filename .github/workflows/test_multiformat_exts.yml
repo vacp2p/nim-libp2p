@@ -125,18 +125,10 @@ jobs:
       - name: Build prerequisites
         run: make nimble.paths nat_libs
 
-      - name: Restore build cache
-        uses: actions/cache@v5
-        with:
-          path: nimcache
-          key: ${{ github.ref_name }}-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ needs.pick-platform.outputs.nim_ref }}-${{ needs.pick-platform.outputs.nim_mm }}
-          restore-keys: |
-            master-nimcache-test_multiformat_exts-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ needs.pick-platform.outputs.nim_ref }}-${{ needs.pick-platform.outputs.nim_mm }}
-
       - name: Build test_multiformat_exts
         id: build-test
         run: |
-          NIMFLAGS="--nimcache:nimcache/test_multiformat_exts --mm:${{ needs.pick-platform.outputs.nim_mm }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="--mm:${{ needs.pick-platform.outputs.nim_mm }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim"
