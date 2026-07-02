@@ -203,6 +203,9 @@ type CreateXprRequest {.ffi.} = object
   services: seq[ServiceInfoEntry]
   seqNo: uint64
 
+type DecodeXprRequest {.ffi.} = object
+  encoded: seq[byte]
+
 type LookupRequest {.ffi.} = object
   serviceId: string
   serviceData: seq[byte]
@@ -904,6 +907,17 @@ proc libp2pCreateXpr*(
     return err(error)
 
   ok(xpr.encode())
+
+proc libp2pDecodeXpr*(
+    lib: LibP2P, req: DecodeXprRequest
+): Future[Result[ExtendedPeerRecordEntry, string]] {.ffi.} =
+  let sxpr = SignedExtendedPeerRecord.decode(req.encoded).valueOr:
+    return err("failed to decode signed extended peer record: " & $error)
+
+  sxpr.checkValid().isOkOr:
+    return err("invalid XPR signature: " & $error)
+
+  ok(toExtendedRecordEntry(sxpr.data))
 
 proc libp2pCircuitRelayReserve*(
     lib: LibP2P, req: CircuitRelayReserveRequest

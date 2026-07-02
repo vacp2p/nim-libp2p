@@ -10,7 +10,7 @@ import os, strutils, sequtils
 
 # Most deps come from the parent libp2p.nimble via nimble.paths; nim-ffi pulls in the rest.
 requires "taskpools >= 0.1.0"
-requires "https://github.com/logos-messaging/nim-ffi#82c399fb2379f9a80a5e13840031ec7d36bfe522"
+requires "https://github.com/logos-messaging/nim-ffi#7e3fd96e7417528fecdd0d685fc8fd29a3fd6bfd"
 
 task install_pinned,
   "Install cbind's pinned deps (taskpools, cbor_serialization, nim-ffi)":
