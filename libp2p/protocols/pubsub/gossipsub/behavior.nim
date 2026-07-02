@@ -644,7 +644,7 @@ proc replenishFanout*(g: GossipSub, topic: string) =
 
   trace "fanout replenished with peers", peers = g.fanout.peers(topic)
 
-proc getGossipPeers*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
+proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
   ## gossip iHave messages to peers
   ##
 
@@ -761,8 +761,7 @@ proc onHeartbeat(g: GossipSub) =
   for t in toSeq(g.fanout.keys):
     g.replenishFanout(t)
 
-  let peers = g.getGossipPeers()
-  for peer, control in peers:
+  for peer, control in g.makeGossipControlMessages():
     # only ihave from here
     g.send(peer, RPCMsg.withControl(control), MessagePriority.High)
 
