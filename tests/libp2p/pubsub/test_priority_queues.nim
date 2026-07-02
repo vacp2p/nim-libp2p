@@ -189,11 +189,13 @@ suite "Priority queue behavior":
 
     # The first high-priority send remains pending on the connection, but later
     # medium-priority messages are queued until it completes.
-    let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
+    var queuedHighMsg = highMsg
+    let highFut = peer.sendEncoded(move(queuedHighMsg), MessagePriority.High)
     check highFut.finished
 
     for msg in mediumMsgs:
-      let f = peer.sendEncoded(msg, MessagePriority.Medium)
+      var queuedMsg = msg
+      let f = peer.sendEncoded(move(queuedMsg), MessagePriority.Medium)
       check f.finished
 
     check conn.writes == @[highMsg]
@@ -224,11 +226,13 @@ suite "Priority queue behavior":
 
     # The first high-priority send remains pending on the connection, but later
     # low-priority messages are queued until it completes.
-    let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
+    var queuedHighMsg = highMsg
+    let highFut = peer.sendEncoded(move(queuedHighMsg), MessagePriority.High)
     check highFut.finished
 
     for msg in lowMsgs:
-      let f = peer.sendEncoded(msg, MessagePriority.Low)
+      var queuedMsg = msg
+      let f = peer.sendEncoded(move(queuedMsg), MessagePriority.Low)
       check f.finished
 
     check conn.writes == @[highMsg]
