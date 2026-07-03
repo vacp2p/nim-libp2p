@@ -6,6 +6,7 @@
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
 import ../../../libp2p/stream/connection
+import ../../../libp2p/utils/future
 import
   ../../../libp2p/protocols/pubsub/[
     floodsub,
@@ -128,23 +129,22 @@ suite "GossipSub":
       peerId = randomPeerId()
       muxer = Muxer(connection: Connection.new(peerId, Direction.In))
       unblockConnected = newAsyncEvent()
-    var connectedStarted = false
+      connectedStartedFut = newFuture[void]("connectedStarted")
 
     defer:
-      await connMngr.close()
+      await gossipSub.switch.stop()
 
     proc connectedHandler(
         handlerPeerId: PeerId, event: ConnEvent
     ) {.async: (raises: [CancelledError]).} =
       if handlerPeerId == peerId:
-        connectedStarted = true
+        connectedStartedFut.completeOnce()
         await unblockConnected.wait()
 
     connMngr.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
 
     let storeFut = connMngr.storeMuxer(muxer)
-    checkUntilTimeout:
-      connectedStarted
+    await connectedStartedFut
 
     check:
       peerId in connMngr
