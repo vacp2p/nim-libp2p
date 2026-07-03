@@ -22,10 +22,6 @@ import
   ]
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
-const
-  IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
-  IPv6Tcp = mapAnd(IP6, mapEq("tcp"))
-
 suite "Identify":
   teardown:
     checkTrackers()
@@ -198,10 +194,10 @@ suite "Identify":
 
       check:
         # ensure both IPv4 and IPv6 addresses are used in switch.
-        countAddressesWithPattern(switch1.peerInfo.addrs, IPv4Tcp) > 1
-        countAddressesWithPattern(switch1.peerInfo.addrs, IPv6Tcp) > 1
-        countAddressesWithPattern(switch2.peerInfo.addrs, IPv4Tcp) > 1
-        countAddressesWithPattern(switch2.peerInfo.addrs, IPv6Tcp) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, TCP_IP4) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, TCP_IP6) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP4) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP6) > 1
 
         # ensure all addresses are advertized.
         # that is, peer store will have all address of other peer
@@ -307,7 +303,7 @@ suite "Identify":
       await client.stop()
 
     check:
-      countAddressesWithPattern(server.peerInfo.addrs, IPv4Tcp) == 1
+      countAddressesWithPattern(server.peerInfo.addrs, TCP_IP4) == 1
       countAddressesWithPattern(server.peerInfo.addrs, QUIC_V1) == 1
 
     # Connect and request identify
