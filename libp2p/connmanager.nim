@@ -108,6 +108,7 @@ type
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     readyEvents: Table[PeerId, Future[void].Raising([CancelledError])]
+    readyWaiters: Table[PeerId, int]
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
@@ -239,6 +240,13 @@ proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
     readyEvent[].cancelSoon()
     c.readyEvents.del(peerId)
 
+func clearReadyEvent(c: ConnManager, peerId: PeerId) =
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      # All waiters timed out, but peer never completed an upgrade,
+      # so neither notifyPeerReady nor clearPeerReadyState were called.
+      c.readyEvents.del(peerId)
+
 proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
 ): Future[bool] {.async: (raises: [CancelledError]).} =
@@ -251,6 +259,14 @@ proc waitForPeerReady*(
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
+  c.readyWaiters.mgetOrPut(peerId, 0).inc()
+  defer:
+    c.readyWaiters.withValue(peerId, waiters):
+      waiters[].dec() # remove myself as waiter
+      let noMoreWaiters = waiters[] <= 0
+      if noMoreWaiters:
+        c.readyWaiters.del(peerId)
+        c.clearReadyEvent(peerId)
 
   let readyJoin = readyEvent.join()
   if timeout <= 0.seconds:
@@ -380,6 +396,7 @@ proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} 
   c.clearPeerReadyState(peerId)
   c.connectedAt.del(peerId)
   if not c.peerStore.isNil:
+    c.peerStore.markPeerDisconnected(peerId)
     c.peerStore.cleanup(peerId)
   libp2p_peers.set(c.muxerStore.countPeers.int64)
   await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -463,6 +480,9 @@ proc storeMuxer*(
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
+
+  if isNewPeer and not c.peerStore.isNil:
+    c.peerStore.markPeerConnected(peerId)
 
   c.onCloseFuts.trackFut(c.onClose(muxer))
 

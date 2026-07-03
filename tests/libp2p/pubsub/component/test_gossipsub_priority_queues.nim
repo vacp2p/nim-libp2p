@@ -81,13 +81,16 @@ suite "GossipSub Component - Priority Queues":
 
     let msg = message(1)
     # Two pending high messages fill the high-priority queue to its cap.
-    let f1 = peer.sendEncoded(msg, MessagePriority.High)
-    let f2 = peer.sendEncoded(msg, MessagePriority.High)
+    var msg1 = msg
+    let f1 = peer.sendEncoded(move(msg1), MessagePriority.High)
+    var msg2 = msg
+    let f2 = peer.sendEncoded(move(msg2), MessagePriority.High)
     check:
       f1.finished
       f2.finished
     # The third high message finds the queue full and disconnects the peer.
-    await peer.sendEncoded(msg, MessagePriority.High)
+    var msg3 = msg
+    await peer.sendEncoded(move(msg3), MessagePriority.High)
 
     # Only the first two high messages were written; the third disconnected instead.
     check:
@@ -194,19 +197,26 @@ suite "GossipSub Component - Priority Queues":
 
     # A pending high message keeps the high-priority queue non-empty, so the
     # medium and low messages are queued rather than sent at once.
-    check peer.sendEncoded(highMsgs[0], MessagePriority.High).finished
+    var highMsg0 = highMsgs[0]
+    check peer.sendEncoded(move(highMsg0), MessagePriority.High).finished
 
     check mock.writes == @[highMsgs[0]]
 
     # Interleave the sends so the order proves priority precedence, not send order.
+    var
+      mediumMsg0 = mediumMsgs[0]
+      lowMsg0 = lowMsgs[0]
+      mediumMsg1 = mediumMsgs[1]
+      lowMsg1 = lowMsgs[1]
     check:
-      peer.sendEncoded(mediumMsgs[0], MessagePriority.Medium).finished
-      peer.sendEncoded(lowMsgs[0], MessagePriority.Low).finished
-      peer.sendEncoded(mediumMsgs[1], MessagePriority.Medium).finished
-      peer.sendEncoded(lowMsgs[1], MessagePriority.Low).finished
+      peer.sendEncoded(move(mediumMsg0), MessagePriority.Medium).finished
+      peer.sendEncoded(move(lowMsg0), MessagePriority.Low).finished
+      peer.sendEncoded(move(mediumMsg1), MessagePriority.Medium).finished
+      peer.sendEncoded(move(lowMsg1), MessagePriority.Low).finished
 
     # A further high message is written ahead of the queued medium and low messages.
-    check peer.sendEncoded(highMsgs[1], MessagePriority.High).finished
+    var highMsg1 = highMsgs[1]
+    check peer.sendEncoded(move(highMsg1), MessagePriority.High).finished
 
     check mock.writes == highMsgs
 
