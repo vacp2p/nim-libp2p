@@ -69,7 +69,7 @@ proc isWildcardIp(ip: IpAddress): bool =
   of IpAddressFamily.IPv6:
     ip.address_v6 == AnyAddress6.address_v6
 
-proc expandWildcardAddresses(
+proc expandWildcardAddresses*(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   ## Expand bound wildcard addresses (``0.0.0.0`` / ``::``) into one address
