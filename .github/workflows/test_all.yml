@@ -160,17 +160,19 @@ jobs:
         run: make nimble.paths nat_libs
 
       - name: Restore build cache
-        uses: actions/cache@v5
+        id: nimcache-restore
+        uses: actions/cache/restore@v5
         with:
           path: nimcache
-          key: ${{ github.ref_name }}-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
+          key: nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-${{ github.run_id }}
           restore-keys: |
-            master-nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
+            nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
 
       - name: Build test_all
         id: build-test-all
         run: |
           NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
@@ -185,6 +187,24 @@ jobs:
           else
             nim c $NIMFLAGS ./tests/test_all
           fi
+
+      - name: Save build cache
+        uses: actions/cache/save@v5
+        if: github.ref_name == 'master'
+        with:
+          path: nimcache
+          key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
+
+      - name: Prune old nimcache entries
+        if: github.ref_name == 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREFIX="nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}"
+          KEEP="${{ steps.nimcache-restore.outputs.cache-primary-key }}"
+          gh cache list --ref "${{ github.ref }}" --limit 100 --json id,key \
+            --jq ".[] | select(.key | startswith(\"$PREFIX\")) | select(.key != \"$KEEP\") | .id" \
+            | xargs -r -n1 gh cache delete
 
       - name: Run tests
         id: run-tests

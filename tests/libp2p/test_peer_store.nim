@@ -229,6 +229,11 @@ suite "AddressBook TTL / confidence":
     b.ttls = AddressConfidenceTtls(low: low, medium: medium, high: high)
     b
 
+  proc makeStore(low, medium, high: Duration): PeerStore =
+    PeerStore.new(
+      nil, addressTtls = AddressConfidenceTtls(low: low, medium: medium, high: high)
+    )
+
   proc newRecorder(book: AddressBook): ref seq[PeerId] =
     ## Record the peerId of every change-handler notification.
     var recorded: ref seq[PeerId]
@@ -448,6 +453,58 @@ suite "AddressBook TTL / confidence":
       # All expired entries makes 'contains' false, the raw entry remains.
       peerId2 notin book
       book.entries(peerId2).len == 1
+
+  test "connected peer reads include expired entries":
+    let peerStore = makeStore(1.seconds, 1.hours, 24.hours)
+    peerStore[AddressBook].set(peerId1, @[addr1], AddressConfidence.Low)
+    peerStore[AddressBook].book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+
+    check:
+      peerStore[AddressBook][peerId1].len == 0
+      peerId1 notin peerStore[AddressBook]
+
+    peerStore.markPeerConnected(peerId1)
+
+    check:
+      peerStore[AddressBook][peerId1] == @[addr1]
+      peerId1 in peerStore[AddressBook]
+
+  test "pruneExpired refreshes connected expired entries without notifying":
+    let peerStore = makeStore(1.seconds, 1.hours, 24.hours)
+    let book = peerStore[AddressBook]
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+
+    let recorded = newRecorder(book)
+    peerStore.markPeerConnected(peerId1)
+    book.pruneExpired()
+
+    check:
+      book.entries(peerId1).len == 1
+      not book.entries(peerId1)[0].isExpired(book.ttls)
+      book[peerId1] == @[addr1]
+      recorded[].len == 0
+
+  test "markPeerDisconnected refreshes stale entries before unpinning":
+    let peerStore = makeStore(1.seconds, 1.hours, 24.hours)
+    let book = peerStore[AddressBook]
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+
+    peerStore.markPeerConnected(peerId1)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    peerStore.markPeerDisconnected(peerId1)
+
+    check:
+      book[peerId1] == @[addr1]
+      peerId1 in book
+      not book.entries(peerId1)[0].isExpired(book.ttls)
+
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    book.pruneExpired()
+
+    check:
+      book.entries(peerId1).len == 0
+      peerId1 notin book
 
   test "reads on an absent peer return empty and do not crash":
     let book = makeBook(1.hours, 1.hours, 24.hours)

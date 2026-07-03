@@ -90,6 +90,7 @@ type
 
   AddressBook* = ref object of PeerBook[seq[AddressEntry]]
     ttls*: AddressConfidenceTtls
+    connectedPeers: HashSet[PeerId]
 
   KeyBook* = ref object of PeerBook[PublicKey]
 
@@ -230,6 +231,23 @@ proc mergeAddressEntry(entries: var seq[AddressEntry], entry: AddressEntry) =
   else:
     entries.add(entry)
 
+proc refreshExpired(addressBook: AddressBook, peerId: PeerId, now = Moment.now()) =
+  var entries = addressBook.book.getOrDefault(peerId)
+  if entries.len == 0:
+    return
+
+  var refreshed = false
+  for entry in entries.mitems:
+    if entry.isExpired(addressBook.ttls):
+      entry.lastUpdated = now
+      refreshed = true
+
+  if refreshed:
+    addressBook.book[peerId] = entries
+
+proc isLive(addressBook: AddressBook, peerId: PeerId, entry: AddressEntry): bool =
+  peerId in addressBook.connectedPeers or not entry.isExpired(addressBook.ttls)
+
 proc set*(
     addressBook: AddressBook,
     peerId: PeerId,
@@ -281,10 +299,10 @@ proc `[]=`*(addressBook: AddressBook, peerId: PeerId, addrs: seq[MultiAddress]) 
 
 proc `[]`*(addressBook: AddressBook, peerId: PeerId): seq[MultiAddress] =
   ## Return non-expired addresses for `peerId`.
-  addressBook.book
-    .getOrDefault(peerId)
-    .filterIt(not it.isExpired(addressBook.ttls))
-    .mapIt(it.address)
+  ## Connected peers keep their known addresses visible until disconnect.
+  addressBook.book.getOrDefault(peerId).filterIt(addressBook.isLive(peerId, it)).mapIt(
+    it.address
+  )
 
 proc entries*(addressBook: AddressBook, peerId: PeerId): seq[AddressEntry] =
   ## Return the raw entry list for `peerId`, including expired entries.
@@ -292,7 +310,7 @@ proc entries*(addressBook: AddressBook, peerId: PeerId): seq[AddressEntry] =
 
 proc contains*(addressBook: AddressBook, peerId: PeerId): bool =
   for entry in addressBook.book.getOrDefault(peerId):
-    if not entry.isExpired(addressBook.ttls):
+    if addressBook.isLive(peerId, entry):
       return true
   return false
 
@@ -330,13 +348,24 @@ proc extend*(
 
 proc pruneExpired*(addressBook: AddressBook) =
   ## Remove all per-address entries whose TTL has elapsed.
+  ## Connected peers keep their entries fresh while they remain connected.
   ## Peers whose last address expires are removed from the AddressBook only;
   ## other peer metadata (keys, protocols, agent version, etc.) is left intact.
   var pending: seq[(PeerId, seq[AddressEntry])]
+  var refresh: seq[PeerId]
   for peerId, entries in addressBook.book:
+    if peerId in addressBook.connectedPeers:
+      if entries.anyIt(it.isExpired(addressBook.ttls)):
+        refresh.add(peerId)
+      continue
+
     let alive = entries.filterIt(not it.isExpired(addressBook.ttls))
     if alive.len < entries.len:
       pending.add((peerId, alive))
+
+  let now = Moment.now()
+  for peerId in refresh:
+    addressBook.refreshExpired(peerId, now)
 
   for (peerId, alive) in pending:
     if alive.len > 0:
@@ -396,10 +425,31 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   p.books[name] = book
   book
 
+proc removeFromCleanupQueue(peerStore: PeerStore, peerId: PeerId) =
+  let cleanupPos = peerStore.toClean.find(peerId)
+  if cleanupPos >= 0:
+    peerStore.toClean.delete(cleanupPos)
+
 proc del*(peerStore: PeerStore, peerId: PeerId) =
   ## Delete the provided peer from every book.
+  peerStore.removeFromCleanupQueue(peerId)
+
+  peerStore.books.withValue(getTypeName(AddressBook), bookPtr):
+    AddressBook(bookPtr[]).connectedPeers.excl(peerId)
+
   for _, book in peerStore.books:
     book.deletor(peerId)
+
+proc markPeerConnected*(peerStore: PeerStore, peerId: PeerId) =
+  ## Mark `peerId` as actively connected so known addresses do not TTL-expire.
+  peerStore[AddressBook].connectedPeers.incl(peerId)
+  peerStore.removeFromCleanupQueue(peerId)
+
+proc markPeerDisconnected*(peerStore: PeerStore, peerId: PeerId) =
+  ## Drop active connection state after refreshing known addresses for redial.
+  let addressBook = peerStore[AddressBook]
+  addressBook.refreshExpired(peerId)
+  addressBook.connectedPeers.excl(peerId)
 
 proc addressPruneLoop(
     peerStore: PeerStore, interval: Duration
@@ -466,9 +516,7 @@ proc updatePeerInfo*(
     if sprBook.shouldStoreSignedPeerRecord(info.peerId, signedPeerRecord):
       sprBook[info.peerId] = signedPeerRecord
 
-  let cleanupPos = peerStore.toClean.find(info.peerId)
-  if cleanupPos >= 0:
-    peerStore.toClean.delete(cleanupPos)
+  peerStore.removeFromCleanupQueue(info.peerId)
 
 proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
   if peerStore.capacity == 0:
@@ -477,11 +525,11 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
   elif peerStore.capacity < 0:
     #infinite capacity
     return
+  peerStore.removeFromCleanupQueue(peerId)
 
   peerStore.toClean.add(peerId)
   while peerStore.toClean.len > peerStore.capacity:
     peerStore.del(peerStore.toClean[0])
-    peerStore.toClean.delete(0)
 
 proc identify*(
     peerStore: PeerStore, muxer: Muxer, dir: Direction

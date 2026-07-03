@@ -13,28 +13,16 @@ import
     routing_record,
     switch,
   ]
-import ../../tools/[crypto]
+import ../../tools/[crypto, switch_builder, multiaddress]
 
 proc createSwitch*(): Switch =
-  SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-    .withMemoryTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  makeStandardSwitch(multiaddress.MemoryAutoAddress)
 
 proc createSwitch*(config: RendezVousConfig): RendezVous =
-  let switch = SwitchBuilder
-    .new()
+  let switch = makeStandardSwitchBuilder(multiaddress.MemoryAutoAddress)
     .withRendezVous(config)
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-    .withMemoryTransport()
-    .withMplex()
-    .withNoise()
     .build()
+
   for h in switch.ms.handlers:
     if RendezVousCodec in h.protos:
       return RendezVous(h.protocol)

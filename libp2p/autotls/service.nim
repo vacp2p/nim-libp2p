@@ -12,8 +12,8 @@ import
   ./acme/client,
   ./broker,
   ./utils,
-  ../crypto/crypto,
   ../crypto/rsa,
+  ../crypto/rng,
   ../nameresolving/nameresolver,
   ../nameresolving/dnsresolver,
   ../switch,
@@ -185,9 +185,9 @@ method issueCertificate(
     raise newException(AutoTLSError, "DNS records not set")
 
   trace "Notifying challenge completion to ACME and downloading cert"
-  let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng).valueOr:
+  let certKeyPair = RsaPrivateKey.random(self.rng).valueOr:
     raise newException(AutoTLSError, "Unable to generate certificate key pair")
-  let derPrivKey = certKeyPair.seckey.rsakey.getBytes.valueOr:
+  let derPrivKey = certKeyPair.getBytes.valueOr:
     raise newException(AutoTLSError, "Unable to get TLS private key")
 
   let certificate = await self.acmeClient.getCertificate(

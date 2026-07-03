@@ -8,6 +8,9 @@ import ../../libp2p/[multiaddress]
 template ma*(address: string): MultiAddress =
   MultiAddress.init(address).get()
 
+template MemoryAutoAddress*(): MultiAddress =
+  ma("/memorytransport/*")
+
 template TcpAutoAddressIP4*(): MultiAddress =
   ma("/ip4/127.0.0.1/tcp/0")
 
