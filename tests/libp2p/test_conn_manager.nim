@@ -267,16 +267,17 @@ suite "Connection Manager":
 
     let
       muxer = makeMuxer(peerId)
-      connectedStarted = newAsyncEvent()
       unblockConnected = newAsyncEvent()
-    var events: seq[string]
+    var
+      connectedStarted = false
+      events: seq[string]
 
     proc connectedHandler(
         handlerPeerId: PeerId, event: ConnEvent
     ) {.async: (raises: [CancelledError]).} =
       if handlerPeerId == peerId:
         events.add("Connected")
-        connectedStarted.fire()
+        connectedStarted = true
         await unblockConnected.wait()
 
     proc disconnectedHandler(
@@ -299,7 +300,9 @@ suite "Connection Manager":
 
     let storeFut = connMngr.storeMuxer(muxer)
 
-    check await connectedStarted.wait().withTimeout(1.seconds)
+    checkUntilTimeout:
+      connectedStarted
+
     check muxer in connMngr
 
     await connMngr.dropPeer(peerId)
@@ -309,12 +312,7 @@ suite "Connection Manager":
     await storeFut
 
     checkUntilTimeout:
-      "Disconnected" in events
-
-    check:
-      "Connected" in events
-      "Left" in events
-      "Joined" notin events
+      events == @["Connected", "Left", "Disconnected"]
 
   asyncTest "drop connections for peer":
     let connMngr = newMaxTotal(maxConnsPerPeer = 2)
