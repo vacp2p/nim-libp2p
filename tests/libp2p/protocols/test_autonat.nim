@@ -14,17 +14,11 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest, crypto, switch_builder, multiaddress]
+import ../../tools/[unittest, switch_builder, multiaddress]
 
 proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
-  return SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[TcpAutoAddress])
-    .withTcpTransport()
-    .withMplex()
+  return makeStandardSwitchBuilder(TcpAutoAddress)
     .withAutonat()
-    .withNoise()
     .withNameResolver(nameResolver)
     .build()
 

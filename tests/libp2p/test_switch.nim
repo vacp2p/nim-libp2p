@@ -952,9 +952,7 @@ suite "Switch":
 
       let addrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
 
-      let switch1 =
-        makeStandardSwitchBuilder(TcpAutoAddress).withAddresses(addrs).build()
-
+      let switch1 = makeStandardSwitch(addrs)
       switch1.mount(testProto)
 
       let switch2 = makeStandardSwitch(TcpAutoAddress)
@@ -1023,19 +1021,7 @@ suite "Switch":
         makeStandardSwitchBuilder(TcpAutoAddress).withNameResolver(resolver).build()
       srcWsSwitch =
         makeStandardSwitchBuilder(WsAutoAddress).withNameResolver(resolver).build()
-
-      destSwitch = SwitchBuilder
-        .new()
-        .withAddresses(@[TcpAutoAddress, WsAutoAddress])
-        .withRng(rng())
-        .withMplex()
-        .withTransport(
-          proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr, config.rng)
-        )
-        .withTcpTransport()
-        .withNoise()
-        .build()
+      destSwitch = makeStandardSwitch(@[TcpAutoAddress, WsAutoAddress])
 
     await destSwitch.start()
     await srcWsSwitch.start()
@@ -1155,14 +1141,12 @@ suite "Switch":
     await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
-    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
-      .withAddresses(
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-          MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
-        ]
-      )
-      .build()
+    let switch = makeStandardSwitch(
+      @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+        MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
+      ]
+    )
 
     expect LPError:
       await switch.start()
