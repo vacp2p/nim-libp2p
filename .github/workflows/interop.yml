@@ -17,17 +17,10 @@ jobs:
     name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - name: Free Disk Space
-        # For some reason we have space issues while running this action. Likely while building the image.
-        # This action will free up some space to avoid the issue.
-        uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          tool-cache: true
-
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
       - name: Build image
-        run: docker buildx build --load -t nim-libp2p-transport-head -f interop/transport/Dockerfile .
+        run: docker build --load -t nim-libp2p-transport-head -f interop/transport/Dockerfile .
       - name: Run tests
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
@@ -39,45 +32,37 @@ jobs:
           worker-count: 4
           known-errors: "^(c-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\)|eth-p2p-z-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\))$"
 
-  # run-hole-punching-interop:
-  #   name: Run hole punching interoperability tests
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - name: Free Disk Space
-  #       # For some reason we have space issues while running this action. Likely while building the image.
-  #       # This action will free up some space to avoid the issue.
-  #       uses: jlumbroso/free-disk-space@v1.3.1
-  #       with:
-  #         tool-cache: true
-
-  #     - uses: actions/checkout@v4
-  #     - uses: docker/setup-buildx-action@v3
-  #     - name: Build image
-  #       run: docker buildx build --load -t nim-libp2p-hp-head -f interop/hole-punching/Dockerfile .
-  #     - name: Run tests
-  #       uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
-  #       with:
-  #         test-filter: nim-libp2p-hp-head
-  #         test-ignore: rust
-  #         extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
-  #         s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-  #         s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-  #         s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-  #         aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+  run-hole-punching-interop:
+    name: Run hole punching interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image
+        run: docker build --load -t nim-libp2p-hp-head -f interop/hole-punching/Dockerfile .
+      - name: Run tests
+        uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
+        with:
+          test-filter: nim-libp2p-hp-head
+          extra-versions: ${{ github.workspace }}/interop/hole-punching/version.json
+          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
+          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
+          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
 
   run-autonatv2-interop:
     name: Run AutoNATv2 interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25"
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v1
+        uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "stable"
 
@@ -85,10 +70,6 @@ jobs:
         run: |
           nimble setup
           cd interop/autonatv2/go-peer
-          git clone https://github.com/libp2p/go-libp2p
-          cd go-libp2p
-          git apply ../disable-filtering-of-private-ip-addresses.patch
-          cd ..
           go mod tidy
           go run testautonatv2.go &
           cd ../nim-peer
@@ -98,7 +79,7 @@ jobs:
     name: Run Kademlia DHT interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -106,7 +87,7 @@ jobs:
           toolchain: stable
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v1
+        uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "stable"
 
@@ -123,15 +104,15 @@ jobs:
     name: Run Partial Message interoperability tests
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25"
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v1
+        uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: "stable"
 

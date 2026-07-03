@@ -20,11 +20,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest, crypto, multiaddress]
-
-const
-  IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
-  IPv6Tcp = mapAnd(IP6, mapEq("tcp"))
+import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 suite "Identify":
   teardown:
@@ -43,15 +39,14 @@ suite "Identify":
       transport2 {.threadvar.}: Transport
       msListen {.threadvar.}: MultistreamSelect
       msDial {.threadvar.}: MultistreamSelect
-      conn {.threadvar.}: Connection
+      conn {.threadvar.}: RawConn
 
     asyncSetup:
-      ma =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-          MultiAddress.init("/ip6/::/tcp/0").get(),
-        ]
-      remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
+      ma = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+        MultiAddress.init("/ip6/::/tcp/0").get(),
+      ]
+      remoteSecKey = PrivateKey.random(ECDSA, rng()).get()
       remotePeerInfo =
         PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
@@ -75,7 +70,7 @@ suite "Identify":
       await transport2.stop()
 
     asyncTest "default agent version":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
         await msListen.handle(c)
@@ -96,7 +91,7 @@ suite "Identify":
     asyncTest "custom agent version":
       const customAgentVersion = "MY CUSTOM AGENT STRING"
       remotePeerInfo.agentVersion = customAgentVersion
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
 
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
@@ -116,10 +111,10 @@ suite "Identify":
       check id.signedPeerRecord.isNone()
 
     asyncTest "handle failed identify":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
 
       proc acceptHandler() {.async: (raises: [CancelledError]).} =
-        var conn: Connection
+        var conn: RawConn
         try:
           conn = await transport1.accept()
           await msListen.handle(conn)
@@ -132,12 +127,12 @@ suite "Identify":
       conn = await transport2.dial(transport1.addrs[0])
 
       expect IdentityNoMatchError:
-        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
+        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
         discard await msDial.select(conn, IdentifyCodec)
         discard await identifyProto2.identify(conn, pi2.peerId)
 
     asyncTest "can send signed peer record":
-      msListen.addHandler(IdentifyCodec, identifyProto1)
+      msListen.addHandler(identifyProto1)
       identifyProto1.sendSignedPeerRecord = true
       proc acceptHandler(): Future[void] {.async.} =
         let c = await transport1.accept()
@@ -162,21 +157,20 @@ suite "Identify":
       switch2 {.threadvar.}: Switch
       identifyPush1 {.threadvar.}: IdentifyPush
       identifyPush2 {.threadvar.}: IdentifyPush
-      conn {.threadvar.}: Connection
+      stream {.threadvar.}: Stream
 
     asyncSetup:
-      let ma =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-          MultiAddress.init("/ip6/::/tcp/0").get(),
-        ]
-      switch1 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
-      switch2 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
+      let ma = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+        MultiAddress.init("/ip6/::/tcp/0").get(),
+      ]
+      switch1 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
+      switch2 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
 
-      proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore1(info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
 
-      proc updateStore2(peerId: PeerId, info: IdentifyInfo) {.async.} =
+      proc updateStore2(info: IdentifyInfo) {.async.} =
         switch2.peerStore.updatePeerInfo(info)
 
       identifyPush1 = IdentifyPush.new(updateStore1)
@@ -188,16 +182,16 @@ suite "Identify":
       await switch1.start()
       await switch2.start()
 
-      conn = await switch2.dial(
+      stream = await switch2.dial(
         switch1.peerInfo.peerId, switch1.peerInfo.addrs, IdentifyPushCodec
       )
 
       check:
         # ensure both IPv4 and IPv6 addresses are used in switch.
-        countAddressesWithPattern(switch1.peerInfo.addrs, IPv4Tcp) > 1
-        countAddressesWithPattern(switch1.peerInfo.addrs, IPv6Tcp) > 1
-        countAddressesWithPattern(switch2.peerInfo.addrs, IPv4Tcp) > 1
-        countAddressesWithPattern(switch2.peerInfo.addrs, IPv6Tcp) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, TCP_IP4) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, TCP_IP6) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP4) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP6) > 1
 
         # ensure all addresses are advertized.
         # that is, peer store will have all address of other peer
@@ -228,7 +222,7 @@ suite "Identify":
           switch1.peerInfo.signedPeerRecord.envelope
 
     proc closeAll() {.async.} =
-      await conn.close()
+      await stream.close()
 
       await switch1.stop()
       await switch2.stop()
@@ -242,7 +236,7 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
-      await identifyPush2.push(switch2.peerInfo, conn)
+      await identifyPush2.push(switch2.peerInfo, stream)
 
       checkUntilTimeout:
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
@@ -262,9 +256,10 @@ suite "Identify":
           switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng[]).get())
+      let wrongPeerInfo = PeerInfo.new(PrivateKey.random(rng()).get())
+      await wrongPeerInfo.update()
 
-      await identifyPush2.push(switch2.peerInfo, conn)
+      await identifyPush2.push(wrongPeerInfo, stream)
 
       # We have no way to know when the message will is received
       # because it will fail validation inside push identify itself
@@ -276,27 +271,15 @@ suite "Identify":
 
       # Wait the very end to be sure that the push has been processed
       check:
-        switch1.peerStore[ProtoBook][oldPeerId] != switch2.peerInfo.protocols
-        switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
+        switch1.peerStore[ProtoBook][oldPeerId] != wrongPeerInfo.protocols
+        switch1.peerStore[AddressBook][oldPeerId] != wrongPeerInfo.addrs
 
   asyncTest "identify exposes QUIC transport addresses":
     let
-      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-
       # Server switch with both QUIC and TCP
-      server = SwitchBuilder
-        .new()
-        .withAddresses(@[quicAddress, tcpAddress])
-        .withRng(rng)
-        .withMplex()
-        .withTcpTransport()
-        .withQuicTransport()
-        .withNoise()
-        .build()
-
+      server = makeStandardSwitch(@[QuicAutoAddress, TcpAutoAddress])
       # Client switch to dial and identify
-      client = newStandardSwitch(addrs = @[tcpAddress], rng = rng)
+      client = makeStandardSwitch(TcpAutoAddress)
 
     await server.start()
     await client.start()
@@ -305,7 +288,7 @@ suite "Identify":
       await client.stop()
 
     check:
-      countAddressesWithPattern(server.peerInfo.addrs, IPv4Tcp) == 1
+      countAddressesWithPattern(server.peerInfo.addrs, TCP_IP4) == 1
       countAddressesWithPattern(server.peerInfo.addrs, QUIC_V1) == 1
 
     # Connect and request identify

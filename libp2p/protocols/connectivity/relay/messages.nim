@@ -3,11 +3,14 @@
 
 {.push raises: [].}
 
-import macros
-import stew/objects
 import results
-import ../../../peerinfo, ../../../signed_envelope
-import ../../../protobuf/minprotobuf
+import
+  protobuf_serialization,
+  protobuf_serialization/pkg/results,
+  protobuf_serialization/std/enums,
+  ../../../peerinfo,
+  ../../../signed_envelope,
+  ../../../utils/protobuf
 
 # Circuit Relay V1 Message
 
@@ -36,142 +39,41 @@ type
     StopRelayRefused = 390
     MalformedMessage = 400
 
-  RelayPeer* = object
-    peerId*: PeerId
-    addrs*: seq[MultiAddress]
+  RelayPeer* {.proto2.} = object
+    peerId* {.fieldNumber: 1, required, ext.}: PeerId
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
-  RelayMessage* = object
-    msgType*: Opt[RelayType]
-    srcPeer*: Opt[RelayPeer]
-    dstPeer*: Opt[RelayPeer]
-    status*: Opt[StatusV1]
+  RelayMessage* {.proto2.} = object
+    msgType* {.fieldNumber: 1, ext.}: Opt[RelayType]
+    srcPeer* {.fieldNumber: 2.}: Opt[RelayPeer]
+    dstPeer* {.fieldNumber: 3.}: Opt[RelayPeer]
+    status* {.fieldNumber: 4, ext.}: Opt[StatusV1]
 
-proc encode*(msg: RelayMessage): ProtoBuffer =
-  result = initProtoBuffer()
+Protobuf.serializerFor([RelayMessage], withMetrics = true, domain = "relay-v1")
 
-  msg.msgType.withValue(typ):
-    result.write(1, typ.ord.uint)
-  msg.srcPeer.withValue(srcPeer):
-    var peer = initProtoBuffer()
-    peer.write(1, srcPeer.peerId)
-    for ma in srcPeer.addrs:
-      peer.write(2, ma.data.buffer)
-    peer.finish()
-    result.write(2, peer.buffer)
-  msg.dstPeer.withValue(dstPeer):
-    var peer = initProtoBuffer()
-    peer.write(1, dstPeer.peerId)
-    for ma in dstPeer.addrs:
-      peer.write(2, ma.data.buffer)
-    peer.finish()
-    result.write(3, peer.buffer)
-  msg.status.withValue(status):
-    result.write(4, status.ord.uint)
-
-  result.finish()
-
-proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
-  var
-    rMsg: RelayMessage
-    msgTypeOrd: uint32
-    src: RelayPeer
-    dst: RelayPeer
-    statusOrd: uint32
-    pbSrc: ProtoBuffer
-    pbDst: ProtoBuffer
-
-  let pb = initProtoBuffer(buf)
-
-  if ?pb.getField(1, msgTypeOrd).toOpt():
-    if msgTypeOrd.int notin RelayType:
-      return Opt.none(RelayMessage)
-    rMsg.msgType = Opt.some(RelayType(msgTypeOrd))
-
-  if ?pb.getField(2, pbSrc).toOpt():
-    discard ?pbSrc.getField(1, src.peerId).toOpt()
-    discard ?pbSrc.getRepeatedField(2, src.addrs).toOpt()
-    rMsg.srcPeer = Opt.some(src)
-
-  if ?pb.getField(3, pbDst).toOpt():
-    discard ?pbDst.getField(1, dst.peerId).toOpt()
-    discard ?pbDst.getRepeatedField(2, dst.addrs).toOpt()
-    rMsg.dstPeer = Opt.some(dst)
-
-  if ?pb.getField(4, statusOrd).toOpt():
-    var status: StatusV1
-    if not checkedEnumAssign(status, statusOrd):
-      return Opt.none(RelayMessage)
-    rMsg.status = Opt.some(status)
-  Opt.some(rMsg)
-
-# Voucher
-
-type Voucher* = object
-  relayPeerId*: PeerId # peer ID of the relay
-  reservingPeerId*: PeerId # peer ID of the reserving peer
-  expiration*: uint64 # UNIX UTC expiration time for the reservation
-
-proc decode*(_: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
-  let pb = initProtoBuffer(buf)
-  var v = Voucher()
-
-  ?pb.getRequiredField(1, v.relayPeerId)
-  ?pb.getRequiredField(2, v.reservingPeerId)
-  ?pb.getRequiredField(3, v.expiration)
-
-  ok(v)
-
-proc encode*(v: Voucher): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, v.relayPeerId)
-  pb.write(2, v.reservingPeerId)
-  pb.write(3, v.expiration)
-
-  pb.finish()
-  pb.buffer
-
-proc init*(
-    T: typedesc[Voucher],
-    relayPeerId: PeerId,
-    reservingPeerId: PeerId,
-    expiration: uint64,
-): T =
-  T(
-    relayPeerId = relayPeerId, reservingPeerId = reservingPeerId, expiration: expiration
-  )
-
-type SignedVoucher* = SignedPayload[Voucher]
-
-proc payloadDomain*(_: typedesc[Voucher]): string =
-  "libp2p-relay-rsvp"
-
-proc payloadType*(_: typedesc[Voucher]): seq[byte] =
-  @[(byte) 0x03, (byte) 0x02]
-
-proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
-  if not spr.data.relayPeerId.match(spr.envelope.publicKey):
-    err(EnvelopeInvalidSignature)
-  else:
-    ok()
-
-# Circuit Relay V2 Hop Message
+# Circuit Relay V2 Messages
 
 type
-  Peer* = object
-    peerId*: PeerId
-    addrs*: seq[MultiAddress]
+  Voucher* {.proto3.} = object
+    relayPeerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    reservingPeerId* {.fieldNumber: 2, ext.}: Opt[PeerId]
+    expiration* {.fieldNumber: 3, pint.}: Opt[uint64]
 
-  Reservation* = object
-    expire*: uint64 # required, Unix expiration time (UTC)
-    addrs*: seq[MultiAddress] # relay address for reserving peer
-    svoucher*: Opt[seq[byte]] # optional, reservation voucher
+  Peer* {.proto3.} = object
+    peerId* {.fieldNumber: 1, ext.}: Opt[PeerId]
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
-  Limit* = object
-    duration*: uint32 # seconds
-    data*: uint64 # bytes
+  Reservation* {.proto3.} = object
+    expire* {.fieldNumber: 1, pint.}: Opt[uint64]
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
+    svoucher* {.fieldNumber: 3.}: Opt[seq[byte]]
+
+  Limit* {.proto3.} = object
+    duration* {.fieldNumber: 1, pint.}: uint32
+    data* {.fieldNumber: 2, pint.}: uint64
 
   StatusV2* = enum
+    Unused = 0 # needed for protobuf
     Ok = 100
     ReservationRefused = 200
     ResourceLimitExceeded = 201
@@ -186,152 +88,55 @@ type
     Connect = 1
     Status = 2
 
-  HopMessage* = object
-    msgType*: HopMessageType
-    peer*: Opt[Peer]
-    reservation*: Opt[Reservation]
-    limit*: Limit
-    status*: Opt[StatusV2]
+  HopMessage* {.proto3.} = object
+    msgType* {.fieldNumber: 1, ext.}: Opt[HopMessageType]
+    peer* {.fieldNumber: 2.}: Opt[Peer]
+    reservation* {.fieldNumber: 3.}: Opt[Reservation]
+    limit* {.fieldNumber: 4.}: Opt[Limit]
+    status* {.fieldNumber: 5, ext.}: Opt[StatusV2]
 
-proc encode*(msg: HopMessage): ProtoBuffer =
-  var pb = initProtoBuffer()
-
-  pb.write(1, msg.msgType.ord.uint)
-  msg.peer.withValue(peer):
-    var ppb = initProtoBuffer()
-    ppb.write(1, peer.peerId)
-    for ma in peer.addrs:
-      ppb.write(2, ma.data.buffer)
-    ppb.finish()
-    pb.write(2, ppb.buffer)
-  msg.reservation.withValue(rsrv):
-    var rpb = initProtoBuffer()
-    rpb.write(1, rsrv.expire)
-    for ma in rsrv.addrs:
-      rpb.write(2, ma.data.buffer)
-    rsrv.svoucher.withValue(vouch):
-      rpb.write(3, vouch)
-    rpb.finish()
-    pb.write(3, rpb.buffer)
-  if msg.limit.duration > 0 or msg.limit.data > 0:
-    var lpb = initProtoBuffer()
-    if msg.limit.duration > 0:
-      lpb.write(1, msg.limit.duration)
-    if msg.limit.data > 0:
-      lpb.write(2, msg.limit.data)
-    lpb.finish()
-    pb.write(4, lpb.buffer)
-  msg.status.withValue(status):
-    pb.write(5, status.ord.uint)
-
-  pb.finish()
-  pb
-
-proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Opt[HopMessage] =
-  var msg: HopMessage
-  let pb = initProtoBuffer(buf)
-
-  var msgTypeOrd: uint32
-  ?pb.getRequiredField(1, msgTypeOrd).toOpt()
-  if not checkedEnumAssign(msg.msgType, msgTypeOrd):
-    return Opt.none(HopMessage)
-
-  var pbPeer: ProtoBuffer
-  if ?pb.getField(2, pbPeer).toOpt():
-    var peer: Peer
-    ?pbPeer.getRequiredField(1, peer.peerId).toOpt()
-    discard ?pbPeer.getRepeatedField(2, peer.addrs).toOpt()
-    msg.peer = Opt.some(peer)
-
-  var pbReservation: ProtoBuffer
-  if ?pb.getField(3, pbReservation).toOpt():
-    var
-      svoucher: seq[byte]
-      reservation: Reservation
-    if ?pbReservation.getField(3, svoucher).toOpt():
-      reservation.svoucher = Opt.some(svoucher)
-    ?pbReservation.getRequiredField(1, reservation.expire).toOpt()
-    discard ?pbReservation.getRepeatedField(2, reservation.addrs).toOpt()
-    msg.reservation = Opt.some(reservation)
-
-  var pbLimit: ProtoBuffer
-  if ?pb.getField(4, pbLimit).toOpt():
-    discard ?pbLimit.getField(1, msg.limit.duration).toOpt()
-    discard ?pbLimit.getField(2, msg.limit.data).toOpt()
-
-  var statusOrd: uint32
-  if ?pb.getField(5, statusOrd).toOpt():
-    var status: StatusV2
-    if not checkedEnumAssign(status, statusOrd):
-      return Opt.none(HopMessage)
-    msg.status = Opt.some(status)
-  Opt.some(msg)
-
-# Circuit Relay V2 Stop Message
-
-type
   StopMessageType* {.pure.} = enum
     Connect = 0
     Status = 1
 
-  StopMessage* = object
-    msgType*: StopMessageType
-    peer*: Opt[Peer]
-    limit*: Limit
-    status*: Opt[StatusV2]
+  StopMessage* {.proto3.} = object
+    msgType* {.fieldNumber: 1, ext.}: Opt[StopMessageType]
+    peer* {.fieldNumber: 2.}: Opt[Peer]
+    limit* {.fieldNumber: 3.}: Opt[Limit]
+    status* {.fieldNumber: 4, ext.}: Opt[StatusV2]
 
-proc encode*(msg: StopMessage): ProtoBuffer =
-  var pb = initProtoBuffer()
+Protobuf.serializerFor([Voucher])
+Protobuf.serializerFor(
+  [StopMessage, HopMessage], withMetrics = true, domain = "relay-v2"
+)
 
-  pb.write(1, msg.msgType.ord.uint)
-  msg.peer.withValue(peer):
-    var ppb = initProtoBuffer()
-    ppb.write(1, peer.peerId)
-    for ma in peer.addrs:
-      ppb.write(2, ma.data.buffer)
-    ppb.finish()
-    pb.write(2, ppb.buffer)
-  if msg.limit.duration > 0 or msg.limit.data > 0:
-    var lpb = initProtoBuffer()
-    if msg.limit.duration > 0:
-      lpb.write(1, msg.limit.duration)
-    if msg.limit.data > 0:
-      lpb.write(2, msg.limit.data)
-    lpb.finish()
-    pb.write(3, lpb.buffer)
-  msg.status.withValue(status):
-    pb.write(4, status.ord.uint)
+proc init*(
+    T: typedesc[Voucher],
+    relayPeerId: PeerId,
+    reservingPeerId: PeerId,
+    expiration: uint64,
+): T =
+  T(
+    relayPeerId: Opt.some(relayPeerId),
+    reservingPeerId: Opt.some(reservingPeerId),
+    expiration: Opt.some(expiration),
+  )
 
-  pb.finish()
-  pb
+type SignedVoucher* = SignedPayload[Voucher]
 
-proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Opt[StopMessage] =
-  var msg: StopMessage
+proc payloadDomain*(_: typedesc[Voucher]): string =
+  "libp2p-relay-rsvp"
 
-  let pb = initProtoBuffer(buf)
+proc payloadType*(_: typedesc[Voucher]): seq[byte] =
+  @[(byte) 0x03, (byte) 0x02]
 
-  var msgTypeOrd: uint32
-  ?pb.getRequiredField(1, msgTypeOrd).toOpt()
-  if msgTypeOrd.int notin StopMessageType:
-    return Opt.none(StopMessage)
-  msg.msgType = StopMessageType(msgTypeOrd)
+proc checkValid*(spr: SignedVoucher): Result[void, EnvelopeError] =
+  let relayPeerId = spr.data.relayPeerId.valueOr:
+    return err(EnvelopeFieldMissing)
+  if spr.data.reservingPeerId.isNone or spr.data.expiration.isNone:
+    return err(EnvelopeFieldMissing)
 
-  var pbPeer: ProtoBuffer
-  if ?pb.getField(2, pbPeer).toOpt():
-    var peer: Peer
-    ?pbPeer.getRequiredField(1, peer.peerId).toOpt()
-    discard ?pbPeer.getRepeatedField(2, peer.addrs).toOpt()
-    msg.peer = Opt.some(peer)
-
-  var pbLimit: ProtoBuffer
-  if ?pb.getField(3, pbLimit).toOpt():
-    discard ?pbLimit.getField(1, msg.limit.duration).toOpt()
-    discard ?pbLimit.getField(2, msg.limit.data).toOpt()
-
-  var statusOrd: uint32
-  if ?pb.getField(4, statusOrd).toOpt():
-    var status: StatusV2
-    if not checkedEnumAssign(status, statusOrd):
-      return Opt.none(StopMessage)
-    msg.status = Opt.some(status)
-  Opt.some(msg)
+  if not relayPeerId.match(spr.envelope.publicKey):
+    err(EnvelopeInvalidSignature)
+  else:
+    ok()

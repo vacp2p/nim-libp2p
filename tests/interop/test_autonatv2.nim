@@ -6,23 +6,27 @@
 import chronos
 import ./autonatv2
 import
-  ../../libp2p/
-    [builders, peerid, switch, wire, protocols/connectivity/autonatv2/service]
-import ../tools/[unittest, crypto]
+  ../../libp2p/[
+    peerid, switch, wire, protocols/connectivity/autonatv2/service, services/natservice
+  ]
+import ../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(address).get()])
     .withTcpTransport()
     .withYamux()
     .withNoise()
 
   if withAutonatV2:
-    builder = builder.withAutonatV2Server().withAutonatV2(
-        serviceConfig =
-          AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
+    builder = builder.withAutonatV2Server().withNAT(
+        autonatConfig(
+          AutonatV2,
+          v2ServiceConfig =
+            Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))),
+        )
       )
 
   builder.build()
@@ -59,7 +63,7 @@ suite "Autonatv2 Interop Tests with Nim nodes":
 
   asyncTest "Fails gracefully on connection error":
     const unreachableAddress = "/ip6/::1/tcp/59999" # Nothing listening
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     const ourAddress = "/ip6/::1/tcp/4042"
     expect DialFailedError:

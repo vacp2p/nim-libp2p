@@ -31,7 +31,7 @@ suite "Tor transport":
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-  proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+  proc streamProvider(conn: RawConn, handle: bool = true): Muxer =
     let muxer = Mplex.new(conn)
     if handle:
       asyncSpawn muxer.handle()
@@ -42,27 +42,24 @@ suite "Tor transport":
       "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
     address2 =
       "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81"
-    validWireAddresses =
-      @[
-        # Addresses for listening (TcpOnion3)
-        "/ip4/127.0.0.1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-        "/ip6/::1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-      ]
-    validNonWireAddresses =
-      @[
-        # Addresses for dialing
-        "/ip4/127.0.0.1/tcp/1234", # TCP
-        "/ip6/::1/tcp/1234", # TCP over IPv6
-        "/dns/example.com/tcp/1234", # TCP with DNS
-        "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
-      ]
-    invalidAddresses =
-      @[
-        "/ip4/127.0.0.1/udp/1234", # UDP not supported
-        "/ip4/127.0.0.1/tcp/1234/ws", # WebSocket not supported
-        "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
-        "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
-      ]
+    validWireAddresses = @[
+      # Addresses for listening (TcpOnion3)
+      "/ip4/127.0.0.1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+      "/ip6/::1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+    ]
+    validNonWireAddresses = @[
+      # Addresses for dialing
+      "/ip4/127.0.0.1/tcp/1234", # TCP
+      "/ip6/::1/tcp/1234", # TCP over IPv6
+      "/dns/example.com/tcp/1234", # TCP with DNS
+      "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
+    ]
+    invalidAddresses = @[
+      "/ip4/127.0.0.1/udp/1234", # UDP not supported
+      "/ip4/127.0.0.1/tcp/1234/ws", # WebSocket not supported
+      "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
+      "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
+    ]
 
   setup:
     stub = TorServerStub.new()
@@ -142,18 +139,16 @@ suite "Tor transport":
 
     proc new(T: typedesc[TestProto]): T =
       # every incoming connections will be in handled in this closure
-      proc handle(
-          conn: Connection, proto: string
-      ) {.async: (raises: [CancelledError]).} =
+      proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
         try:
           var resp: array[6, byte]
-          await conn.readExactly(addr resp, 6)
+          await stream.readExactly(addr resp, 6)
           check string.fromBytes(resp) == "client"
-          await conn.write("server")
+          await stream.write("server")
         except LPStreamError:
           raiseAssert "Unexpected LPStreamError in Tor onion3 test handler"
         finally:
-          await conn.close()
+          await stream.close()
 
       return T.new(codecs = @[TestCodec], handler = handle)
 
@@ -163,7 +158,7 @@ suite "Tor transport":
       )
       .tryGet()
 
-    let serverSwitch = TorSwitch.new(torServer, rng, @[ma], {ReuseAddr})
+    let serverSwitch = TorSwitch.new(torServer, rng(), @[ma], {ReuseAddr})
 
     # setup the custom proto
     let testProto = TestProto.new()
@@ -176,7 +171,7 @@ suite "Tor transport":
 
     proc startClient() {.async.} =
       let clientSwitch =
-        TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
+        TorSwitch.new(torServer = torServer, rng = rng(), flags = {ReuseAddr})
 
       let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
 
@@ -193,7 +188,8 @@ suite "Tor transport":
     await serverSwitch.stop()
 
   test "It's not possible to add another transport in TorSwitch":
-    let torSwitch = TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
+    let torSwitch =
+      TorSwitch.new(torServer = torServer, rng = rng(), flags = {ReuseAddr})
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()

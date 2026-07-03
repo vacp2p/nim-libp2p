@@ -3,7 +3,7 @@
 
 {.used.}
 
-import times
+import times, results
 import
   ../../../../libp2p/
     [transports/tls/certificate, transports/tls/certificate_ffi, crypto/crypto, peerid]
@@ -13,7 +13,7 @@ suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":
     let schemes = @[Ed25519, Secp256k1, ECDSA]
     for scheme in schemes:
-      let keypair = KeyPair.random(scheme, rng[]).tryGet()
+      let keypair = KeyPair.random(scheme, rng()).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
       let certX509 = generateX509(keypair, encodingFormat = EncodingFormat.DER)
@@ -21,31 +21,51 @@ suite "Certificate roundtrip tests":
       check:
         peerId == cert.peerId()
         cert.publicKey().scheme == scheme
-        cert.verify()
+        cert.verify(cert.peerId())
 
-  test "gnerate with invalid validity time":
-    let keypair = KeyPair.random(Ed25519, rng[]).tryGet()
+  test "verified identity key matches peer id":
+    let keypair = KeyPair.random(Ed25519, rng()).tryGet()
+    let peerId = PeerId.init(keypair.pubkey).tryGet()
+    let otherPeerId = PeerId.random(rng()).tryGet()
+
+    let certX509 = generateX509(keypair, encodingFormat = EncodingFormat.DER)
+    let cert = parse(certX509.certificate)
+    let identityKey = cert.verifiedIdentityKey()
+
+    check:
+      identityKey.isSome
+      cert.verify(peerId)
+      not cert.verify(otherPeerId)
+
+    if identityKey.isSome:
+      let actualPeerId = PeerId.init(identityKey.get()).tryGet()
+      check:
+        actualPeerId == peerId
+        actualPeerId != otherPeerId
+
+  test "generate with invalid validity time":
+    let keypair = KeyPair.random(Ed25519, rng()).tryGet()
 
     # past
     var validFrom = (now() - 3.days).toTime()
     var validTo = (now() - 1.days).toTime()
     var certX509 = generateX509(keypair, validFrom, validTo)
     var cert = parse(certX509.certificate)
-    check not cert.verify()
+    check not cert.verify(cert.peerId())
 
     # future
     validFrom = (now() + 1.days).toTime()
     validTo = (now() + 3.days).toTime()
     certX509 = generateX509(keypair, validFrom, validTo)
     cert = parse(certX509.certificate)
-    check not cert.verify()
+    check not cert.verify(cert.peerId())
 
     # twisted from-to
     validFrom = (now() + 3.days).toTime()
     validTo = (now() - 3.days).toTime()
     certX509 = generateX509(keypair, validFrom, validTo)
     cert = parse(certX509.certificate)
-    check not cert.verify()
+    check not cert.verify(cert.peerId())
 
 ## Test vectors from https://github.com/libp2p/specs/blob/master/tls/tls.md#test-vectors.
 suite "Test vectors":
@@ -56,7 +76,7 @@ suite "Test vectors":
 
     check $cert.peerId() == "QmfXbAwNjJLXfesgztEHe8HwgVDCMMpZ9Eax1HYq6hn9uE"
     check cert.publicKey().scheme == PKScheme.ECDSA
-    check cert.verify()
+    check cert.verify(cert.peerId())
 
   test "RSA Peer ID":
     let certBytesHex =
@@ -65,7 +85,7 @@ suite "Test vectors":
 
     check $cert.peerId() == "QmXsmtNnfvVdbDaPK415Zw3sjcS49aNfE33PtrQPtoyUfa"
     check cert.publicKey().scheme == PKScheme.RSA
-    check cert.verify()
+    check cert.verify(cert.peerId())
 
   test "Ed25519 Peer ID":
     let certBytesHex =
@@ -74,7 +94,7 @@ suite "Test vectors":
 
     check $cert.peerId() == "12D3KooWM6CgA9iBFZmcYAHA6A2qvbAxqfkmrYiRQuz3XEsk4Ksv"
     check cert.publicKey().scheme == PKScheme.Ed25519
-    check cert.verify()
+    check cert.verify(cert.peerId())
 
   test "Secp256k1 Peer ID":
     let certBytesHex =
@@ -83,7 +103,7 @@ suite "Test vectors":
 
     check $cert.peerId() == "16Uiu2HAkutTMoTzDw1tCvSRtu6YoixJwS46S1ZFxW8hSx9fWHiPs"
     check cert.publicKey().scheme == PKScheme.Secp256k1
-    check cert.verify()
+    check cert.verify(cert.peerId())
 
   test "Invalid certificate signature":
     let certBytesHex =
@@ -95,7 +115,7 @@ suite "Test vectors":
     check cert.publicKey().scheme == PKScheme.ECDSA
 
     # should not verify
-    check not cert.verify()
+    check not cert.verify(cert.peerId())
 
   test "Expired certificate":
     let certBytesHex =
@@ -107,7 +127,7 @@ suite "Test vectors":
     check cert.publicKey().scheme == PKScheme.Ed25519
 
     # should not verify
-    check not cert.verify()
+    check not cert.verify(cert.peerId())
 
 suite "utilities test":
   test "parseCertTime":
@@ -117,8 +137,14 @@ suite "utilities test":
     dt = parseCertTime("Jan  1 00:00:00 1975 GMT")
     check 157766400 == dt.toUnix()
 
+    dt = parseCertTime("Jan  1 13:05:06 2025 GMT")
+    check 1735736706 == dt.toUnix()
+
+    expect TimeParseError:
+      discard parseCertTime("")
+
   test "KeyPair to cert_key_t":
-    let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
 
     let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
       raiseAssert "Failed to get seckey raw bytes (DER)"
@@ -126,6 +152,8 @@ suite "utilities test":
     # make seckey into certKey
     let certKey = cert_new_key_t(rawSeckey).valueOr:
       raiseAssert("Failed to create key")
+    defer:
+      cert_free_key(certKey)
 
     # make certKey back into seq[byte]
     let rawSeckeyBack = cert_serialize_privk(certKey, CERT_FORMAT_DER).valueOr:
@@ -136,6 +164,8 @@ suite "utilities test":
 
   test "CSR generation":
     let certKey = cert_generate_key().expect("could not generate key")
+    defer:
+      cert_free_key(certKey)
 
     check:
       cert_signing_req("my.domain.string", certKey).isOk()
@@ -145,36 +175,65 @@ suite "utilities test":
           # 253 characters, no labels longer than 63, okay
         certKey,
       )
-      .isOk()
+        .isOk()
 
       cert_signing_req(
         "my.domain.", # domain ending in ".", okay
         certKey,
       )
-      .isOk()
+        .isOk()
 
       cert_signing_req(
         "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         # 254 characters, too long
         certKey,
       )
-      .error() == CERT_ERROR_CN_TOO_LONG
+        .error() == CERT_ERROR_CN_TOO_LONG
 
       cert_signing_req(
         "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           # 64 character label, too long
         certKey,
       )
-      .error() == CERT_ERROR_CN_LABEL_TOO_LONG
+        .error() == CERT_ERROR_CN_LABEL_TOO_LONG
 
       cert_signing_req(
         "my..empty.label.domain", # domain with empty label
         certKey,
       )
-      .error() == CERT_ERROR_CN_EMPTY_LABEL # CERT_ERROR_CN_EMPTY_LABEL
+        .error() == CERT_ERROR_CN_EMPTY_LABEL # CERT_ERROR_CN_EMPTY_LABEL
 
       cert_signing_req(
         "", # domain with empty cn
         certKey,
       )
-      .error() == CERT_ERROR_CN_EMPTY
+        .error() == CERT_ERROR_CN_EMPTY
+
+  test "parse rejects empty certificate":
+    expect CertificateParsingError:
+      discard parse(newSeq[byte]())
+
+  test "certificate extension values must be non-empty":
+    let certKey = cert_generate_key().expect("could not generate key")
+    defer:
+      cert_free_key(certKey)
+
+    check:
+      cert_generate(
+        certKey,
+        @[],
+        @[byte(1)],
+        "test",
+        "20250101130506Z".cstring,
+        "20250101140506Z".cstring,
+        CERT_FORMAT_DER,
+      ).error == CERT_ERROR_EXTENSION_DATA
+      cert_generate(
+        certKey,
+        @[byte(1)],
+        @[],
+        "test",
+        "20250101130506Z".cstring,
+        "20250101140506Z".cstring,
+        CERT_FORMAT_DER,
+      ).error == CERT_ERROR_EXTENSION_DATA

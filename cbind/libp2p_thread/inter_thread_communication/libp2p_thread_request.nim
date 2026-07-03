@@ -13,7 +13,8 @@ import
   ../../[ffi_types, types, alloc],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
+    libp2p_kademlia_requests, libp2p_service_discovery_requests, libp2p_stream_requests,
+    libp2p_relay_requests, libp2p_protocol_requests, libp2p_peerstore_requests,
   ],
   ../../../libp2p
 
@@ -22,8 +23,11 @@ type RequestType* {.pure.} = enum
   PEER_MANAGER
   PUBSUB
   KADEMLIA
+  SERVICE_DISCOVERY
   STREAM
   RELAY
+  PROTOCOL
+  PEERSTORE
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -33,7 +37,7 @@ type CallbackKind* {.pure.} = enum
   GET_PROVIDERS
   RANDOM_RECORDS
   CONNECTED_PEERS
-  CONNECTION
+  STREAM
   READ
   RESERVATION
 
@@ -61,6 +65,37 @@ proc createShared*(
   ret[].callback = callback
   ret[].userData = userData
   return ret
+
+proc destroyUnprocessedRequest*(request: ptr LibP2PThreadRequest) =
+  ## Free a request that never reached its processor.
+  ##
+  ## Once `process` starts, ownership of reqContent belongs to the typed request
+  ## processor and this helper must not be used.
+  if request.isNil():
+    return
+
+  if not request[].reqContent.isNil():
+    case request[].reqType
+    of RequestType.LIFECYCLE:
+      destroyShared(cast[ptr LifecycleRequest](request[].reqContent))
+    of RequestType.PEER_MANAGER:
+      destroyShared(cast[ptr PeerManagementRequest](request[].reqContent))
+    of RequestType.PUBSUB:
+      destroyShared(cast[ptr PubSubRequest](request[].reqContent))
+    of RequestType.KADEMLIA:
+      destroyShared(cast[ptr KademliaRequest](request[].reqContent))
+    of RequestType.SERVICE_DISCOVERY:
+      destroyShared(cast[ptr ServiceDiscoveryRequest](request[].reqContent))
+    of RequestType.STREAM:
+      destroyShared(cast[ptr StreamRequest](request[].reqContent))
+    of RequestType.RELAY:
+      destroyShared(cast[ptr RelayRequest](request[].reqContent))
+    of RequestType.PROTOCOL:
+      destroyShared(cast[ptr ProtocolRequest](request[].reqContent))
+    of RequestType.PEERSTORE:
+      destroyShared(cast[ptr PeerStoreRequest](request[].reqContent))
+
+  deallocShared(request)
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
@@ -202,11 +237,7 @@ proc handleGetProvidersRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      providersRes[].providers,
-      providersRes[].providersLen,
-      nil,
-      0,
+      RET_OK.cint, providersRes[].providers, providersRes[].providersLen, nil, 0,
       request[].userData,
     )
 
@@ -228,11 +259,7 @@ proc handleRandomRecordsRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      recordsRes[].records,
-      recordsRes[].recordsLen,
-      nil,
-      0,
+      RET_OK.cint, recordsRes[].records, recordsRes[].recordsLen, nil, 0,
       request[].userData,
     )
 
@@ -262,16 +289,45 @@ proc handleReservationRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      rsvp[].addrs,
-      rsvp[].addrsLen,
-      rsvp[].expireTime,
-      nil,
-      0,
+      RET_OK.cint, rsvp[].addrs, rsvp[].addrsLen, rsvp[].expireTime, nil, 0,
       request[].userData,
     )
 
   deallocReservationResult(rsvp)
+
+proc handlePeerStoreEntryRes(
+    res: Result[ptr Libp2pPeerStoreEntry, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[PeerStoreEntryCallback](request[].callback)
+
+  let entry = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      if msg.len() > 0:
+        cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](msg.len()), request[].userData)
+      else:
+        cb(RET_ERR.cint, nil, nil, cast[csize_t](msg.len()), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(RET_OK.cint, entry, nil, 0, request[].userData)
+
+  deallocPeerStoreEntry(entry)
+
+proc processPeerStore(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  let req = cast[ptr PeerStoreRequest](request[].reqContent)
+  case req[].operation
+  of PS_GET_PEERS:
+    handleConnectedPeersRes(await req.processGetPeers(libp2p), request)
+  of PS_GET_PEER_INFO:
+    handlePeerStoreEntryRes(await req.processGetPeerInfo(libp2p), request)
+  else:
+    handleRes(await req.process(libp2p), request)
 
 proc processRelay(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
@@ -280,6 +336,13 @@ proc processRelay(
   case req[].operation
   of RelayMsgType.RELAY_RESERVE:
     handleReservationRes(await req.processReserve(libp2p), request)
+
+proc processProtocol(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  handleRes(
+    await cast[ptr ProtocolRequest](request[].reqContent).process(libp2p), request
+  )
 
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
@@ -324,6 +387,18 @@ proc processPubSub(
     await cast[ptr PubSubRequest](request[].reqContent).process(libp2p), request
   )
 
+proc processServiceDiscovery(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  let req = cast[ptr ServiceDiscoveryRequest](request[].reqContent)
+  case request[].callbackKind
+  of CallbackKind.RANDOM_RECORDS:
+    handleRandomRecordsRes(await req.processLookup(libp2p.kad), request)
+  of CallbackKind.READ:
+    handleReadRes(await req.processCreateXpr(libp2p), request)
+  else:
+    handleRes(await req.process(libp2p.kad), request)
+
 proc processKademlia(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -341,22 +416,22 @@ proc processKademlia(
   else:
     handleRes(await kadReq.process(kad), request)
 
-proc handleConnectionRes(
+proc handleStreamRes(
     res: Result[ptr Libp2pStream, string], request: ptr LibP2PThreadRequest
 ) =
   defer:
     deallocShared(request)
 
-  let cb = cast[ConnectionCallback](request[].callback)
+  let cb = cast[ffi_types.StreamCallback](request[].callback)
 
-  let conn = res.valueOr:
+  let stream = res.valueOr:
     foreignThreadGc:
       let msg = $error
       cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
     return
 
   foreignThreadGc:
-    cb(RET_OK.cint, conn, nil, 0, request[].userData)
+    cb(RET_OK.cint, stream, nil, 0, request[].userData)
 
 proc processStream(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
@@ -364,17 +439,9 @@ proc processStream(
   let req = cast[ptr StreamRequest](request[].reqContent)
   case req[].operation
   of StreamMsgType.DIAL:
-    handleConnectionRes(await req.processDial(libp2p), request)
+    handleStreamRes(await req.processDial(libp2p), request)
   of StreamMsgType.DIAL_CIRCUIT_RELAY:
-    handleConnectionRes(await req.processDialCircuitRelay(libp2p), request)
-  of StreamMsgType.MIX_DIAL:
-    handleConnectionRes(await req.processMixDial(libp2p), request)
-  of StreamMsgType.MIX_REGISTER_DEST_READ:
-    handleRes(await req.processMixRegisterDestRead(libp2p), request)
-  of StreamMsgType.MIX_SET_NODE_INFO:
-    handleRes(await req.processMixSetNodeInfo(libp2p), request)
-  of StreamMsgType.MIX_NODEPOOL_ADD:
-    handleRes(await req.processMixNodePoolAdd(libp2p), request)
+    handleStreamRes(await req.processDialCircuitRelay(libp2p), request)
   of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:
@@ -398,10 +465,16 @@ proc process*(
     await processPubSub(request, libp2p)
   of RequestType.KADEMLIA:
     await processKademlia(request, libp2p)
+  of RequestType.SERVICE_DISCOVERY:
+    await processServiceDiscovery(request, libp2p)
   of RequestType.STREAM:
     await processStream(request, libp2p)
   of RequestType.RELAY:
     await processRelay(request, libp2p)
+  of RequestType.PROTOCOL:
+    await processProtocol(request, libp2p)
+  of RequestType.PEERSTORE:
+    await processPeerStore(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =

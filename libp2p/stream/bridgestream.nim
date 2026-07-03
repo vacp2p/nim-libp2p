@@ -7,7 +7,7 @@ import connection, bufferstream
 export connection
 
 type
-  WriteHandler = proc(data: seq[byte]): Future[void] {.
+  WriteHandler = proc(data: sink seq[byte]): Future[void] {.
     async: (raises: [CancelledError, LPStreamError])
   .}
 
@@ -16,9 +16,9 @@ type
     closeHandler: proc(): Future[void] {.async: (raises: []).}
 
 method write*(
-    s: BridgeStream, msg: seq[byte]
-): Future[void] {.public, async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  s.writeHandler(msg)
+    s: BridgeStream, msg: sink seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+  s.writeHandler(move(msg))
 
 method closeImpl*(s: BridgeStream): Future[void] {.async: (raises: [], raw: true).} =
   if not isNil(s.closeHandler):
@@ -40,13 +40,13 @@ proc bridgedConnections*(
   connB.initStream()
 
   connA.writeHandler = proc(
-      data: seq[byte]
+      data: sink seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connB.pushData(data)
+    connB.pushData(move(data))
   connB.writeHandler = proc(
-      data: seq[byte]
+      data: sink seq[byte]
   ) {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-    connA.pushData(data)
+    connA.pushData(move(data))
 
   if closeTogether:
     connA.closeHandler = proc(): Future[void] {.async: (raises: []).} =

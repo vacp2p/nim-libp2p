@@ -5,7 +5,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
-import ../utils/sequninit
+import protobuf_serialization
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -65,17 +65,18 @@ when supported(PKScheme.ECDSA):
   # These used to be declared in `crypto` itself
   export ecnist.ephemeral, ecnist.ECDHEScheme
 
-import bearssl/rand, bearssl/hash as bhash
-import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
+import ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utility
+import ../utils/[opt, shortlog, collections]
+import rng
 import results
-export results, utility
+export results, opt, shortlog, collections
+export rng except bearSslDrbg, bearSslDrbgRef, bearSslPrng
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, ncrutils, rand
+export rijndael, twofish, sha2, hash, hmac, ncrutils
 
 type
   DigestSheme* = enum
@@ -153,79 +154,8 @@ template orError*(exp: untyped, err: untyped): untyped =
   exp.mapErr do(_: auto) -> auto:
     err
 
-proc newRng*(): ref HmacDrbgContext =
-  # You should only create one instance of the RNG per application / library
-  # Ref is used so that it can be shared between components
-  # TODO consider moving to bearssl
-  var seeder = prngSeederSystem(nil)
-  if seeder == nil:
-    return nil
-
-  var rng = (ref HmacDrbgContext)()
-  hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    return nil
-  rng
-
-proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
-  if x.len == 0:
-    return
-
-  var randValues = newSeqUninit[byte](len(x) * 2)
-  hmacDrbgGenerate(rng[], randValues)
-
-  for i in countdown(x.high, 1):
-    let
-      rand = randValues[i * 2].int32 or (randValues[i * 2 + 1].int32 shl 8)
-      y = rand mod i
-    swap(x[i], x[y])
-
-proc randBelow(rng: ref HmacDrbgContext, max: uint32): int =
-  ## Returns a uniformly random integer in the range [0, max).
-  ## Uses 32-bit rejection sampling to eliminate modulo bias and to
-  ## support max values larger than 65536.
-  # threshold = 2^32 mod max. In uint32 arithmetic: (0 - umax) mod umax.
-  # Values in [0, threshold) are rejected to eliminate modulo bias.
-  let threshold = (0'u32 - max) mod max
-  while true:
-    var bytes: array[4, byte]
-    hmacDrbgGenerate(rng[], bytes)
-    let r =
-      bytes[0].uint32 or (bytes[1].uint32 shl 8) or (bytes[2].uint32 shl 16) or
-      (bytes[3].uint32 shl 24)
-    if r >= threshold:
-      return (r mod max).int
-
-proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
-  doAssert n >= 0, "n must be non-negative"
-  if x.len == 0:
-    return Opt.none(seq[T])
-  if n == 0:
-    return Opt.some(newSeq[T]())
-
-  var indices = newSeq[int](x.len)
-  for i in 0 ..< x.len:
-    indices[i] = i
-
-  let count = min(n, x.len)
-  var output = newSeq[T](count)
-  for i in 0 ..< count:
-    let j = i + rng.randBelow((x.len - i).uint32)
-    swap(indices[i], indices[j])
-    output[i] = x[indices[i]]
-  Opt.some(output)
-
-proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
-  if x.len == 0:
-    return Opt.none(T)
-
-  Opt.some(x[rng.randBelow(x.len.uint32)])
-
 proc random*(
-    T: typedesc[PrivateKey],
-    scheme: PKScheme,
-    rng: var HmacDrbgContext,
-    bits = RsaDefaultKeySize,
+    T: typedesc[PrivateKey], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -259,7 +189,7 @@ proc random*(
       err(SchemeError)
 
 proc random*(
-    T: typedesc[PrivateKey], rng: var HmacDrbgContext, bits = RsaDefaultKeySize
+    T: typedesc[PrivateKey], rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
@@ -284,15 +214,12 @@ proc random*(
     err(SchemeError)
 
 proc random*(
-    T: typedesc[KeyPair],
-    scheme: PKScheme,
-    rng: var HmacDrbgContext,
-    bits = RsaDefaultKeySize,
+    T: typedesc[KeyPair], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
-  ## [512, 4096], default value is 2048 bits.
+  ## [2048, 4096], default value is 3072 bits.
   case scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
@@ -340,7 +267,7 @@ proc random*(
       err(SchemeError)
 
 proc random*(
-    T: typedesc[KeyPair], rng: var HmacDrbgContext, bits = RsaDefaultKeySize
+    T: typedesc[KeyPair], rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.
@@ -466,18 +393,48 @@ proc getRawBytes*(key: PrivateKey | PublicKey): CryptoResult[seq[byte]] =
     else:
       err(SchemeError)
 
+proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
+  ## Return private key ``key`` in binary form (using libp2p's protobuf
+  ## serialization).
+  let rawBytes = ?key.getRawBytes()
+  var encoded: seq[byte]
+  try:
+    var stream = memoryOutput()
+    stream.writeField(1, puint64(key.scheme))
+    stream.writeField(2, pbytes(rawBytes))
+    encoded = stream.getOutput(seq[byte])
+  except IOError:
+    return err(CryptoError.KeyError)
+  ok(encoded)
+
+proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
+  ## Return public key ``key`` in binary form (using libp2p's protobuf
+  ## serialization).
+  let rawBytes = ?key.getRawBytes()
+  var encoded: seq[byte]
+  {.cast(noSideEffect).}:
+    try:
+      var stream = memoryOutput()
+      stream.writeField(1, puint64(key.scheme))
+      stream.writeField(2, pbytes(rawBytes))
+      encoded = stream.getOutput(seq[byte])
+    except IOError:
+      return err(CryptoError.KeyError)
+  ok(encoded)
+
+proc getBytes*(sig: Signature): seq[byte] =
+  ## Return signature ``sig`` in binary form.
+  sig.data
+
 proc toBytes*(key: PrivateKey, data: var openArray[byte]): CryptoResult[int] =
   ## Serialize private key ``key`` (using libp2p protobuf scheme) and store
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store private key ``key``.
-  var msg = initProtoBuffer()
-  msg.write(1, uint64(key.scheme))
-  msg.write(2, ?key.getRawBytes())
-  msg.finish()
-  var blen = len(msg.buffer)
-  if len(data) >= blen:
-    copyMem(addr data[0], addr msg.buffer[0], blen)
+  let encoded = ?key.getBytes()
+  let blen = len(encoded)
+  if len(data) >= blen and blen > 0:
+    copyMem(addr data[0], addr encoded[0], blen)
   ok(blen)
 
 proc toBytes*(key: PublicKey, data: var openArray[byte]): CryptoResult[int] =
@@ -485,115 +442,109 @@ proc toBytes*(key: PublicKey, data: var openArray[byte]): CryptoResult[int] =
   ## it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store public key ``key``.
-  var msg = initProtoBuffer()
-  msg.write(1, uint64(key.scheme))
-  msg.write(2, ?key.getRawBytes())
-  msg.finish()
-  var blen = len(msg.buffer)
+  let encoded = ?key.getBytes()
+  let blen = len(encoded)
   if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], addr msg.buffer[0], blen)
+    copyMem(addr data[0], addr encoded[0], blen)
   ok(blen)
 
 proc toBytes*(sig: Signature, data: var openArray[byte]): int =
   ## Serialize signature ``sig`` and store it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store signature ``sig``.
-  result = len(sig.data)
-  if len(data) >= result and result > 0:
-    copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
-
-proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
-  ## Return private key ``key`` in binary form (using libp2p's protobuf
-  ## serialization).
-  var msg = initProtoBuffer()
-  msg.write(1, uint64(key.scheme))
-  msg.write(2, ?key.getRawBytes())
-  msg.finish()
-  ok(msg.buffer)
-
-proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
-  ## Return public key ``key`` in binary form (using libp2p's protobuf
-  ## serialization).
-  var msg = initProtoBuffer()
-  msg.write(1, uint64(key.scheme))
-  msg.write(2, ?key.getRawBytes())
-  msg.finish()
-  ok(msg.buffer)
-
-proc getBytes*(sig: Signature): seq[byte] =
-  ## Return signature ``sig`` in binary form.
-  result = sig.data
+  let encoded = sig.getBytes()
+  let blen = len(encoded)
+  if len(data) >= blen and blen > 0:
+    copyMem(addr data[0], addr encoded[0], blen)
+  blen
 
 template initImpl[T: PrivateKey | PublicKey](key: var T, data: openArray[byte]): bool =
-  ## Initialize private key ``key`` from libp2p's protobuf serialized raw
-  ## binary form.
-  ##
-  ## Returns ``true`` on success.
   var id: uint64
   var buffer: seq[byte]
-  if len(data) <= 0:
+  var gotId = false
+  var gotBuffer = false
+  var parseOk = false
+  block parseBlock:
+    if len(data) <= 0:
+      break parseBlock
+    {.cast(noSideEffect).}:
+      try:
+        var handle = memoryInput(data)
+        let stream: InputStream = handle.s
+        while stream.readable():
+          let header = stream.readHeader()
+          case header.number()
+          of 1:
+            id = uint64(readValue(stream, puint64))
+            gotId = true
+          of 2:
+            buffer = seq[byte](readValue(stream, pbytes))
+            gotBuffer = true
+          else:
+            case header.kind()
+            of WireKind.Varint:
+              skipValue(stream, puint64)
+            of WireKind.Fixed64:
+              skipValue(stream, fixed64)
+            of WireKind.LengthDelim:
+              skipValue(stream, pbytes)
+            of WireKind.Fixed32:
+              skipValue(stream, fixed32)
+        parseOk = true
+      except SerializationError, IOError:
+        discard
+  if not parseOk or not (gotId and gotBuffer) or cast[int8](id) notin SupportedSchemesInt or
+      len(buffer) <= 0:
     false
   else:
-    var pb = initProtoBuffer(@data)
-    let r1 = pb.getField(1, id)
-    let r2 = pb.getField(2, buffer)
-    if not (r1.get(false) and r2.get(false)):
-      false
+    var scheme = cast[PKScheme](cast[int8](id))
+    when key is PrivateKey:
+      var nkey = PrivateKey(scheme: scheme)
     else:
-      if cast[int8](id) notin SupportedSchemesInt or len(buffer) <= 0:
-        false
-      else:
-        var scheme = cast[PKScheme](cast[int8](id))
-        when key is PrivateKey:
-          var nkey = PrivateKey(scheme: scheme)
+      var nkey = PublicKey(scheme: scheme)
+    case scheme
+    of PKScheme.RSA:
+      when supported(PKScheme.RSA):
+        if init(nkey.rsakey, buffer).isOk:
+          key = nkey
+          true
         else:
-          var nkey = PublicKey(scheme: scheme)
-        case scheme
-        of PKScheme.RSA:
-          when supported(PKScheme.RSA):
-            if init(nkey.rsakey, buffer).isOk:
-              key = nkey
-              true
-            else:
-              false
-          else:
-            false
-        of PKScheme.Ed25519:
-          when supported(PKScheme.Ed25519):
-            if init(nkey.edkey, buffer):
-              key = nkey
-              true
-            else:
-              false
-          else:
-            false
-        of PKScheme.ECDSA:
-          when supported(PKScheme.ECDSA):
-            if init(nkey.eckey, buffer).isOk:
-              key = nkey
-              true
-            else:
-              false
-          else:
-            false
-        of PKScheme.Secp256k1:
-          when supported(PKScheme.Secp256k1):
-            if init(nkey.skkey, buffer).isOk:
-              key = nkey
-              true
-            else:
-              false
-          else:
-            false
+          false
+      else:
+        false
+    of PKScheme.Ed25519:
+      when supported(PKScheme.Ed25519):
+        if init(nkey.edkey, buffer):
+          key = nkey
+          true
+        else:
+          false
+      else:
+        false
+    of PKScheme.ECDSA:
+      when supported(PKScheme.ECDSA):
+        if init(nkey.eckey, buffer).isOk:
+          key = nkey
+          true
+        else:
+          false
+      else:
+        false
+    of PKScheme.Secp256k1:
+      when supported(PKScheme.Secp256k1):
+        if init(nkey.skkey, buffer).isOk:
+          key = nkey
+          true
+        else:
+          false
+      else:
+        false
 
-{.push warning[ProveField]: off.} # https://github.com/nim-lang/Nim/issues/22060
 proc init*(key: var PrivateKey, data: openArray[byte]): bool =
   initImpl(key, data)
 
 proc init*(key: var PublicKey, data: openArray[byte]): bool =
   initImpl(key, data)
-
-{.pop.}
 
 proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
@@ -601,7 +552,8 @@ proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Returns ``true`` on success.
   if len(data) > 0:
     sig.data = @data
-    result = true
+    return true
+  false
 
 proc init*[T: PrivateKey | PublicKey](key: var T, data: string): bool =
   ## Initialize private/public key ``key`` from libp2p's protobuf serialized
@@ -683,7 +635,7 @@ proc init*(t: typedesc[Signature], data: string): CryptoResult[Signature] =
   ## Create new signature from serialized hexadecimal string form.
   t.init(ncrutils.fromHex(data))
 
-proc `==`*(key1, key2: PublicKey): bool {.inline.} =
+proc `==`*(key1, key2: PublicKey): bool =
   ## Return ``true`` if two public keys ``key1`` and ``key2`` of the same
   ## scheme and equal.
   if key1.scheme == key2.scheme:
@@ -789,7 +741,7 @@ func shortLog*(key: PrivateKey | PublicKey): string =
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
-  result = ncrutils.toHex(sig.data)
+  ncrutils.toHex(sig.data)
 
 proc sign*(key: PrivateKey, data: openArray[byte]): CryptoResult[Signature] {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
@@ -896,25 +848,27 @@ proc stretchKeys*(
     cipherType: string, hashType: string, sharedSecret: seq[byte]
 ): Secret =
   ## Expand shared secret to cryptographic keys.
+  var secret: Secret
   if cipherType == "AES-128":
-    result.ivsize = aes128.sizeBlock
-    result.keysize = aes128.sizeKey
+    secret.ivsize = aes128.sizeBlock
+    secret.keysize = aes128.sizeKey
   elif cipherType == "AES-256":
-    result.ivsize = aes256.sizeBlock
-    result.keysize = aes256.sizeKey
+    secret.ivsize = aes256.sizeBlock
+    secret.keysize = aes256.sizeKey
   elif cipherType == "TwofishCTR":
-    result.ivsize = twofish256.sizeBlock
-    result.keysize = twofish256.sizeKey
+    secret.ivsize = twofish256.sizeBlock
+    secret.keysize = twofish256.sizeKey
 
   var seed = "key expansion"
-  result.macsize = 20
-  let length = result.ivsize + result.keysize + result.macsize
-  result.data = newSeqUninit[byte](2 * length)
+  secret.macsize = 20
+  let length = secret.ivsize + secret.keysize + secret.macsize
+  secret.data = newSeqUninit[byte](2 * length)
 
   if hashType == "SHA256":
-    makeSecret(result.data, HMAC[sha256], sharedSecret, seed)
+    makeSecret(secret.data, HMAC[sha256], sharedSecret, seed)
   elif hashType == "SHA512":
-    makeSecret(result.data, HMAC[sha512], sharedSecret, seed)
+    makeSecret(secret.data, HMAC[sha512], sharedSecret, seed)
+  secret
 
 template goffset*(secret, id, o: untyped): untyped =
   id * (len(secret.data) shr 1) + o
@@ -938,35 +892,38 @@ template macOpenArray*(secret: Secret, id: int): untyped =
     goffset(secret, id, secret.ivsize + secret.keysize + secret.macsize - 1),
   )
 
-proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
+proc iv*(secret: Secret, id: int): seq[byte] =
   ## Get array of bytes with with initial vector.
-  result = newSeqUninit[byte](secret.ivsize)
+  var buf = newSeqUninit[byte](secret.ivsize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.ivsize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.ivsize)
+  buf
 
-proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninit[byte](secret.keysize)
+proc key*(secret: Secret, id: int): seq[byte] =
+  var buf = newSeqUninit[byte](secret.keysize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.keysize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.keysize)
+  buf
 
-proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninit[byte](secret.macsize)
+proc mac*(secret: Secret, id: int): seq[byte] =
+  var buf = newSeqUninit[byte](secret.macsize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize + secret.keysize
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.macsize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.macsize)
+  buf
 
 proc getOrder*(
     remotePubkey, localNonce: openArray[byte], localPubkey, remoteNonce: openArray[byte]
@@ -1016,64 +973,88 @@ proc selectBest*(order: int, p1, p2: string): string =
 
 ## Serialization/Deserialization helpers
 
-proc write*(
-    vb: var VBuffer, pubkey: PublicKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, pubkey: PublicKey) {.raises: [ResultError[CryptoError]].} =
   ## Write PublicKey value ``pubkey`` to buffer ``vb``.
   vb.writeSeq(pubkey.getBytes().tryGet())
 
 proc write*(
     vb: var VBuffer, seckey: PrivateKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+) {.raises: [ResultError[CryptoError]].} =
   ## Write PrivateKey value ``seckey`` to buffer ``vb``.
   vb.writeSeq(seckey.getBytes().tryGet())
 
-proc write*(
-    vb: var VBuffer, sig: PrivateKey
-) {.inline, raises: [ResultError[CryptoError]].} =
+proc write*(vb: var VBuffer, sig: PrivateKey) {.raises: [ResultError[CryptoError]].} =
   ## Write Signature value ``sig`` to buffer ``vb``.
   vb.writeSeq(sig.getBytes().tryGet())
 
-proc write*[T: PublicKey | PrivateKey](
-    pb: var ProtoBuffer, field: int, key: T
-) {.inline, raises: [ResultError[CryptoError]].} =
-  write(pb, field, key.getBytes().tryGet())
+## protobuf_serialization extension
 
-proc write*(pb: var ProtoBuffer, field: int, sig: Signature) {.inline, raises: [].} =
-  write(pb, field, sig.getBytes())
+Protobuf.extensionDefaults(PublicKey, pbytes)
 
-proc getField*[T: PublicKey | PrivateKey](
-    pb: ProtoBuffer, field: int, value: var T
-): ProtoResult[bool] =
-  ## Deserialize public/private key from protobuf's message ``pb`` using field
-  ## index ``field``.
-  ##
-  ## On success deserialized key will be stored in ``value``.
-  var buffer: seq[byte]
-  var key: T
-  let res = ?pb.getField(field, buffer)
-  if not (res):
-    ok(false)
-  else:
-    if key.init(buffer):
+func computeFieldSize*(
+    field: int, value: PublicKey, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  let bytes = value.getBytes().expect("failed to get key bytes")
+  computeFieldSize(field, bytes, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: PublicKey,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  let bytes = value.getBytes().expect("failed to get key bytes")
+  writeField(stream, field, bytes, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var PublicKey,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    var key = PublicKey()
+    if key.init(data):
       value = key
-      ok(true)
-    else:
-      err(ProtoError.IncorrectBlob)
+      return true
+    raise newException(ProtobufValueError, "Invalid PublicKey")
 
-proc getField*(pb: ProtoBuffer, field: int, value: var Signature): ProtoResult[bool] =
-  ## Deserialize signature from protobuf's message ``pb`` using field index
-  ## ``field``.
-  ##
-  ## On success deserialized signature will be stored in ``value``.
-  var buffer: seq[byte]
-  var sig: Signature
-  let res = ?pb.getField(field, buffer)
-  if not (res):
-    ok(false)
-  else:
-    if sig.init(buffer):
+  false
+
+Protobuf.extensionDefaults(Signature, pbytes)
+
+func computeFieldSize*(
+    field: int, value: Signature, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  let bytes = value.getBytes()
+  computeFieldSize(field, bytes, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: Signature,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  let bytes = value.getBytes()
+  writeField(stream, field, bytes, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var Signature,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    var sig = Signature()
+    if sig.init(data):
       value = sig
-      ok(true)
-    else:
-      err(ProtoError.IncorrectBlob)
+      return true
+    raise newException(ProtobufValueError, "Invalid Signature")
+
+  false

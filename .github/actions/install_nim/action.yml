@@ -8,7 +8,7 @@ inputs:
     default: "amd64"
   nim_ref:
     description: "Nim version"
-    default: "version-2-0"
+    default: "v2.2.4"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"
@@ -61,7 +61,7 @@ runs:
     - name: Restore Nim DLLs dependencies (Windows) from cache
       if: inputs.os == 'Windows'
       id: windows-dlls-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: external/dlls
         key: 'dlls'
@@ -116,7 +116,7 @@ runs:
 
     - name: Restore Nim from cache
       id: nim-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: '${{ github.workspace }}/nim'
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}-${{ env.NIMBLE_COMMIT }}

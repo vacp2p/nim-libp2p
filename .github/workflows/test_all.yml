@@ -1,0 +1,233 @@
+name: Test All
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    env:
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - os: linux
+            cpu: amd64
+            cc: gcc
+          - os: linux
+            cpu: i386
+            cc: gcc
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
+          - os: macos-15
+            cpu: arm64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: gcc
+        nim:
+          - ref: v2.2.4
+            memory_management: refc
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+          - ref: v2.2.10
+            memory_management: refc
+          - ref: v2.2.10
+            memory_management: orc
+        include:
+          - platform:
+              os: linux
+            builder: ubuntu-22.04
+            shell: bash
+          - platform:
+              os: linux-gcc-14
+            builder: ubuntu-24.04
+            shell: bash
+          - platform:
+              os: macos-15
+            builder: macos-15
+            shell: bash
+          - platform:
+              os: windows
+              cc: clang
+            builder: windows-2022
+            shell: bash
+          - platform:
+              os: windows
+              cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }} / ${{ matrix.nim.memory_management }})"
+    runs-on: ${{ matrix.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
+          shell: ${{ matrix.shell }}
+          nim_ref: ${{ matrix.nim.ref }}
+
+      - name: Restore dependencies from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          # Scope by os/cpu/cc: nimbledeps contains pre-built .a files for
+          # nim-nat-traversal's vendored miniupnpc/libnatpmp, rebuilt by
+          # `make nat_libs` against the host toolchain. Sharing the cache
+          # across mismatched toolchains (linux<->windows, gcc<->clang)
+          # produced broken artifacts last time. Keep this key in sync
+          # with the other workflows that cache nimbledeps so cache
+          # entries are reusable across them.
+          key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned') }}
+
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v5
+        with:
+          path: external/mingw-${{ matrix.platform.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.platform.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
+        run: |
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.platform.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.platform.cpu }}.zip" -oexternal/mingw-${{ matrix.platform.cpu }}/
+          mv external/mingw-${{ matrix.platform.cpu }}/**/* ./external/mingw-${{ matrix.platform.cpu }}
+
+      - name: Use gcc 14
+        if: ${{ matrix.platform.os == 'linux-gcc-14'}}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.platform.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
+      - name: Restore build cache
+        id: nimcache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: nimcache
+          key: nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}-${{ github.run_id }}
+          restore-keys: |
+            nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}
+
+      - name: Build test_all
+        id: build-test-all
+        run: |
+          NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+            NIMFLAGS="$NIMFLAGS --cc:clang"
+          fi
+          if [[ '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+            # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
+            # space and cannot compile the full test_all in one go. Split the
+            # test corpus into `sliceTotal` translation units; each slice
+            # compiles a deterministic subset of the test files.
+            NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
+            nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
+            nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
+          else
+            nim c $NIMFLAGS ./tests/test_all
+          fi
+
+      - name: Save build cache
+        uses: actions/cache/save@v5
+        if: github.ref_name == 'master'
+        with:
+          path: nimcache
+          key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
+
+      - name: Prune old nimcache entries
+        if: github.ref_name == 'master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREFIX="nimcache-test_all-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ matrix.nim.ref }}-${{ matrix.nim.memory_management }}"
+          KEEP="${{ steps.nimcache-restore.outputs.cache-primary-key }}"
+          gh cache list --ref "${{ github.ref }}" --limit 100 --json id,key \
+            --jq ".[] | select(.key | startswith(\"$PREFIX\")) | select(.key != \"$KEEP\") | .id" \
+            | xargs -r -n1 gh cache delete
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          if [[ -f ./tests/test_all_0 && -f ./tests/test_all_1 ]]; then
+            ./tests/test_all_0 --output-level=VERBOSE --console --xml:tests/results_test_all_0.xml
+            ./tests/test_all_1 --output-level=VERBOSE --console --xml:tests/results_test_all_1.xml
+          else
+            ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
+          fi
+
+      - name: Fix xml newlines
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        run: |
+          nim c -r tools/fix_xml_newlines.nim
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        with:
+          name: Test Report
+          path: tests/results_*.xml
+          reporter: jest-junit
+          list-suites: 'failed'
+          list-tests: 'failed'
+          fail-on-error: 'false'

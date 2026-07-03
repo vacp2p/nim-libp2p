@@ -239,3 +239,16 @@ suite "BufferStream":
 
     await stream.closeWithEOF()
     await push
+
+  asyncTest "reset is terminal and closeWithEOF returns immediately after reset":
+    let stream = BufferStream.new()
+
+    var data: array[1, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+
+    await stream.reset()
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 0
+    check stream.closed
+    check await stream.closeWithEOF().withTimeout(100.milliseconds)

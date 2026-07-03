@@ -7,11 +7,13 @@ import chronos, stew/byteutils
 import
   ../../../libp2p/[
     autotls/service,
+    autotls/mockservice,
     stream/connection,
     transports/transport,
     transports/wstransport,
     upgrademngrs/upgrade,
     multiaddress,
+    wire,
     errors,
     muxers/muxer,
     muxers/mplex/mplex,
@@ -22,7 +24,7 @@ import ./connection_tests
 import ./stream_tests
 
 proc wsTransProvider(): Transport =
-  WsTransport.new(Upgrade())
+  WsTransport.new(Upgrade(), rng())
 
 # Generate cert only once to reduce execution time
 var secureKey {.threadvar.}: TLSPrivateKey
@@ -35,10 +37,11 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
     secureKey,
     secureCert,
     Opt.none(AutotlsService),
-    {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+    rng(),
+    tlsFlags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
   )
 
-proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+proc streamProvider(conn: RawConn, handle: bool = true): Muxer =
   let muxer = Mplex.new(conn)
   if handle:
     asyncSpawn muxer.handle()
@@ -47,31 +50,28 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer =
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
-  validWireAddresses =
-    @[
-      # Plain WebSocket
-      "/ip4/127.0.0.1/tcp/1234/ws",
-      "/ip6/::1/tcp/1234/ws",
-      # Secure WebSocket
-      "/ip4/127.0.0.1/tcp/1234/wss",
-      "/ip4/127.0.0.1/tcp/1234/tls/ws",
-      "/ip6/::1/tcp/1234/wss",
-    ]
-  validNonWireAddresses =
-    @[
-      # Plain WebSocket 
-      "/dns/example.com/tcp/1234/ws",
-      # Secure WebSocket
-      "/dns/example.com/tcp/1234/wss",
-      "/dns/example.com/tcp/1234/tls/ws",
-    ]
-  invalidAddresses =
-    @[
-      "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
-      "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
-      "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
-      "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
-    ]
+  validWireAddresses = @[
+    # Plain WebSocket
+    "/ip4/127.0.0.1/tcp/1234/ws",
+    "/ip6/::1/tcp/1234/ws",
+    # Secure WebSocket
+    "/ip4/127.0.0.1/tcp/1234/wss",
+    "/ip4/127.0.0.1/tcp/1234/tls/ws",
+    "/ip6/::1/tcp/1234/wss",
+  ]
+  validNonWireAddresses = @[
+    # Plain WebSocket 
+    "/dns/example.com/tcp/1234/ws",
+    # Secure WebSocket
+    "/dns/example.com/tcp/1234/wss",
+    "/dns/example.com/tcp/1234/tls/ws",
+  ]
+  invalidAddresses = @[
+    "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
+    "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
+    "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
+    "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
+  ]
 
 suite "WebSocket transport":
   teardown:
@@ -88,6 +88,49 @@ suite "WebSocket transport":
 
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
+
+  asyncTest "slow WebSocket headers do not block valid accepts":
+    let server = WsTransport.new(
+      Upgrade(), rng(), headersTimeout = 3.seconds, concurrentAccepts = 2
+    )
+    await server.start(@[MultiAddress.init(wsAddress).get()])
+    defer:
+      await server.stop()
+
+    let rawAddr = server.addrs[0].initTAddress().tryGet()
+    let slow = await connect(rawAddr)
+    var slowClosed = false
+    proc closeSlow() {.async: (raises: []).} =
+      if slowClosed:
+        return
+
+      slowClosed = true
+      try:
+        await noCancel slow.closeWait()
+      except CatchableError:
+        discard
+
+    defer:
+      await closeSlow()
+
+    # Keep this raw stream open with incomplete headers while a valid
+    # WebSocket handshake is accepted.
+    discard await slow.write("GET / HTTP/1.1\r\nUpgrade: websocket\r\n")
+
+    let client = wsTransProvider()
+    defer:
+      await client.stop()
+
+    # The valid WebSocket handshake must not wait for the slow one to time out.
+    let outboundFut = client.dial(server.addrs[0])
+    let inbound = await server.accept().wait(1.seconds)
+    let outbound = await outboundFut.wait(1.seconds)
+
+    await closeSlow()
+
+    let outboundClosing = outbound.close()
+    await inbound.close()
+    await outboundClosing
 
   streamTransportTest(
     wsTransProvider,
@@ -106,7 +149,7 @@ suite "WebSocket transport":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
 
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
-    let testKeyPair = KeyPair.random(PKScheme.RSA, rng[]).get()
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
     let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
 
@@ -115,7 +158,8 @@ suite "WebSocket transport":
       secureKey,
       secureCert,
       Opt.none(AutotlsService),
-      {TLSFlags.NoVerifyHost},
+      rng(),
+      tlsFlags = {TLSFlags.NoVerifyHost},
     )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
@@ -158,75 +202,74 @@ suite "WebSocket transport":
 
     await transport1.stop()
 
-when defined(libp2p_autotls_support):
-  import ../../../libp2p/autotls/mockservice
+suite "WebSocket transport with autotls":
+  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-  suite "WebSocket transport with autotls":
-    asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
+    let (privkey, cert) = tlsCertGenerator(Opt.some(key))
+    let autotls = MockAutotlsService.new(rng())
+    autotls.mockedKey = privkey
+    autotls.mockedCert = cert
+    await autotls.setup()
 
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
-      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new()
-      autotls.mockedKey = privkey
-      autotls.mockedCert = cert
-      await autotls.setup()
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(AutotlsService(autotls)),
+      rng(),
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-      let wstransport = WsTransport.new(
-        Upgrade(),
-        nil, # TLSPrivateKey
-        nil, # TLSCertificate
-        Opt.some(AutotlsService(autotls)),
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
+    # TLSPrivateKey and TLSCertificate should be set
+    check wstransport.secure
 
-      # TLSPrivateKey and TLSCertificate should be set
-      check wstransport.secure
+    # autotls should be used
+    let autotlsCert = await autotls.getCertWhenReady()
+    check wstransport.tlsCertificate == autotlsCert.cert
 
-      # autotls should be used
-      let autotlsCert = await autotls.getCertWhenReady()
-      check wstransport.tlsCertificate == autotlsCert.cert
+  asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-    asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
+    let (privkey, cert) = tlsCertGenerator(Opt.some(key))
+    let autotls = MockAutotlsService.new(rng())
+    autotls.mockedKey = privkey
+    autotls.mockedCert = cert
+    await autotls.setup()
 
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
-      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new()
-      autotls.mockedKey = privkey
-      autotls.mockedCert = cert
-      await autotls.setup()
+    # Use different cert from autotls to verify manual cert is preferred
+    let (manualKey, manualCert) = tlsCertGenerator()
 
-      # Use different cert from autotls to verify manual cert is preferred
-      let (manualKey, manualCert) = tlsCertGenerator()
+    let wstransport = WsTransport.new(
+      Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-      let wstransport = WsTransport.new(
-        Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls))
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
+    # TLSPrivateKey and TLSCertificate should be set
+    check wstransport.secure
 
-      # TLSPrivateKey and TLSCertificate should be set
-      check wstransport.secure
+    # autotls should be ignored - manual cert should be used
+    check wstransport.tlsCertificate == manualCert
+    check wstransport.tlsPrivateKey == manualKey
 
-      # autotls should be ignored - manual cert should be used
-      check wstransport.tlsCertificate == manualCert
-      check wstransport.tlsPrivateKey == manualKey
+  asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.none(AutotlsService),
+      rng(),
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-    asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
-      let wstransport = WsTransport.new(
-        Upgrade(),
-        nil, # TLSPrivateKey
-        nil, # TLSCertificate
-        Opt.none(AutotlsService),
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
-
-      # TLSPrivateKey and TLSCertificate should not be set
-      check not wstransport.secure
+    # TLSPrivateKey and TLSCertificate should not be set
+    check not wstransport.secure

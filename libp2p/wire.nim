@@ -5,7 +5,7 @@
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
-import multiaddress, multicodec, errors, utility
+import multiaddress, multicodec, errors, utils/macroutils
 
 export multiaddress, chronos
 
@@ -150,9 +150,11 @@ proc getLocalAddress*(sock: AsyncFD): TransportAddress =
   ## Note: This procedure only used in `go-libp2p-daemon` wrapper.
   var saddr: Sockaddr_storage
   var slen = SockLen(sizeof(Sockaddr_storage))
+  var ta: TransportAddress
 
   if getsockname(SocketHandle(sock), cast[ptr SockAddr](addr saddr), addr slen) == 0:
-    fromSAddr(addr saddr, slen, result)
+    fromSAddr(addr saddr, slen, ta)
+  ta
 
 proc isPublicMA*(ma: MultiAddress): bool =
   if DNS.matchPartial(ma):
@@ -160,13 +162,24 @@ proc isPublicMA*(ma: MultiAddress): bool =
 
   let hostIP = initTAddress(ma).valueOr:
     return false
+
   return hostIP.isGlobal()
 
-proc isFilterablePrivateMA*(ma: MultiAddress): bool =
-  ## Returns true if this address should be filtered out because it is private
-  ## or not globally routable. Circuit relay addresses are never filtered even
-  ## if the relay itself has a private IP, since the relay address may still
-  ## provide connectivity.
+proc isCircuitRelayMA*(ma: MultiAddress): bool =
   if ma.contains(multiCodec("p2p-circuit")).get(false):
+    return true
+
+proc isLoopbackMA*(ma: MultiAddress): bool =
+  let hostIP = initTAddress(ma).valueOr:
     return false
-  return not isPublicMA(ma)
+
+  return hostIP.isLoopback()
+
+proc isPrivateMA*(ma: MultiAddress): bool =
+  ## True for addresses on private/non-routable networks: RFC1918, CGNAT
+  ## (RFC6598), link-local. These are the cases where a NAT port mapping is
+  ## actually useful.
+  let hostIP = initTAddress(ma).valueOr:
+    return false
+
+  hostIP.isPrivate() or hostIP.isShared() or hostIP.isLinkLocal()

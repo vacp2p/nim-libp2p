@@ -13,14 +13,14 @@ import libp2p, libp2p/protocols/connectivity/relay/[relay, client]
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =
   SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .withCircuitRelay(r)
-  .build()
+    .new()
+    .withRng(newRng())
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .withCircuitRelay(r)
+    .build()
 
 proc main() {.async.} =
   # Create a custom protocol
@@ -28,17 +28,17 @@ proc main() {.async.} =
   var proto = new LPProtocol
   proto.codec = customProtoCodec
   proto.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      var msg = string.fromBytes(await conn.readLp(1024))
+      var msg = string.fromBytes(await stream.readLp(1024))
       echo "1 - Dst Received: ", msg
       assert "test1" == msg
-      await conn.writeLp("test2")
-      msg = string.fromBytes(await conn.readLp(1024))
+      await stream.writeLp("test2")
+      msg = string.fromBytes(await stream.readLp(1024))
       echo "2 - Dst Received: ", msg
       assert "test3" == msg
-      await conn.writeLp("test4")
+      await stream.writeLp("test4")
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
 
@@ -75,14 +75,14 @@ proc main() {.async.} =
   let rsvp = await clDst.reserve(swRel.peerInfo.peerId, swRel.peerInfo.addrs)
 
   # Src dial Dst using the relay
-  let conn = await swSrc.dial(swDst.peerInfo.peerId, @[addrs], customProtoCodec)
+  let stream = await swSrc.dial(swDst.peerInfo.peerId, @[addrs], customProtoCodec)
 
-  await conn.writeLp("test1")
-  var msg = string.fromBytes(await conn.readLp(1024))
+  await stream.writeLp("test1")
+  var msg = string.fromBytes(await stream.readLp(1024))
   echo "1 - Src Received: ", msg
   assert "test2" == msg
-  await conn.writeLp("test3")
-  msg = string.fromBytes(await conn.readLp(1024))
+  await stream.writeLp("test3")
+  msg = string.fromBytes(await stream.readLp(1024))
   echo "2 - Src Received: ", msg
   assert "test4" == msg
 

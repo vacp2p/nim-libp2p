@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue]
-from times import now
+from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
@@ -26,8 +26,28 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultRecordExpirationInterval* = 24.hours
+    # KV entries older than this are considered stale and will be evicted
+  DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
   MaxMsgSize* = 4096
+
+  DefaultMaxProvidersPerKey* = 20 ## upper bound on providers stored per key
+  DefaultMaxShortlistSize* = DefaultReplication * 2
+    ## upper bound on iterative-lookup shortlist
+  DefaultMaxReceivedSize* = DefaultReplication
+    ## upper bound on per-query ``ReceivedTable``
+  DefaultMaxValueSize* = 3072
+    ## upper bound (bytes) on a stored record value. Held below ``MaxMsgSize``
+    ## (4096) to leave headroom for the protobuf overhead from other message
+    ## fields, so an accepted value still fits in a single LP frame.
+  DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
+  DefaultMaxConcurrentRpcs* = 100
+    ## upper bound on in-flight outbound RPCs across find/get/put/provider
+  DefaultMaxPeersPerIp* = 4
+    ## upper bound on Kademlia routing-table peers sharing one exact IP
+  DefaultMaxPeersPerSubnet* = 10
+    ## upper bound on Kademlia routing-table peers sharing one IP subnet
 
 type Key* = seq[byte]
 
@@ -57,13 +77,19 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   if addrs.len == 0:
     return err("Could not find peer addresses in address book")
 
-  ok(Peer(id: peer.getBytes(), addrs: addrs, connection: ConnectionType.notConnected))
+  ok(
+    Peer(
+      id: Opt.some(peer.getBytes()),
+      addrs: addrs,
+      connection: Opt.none(ConnectionStatus),
+    )
+  )
 
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
-    id: peerInfo.peerId.getBytes(),
+    id: Opt.some(peerInfo.peerId.getBytes()),
     addrs: peerInfo.addrs,
-    connection: ConnectionType.notConnected,
+    connection: Opt.none(ConnectionStatus),
   )
 
 proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =
@@ -79,7 +105,9 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
   var peerIds: seq[PeerId]
 
   for p in peers:
-    let pid = PeerId.init(p.id).valueOr:
+    let raw = p.id.valueOr:
+      continue
+    let pid = PeerId.init(raw).valueOr:
       continue
     peerIds.add(pid)
 
@@ -135,16 +163,20 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc hashFor(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
+proc hashFor*(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
   return @(hasher.get(defaultHasher)(k))
 
-proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
-  let hashA = a.hashFor(hasher)
-  let hashB = b.hashFor(hasher)
+proc xorDistance*(a, b: Key): XorDistance =
+  doAssert a.len == IdLength and b.len == IdLength,
+    "both keys must be " & $IdLength & " bytes"
+
   var response: XorDistance
-  for i in 0 ..< hashA.len:
-    response[i] = hashA[i] xor hashB[i]
+  for i in 0 ..< a.len:
+    response[i] = a[i] xor b[i]
   return response
+
+proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
+  xorDistance(a.hashFor(hasher), b.hashFor(hasher))
 
 proc xorDistance*(a: PeerId, b: Key, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b, hasher)
@@ -167,9 +199,11 @@ type
     replication*: int
     hasher*: Opt[XorDHasher]
     maxBuckets*: int
+    selfIdPreHashed*: bool
 
   RoutingTable* = ref object
     selfId*: Key
+    localNodeId*: Key
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
 
@@ -203,18 +237,41 @@ proc new*(
 
   return pm
 
+proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
+  var peerIds = newSeqOfCap[PeerId](entries.len)
+  for e in entries:
+    let peerId = e.nodeId.toPeerId().valueOr:
+      error "cannot convert key to peer id", error
+      continue
+    peerIds.add(peerId)
+  return peerIds
+
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
-type TimeStamp* = string
+type Timestamp* = string
+
+const TimestampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+
+proc now*(T: typedesc[Timestamp]): Timestamp {.gcsafe, raises: [].} =
+  T(now().utc.format(TimestampFormat))
+
+proc toUnixSeconds*(
+    time: Timestamp
+): Result[int64, ref CatchableError] {.gcsafe, raises: [].} =
+  catch:
+    parse(time, TimestampFormat, utc()).toTime().toUnix()
+
+proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
+  now().utc.toTime().toUnix()
 
 type EntryRecord* = object
   value*: seq[byte]
-  time*: TimeStamp
+  time*: Timestamp
 
 proc init*(
-    T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
+    T: typedesc[EntryRecord], value: Key, time: Opt[Timestamp]
 ): EntryRecord {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
+  EntryRecord(value: value, time: time.get(Timestamp.now()))
 
 type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
@@ -222,7 +279,7 @@ type
   LocalTable* = Table[Key, EntryRecord]
 
 proc insert*(
-    self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
+    self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
   debug "Local table insertion", key = key, value = value
   self[key] = EntryRecord(value: value, time: time)
@@ -281,7 +338,52 @@ method select*(
 
   return ok(bestIdx)
 
-type KadDHTConfig* = ref object
+type KadDHTLimits* = object
+  maxProvidersPerKey*: Opt[int]
+    ## Maximum number of distinct providers stored per key.
+    ## ``Opt.none`` means unlimited; when limits are derived by the
+    ## ``KadDHTConfig`` constructor this defaults to ``replication``.
+  maxShortlistSize*: int
+    ## Maximum number of peers retained in an iterative-lookup shortlist.
+    ## When exceeded, farther peers are dropped so the shortlist stays bounded.
+  maxReceivedSize*: int
+    ## Maximum number of per-peer entries retained in a GET_VALUE
+    ## ``ReceivedTable``.
+  maxValueSize*: int
+    ## Maximum size (bytes) of an individual record value. Enforced on
+    ## ``putValue`` and on incoming PUT_VALUE / GET_VALUE records.
+  maxLocalRecords*: Opt[int]
+    ## Maximum number of records retained in the local value store.
+    ## ``Opt.none`` means unlimited; when limits are derived by the
+    ## ``KadDHTConfig`` constructor this defaults to ``DefaultMaxLocalRecords``.
+  maxConcurrentRpcs*: int
+    ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
+    ## across the whole node. Excess calls wait on a shared semaphore.
+  maxPeersPerIp*: int
+    ## Maximum number of Kademlia routing-table peers sharing one exact IP.
+  maxPeersPerIpv4Subnet*: int
+    ## Maximum number of Kademlia routing-table peers sharing one IPv4 /24.
+  maxPeersPerIpv6Subnet*: int
+    ## Maximum number of Kademlia routing-table peers sharing one IPv6 /64.
+
+proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises: [].} =
+  ## Builds a limits object whose shortlist/received caps and providers-per-key
+  ## are sized off the actual ``replication`` and ``quorum`` so the configuration
+  ## stays internally consistent (e.g. ``maxShortlistSize >= replication``,
+  ## ``maxReceivedSize >= quorum``).
+  T(
+    maxProvidersPerKey: Opt.some(replication),
+    maxShortlistSize: replication * 2,
+    maxReceivedSize: max(replication, quorum),
+    maxValueSize: DefaultMaxValueSize,
+    maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
+    maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
+    maxPeersPerIp: DefaultMaxPeersPerIp,
+    maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
+    maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
+  )
+
+type KadDHTConfig* = object
   validator*: EntryValidator
   selector*: EntrySelector
   timeout*: chronos.Duration
@@ -296,10 +398,21 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
+  recordExpirationInterval*: chronos.Duration
+  cleanupDataEntriesInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
+  hideConnectionStatus*: bool
+  disableBootstrapping*: bool
+  providerRejection*: bool
+    ## When true, ADD_PROVIDER receivers reply with accepted/rejected on
+    ## field 11; the sender spills over to farther peers when a full batch is
+    ## rejected. The per-key cap (``limits.maxProvidersPerKey``) is always
+    ## enforced regardless of this flag — this only controls whether
+    ## rejections are acknowledged on the wire.
+  limits*: KadDHTLimits
 
 proc new*(
-    T: typedesc[KadDHTConfig],
+    K: typedesc[KadDHTConfig],
     validator: EntryValidator = DefaultEntryValidator(),
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
@@ -313,8 +426,32 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
+    recordExpirationInterval: chronos.Duration = DefaultRecordExpirationInterval,
+    cleanupDataEntriesInterval: chronos.Duration = DefaultCleanupDataEntriesInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
-): T {.raises: [].} =
+    hideConnectionStatus: bool = true,
+    disableBootstrapping: bool = false,
+    providerRejection: bool = false,
+    limits: Opt[KadDHTLimits] = Opt.none(KadDHTLimits),
+): K {.raises: [].} =
+  let actualLimits = limits.valueOr:
+    KadDHTLimits.new(replication, quorum)
+  doAssert actualLimits.maxProvidersPerKey.isNone or
+    actualLimits.maxProvidersPerKey.get() > 0,
+    "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
+  doAssert actualLimits.maxShortlistSize > 0, "maxShortlistSize must be > 0"
+  doAssert actualLimits.maxReceivedSize > 0, "maxReceivedSize must be > 0"
+  doAssert actualLimits.maxValueSize > 0, "maxValueSize must be > 0"
+  doAssert actualLimits.maxLocalRecords.isNone or actualLimits.maxLocalRecords.get() > 0,
+    "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
+  doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
+  doAssert actualLimits.maxPeersPerIp > 0, "maxPeersPerIp must be > 0"
+  doAssert actualLimits.maxPeersPerIpv4Subnet > 0, "maxPeersPerIpv4Subnet must be > 0"
+  doAssert actualLimits.maxPeersPerIpv6Subnet > 0, "maxPeersPerIpv6Subnet must be > 0"
+  doAssert actualLimits.maxShortlistSize >= replication,
+    "maxShortlistSize must be >= replication so the shortlist can hold the target k-bucket"
+  doAssert actualLimits.maxReceivedSize >= quorum,
+    "maxReceivedSize must be >= quorum so getValue can ever satisfy quorum"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -329,16 +466,35 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
+    recordExpirationInterval: recordExpirationInterval,
+    cleanupDataEntriesInterval: cleanupDataEntriesInterval,
     addressPolicy: addressPolicy,
+    hideConnectionStatus: hideConnectionStatus,
+    disableBootstrapping: disableBootstrapping,
+    providerRejection: providerRejection,
+    limits: actualLimits,
   )
 
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
-  rng*: ref HmacDrbgContext
+  rng*: Rng
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
+  recordExpirationLoop*: Future[void]
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
+  rpcSem*: AsyncSemaphore
+    ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
+
+template withRpcSlot*(kad: KadDHT) =
+  ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is
+  ## released whether the scope exits normally, raises, or is cancelled.
+  await kad.rpcSem.acquire()
+  defer:
+    try:
+      kad.rpcSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "rpcSem released without acquire"

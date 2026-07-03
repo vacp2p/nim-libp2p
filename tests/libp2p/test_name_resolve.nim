@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[sequtils, tables]
-import chronos, chronicles
+import chronos
 import
   ../../libp2p/[
     stream/connection,
@@ -17,21 +17,12 @@ import
   ]
 import ../tools/[unittest]
 
-#
-#Cloudflare
-const fallbackDnsServers =
-  @[
-    initTAddress("1.1.1.1:53"),
-    initTAddress("1.0.0.1:53"),
-    initTAddress("[2606:4700:4700::1111]:53"),
-  ]
-
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
   defined(netbsd) or defined(openbsd) or defined(dragonfly)
 
 when unixPlatform:
-  import std/strutils
+  import std/strutils, chronicles
 
 proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
   when unixPlatform:
@@ -57,12 +48,12 @@ proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
     finally:
       if resultSeq.len > 0:
         return resultSeq
-      return fallbackDnsServers
+      return DefaultDnsServers
   elif defined(windows):
     #TODO
-    return fallbackDnsServers
+    return DefaultDnsServers
   else:
-    return fallbackDnsServers
+    return DefaultDnsServers
 
 suite "Name resolving":
   suite "Generic Resolving":
@@ -100,23 +91,20 @@ suite "Name resolving":
       testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+      ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      ]
 
-      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-          "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        ]
+      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+      ]
 
       testOne(
         "/dnsaddr/bootstrap.libp2p.io/",
@@ -129,25 +117,22 @@ suite "Name resolving":
       )
 
     asyncTest "dnsaddr suffix matching test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-          "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-        ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+        "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+      ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      ]
 
-      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
-        ]
+      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
+      ]
 
       testOne(
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -169,16 +154,16 @@ suite "Name resolving":
           "bootstrap.libp2p.io"
 
         MultiAddress
-        .init(
-          "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-        )
-        .tryGet().getHostname == "147.75.69.143"
+          .init(
+            "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+          )
+          .tryGet().getHostname == "147.75.69.143"
 
         MultiAddress
-        .init(
-          "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-        )
-        .tryGet().getHostname == "2604:1380:1000:6000::1"
+          .init(
+            "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+          )
+          .tryGet().getHostname == "2604:1380:1000:6000::1"
         MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
         MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
         MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"
@@ -195,7 +180,7 @@ suite "Name resolving":
       ): Future[void] {.async: (raises: []).} =
         try:
           let msg = transp.getMessage()
-          let resp =
+          var resp =
             if msg[24] == 1: #AAAA or A
               "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
                 "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
@@ -210,6 +195,9 @@ suite "Name resolving":
                 "\x4f\x00\x10\x26\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\x68" &
                 "\x16\x18\xb5\xc0\x0c\x00\x1c\x00\x01\x00\x00\x00\x4f\x00\x10\x26" &
                 "\x06\x47\x00\x00\x10\x00\x00\x00\x00\x00\x00\xac\x43\x0a\xa1"
+          # Echo back the query id so the resolver accepts the response.
+          resp[0] = char(msg[0])
+          resp[1] = char(msg[1])
           await transp.sendTo(raddr, resp)
         except CancelledError, transport.TransportError:
           raiseAssert "unexpected error: " & getCurrentExceptionMsg()
@@ -255,12 +243,16 @@ suite "Name resolving":
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async: (raises: []).} =
         try:
-          let resp =
+          let msg = transp.getMessage()
+          var resp =
             "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
             "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
             "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
+          # Echo back the query id so the resolver accepts the response.
+          resp[0] = char(msg[0])
+          resp[1] = char(msg[1])
           await transp.sendTo(raddr, resp)
         except CancelledError, transport.TransportError:
           raiseAssert "unexpected error: " & getCurrentExceptionMsg()

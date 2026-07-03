@@ -12,6 +12,7 @@ import
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
+    protocols/pubsub/rpc/protobuf,
     protocols/pubsub/peertable,
     protocols/pubsub/pubsubpeer,
   ]
@@ -77,7 +78,7 @@ suite "FloodSub Component":
     ): Future[ValidationResult] {.async.} =
       check topic == topic
       validatorFut.complete(true)
-      result = ValidationResult.Accept
+      ValidationResult.Accept
 
     nodes[1].addValidator(topic, validator)
 
@@ -101,7 +102,7 @@ suite "FloodSub Component":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       validatorFut.complete(true)
-      result = ValidationResult.Reject
+      ValidationResult.Reject
 
     nodes[1].addValidator(topic, validator)
 
@@ -129,10 +130,7 @@ suite "FloodSub Component":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      if topic == topicFoo:
-        result = ValidationResult.Accept
-      else:
-        result = ValidationResult.Reject
+      if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
 
     nodes[1].addValidator(topicFoo, topicBar, validator)
 
@@ -273,5 +271,61 @@ suite "FloodSub Component":
 
     check (await nodes[0].publish(topic, bigMessage)) > 0
 
-    checkUntilTimeout:
+    # Large message transfer (19MB over QUIC) can take longer than the default 30s timeout,
+    # especially on slow CI machines (e.g. Windows runners).
+    checkUntilTimeoutCustom(120.seconds, 500.milliseconds):
       messageReceived == 1
+
+  asyncTest "FloodSub cumulative subscription limit across messages":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.topicsHigh = 10
+
+    let peerId = randomPeerId()
+    proc getStream(): Future[Stream] {.
+        async: (raises: [CancelledError, GetStreamDialError])
+    .} =
+      raise (ref GetStreamDialError)(msg: "unused")
+
+    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    node.peers[peerId] = peer
+
+    for i in 0 .. node.topicsHigh + 10:
+      let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
+      await node.rpcHandler(peer, encode(sub, false))
+
+    check:
+      node.floodsub.len == node.topicsHigh
+      peer.subscribedTopics == node.topicsHigh
+      not node.floodsub.hasKey(topic & $node.topicsHigh)
+
+    let unsub =
+      RPCMsg.withSubscriptions(@[SubOpts(subscribe: false, topic: topic & "0")])
+    await node.rpcHandler(peer, encode(unsub, false))
+    check peer.subscribedTopics == node.topicsHigh - 1
+
+    let lateSub =
+      RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & "late")])
+    await node.rpcHandler(peer, encode(lateSub, false))
+    check:
+      peer.subscribedTopics == node.topicsHigh
+      node.floodsub.hasKey(topic & "late")
+
+  asyncTest "FloodSub unsubscribePeer clears emptied topics":
+    let node = generateNodes(1).toFloodSub()[0]
+
+    let peerId = randomPeerId()
+    proc getStream(): Future[Stream] {.
+        async: (raises: [CancelledError, GetStreamDialError])
+    .} =
+      raise (ref GetStreamDialError)(msg: "unused")
+
+    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    node.peers[peerId] = peer
+
+    for i in 0 ..< 5:
+      let sub = RPCMsg.withSubscriptions(@[SubOpts(subscribe: true, topic: topic & $i)])
+      await node.rpcHandler(peer, encode(sub, false))
+    check node.floodsub.len == 5
+
+    node.unsubscribePeer(peerId)
+    check node.floodsub.len == 0

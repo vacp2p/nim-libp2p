@@ -7,7 +7,7 @@ import std/[strformat]
 import results
 import chronos, chronicles, metrics
 import connection
-import ../utility
+import ../utils/shortlog
 
 export results
 
@@ -22,11 +22,6 @@ type ChronosStream* = ref object of Connection
   client: StreamTransport
   when defined(libp2p_agents_metrics):
     tracked: bool
-
-when defined(libp2p_agents_metrics):
-  declareGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
-  declareCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
-  declareCounter libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"]
 
 func shortLog*(conn: ChronosStream): auto =
   try:
@@ -58,14 +53,15 @@ proc init*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
 ): ChronosStream =
-  result = C(
+  let s = C(
     client: client,
     timeout: timeout,
     dir: dir,
     observedAddr: observedAddr,
     localAddr: localAddr,
   )
-  result.initStream()
+  s.initStream()
+  s
 
 template withExceptions(body: untyped) =
   try:
@@ -100,13 +96,14 @@ method readOnce*(
   if s.atEof:
     raise newLPStreamEOFError()
   withExceptions:
-    result = await s.client.readOnce(pbytes, nbytes)
+    let bytesRead = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
-    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
+    libp2p_network_bytes.inc(bytesRead.int64, labelValues = ["in"])
     when defined(libp2p_agents_metrics):
       s.trackPeerIdentity()
       if s.tracked:
-        libp2p_peers_traffic_read.inc(result.int64, labelValues = [s.shortAgent])
+        libp2p_peers_traffic_read.inc(bytesRead.int64, labelValues = [s.shortAgent])
+    return bytesRead
 
 proc completeWrite(
     s: ChronosStream,
@@ -130,10 +127,11 @@ proc completeWrite(
         libp2p_peers_traffic_write.inc(msgLen.int64, labelValues = [s.shortAgent])
 
 method write*(
-    s: ChronosStream, msg: seq[byte]
+    s: ChronosStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
+  let msgLen = msg.len
   if msg.len == 0:
     trace "Empty byte seq, nothing to write"
     let fut = newFuture[void]("chronosstream.write.empty")
@@ -144,7 +142,7 @@ method write*(
     fut.fail(newLPStreamClosedError())
     return fut
 
-  s.completeWrite(s.client.write(msg), msg.len)
+  s.completeWrite(s.client.write(msg), msgLen)
 
 method closed*(s: ChronosStream): bool =
   s.client.closed

@@ -9,7 +9,7 @@ import chronos/ratelimit
 import "."/[types]
 import ".."/[pubsubpeer]
 import ../rpc/messages
-import "../../.."/[peerid, multiaddress, switch, utils/heartbeat]
+import "../../.."/[peerid, multiaddress, switch, utils/heartbeat, utils/future]
 import ../pubsub
 
 logScope:
@@ -140,7 +140,7 @@ proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
       peer.peerId notin g.parameters.directPeers:
     debug "disconnecting bad score peer", peer, score = peer.score
-    asyncSpawn(g.disconnectPeer(peer))
+    g.pendingTasks.trackFut(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
 
 proc updateScores*(g: GossipSub) = # avoid async
@@ -336,11 +336,15 @@ proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
+    for trigger in g.scoringHeartbeatEvents:
+      trace "firing scoring heartbeat event", instance = cast[int](g)
+      trigger.fire()
+
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
 ) {.async: (raises: [PeerRateLimitError]).} =
-  let uselessAppBytesNum = msg.data.len
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    let uselessAppBytesNum = msg.data.get(@[]).len
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       debug "Peer sent invalid message and it's above rate limit",
         peer, uselessAppBytesNum
@@ -352,13 +356,12 @@ proc punishInvalidMessage*(
           PeerRateLimitError, "Peer disconnected because it's above rate limit."
         )
 
-  let topic = msg.topic
-  if topic notin g.topics:
+  if msg.topic notin g.topics:
     return
 
   # update stats
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
-    stats.topicInfos.mgetOrPut(topic, TopicInfo()).invalidMessageDeliveries += 1
+    stats.topicInfos.mgetOrPut(msg.topic, TopicInfo()).invalidMessageDeliveries += 1
 
 proc addCapped*[T](stat: var T, diff, cap: T) =
   stat += min(diff, cap - stat)

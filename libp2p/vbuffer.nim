@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import varint, strutils
-import ./utils/sequninit
 
 type VBuffer* = object
   buffer*: seq[byte]
@@ -22,29 +21,31 @@ template isEnough*(vb: VBuffer, length: int): bool =
 
 proc high*(vb: VBuffer): int =
   ## Returns number of bytes left in buffer ``vb``.
-  result = vb.buffer.high - vb.offset
-  doAssert(result >= 0)
+  let r = vb.buffer.high - vb.offset
+  doAssert(r >= 0)
+  r
 
 proc len*(vb: VBuffer): int =
   ## Returns number of bytes left in buffer ``vb``.
-  result = len(vb.buffer) - vb.offset
-  doAssert(result >= 0)
+  let r = len(vb.buffer) - vb.offset
+  doAssert(r >= 0)
+  r
 
 proc initVBuffer*(data: seq[byte], offset = 0): VBuffer =
   ## Initialize VBuffer with shallow copy of ``data``.
-  result.buffer = data
-  result.offset = offset
+  VBuffer(buffer: data, offset: offset)
 
 proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
   ## Initialize VBuffer with copy of ``data``.
-  result.buffer = newSeqUninit[byte](len(data))
+  var buf = newSeqUninit[byte](len(data))
   if len(data) > 0:
-    copyMem(addr result.buffer[0], unsafeAddr data[0], len(data))
-  result.offset = offset
+    copyMem(addr buf[0], addr data[0], len(data))
+  VBuffer(buffer: buf, offset: offset)
 
-proc initVBuffer*(): VBuffer =
+proc initVBuffer*(cap: int = 128): VBuffer =
   ## Initialize empty VBuffer.
-  result.buffer = newSeqOfCap[byte](128)
+  doAssert(cap >= 0)
+  VBuffer(buffer: newSeqOfCap[byte](cap))
 
 proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
   ## Write ``value`` as variable unsigned integer.
@@ -79,7 +80,7 @@ proc writeSeq*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   doAssert(res.isOk())
   vb.offset += length
   if len(value) > 0:
-    copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr vb.buffer[vb.offset], addr value[0], len(value))
     vb.offset += len(value)
 
 proc writeArray*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
@@ -87,7 +88,7 @@ proc writeArray*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   ## varint length of the array.
   if len(value) > 0:
     vb.buffer.setLen(len(vb.buffer) + len(value))
-    copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr vb.buffer[vb.offset], addr value[0], len(value))
     vb.offset += len(value)
 
 proc finish*(vb: var VBuffer) =
@@ -100,14 +101,15 @@ proc peekVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   ## This procedure will not adjust internal offset.
   ##
   ## Returns number of bytes peeked from ``vb`` or ``-1`` on error.
-  result = -1
+  var r = -1
   value = cast[type(value)](0)
   var length = 0
   if not vb.isEmpty():
     let res =
       LP.getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, value)
     if res.isOk():
-      result = length
+      r = length
+  r
 
 proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
   ## Peek length prefixed array from buffer ``vb`` and store result to
@@ -116,7 +118,7 @@ proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
   ## This procedure will not adjust internal offset.
   ##
   ## Returns number of bytes peeked from ``vb`` or ``-1`` on error.
-  result = -1
+  var r = -1
   value.setLen(0)
   var length = 0
   var size = 0'u64
@@ -125,13 +127,14 @@ proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
       .getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, size)
       .isOk():
     vb.offset += length
-    result = length
+    r = length
     if vb.isEnough(int(size)):
       value.setLen(size)
       if size > 0'u64:
         copyMem(addr value[0], addr vb.buffer[vb.offset], size)
-      result += int(size)
+      r += int(size)
     vb.offset -= length
+  r
 
 proc peekArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   ## Peek array from buffer ``vb`` and store result to ``value``.
@@ -139,43 +142,46 @@ proc peekArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   ## This procedure will not adjust internal offset.
   ##
   ## Returns number of bytes peeked from ``vb`` or ``-1`` on error.
-  result = -1
   let length = len(value)
   if vb.isEnough(length):
     if length > 0:
       copyMem(addr value[0], addr vb.buffer[vb.offset], length)
-    result = length
+    length
+  else:
+    -1
 
-proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int {.inline.} =
+proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): int =
   ## Read unsigned integer from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.
-  result = vb.peekVarint(value)
-  if result != -1:
-    vb.offset += result
+  let r = vb.peekVarint(value)
+  if r != -1:
+    vb.offset += r
+  r
 
-proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int {.inline.} =
+proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): int =
   ## Read length prefixed array from buffer ``vb`` and store result to
   ## ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.
-  result = vb.peekSeq(value)
-  if result != -1:
-    vb.offset += result
+  let r = vb.peekSeq(value)
+  if r != -1:
+    vb.offset += r
+  r
 
-proc readArray*[T: char | byte](
-    vb: var VBuffer, value: var openArray[T]
-): int {.inline.} =
+proc readArray*[T: char | byte](vb: var VBuffer, value: var openArray[T]): int =
   ## Read array from buffer ``vb`` and store result to ``value``.
   ##
   ## Returns number of bytes consumed from ``vb`` or ``-1`` on error.
-  result = vb.peekArray(value)
-  if result != -1:
-    vb.offset += result
+  let r = vb.peekArray(value)
+  if r != -1:
+    vb.offset += r
+  r
 
 proc `$`*(vb: VBuffer): string =
   ## Return hexadecimal string representation of buffer ``vb``.
   let length = (len(vb.buffer) - vb.offset) * 2
-  result = newStringOfCap(length)
+  var s = newStringOfCap(length)
   for i in 0 ..< len(vb.buffer):
-    result.add(toHex(vb.buffer[i]))
+    s.add(toHex(vb.buffer[i]))
+  s

@@ -23,8 +23,8 @@ import
   ../../peerid,
   ../../peerinfo,
   ../../errors,
-  ../../utility,
-  ../../utils/[sequninit, future]
+  ../../utils/opt,
+  ../../utils/future
 
 import results
 export results
@@ -41,6 +41,7 @@ logScope:
 const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
+  DefaultTopicsHigh* = 1024 ## max topics a single peer may subscribe to
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -127,28 +128,28 @@ type
 
   PeerMessageDecodeError* = object of CatchableError
 
-  TopicHandler* {.public.} =
+  TopicHandler* =
     proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
-  ValidatorHandler* {.public.} = proc(
-    topic: string, message: Message
-  ): Future[ValidationResult] {.gcsafe, raises: [].}
+  ValidatorHandler* = proc(topic: string, message: Message): Future[ValidationResult] {.
+    gcsafe, raises: []
+  .}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
-  MsgIdProvider* {.public.} = proc(m: Message): Result[MessageId, ValidationResult] {.
+  MsgIdProvider* = proc(m: Message): Result[MessageId, ValidationResult] {.
     noSideEffect, raises: [], gcsafe
   .}
 
-  SubscriptionValidator* {.public.} = proc(topic: string): bool {.raises: [], gcsafe.}
+  SubscriptionValidator* = proc(topic: string): bool {.raises: [], gcsafe.}
     ## Every time a peer send us a subscription (even to an unknown topic),
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
 
   PublishParams* = object
-    ## Used to indicate whether a message will be broadcasted using a custom connection
-    ## defined when instantiating Pubsub, or if it will use the normal connection
-    useCustomConn*: bool
+    ## Used to indicate whether a message will be broadcasted using a custom stream
+    ## defined when instantiating Pubsub, or if it will use the normal send stream
+    useCustomStream*: bool
 
     ## Can be used to avoid having the node reply to IWANT messages when initially 
     ## broadcasting a message, it's only after relaying its own message that the
@@ -168,7 +169,7 @@ type
     requestsPartial*: bool
     supportsSendingPartial*: bool
 
-  PubSub* {.public.} = ref object of LPProtocol
+  PubSub* = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -196,16 +197,23 @@ type
       ## lead to issues, from descoring to connection drops
       ##
       ## defaults to 1mB
-    rng*: ref HmacDrbgContext
+    rng*: Rng
 
     knownTopics*: HashSet[string]
-    customConnCallbacks*: Opt[CustomConnectionCallbacks]
+    customStreamCallbacks*: Opt[CustomStreamCallbacks]
 
-proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
+proc topicLabel*(p: PubSub, topic: string | Opt[string]): string =
   ## returns value to be used for `topic` labels.
-  ## 
+  let t =
+    when topic is Opt[string]:
+      if topic.isSome:
+        topic.get()
+      else:
+        return "unset"
+    else:
+      topic
 
-  if p.knownTopics.contains(topic): topic else: "generic"
+  if p.knownTopics.contains(t): t else: "generic"
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
@@ -221,7 +229,7 @@ proc send*(
     peer: PubSubPeer,
     msg: RPCMsg,
     priority: MessagePriority,
-    useCustomConn: bool = false,
+    useCustomStream: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
   ##
@@ -233,31 +241,15 @@ proc send*(
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, payload = shortLog(msg)
-  peer.send(msg, p.anonymize, priority, useCustomConn)
-
-proc send*(
-    p: PubSub,
-    peer: PubSubPeer,
-    msg: RPCMsg,
-    isHighPriority: bool,
-    useCustomConn: bool = false,
-) {.raises: [], deprecated: "use send(..., priority = High/Low, ...) instead".} =
-  let priority =
-    if isHighPriority:
-      MessagePriority.High
-    else:
-      # Locally published messages have higher priority than gossip but not than control messages       
-      MessagePriority.Medium
-
-  p.send(peer, msg, priority, useCustomConn)
+  trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
+  peer.send(msg, p.anonymize, priority, useCustomStream)
 
 proc broadcast*(
     p: PubSub,
     sendPeers: auto, # Iteratble[PubSubPeer]
     msg: RPCMsg,
     priority: MessagePriority,
-    useCustomConn: bool = false,
+    useCustomStream: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
   ##
@@ -271,7 +263,7 @@ proc broadcast*(
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
-    if sub.subscribe:
+    if sub.isSubscribe:
       libp2p_pubsub_broadcast_subscriptions.inc(
         npeers, labelValues = [p.topicLabel(sub.topic)]
       )
@@ -301,28 +293,17 @@ proc broadcast*(
         npeers, labelValues = [p.topicLabel(prune.topicID)]
       )
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, payload = shortLog(msg)
+  trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, priority, useCustomConn)
+      p.send(peer, msg, priority, useCustomStream)
   else:
     # Fast path that only encodes message once
-    let encoded = encodeRpcMsg(msg, p.anonymize)
+    let encoded = msg.encode(p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, priority, useCustomConn)
-
-proc broadcast*(
-    p: PubSub,
-    sendPeers: auto, # Iterable[PubSubPeer]
-    msg: RPCMsg,
-    isHighPriority: bool,
-    useCustomConn: bool = false,
-) {.deprecated: "Use broadcast with priority: MessagePriority instead", raises: [].} =
-  ## Backward-compatible overload for callers still using the previous
-  ## boolean priority API. Maps `true` to `High` and `false` to `Medium`.
-  let priority = if isHighPriority: High else: Medium
-  p.broadcast(sendPeers, msg, priority, useCustomConn)
+      var peerEncoded = encoded
+      peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
@@ -331,7 +312,7 @@ proc sendSubs*(
 
   var subscriptions = newSeq[SubOpts]()
   for topic in subTopics:
-    var subOpt = SubOpts(subscribe: subscribe, topic: topic)
+    var subOpt = SubOpts(subscribe: Opt.some(subscribe), topic: Opt.some(topic))
     if subscribe:
       p.topics.withValue(topic, topicData):
         subOpt.requestsPartial = Opt.some(topicData[].requestsPartial)
@@ -351,7 +332,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    if sub.subscribe:
+    if sub.isSubscribe:
       libp2p_pubsub_received_subscriptions.inc(labelValues = [p.topicLabel(sub.topic)])
     else:
       libp2p_pubsub_received_unsubscriptions.inc(
@@ -384,7 +365,7 @@ method onNewPeer(p: PubSub, peer: PubSubPeer) {.base, gcsafe.} =
 method onPubSubPeerEvent*(
     p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent
 ) {.base, gcsafe.} =
-  # Peer event is raised for the send connection in particular
+  # Peer event is raised for the send stream in particular
   case event.kind
   of PubSubPeerEventKind.StreamOpened:
     if p.topics.len > 0:
@@ -408,13 +389,13 @@ method getOrCreatePeer*(
     else:
       protosToDial
 
-  proc getConn(): Future[Connection] {.
-      async: (raises: [CancelledError, GetConnDialError])
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
   .} =
     try:
       return await p.switch.dial(peerId, protos)
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e, msg: e.msg)
+      raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
@@ -422,11 +403,11 @@ method getOrCreatePeer*(
   # create new pubsub peer
   let pubSubPeer = PubSubPeer.new(
     peerId,
-    getConn,
+    getStream,
     onEvent,
     protoNegotiated,
     p.maxMessageSize,
-    customConnCallbacks = p.customConnCallbacks,
+    customStreamCallbacks = p.customStreamCallbacks,
   )
   debug "created new pubsub peer", peerId
 
@@ -474,8 +455,12 @@ proc handleData*(
   # Fast path - futures finished synchronously or nobody cared about data
   newFutureCompleted[void]()
 
+template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
+  if p.triggerSelf:
+    await handleData(p, topic, data)
+
 method handleConn*(
-    p: PubSub, conn: Connection, proto: string
+    p: PubSub, stream: Stream, proto: string
 ) {.base, async: (raises: [CancelledError]).} =
   ## handle incoming connections
   ##
@@ -495,23 +480,23 @@ method handleConn*(
       await p.rpcHandler(peer, data)
     except PeerMessageDecodeError as e:
       trace "failed to decode message in peerHandler",
-        description = e.msg, conn, peer = peer
+        description = e.msg, stream, peer = peer
       # loop continues and invalid messages are swallowed
     except PeerRateLimitError as e:
       trace "peer rate limit exceeded in peerHandler",
-        description = e.msg, conn, peer = peer
+        description = e.msg, stream, peer = peer
       # loop needs to stop. we are doing this by closing connection
-      await conn.closeWithEOF()
+      await stream.closeWithEOF()
 
-  let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
+  let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
   try:
     peer.handler = peerHandler
-    await peer.runHandleLoop(conn)
+    await peer.runHandleLoop(stream)
   except CancelledError as exc:
     raise exc
   finally:
-    await conn.closeWithEOF()
+    await stream.closeWithEOF()
 
 method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
@@ -548,10 +533,10 @@ method onTopicSubscription*(
 
   # Notify others that we are no longer interested in the topic
   for _, peer in p.peers:
-    # If we don't have a sendConn yet, we will
-    # send the full sub list when we get the sendConn,
+    # If we don't have a sendStream yet, we will
+    # send the full sub list when we get the sendStream,
     # so no need to send it here
-    if peer.hasSendConn:
+    if peer.hasSendStream:
       p.sendSubs(peer, [topic], subscribed)
 
   if subscribed:
@@ -559,7 +544,7 @@ method onTopicSubscription*(
   else:
     libp2p_pubsub_unsubscriptions.inc()
 
-proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
+proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) =
   ## unsubscribe from a ``topic`` string
   ##
   p.topics.withValue(topic, topicData):
@@ -572,12 +557,12 @@ proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
     p.updateTopicMetrics(topic)
 
-proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) {.public.} =
+proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) =
   ## unsubscribe from a list of ``topic`` handlers
   for t in topics:
     p.unsubscribe(t.topic, t.handler)
 
-proc unsubscribeAll*(p: PubSub, topic: string) {.public, gcsafe.} =
+proc unsubscribeAll*(p: PubSub, topic: string) {.gcsafe.} =
   ## unsubscribe every `handler` from `topic`
   if topic notin p.topics:
     debug "unsubscribeAll called for an unknown topic", topic
@@ -594,7 +579,7 @@ proc subscribe*(
     handler: TopicHandler,
     requestsPartial: bool = false,
     supportsSendingPartial: bool = false,
-) {.public.} =
+) =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
@@ -634,17 +619,16 @@ proc subscribe*(
 method publish*(
     p: PubSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.base, async: (raises: []), public.} =
+): Future[int] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
-  if p.triggerSelf:
-    await handleData(p, topic, data)
+  handleSelfPublishing(p, topic, data)
 
   return 0
 
@@ -660,7 +644,7 @@ method initPubSub*(p: PubSub) {.base, raises: [InitializationError].} =
 
 method addValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public, gcsafe.} =
+) {.base, gcsafe.} =
   ## Add a validator to a `topic`. Each new message received in this
   ## will be sent to `hook`. `hook` can return either `Accept`,
   ## `Ignore` or `Reject` (which can descore the peer)
@@ -670,7 +654,7 @@ method addValidator*(
 
 method removeValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public, gcsafe.} =
+) {.base, gcsafe.} =
   for t in topic:
     p.validators.withValue(t, validators):
       validators[].excl(hook)
@@ -683,6 +667,7 @@ method validate*(
   var pending: seq[Future[ValidationResult]]
   trace "about to validate message"
   let topic = message.topic
+
   trace "looking for validators on topic",
     topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
@@ -727,11 +712,10 @@ proc init*[PubParams: object | bool](
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
     maxMessageSize: int = 1024 * 1024,
-    rng: ref HmacDrbgContext = newRng(),
+    rng: Rng,
     parameters: PubParams = false,
-    customConnCallbacks: Opt[CustomConnectionCallbacks] =
-      Opt.none(CustomConnectionCallbacks),
-): P {.raises: [InitializationError], public.} =
+    customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
+): P {.raises: [InitializationError].} =
   let pubsub =
     when PubParams is bool:
       P(
@@ -745,8 +729,8 @@ proc init*[PubParams: object | bool](
         subscriptionValidator: subscriptionValidator,
         maxMessageSize: maxMessageSize,
         rng: rng,
-        topicsHigh: int.high,
-        customConnCallbacks: customConnCallbacks,
+        topicsHigh: DefaultTopicsHigh,
+        customStreamCallbacks: customStreamCallbacks,
       )
     else:
       P(
@@ -761,17 +745,21 @@ proc init*[PubParams: object | bool](
         parameters: parameters,
         maxMessageSize: maxMessageSize,
         rng: rng,
-        topicsHigh: int.high,
-        customConnCallbacks: customConnCallbacks,
+        topicsHigh: DefaultTopicsHigh,
+        customStreamCallbacks: customStreamCallbacks,
       )
 
   proc peerEventHandler(
       peerId: PeerId, event: PeerEvent
   ) {.async: (raises: [CancelledError]).} =
-    if event.kind == PeerEventKind.Joined:
+    case event.kind
+    of PeerEventKind.Joined:
       pubsub.subscribePeer(peerId)
-    else:
+    of PeerEventKind.Left:
       pubsub.unsubscribePeer(peerId)
+    of PeerEventKind.Identified:
+      # Identified events are handled by IdentifyPusher service
+      discard
 
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
@@ -782,10 +770,10 @@ proc init*[PubParams: object | bool](
 
   return pubsub
 
-proc addObserver*(p: PubSub, observer: PubSubObserver) {.public.} =
+proc addObserver*(p: PubSub, observer: PubSubObserver) =
   p.observers[] &= observer
 
-proc removeObserver*(p: PubSub, observer: PubSubObserver) {.public.} =
+proc removeObserver*(p: PubSub, observer: PubSubObserver) =
   let idx = p.observers[].find(observer)
   if idx != -1:
     p.observers[].del(idx)

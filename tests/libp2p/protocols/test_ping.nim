@@ -17,7 +17,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "Ping":
   var
@@ -30,7 +30,7 @@ suite "Ping":
     transport2 {.threadvar.}: Transport
     msListen {.threadvar.}: MultistreamSelect
     msDial {.threadvar.}: MultistreamSelect
-    conn {.threadvar.}: Connection
+    stream {.threadvar.}: Stream
     pingReceivedCount {.threadvar.}: int
 
   asyncSetup:
@@ -39,11 +39,11 @@ suite "Ping":
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
 
-    proc handlePing(peer: PeerId) {.async.} =
+    let handlePing = proc(peer: PeerId): Future[void] {.async: (raises: []), gcsafe.} =
       inc pingReceivedCount
 
-    pingProto1 = Ping.new()
-    pingProto2 = Ping.new(handlePing)
+    pingProto1 = Ping.new(rng = rng())
+    pingProto2 = Ping.new(handlePing, rng = rng())
 
     msListen = MultistreamSelect.new()
     msDial = MultistreamSelect.new()
@@ -51,7 +51,7 @@ suite "Ping":
     pingReceivedCount = 0
 
   asyncTeardown:
-    await conn.close()
+    await stream.close()
     await acceptFut
     await transport1.stop()
     await serverFut
@@ -59,62 +59,65 @@ suite "Ping":
     checkTrackers()
 
   asyncTest "simple ping":
-    msListen.addHandler(PingCodec, pingProto1)
+    msListen.addHandler(pingProto1)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    discard await msDial.select(conn, PingCodec)
-    let time = await pingProto2.ping(conn)
+    discard await msDial.select(stream, PingCodec)
+    let first = await pingProto2.ping(stream)
+    let second = await pingProto2.ping(stream)
 
-    check not time.isZero()
+    check not first.isZero()
+    check not second.isZero()
 
   asyncTest "ping callback":
-    msDial.addHandler(PingCodec, pingProto2)
+    msDial.addHandler(pingProto2)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       discard await msListen.select(c, PingCodec)
       discard await pingProto1.ping(c)
+      await c.close()
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    await msDial.handle(conn)
+    await msDial.handle(stream)
     check pingReceivedCount == 1
 
   asyncTest "bad ping data ack":
     type FakePing = ref object of LPProtocol
     let fakePingProto = FakePing()
     proc fakeHandle(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ) {.async: (raises: [CancelledError]).} =
       try:
         var
           buf: array[32, byte]
           fakebuf: array[32, byte]
-        await conn.readExactly(addr buf[0], 32)
-        await conn.write(@fakebuf)
+        await stream.readExactly(addr buf[0], 32)
+        await stream.write(@fakebuf)
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
 
     fakePingProto.codec = PingCodec
     fakePingProto.handler = fakeHandle
 
-    msListen.addHandler(PingCodec, fakePingProto)
+    msListen.addHandler(fakePingProto)
     serverFut = transport1.start(@[ma])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    discard await msDial.select(conn, PingCodec)
+    discard await msDial.select(stream, PingCodec)
 
     expect WrongPingAckError:
-      discard await pingProto2.ping(conn)
+      discard await pingProto2.ping(stream)

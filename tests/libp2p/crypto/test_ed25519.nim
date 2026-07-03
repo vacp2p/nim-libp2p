@@ -105,7 +105,7 @@ suite "Ed25519 test suite":
     for i in 0 ..< TestsCount:
       var rkey1, rkey2: EdPrivateKey
       var skey2 = newSeq[byte](256)
-      var key = EdPrivateKey.random(rng[])
+      var key = EdPrivateKey.random(rng())
       var skey1 = key.getBytes()
       check:
         key.toBytes(skey2) > 0
@@ -129,7 +129,7 @@ suite "Ed25519 test suite":
     for i in 0 ..< TestsCount:
       var rkey1, rkey2: EdPublicKey
       var skey2 = newSeq[byte](256)
-      var pair = EdKeyPair.random(rng[])
+      var pair = EdKeyPair.random(rng())
       var skey1 = pair.pubkey.getBytes()
       check:
         pair.pubkey.toBytes(skey2) > 0
@@ -166,7 +166,7 @@ suite "Ed25519 test suite":
   test "Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
     for i in 0 ..< TestsCount:
-      var kp = EdKeyPair.random(rng[])
+      var kp = EdKeyPair.random(rng())
       var sig = kp.seckey.sign(message)
       var sersk = kp.seckey.getBytes()
       var serpk = kp.pubkey.getBytes()
@@ -199,9 +199,9 @@ suite "Ed25519 test suite":
 
   test "fromSeed produces same key as random() with same seed":
     # Generate a random key, extract its seed, recreate with fromSeed
-    let randomKey = EdPrivateKey.random(rng[])
+    let randomKey = EdPrivateKey.random(rng())
     var seed: array[32, byte]
-    copyMem(addr seed[0], unsafeAddr randomKey.data[0], 32)
+    copyMem(addr seed[0], addr randomKey.data[0], 32)
     let recreated = EdPrivateKey.fromSeed(seed)
     check randomKey == recreated
 

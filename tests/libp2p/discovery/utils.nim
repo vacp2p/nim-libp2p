@@ -6,50 +6,33 @@ import
   ../../../libp2p/[
     builders,
     crypto/crypto,
+    multistream,
     peerid,
-    protobuf/minprotobuf,
     protocols/rendezvous,
     protocols/rendezvous/protobuf,
     routing_record,
     switch,
   ]
-import ../../tools/[crypto]
+import ../../tools/[crypto, switch_builder, multiaddress]
 
 proc createSwitch*(): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(rng)
-  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-  .withMemoryTransport()
-  .withMplex()
-  .withNoise()
-  .build()
+  makeStandardSwitch(multiaddress.MemoryAutoAddress)
 
-proc createSwitch*(rdv: RendezVous): Switch =
-  var lrdv = rdv
-  if rdv.isNil():
-    lrdv = RendezVous.new()
+proc createSwitch*(config: RendezVousConfig): RendezVous =
+  let switch = makeStandardSwitchBuilder(multiaddress.MemoryAutoAddress)
+    .withRendezVous(config)
+    .build()
 
-  SwitchBuilder
-  .new()
-  .withRng(rng)
-  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-  .withMemoryTransport()
-  .withMplex()
-  .withNoise()
-  .withRendezVous(lrdv)
-  .build()
+  for h in switch.ms.handlers:
+    if RendezVousCodec in h.protos:
+      return RendezVous(h.protocol)
+  doAssert false, "RendezVous not mounted"
 
 proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
-
   var rdvs: seq[RendezVous] = @[]
-
   for x in 0 ..< count:
-    var rdv: RendezVous = RendezVous.new()
-    discard createSwitch(rdv)
-    rdvs.add(rdv)
-
+    rdvs.add(createSwitch(RendezVousConfig.new()))
   return rdvs
 
 proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
@@ -66,11 +49,7 @@ proc connect*(dialer: RendezVous, target: RendezVous) {.async.} =
   )
 
 proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
-  var pb = initProtoBuffer()
-  pb.write(1, offset)
-  pb.write(2, namespace)
-  pb.finish()
-  pb.buffer
+  encode(Cookie(offset: offset, ns: Opt.some(namespace)))
 
 proc injectCookieForPeer*(
     rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]
@@ -94,7 +73,7 @@ proc populatePeerRegistrations*(
     targetRdv.registered.s.add(record)
 
 proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
-  let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
+  let wrongPrivKey = PrivateKey.random(rng()).tryGet()
   let record = PeerRecord.init(peerId, @[])
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()
 

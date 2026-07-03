@@ -4,7 +4,7 @@
 {.used.}
 
 import ../../libp2p/[multiaddress, wire]
-import ../tools/[unittest]
+import ../tools/[unittest, multiaddress]
 
 suite "Wire":
   test "initTAddress returns ok and correct result for a Unix domain address":
@@ -147,38 +147,37 @@ suite "Wire":
     check initTAddress(ma).isErr
 
 suite "isFilterablePrivateMA":
-  proc ma(s: string): MultiAddress =
-    MultiAddress.init(s).tryGet()
-
   test "RFC1918 addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/10.0.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/172.16.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/172.31.255.255/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/192.168.1.5/tcp/4001"))
+    check not isPublicMA(ma("/ip4/10.0.0.1/tcp/4001"))
+    check not isPublicMA(ma("/ip4/172.16.0.1/tcp/4001"))
+    check not isPublicMA(ma("/ip4/172.31.255.255/tcp/4001"))
+    check not isPublicMA(ma("/ip4/192.168.1.5/tcp/4001"))
 
   test "loopback addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/127.0.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip6/::1/tcp/4001"))
+    check not isPublicMA(ma("/ip4/127.0.0.1/tcp/4001"))
+    check not isPublicMA(ma("/ip6/::1/tcp/4001"))
+    check isLoopbackMA(ma("/ip4/127.0.0.1/tcp/4001"))
+    check isLoopbackMA(ma("/ip6/::1/tcp/4001"))
 
   test "link-local addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/169.254.1.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip6/fe80::1/tcp/4001"))
+    check not isPublicMA(ma("/ip4/169.254.1.1/tcp/4001"))
+    check not isPublicMA(ma("/ip6/fe80::1/tcp/4001"))
 
   test "public IPv4 addresses are not filterable":
-    check not isFilterablePrivateMA(ma("/ip4/1.1.1.1/tcp/4001"))
-    check not isFilterablePrivateMA(ma("/ip4/8.8.8.8/tcp/53"))
+    check isPublicMA(ma("/ip4/1.1.1.1/tcp/4001"))
+    check isPublicMA(ma("/ip4/8.8.8.8/tcp/53"))
 
   test "DNS addresses are not filterable":
-    check not isFilterablePrivateMA(ma("/dns4/example.com/tcp/4001"))
-    check not isFilterablePrivateMA(ma("/dns/example.com/tcp/4001"))
+    check isPublicMA(ma("/dns4/example.com/tcp/4001"))
+    check isPublicMA(ma("/dns/example.com/tcp/4001"))
 
   test "circuit relay addresses are not filterable even with private relay IP":
-    check not isFilterablePrivateMA(
+    check isCircuitRelayMA(
       ma(
         "/ip4/192.168.1.5/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
       )
     )
-    check not isFilterablePrivateMA(
+    check isCircuitRelayMA(
       ma(
         "/ip4/127.0.0.1/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
       )

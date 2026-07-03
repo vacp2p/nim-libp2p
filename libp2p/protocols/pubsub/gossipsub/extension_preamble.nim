@@ -31,7 +31,7 @@ type
     bandwidthTracking: BandwidthTracking
 
   PreambleExtension* = ref object of Extension
-    rng: ref HmacDrbgContext
+    rng: Rng
     config: PreambleExtensionConfig
     supportingPeers: seq[PeerId]
     preambleBudgetUsed: Table[PeerId, int]
@@ -58,10 +58,10 @@ proc doAssert(config: PreambleExtensionConfig) =
   )
 
 proc new*(
-    T: typedesc[PreambleExtension], config: PreambleExtensionConfig
+    T: typedesc[PreambleExtension], config: PreambleExtensionConfig, rng: Rng
 ): PreambleExtension =
   config.doAssert()
-  PreambleExtension(rng: newRng(), config: config)
+  PreambleExtension(rng: rng, config: config)
 
 method isSupported*(
     ext: PreambleExtension, pe: PeerExtensions
@@ -95,10 +95,10 @@ func medianValue(vals: seq[float]): float =
 
 func medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
   peers
-  .filterIt(ext.peerState.hasKey(it))
-  .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
-  .sorted()
-  .medianValue()
+    .filterIt(ext.peerState.hasKey(it))
+    .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
+    .sorted()
+    .medianValue()
 
 proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Preamble]) =
   let startTime = Moment.now()
@@ -109,35 +109,42 @@ proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Prea
       return
 
   for preamble in preambles:
+    let messageId = preamble.messageID.valueOr:
+      trace "preamble messageId not set", peerId
+      continue
+    let topicId = preamble.topicID.valueOr:
+      trace "preamble topicID not set", peerId
+      continue
+
     let peerUsedBudget = ext.preambleBudgetUsed.getOrDefault(peerId)
     if peerUsedBudget >= ext.config.maxPreamblePeerBudget:
       return
     ext.preambleBudgetUsed[peerId] = peerUsedBudget + 1
 
-    if ext.config.hasSeen(preamble.messageID):
+    if ext.config.hasSeen(messageId):
       continue
 
-    if peerState.heIsSendings.hasKey(preamble.messageID):
+    if peerState.heIsSendings.hasKey(messageId):
       continue
 
-    if ext.ongoingReceives.hasKey(preamble.messageID):
+    if ext.ongoingReceives.hasKey(messageId):
       # TODO: add to conflicts_watch if length is different
       continue
 
-    peerState.heIsSendings[preamble.messageID] = startTime
+    peerState.heIsSendings[messageId] = startTime
 
-    var toSendPeers = ext.config.meshAndDirectPeersForTopic(preamble.topicID)
+    var toSendPeers = ext.config.meshAndDirectPeersForTopic(topicId)
     var peers = toSendPeers.filterIt(it in ext.supportingPeers)
 
     let bytesPerSecond = peerState.bandwidthTracking.download.value()
     let transmissionTimeMs =
-      calculateReceiveTimeMs(preamble.messageLength.int64, bytesPerSecond.int64)
+      calculateReceiveTimeMs(preamble.messageLength.get(0).int64, bytesPerSecond.int64)
     let expires = startTime + transmissionTimeMs.milliseconds
 
     # We send imreceiving only if received from mesh members
     if peerId notin peers:
       trace "preamble: ignoring out of mesh peer", peerId
-      if not ext.ongoingIWantReceives.hasKey(preamble.messageID):
+      if not ext.ongoingIWantReceives.hasKey(messageId):
         ext.ongoingIWantReceives.insert(
           PreambleInfo.init(preamble, peerId, startTime, expires)
         )
@@ -159,15 +166,22 @@ proc handleIMReceiving*(
       return
 
   for imreceiving in imreceivings:
+    let messageId = imreceiving.messageID.valueOr:
+      trace "IMReceiving messageId not set", peerId
+      continue
+    let messageLength = imreceiving.messageLength.valueOr:
+      trace "IMReceiving messageLength not set", peerId
+      continue
+
     if peerState.heIsReceivings.len > ext.config.maxHeIsReceiving:
       return
 
     # Ignore if message length is different
-    ext.ongoingReceives.withValue(imreceiving.messageID, pInfo):
-      if pInfo.messageLength != imreceiving.messageLength:
+    ext.ongoingReceives.withValue(messageId, pInfo):
+      if pInfo.messageLength != messageLength:
         continue
 
-    peerState.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
+    peerState.heIsReceivings[messageId] = messageLength
     # No need to check mcache. In that case, we might have already transmitted/transmitting
 
 proc addPossiblePeerToQuery(
@@ -205,7 +219,7 @@ method onHandleRPC*(
 
 func filterOutMessagesBelowThreshold(msg: RPCMsg): RPCMsg =
   let preamble = msg.preambleExtension.get().preamble.filterIt(
-      it.messageLength >= preambleMessageSizeThreshold
+      it.messageLength.isSome and it.messageLength.get() >= preambleMessageSizeThreshold
     )
   return RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
 
@@ -225,7 +239,8 @@ proc preambleBroadcastIfNotReceiving*(
 ) =
   proc isMsgInIMReceiving(peerId: PeerId): bool =
     try:
-      let msgId = msg.preambleExtension.get().preamble[0].messageID
+      let msgId = msg.preambleExtension.get().preamble[0].messageID.valueOr:
+        return false
       let peerState = ext.peerState[peerId]
       if peerState.heIsReceivings.hasKey(msgId):
         libp2p_gossipsub_imreceiving_saved_messages.inc

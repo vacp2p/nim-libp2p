@@ -4,22 +4,19 @@
 {.push raises: [].}
 
 import std/strformat
-import chronos
-import chronicles
-import bearssl/[rand, hash]
+import chronos, results, chronicles
+import protobuf_serialization, protobuf_serialization/pkg/results
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
-import ../../protobuf/minprotobuf
-import ../../utility
-import ../../utils/[bytesview, sequninit]
+import ../../utils/[opt, shortlog, bytesview, protobuf]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
 when defined(libp2p_dump):
-  import ../../debugutils
+  import ../../utils/debug
 
 logScope:
   topics = "libp2p noise"
@@ -71,7 +68,7 @@ type
     rs: Curve25519Key
 
   Noise* = ref object of Secure
-    rng: ref HmacDrbgContext
+    rng: Rng
     localPrivateKey: PrivateKey
     localPublicKey: seq[byte]
     noiseKeys: KeyPair
@@ -88,7 +85,13 @@ type
   NoiseOversizedPayloadError* = object of NoiseError
   NoiseNonceMaxError* = object of NoiseError # drop connection on purpose
 
+  NoiseHandshakePayloadMsg* {.proto2.} = object
+    identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
+    identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
+
 # Utility
+
+Protobuf.serializerFor([NoiseHandshakePayloadMsg], withMetrics = true, domain = "noise")
 
 func shortLog*(conn: NoiseConnection): auto =
   try:
@@ -102,23 +105,26 @@ func shortLog*(conn: NoiseConnection): auto =
 chronicles.formatIt(NoiseConnection):
   shortLog(it)
 
-proc genKeyPair(rng: var HmacDrbgContext): KeyPair =
-  result.privateKey = Curve25519Key.random(rng)
-  result.publicKey = result.privateKey.public()
+proc genKeyPair(rng: Rng): KeyPair =
+  let privateKey = Curve25519Key.random(rng)
+  KeyPair(privateKey: privateKey, publicKey: privateKey.public())
 
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
   # sets h to protocol_name with zero bytes appended to make HASHLEN bytes.
   # Otherwise sets h = HASH(protocol_name).
 
+  var h: MDigest[256]
   if name.len <= 32:
-    result.data[0 .. name.high] = name.toBytes
+    h.data[0 .. name.high] = name.toBytes
   else:
-    result = sha256.digest(name)
+    h = sha256.digest(name)
+  h
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  result = pub
-  Curve25519.mul(result, priv)
+  var key = pub
+  Curve25519.mul(key, priv)
+  key
 
 # Cipherstate
 
@@ -129,26 +135,29 @@ proc encrypt(
     state: var CipherState, data: var openArray[byte], ad: openArray[byte]
 ): ChaChaPolyTag {.noinit, raises: [NoiseNonceMaxError].} =
   var nonce: ChaChaPolyNonce
+  var tag: ChaChaPolyTag
   nonce[4 ..< 12] = toBytesLE(state.n)
 
-  ChaChaPoly.encrypt(state.k, nonce, result, data, ad)
+  ChaChaPoly.encrypt(state.k, nonce, tag, data, ad)
 
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  tag
 
 proc encryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseNonceMaxError].} =
-  result = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
-  result.add(data)
+  var buf = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
+  buf.add(data)
 
-  let tag = encrypt(state, result, ad)
+  let tag = encrypt(state, buf, ad)
 
-  result.add(tag)
+  buf.add(tag)
 
   trace "encryptWithAd",
-    tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
+    tag = byteutils.toHex(tag), data = buf.shortLog, nonce = state.n - 1
+  buf
 
 proc decryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
@@ -157,9 +166,9 @@ proc decryptWithAd(
     tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     tagOut: ChaChaPolyTag
     nonce: ChaChaPolyNonce
+    buf = data[0 .. (data.high - ChaChaPolyTag.len)]
   nonce[4 ..< 12] = toBytesLE(state.n)
-  result = data[0 .. (data.high - ChaChaPolyTag.len)]
-  ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
+  ChaChaPoly.decrypt(state.k, nonce, tagOut, buf, ad)
   trace "decryptWithAd",
     tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
@@ -168,13 +177,13 @@ proc decryptWithAd(
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  buf
 
 # Symmetricstate
 
 proc init(_: type[SymmetricState]): SymmetricState =
-  result.h = ProtocolXXName.hashProtocol
-  result.ck = result.h.data.intoChaChaPolyKey
-  result.cs = CipherState(k: EmptyKey)
+  let h = ProtocolXXName.hashProtocol
+  SymmetricState(h: h, ck: h.data.intoChaChaPolyKey, cs: CipherState(k: EmptyKey))
 
 proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   var temp_keys: array[2, ChaChaPolyKey]
@@ -203,21 +212,25 @@ proc encryptAndHash(
     ss: var SymmetricState, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
-  if ss.cs.hasKey:
-    result = ss.cs.encryptWithAd(ss.h.data, data)
-  else:
-    result = @data
-  ss.mixHash(result)
+  let encrypted =
+    if ss.cs.hasKey:
+      ss.cs.encryptWithAd(ss.h.data, data)
+    else:
+      @data
+  ss.mixHash(encrypted)
+  encrypted
 
 proc decryptAndHash(
     ss: var SymmetricState, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
-  if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
-    result = ss.cs.decryptWithAd(ss.h.data, data)
-  else:
-    result = @data
+  let decrypted =
+    if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
+      ss.cs.decryptWithAd(ss.h.data, data)
+    else:
+      @data
   ss.mixHash(data)
+  decrypted
 
 proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var temp_keys: array[2, ChaChaPolyKey]
@@ -225,13 +238,13 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   return (CipherState(k: temp_keys[0]), CipherState(k: temp_keys[1]))
 
 proc init(_: type[HandshakeState]): HandshakeState =
-  result.ss = SymmetricState.init()
+  HandshakeState(ss: SymmetricState.init())
 
 template write_e(): untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR().
   # Appends e.public_key to the buffer. Calls MixHash(e.public_key).
-  hs.e = genKeyPair(p.rng[])
+  hs.e = genKeyPair(p.rng)
   hs.ss.mixHash(hs.e.publicKey)
 
   hs.e.publicKey.getBytes
@@ -300,7 +313,7 @@ template read_s(): untyped =
   rsLen
 
 proc readFrame(
-    sconn: Connection
+    sconn: RawConn
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   var besize {.noinit.}: array[2, byte]
   await sconn.readExactly(addr besize[0], besize.len)
@@ -314,11 +327,11 @@ proc readFrame(
   return buffer
 
 proc receiveHSMessage(
-    sconn: Connection
+    sconn: RawConn
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   readFrame(sconn)
 
-template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
+template sendHSMessage(sconn: RawConn, parts: varargs[seq[byte]]): untyped =
   # sends message (message frame) using multiple seq[byte] that 
   # concatenated represent entire mesage.
 
@@ -334,7 +347,7 @@ template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
     await sconn.write(p)
 
 proc handshakeXXOutbound(
-    p: Noise, conn: Connection, p2pSecret: seq[byte]
+    p: Noise, conn: RawConn, p2pSecret: seq[byte]
 ): Future[HandshakeResult] {.async: (raises: [CancelledError, LPStreamError]).} =
   const initiator = true
   var hs = HandshakeState.init()
@@ -374,7 +387,7 @@ proc handshakeXXOutbound(
     burnMem(hs)
 
 proc handshakeXXInbound(
-    p: Noise, conn: Connection, p2pSecret: seq[byte]
+    p: Noise, conn: RawConn, p2pSecret: seq[byte]
 ): Future[HandshakeResult] {.async: (raises: [CancelledError, LPStreamError]).} =
   const initiator = false
 
@@ -444,7 +457,7 @@ proc encryptFrame(
   cipherFrame[2 + src.len() ..< cipherFrame.len] = tag
 
 method write*(
-    sconn: NoiseConnection, message: seq[byte]
+    sconn: NoiseConnection, message: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
@@ -487,10 +500,10 @@ method write*(
 
   # Write all `cipherFrames` in a single write, to avoid interleaving /
   # sequencing issues
-  sconn.stream.write(cipherFrames)
+  sconn.stream.write(move(cipherFrames))
 
 method handshake*(
-    p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+    p: Noise, conn: RawConn, initiator: bool, peerId: Opt[PeerId]
 ): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Starting Noise handshake", conn, initiator
 
@@ -505,45 +518,37 @@ method handshake*(
       msg: "Failed to sign public key: " & $signedPayload.error()
     )
 
-  var libp2pProof = initProtoBuffer()
-  libp2pProof.write(1, p.localPublicKey)
-  libp2pProof.write(2, signedPayload.get().getBytes())
-  # data field also there but not used!
-  libp2pProof.finish()
+  let msg = NoiseHandshakePayloadMsg(
+    identityKey: Opt.some(p.localPublicKey),
+    identitySig: Opt.some(signedPayload.get().getBytes()),
+  )
 
   var handshakeRes =
     if initiator:
-      await handshakeXXOutbound(p, conn, libp2pProof.buffer)
+      await handshakeXXOutbound(p, conn, msg.encode())
     else:
-      await handshakeXXInbound(p, conn, libp2pProof.buffer)
+      await handshakeXXInbound(p, conn, msg.encode())
 
   var secure =
     try:
       var
-        remoteProof = initProtoBuffer(handshakeRes.remoteP2psecret)
+        remoteMsg: NoiseHandshakePayloadMsg
         remotePubKey: PublicKey
-        remotePubKeyBytes: seq[byte]
         remoteSig: Signature
-        remoteSigBytes: seq[byte]
 
-      if not remoteProof.getField(1, remotePubKeyBytes).valueOr(false):
-        raise (ref NoiseHandshakeError)(
-          msg:
-            "Failed to deserialize remote public key bytes. (initiator: " & $initiator &
-            ")"
-        )
-      if not remoteProof.getField(2, remoteSigBytes).valueOr(false):
-        raise (ref NoiseHandshakeError)(
-          msg:
-            "Failed to deserialize remote signature bytes. (initiator: " & $initiator &
-            ")"
+      remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).valueOr:
+        raise newException(NoiseHandshakeError, error)
+
+      if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
+        raise newException(
+          NoiseHandshakeError, "NoiseHandshakePayloadMsg fields must be set"
         )
 
-      if not remotePubKey.init(remotePubKeyBytes):
+      if not remotePubKey.init(remoteMsg.identityKey.get()):
         raise (ref NoiseHandshakeError)(
           msg: "Failed to decode remote public key. (initiator: " & $initiator & ")"
         )
-      if not remoteSig.init(remoteSigBytes):
+      if not remoteSig.init(remoteMsg.identitySig.get()):
         raise (ref NoiseHandshakeError)(
           msg: "Failed to decode remote signature. (initiator: " & $initiator & ")"
         )
@@ -607,7 +612,7 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc new*(
     T: typedesc[Noise],
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     privateKey: PrivateKey,
     outgoing: bool = true,
     commonPrologue: seq[byte] = @[],
@@ -623,7 +628,7 @@ proc new*(
     outgoing: outgoing,
     localPrivateKey: privateKey,
     localPublicKey: pkBytes,
-    noiseKeys: genKeyPair(rng[]),
+    noiseKeys: genKeyPair(rng),
     commonPrologue: commonPrologue,
   )
 

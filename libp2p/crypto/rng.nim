@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
+{.push raises: [].}
+
+import typetraits
+import bearssl/[rand, hash]
+import results
+
+type Rng* = ref object
+  drbg: ref HmacDrbgContext
+
+proc newRng*(): Rng =
+  ## Create a new randomness source for libp2p.
+  ##
+  ## BearSSL remains the temporary backend in this migration phase.
+  let seeder = prngSeederSystem(nil)
+  if seeder == nil:
+    return nil
+
+  let rng = Rng(drbg: (ref HmacDrbgContext)())
+  hmacDrbgInit(rng.drbg[], addr sha256Vtable, nil, 0)
+  if seeder(PrngClassPointerConst(addr rng.drbg[].vtable)) == 0:
+    return nil
+  rng
+
+proc newBearSslRng*(drbg: ref HmacDrbgContext): Rng =
+  ## Wrap an existing BearSSL HMAC-DRBG context.
+  ##
+  ## This is a temporary compatibility API for the BearSSL to BoringSSL
+  ## migration. New code should use `newRng`.
+  if isNil(drbg):
+    return nil
+  Rng(drbg: drbg)
+
+template bearSslDrbg*(rng: Rng): untyped =
+  rng.drbg[]
+
+template bearSslDrbgRef*(rng: Rng): untyped =
+  rng.drbg
+
+template bearSslPrng*(rng: Rng): untyped =
+  PrngClassPointerConst(addr rng.drbg[].vtable)
+
+proc generate*[T](rng: Rng, v: var T) =
+  ## Fill `v` with random data. `v` must be a simple type.
+  doAssert not isNil(rng), "Rng is nil"
+  static:
+    doAssert supportsCopyMem(T)
+
+  when sizeof(v) > 0:
+    when T is bool:
+      var tmp: byte
+      hmacDrbgGenerate(rng.drbg[], addr tmp, uint sizeof(tmp))
+      v = (tmp and 1'u8) == 1
+    else:
+      hmacDrbgGenerate(rng.drbg[], addr v, uint sizeof(v))
+
+proc generate*[V](rng: Rng, v: var openArray[V]) =
+  ## Fill `v` with random data. `V` must be a simple type.
+  doAssert not isNil(rng), "Rng is nil"
+  static:
+    doAssert supportsCopyMem(V) and sizeof(V) > 0
+
+  when V is bool:
+    for b in v.mitems:
+      rng.generate(b)
+  else:
+    if v.len > 0:
+      hmacDrbgGenerate(rng.drbg[], addr v[0], uint v.len * sizeof(V))
+
+template generate*[V](rng: Rng, v: var seq[V]) =
+  rng.generate(v.toOpenArray(0, v.high()))
+
+proc generateBytes*(rng: Rng, n: int): seq[byte] =
+  if n <= 0:
+    return @[]
+
+  var buf = newSeqUninit[byte](n)
+  rng.generate(buf)
+  buf
+
+proc generate*(rng: Rng, T: type): T {.noinit.} =
+  ## Create a new instance of `T` filled with random data.
+  var v {.noinit.}: T
+  rng.generate(v)
+  v
+
+proc shuffle*[T](rng: Rng, x: var openArray[T]) =
+  if x.len == 0:
+    return
+
+  var randValues = newSeqUninit[byte](len(x) * 2)
+  rng.generate(randValues)
+
+  for i in countdown(x.high, 1):
+    let
+      rand = randValues[i * 2].int32 or (randValues[i * 2 + 1].int32 shl 8)
+      y = rand mod i
+    swap(x[i], x[y])
+
+proc randBelow(rng: Rng, max: uint32): int =
+  ## Returns a uniformly random integer in the range [0, max).
+  ## Uses 32-bit rejection sampling to eliminate modulo bias and to
+  ## support max values larger than 65536.
+  let threshold = (0'u32 - max) mod max
+  while true:
+    var bytes: array[4, byte]
+    rng.generate(bytes)
+    let r =
+      bytes[0].uint32 or (bytes[1].uint32 shl 8) or (bytes[2].uint32 shl 16) or
+      (bytes[3].uint32 shl 24)
+    if r >= threshold:
+      return (r mod max).int
+
+proc pick*[T](rng: Rng, x: openArray[T], n: int): Opt[seq[T]] =
+  doAssert n >= 0, "n must be non-negative"
+  if x.len == 0:
+    return Opt.none(seq[T])
+  if n == 0:
+    return Opt.some(newSeq[T]())
+
+  var indices = newSeq[int](x.len)
+  for i in 0 ..< x.len:
+    indices[i] = i
+
+  let count = min(n, x.len)
+  var output = newSeq[T](count)
+  for i in 0 ..< count:
+    let j = i + rng.randBelow((x.len - i).uint32)
+    swap(indices[i], indices[j])
+    output[i] = x[indices[i]]
+  Opt.some(output)
+
+proc pickOne*[T](rng: Rng, x: openArray[T]): Opt[T] =
+  if x.len == 0:
+    return Opt.none(T)
+
+  Opt.some(x[rng.randBelow(x.len.uint32)])

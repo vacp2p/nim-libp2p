@@ -23,7 +23,6 @@ import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import results
-import ./utility
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils, vbuffer
@@ -61,7 +60,7 @@ proc identhash(data: openArray[byte], output: var openArray[byte]) =
         len(output)
       else:
         len(data)
-    copyMem(addr output[0], unsafeAddr data[0], length)
+    copyMem(addr output[0], addr data[0], length)
 
 proc sha1hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
@@ -208,7 +207,7 @@ proc shake_128hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake128
   if len(output) > 0:
     sctx.init()
-    sctx.update(cast[ptr uint8](unsafeAddr data[0]), uint(len(data)))
+    sctx.update(cast[ptr uint8](addr data[0]), uint(len(data)))
     sctx.xof()
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
@@ -217,7 +216,7 @@ proc shake_256hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake256
   if len(output) > 0:
     sctx.init()
-    sctx.update(cast[ptr uint8](unsafeAddr data[0]), uint(len(data)))
+    sctx.update(cast[ptr uint8](addr data[0]), uint(len(data)))
     sctx.xof()
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
@@ -357,6 +356,7 @@ proc initMultiHashCodeTable(
   return res
 
 when libp2p_multihash_exts != "":
+  import ./utils/macroutils
   includeFile(libp2p_multihash_exts)
   const CodeHashes = initMultiHashCodeTable(@HashesList & @HashExts)
 else:
@@ -364,31 +364,35 @@ else:
 
 proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
-  result.data = initVBuffer()
-  result.mcodec = hash.mcodec
-  result.data.write(hash.mcodec)
+  var mh: MultiHash
+  mh.data = initVBuffer()
+  mh.mcodec = hash.mcodec
+  mh.data.write(hash.mcodec)
   if hash.size == 0:
-    result.data.writeVarint(uint(len(data)))
-    result.dpos = len(result.data.buffer)
-    result.data.writeArray(data)
-    result.size = len(data)
+    mh.data.writeVarint(uint(len(data)))
+    mh.dpos = len(mh.data.buffer)
+    mh.data.writeArray(data)
+    mh.size = len(data)
   else:
-    result.data.writeVarint(uint(hash.size))
-    result.dpos = len(result.data.buffer)
+    mh.data.writeVarint(uint(hash.size))
+    mh.dpos = len(mh.data.buffer)
     hash.coder(data, buffer.toOpenArray(0, hash.size - 1))
-    result.data.writeArray(buffer.toOpenArray(0, hash.size - 1))
-    result.size = hash.size
-  result.data.finish()
+    mh.data.writeArray(buffer.toOpenArray(0, hash.size - 1))
+    mh.size = hash.size
+  mh.data.finish()
+  mh
 
 proc digestImplWithoutHash(hash: MHash, data: openArray[byte]): MultiHash =
-  result.data = initVBuffer()
-  result.mcodec = hash.mcodec
-  result.size = len(data)
-  result.data.write(hash.mcodec)
-  result.data.writeVarint(uint(len(data)))
-  result.dpos = len(result.data.buffer)
-  result.data.writeArray(data)
-  result.data.finish()
+  var mh: MultiHash
+  mh.data = initVBuffer()
+  mh.mcodec = hash.mcodec
+  mh.size = len(data)
+  mh.data.write(hash.mcodec)
+  mh.data.writeVarint(uint(len(data)))
+  mh.dpos = len(mh.data.buffer)
+  mh.data.writeArray(data)
+  mh.data.finish()
+  mh
 
 func digestSize*(codec: MultiCodec): MhResult[int] =
   let hash = CodeHashes.getOrDefault(codec)
@@ -406,7 +410,7 @@ func digestSize*(hashname: string): MhResult[int] =
 
 proc digest*(
     mhtype: typedesc[MultiHash], hashname: string, data: openArray[byte]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Perform digest calculation using hash algorithm with name ``hashname`` on
   ## data array ``data``.
   let mc = MultiCodec.codec(hashname)
@@ -421,7 +425,7 @@ proc digest*(
 
 proc digest*(
     mhtype: typedesc[MultiHash], mcodec: MultiCodec, data: openArray[byte]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
   let hash = CodeHashes.getOrDefault(mcodec)
@@ -432,7 +436,7 @@ proc digest*(
 
 proc init*[T](
     mhtype: typedesc[MultiHash], hashname: string, mdigest: MDigest[T]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Create MultiHash from nimcrypto's `MDigest` object and hash algorithm name
   ## ``hashname``.
   let mc = MultiCodec.codec(hashname)
@@ -449,7 +453,7 @@ proc init*[T](
 
 proc init*[T](
     mhtype: typedesc[MultiHash], hashcode: MultiCodec, mdigest: MDigest[T]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Create MultiHash from nimcrypto's `MDigest` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -462,7 +466,7 @@ proc init*[T](
 
 proc init*(
     mhtype: typedesc[MultiHash], hashname: string, bdigest: openArray[byte]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let mc = MultiCodec.codec(hashname)
@@ -479,7 +483,7 @@ proc init*(
 
 proc init*(
     mhtype: typedesc[MultiHash], hashcode: MultiCodec, bdigest: openArray[byte]
-): MhResult[MultiHash] {.inline.} =
+): MhResult[MultiHash] =
   ## Create MultiHash from array of bytes ``bdigest`` and hash algorithm code
   ## ``hashcode``.
   let hash = CodeHashes.getOrDefault(hashcode)
@@ -531,10 +535,9 @@ proc decode*(
   if not vb.isEnough(int(size)):
     return err(ErrDecodeError)
 
-  mhash =
-    ?MultiHash.init(
-      MultiCodec(code), vb.buffer.toOpenArray(vb.offset, vb.offset + int(size) - 1)
-    )
+  mhash = ?MultiHash.init(
+    MultiCodec(code), vb.buffer.toOpenArray(vb.offset, vb.offset + int(size) - 1)
+  )
   ok(vb.offset + int(size))
 
 proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
@@ -565,17 +568,15 @@ proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
     return false
   if offset + int(size) > len(data):
     return false
-  result = true
+  true
 
-proc init*(
-    mhtype: typedesc[MultiHash], data: openArray[byte]
-): MhResult[MultiHash] {.inline.} =
+proc init*(mhtype: typedesc[MultiHash], data: openArray[byte]): MhResult[MultiHash] =
   ## Create MultiHash from bytes array ``data``.
   var hash: MultiHash
   discard ?MultiHash.decode(data, hash)
   ok(hash)
 
-proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inline.} =
+proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] =
   ## Create MultiHash from hexadecimal string representation ``data``.
   var hash: MultiHash
   try:
@@ -584,12 +585,14 @@ proc init*(mhtype: typedesc[MultiHash], data: string): MhResult[MultiHash] {.inl
   except ValueError:
     err(ErrParseError)
 
-proc init58*(mhtype: typedesc[MultiHash], data: string): MultiHash {.inline.} =
+proc init58*(mhtype: typedesc[MultiHash], data: string): MultiHash =
   ## Create MultiHash from BASE58 encoded string representation ``data``.
-  if MultiHash.decode(Base58.decode(data), result) == -1:
+  var hash: MultiHash
+  if MultiHash.decode(Base58.decode(data), hash) == -1:
     raise newException(MultihashError, "Incorrect MultiHash binary format in init58")
+  hash
 
-proc cmp(a: openArray[byte], b: openArray[byte]): bool {.inline.} =
+proc cmp(a: openArray[byte], b: openArray[byte]): bool =
   if len(a) != len(b):
     return false
   var n = len(a)
@@ -598,7 +601,7 @@ proc cmp(a: openArray[byte], b: openArray[byte]): bool {.inline.} =
     dec(n)
     diff = int(a[n]) - int(b[n])
     res = (res and - not (diff)) or diff
-  result = (res == 0)
+  res == 0
 
 proc `==`*[T](mh: MultiHash, mdigest: MDigest[T]): bool =
   ## Compares MultiHash with nimcrypto's MDigest[T], returns ``true`` if
@@ -607,15 +610,15 @@ proc `==`*[T](mh: MultiHash, mdigest: MDigest[T]): bool =
     return false
   if len(mdigest.data) != mh.size:
     return false
-  result = cmp(
+  cmp(
     mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1),
     mdigest.data.toOpenArray(0, mdigest.data.high),
   )
 
-proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool {.inline.} =
+proc `==`*[T](mdigest: MDigest[T], mh: MultiHash): bool =
   ## Compares MultiHash with nimcrypto's MDigest[T], returns ``true`` if
   ## hashes are equal, ``false`` otherwise.
-  result = `==`(mh, mdigest)
+  `==`(mh, mdigest)
 
 proc `==`*(a: MultiHash, b: MultiHash): bool =
   ## Compares MultiHashes ``a`` and ``b``, returns ``true`` if hashes are equal,
@@ -626,31 +629,29 @@ proc `==`*(a: MultiHash, b: MultiHash): bool =
     return false
   if a.size != b.size:
     return false
-  result = cmp(
+  cmp(
     a.data.buffer.toOpenArray(a.dpos, a.dpos + a.size - 1),
     b.data.buffer.toOpenArray(b.dpos, b.dpos + b.size - 1),
   )
 
 proc hex*(value: MultiHash): string =
   ## Return hexadecimal string representation of MultiHash ``value``.
-  result = $(value.data)
+  $(value.data)
 
 proc base58*(value: MultiHash): string =
   ## Return Base58 encoded string representation of MultiHash ``value``.
-  result = Base58.encode(value.data.buffer)
+  Base58.encode(value.data.buffer)
 
 proc `$`*(mh: MultiHash): string =
   ## Return string representation of MultiHash ``value``.
   let digest = toHex(mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1))
-  result = $(mh.mcodec) & "/" & digest
+  $(mh.mcodec) & "/" & digest
 
-proc write*(vb: var VBuffer, mh: MultiHash) {.inline.} =
+proc write*(vb: var VBuffer, mh: MultiHash) =
   ## Write MultiHash value ``mh`` to buffer ``vb``.
   vb.writeArray(mh.data.buffer)
 
-proc encode*(
-    mbtype: typedesc[MultiBase], encoding: string, mh: MultiHash
-): string {.inline.} =
+proc encode*(mbtype: typedesc[MultiBase], encoding: string, mh: MultiHash): string =
   ## Get MultiBase encoded representation of ``mh`` using encoding
   ## ``encoding``.
-  result = MultiBase.encode(encoding, mh.data.buffer)
+  MultiBase.encode(encoding, mh.data.buffer)

@@ -46,20 +46,36 @@ static void peerinfo_handler(int callerret, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userdata);
 
 static void private_key_handler(int callerRet, const uint8_t *keyData,
-                              size_t keyDataLen, const char *msg, size_t len,
-                              void *userData);
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData);
 
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData);
+static void peerstore_entry_handler(int callerRet,
+                                    const Libp2pPeerStoreEntry *entry,
+                                    const char *msg, size_t len,
+                                    void *userData);
+
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData);
 static void create_cid_handler(int callerRet, const char *msg, size_t len,
                                void *userData);
 static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
                          const char *msg, size_t len, void *userData);
+static void create_xpr_handler(int callerRet, const uint8_t *data,
+                               size_t dataLen, const char *msg, size_t len,
+                               void *userData);
+static void decode_xpr_handler(int callerRet,
+                               const Libp2pExtendedPeerRecord *record,
+                               const char *msg, size_t len, void *userData);
 static void print_bytes(const char *label, const uint8_t *data, size_t dataLen);
 
 // libp2p Context
 libp2p_ctx_t *ctx1;
 libp2p_ctx_t *ctx2;
+
+// Holds the signed XPR bytes produced by create_xpr_handler so they can be fed
+// back into libp2p_decode_xpr.
+static uint8_t signed_xpr[1024];
+static size_t signed_xpr_len;
 
 int main(int argc, char **argv) {
   int status = 1;
@@ -75,9 +91,7 @@ int main(int argc, char **argv) {
   cfg1.kad_selector = permissive_kad_selector;
   cfg1.kad_user_data = NULL;
 
-  const char *peer1_addrs[] = {
-      "/ip4/127.0.0.1/tcp/5001"
-  };
+  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/5001"};
   cfg1.addrs = peer1_addrs;
   cfg1.addrsLen = 1;
 
@@ -114,6 +128,8 @@ int main(int argc, char **argv) {
   libp2p_peerinfo(ctx1, peerinfo_handler, &pInfo1);
   waitForCallback();
 
+  const char *peer2_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+
   libp2p_config_t cfg2 = libp2p_new_default_config();
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
@@ -130,6 +146,8 @@ int main(int argc, char **argv) {
   cfg2.kad_bootstrap_nodes_len = 1;
   cfg2.muxer = LIBP2P_MUXER_MPLEX;
   cfg2.transport = LIBP2P_TRANSPORT_TCP;
+  cfg2.addrs = peer2_addrs;
+  cfg2.addrsLen = 1;
 
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();
@@ -153,8 +171,7 @@ int main(int argc, char **argv) {
   libp2p_connected_peers(ctx1, Direction_In, peers_handler, NULL);
   waitForCallback();
 
-  libp2p_dial(ctx1, pInfo2.peerId, "/ipfs/ping/1.0.0", connection_handler,
-              NULL);
+  libp2p_dial(ctx1, pInfo2.peerId, "/ipfs/ping/1.0.0", stream_handler, NULL);
   waitForCallback();
 
   uint8_t ping_payload[32] = {0};
@@ -226,6 +243,62 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   libp2p_kad_get_providers(ctx2, cid, get_providers_handler, NULL);
+  waitForCallback();
+
+  // Build and sign node1's own Extended Peer Record for two services.
+  // NULL addrs uses node1's listen addresses; signed bytes come via the
+  // callback.
+  const uint8_t chat_data[] = {0x01, 0x02, 0x03};
+  Libp2pServiceInfo xpr_services[] = {
+      {.id = (char *)"chat", .data = chat_data, .dataLen = sizeof(chat_data)},
+      {.id = (char *)"file-share", .data = NULL, .dataLen = 0},
+  };
+  printf("Creating signed XPR for node1:\n");
+  libp2p_create_xpr(ctx1, NULL, 0, xpr_services,
+                    sizeof(xpr_services) / sizeof(xpr_services[0]), 0,
+                    create_xpr_handler, NULL);
+  waitForCallback();
+
+  // Decode and verify the XPR we just produced, recovering node1's record.
+  printf("Decoding signed XPR:\n");
+  libp2p_decode_xpr(signed_xpr, signed_xpr_len, decode_xpr_handler, NULL);
+  waitForCallback();
+
+  // Peerstore operations
+  // After connect+identify, node2 is in node1's peerstore.
+
+  printf("Known peers in peerstore:\n");
+  libp2p_peerstore_get_peers(ctx1, peers_handler, NULL);
+  waitForCallback();
+
+  printf("Peer info for node2:\n");
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler,
+                                 NULL);
+  waitForCallback();
+
+  // Merge an extra address for node2
+  const char *extra_addrs[] = {"/ip4/1.2.3.4/tcp/9999"};
+  libp2p_peerstore_add_peer(ctx1, pInfo2.peerId, extra_addrs, 1, NULL, 0,
+                            event_handler, NULL);
+  waitForCallback();
+
+  // Replace node2's protocols
+  const char *test_protos[] = {"/test/1.0.0"};
+  libp2p_peerstore_set_peer_protocols(ctx1, pInfo2.peerId, test_protos, 1,
+                                      event_handler, NULL);
+  waitForCallback();
+
+  printf("Peer info after modifications:\n");
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler,
+                                 NULL);
+  waitForCallback();
+
+  // Delete node2 from peerstore
+  libp2p_peerstore_delete_peer(ctx1, pInfo2.peerId, event_handler, NULL);
+  waitForCallback();
+
+  printf("Known peers after delete:\n");
+  libp2p_peerstore_get_peers(ctx1, peers_handler, NULL);
   waitForCallback();
 
   sleep(5);
@@ -411,21 +484,16 @@ static void get_value_handler(int callerRet, const uint8_t *data,
   signal_callback_executed();
 }
 
-static void private_key_handler(
-    int callerRet,
-    const uint8_t *keyData,
-    size_t keyDataLen,
-    const char *msg,
-    size_t len,
-    void *userData
-) {
+static void private_key_handler(int callerRet, const uint8_t *keyData,
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData) {
   if (callerRet != RET_OK || keyDataLen == 0 || keyData == NULL) {
-    printf("Private key error(%d): %.*s\n", callerRet, (int)len, msg ? msg : "");
+    printf("Private key error(%d): %.*s\n", callerRet, (int)len,
+           msg ? msg : "");
     exit(1);
   }
 
-  libp2p_private_key_t *priv_key =
-      (libp2p_private_key_t *)userData;
+  libp2p_private_key_t *priv_key = (libp2p_private_key_t *)userData;
 
   uint8_t *buf = (uint8_t *)malloc(keyDataLen);
   if (!buf) {
@@ -462,14 +530,43 @@ static void get_providers_handler(int callerRet,
   signal_callback_executed();
 }
 
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData) {
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData) {
   if (callerRet != RET_OK) {
     printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
     exit(1);
   }
 
-  ping_stream = conn;
+  ping_stream = stream;
+
+  signal_callback_executed();
+}
+
+static void peerstore_entry_handler(int callerRet,
+                                    const Libp2pPeerStoreEntry *entry,
+                                    const char *msg, size_t len,
+                                    void *userData) {
+  if (callerRet != RET_OK || entry == NULL) {
+    printf("PeerStoreEntry error(%d)", callerRet);
+    if (msg != NULL && len > 0) {
+      printf(": %.*s\n", (int)len, msg);
+    }
+    exit(1);
+  }
+
+  printf("  peerId: %s\n", entry->peerId != NULL ? entry->peerId : "(null)");
+  printf("  addresses (%zu):\n", entry->addrsLen);
+  for (size_t i = 0; i < entry->addrsLen; i++)
+    printf("    %s\n", entry->addrs[i] != NULL ? entry->addrs[i] : "(null)");
+  printf("  protocols (%zu):\n", entry->protocolsLen);
+  for (size_t i = 0; i < entry->protocolsLen; i++)
+    printf("    %s\n",
+           entry->protocols[i] != NULL ? entry->protocols[i] : "(null)");
+  printf("  publicKey: %zu bytes\n", entry->publicKeyLen);
+  printf("  agentVersion: %s\n",
+         entry->agentVersion != NULL ? entry->agentVersion : "");
+  printf("  protoVersion: %s\n",
+         entry->protoVersion != NULL ? entry->protoVersion : "");
 
   signal_callback_executed();
 }
@@ -505,6 +602,46 @@ static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
   callback_executed = 1;
   pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
+}
+
+static void create_xpr_handler(int callerRet, const uint8_t *data,
+                               size_t dataLen, const char *msg, size_t len,
+                               void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Create XPR error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  print_bytes("Signed XPR bytes", data, dataLen);
+
+  signed_xpr_len = dataLen <= sizeof(signed_xpr) ? dataLen : sizeof(signed_xpr);
+  memcpy(signed_xpr, data, signed_xpr_len);
+
+  signal_callback_executed();
+}
+
+static void decode_xpr_handler(int callerRet,
+                               const Libp2pExtendedPeerRecord *record,
+                               const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Decode XPR error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("Decoded XPR:\n");
+  printf("  peerId: %s\n", record->peerId);
+  printf("  seqNo: %llu\n", (unsigned long long)record->seqNo);
+  printf("  addresses (%zu):\n", record->addrsLen);
+  for (size_t i = 0; i < record->addrsLen; i++)
+    printf("    %s\n", record->addrs[i]);
+  printf("  services (%zu):\n", record->servicesLen);
+  for (size_t i = 0; i < record->servicesLen; i++)
+    print_bytes(record->services[i].id, record->services[i].data,
+                record->services[i].dataLen);
+
+  signal_callback_executed();
 }
 
 static void free_peerinfo(PeerInfo *pi) {

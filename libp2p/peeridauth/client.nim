@@ -20,7 +20,7 @@ export Domain
 
 type PeerIDAuthClient* = ref object of RootObj
   session: HttpSessionRef
-  rng: ref HmacDrbgContext
+  rng: Rng
 
 type PeerIDAuthError* = object of LPError
 
@@ -51,14 +51,10 @@ type SigParam = object
   k: string
   v: seq[byte]
 
-proc new*(
-    T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext = newRng()
-): PeerIDAuthClient =
+proc new*(T: typedesc[PeerIDAuthClient], rng: Rng): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
-proc sampleChar(
-    ctx: var HmacDrbgContext, choices: string
-): char {.raises: [ValueError].} =
+proc sampleChar(ctx: Rng, choices: string): char {.raises: [ValueError].} =
   ## Samples a random character from the input string using the DRBG context
   if choices.len == 0:
     raise newException(ValueError, "Cannot sample from an empty string")
@@ -67,9 +63,8 @@ proc sampleChar(
   return choices[uint32(idx mod uint32(choices.len))]
 
 proc randomChallenge(
-    rng: ref HmacDrbgContext, challengeLen: int = ChallengeDefaultLen
+    rng: Rng, challengeLen: int = ChallengeDefaultLen
 ): PeerIDAuthChallenge {.raises: [PeerIDAuthError].} =
-  var rng = rng[]
   var challenge = ""
   try:
     for _ in 0 ..< challengeLen:
@@ -152,18 +147,18 @@ method post*(
     self: PeerIDAuthClient, uri: Uri, payload: string, authHeader: string
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]), base.} =
   let rawResponse = await HttpClientRequestRef
-  .post(
-    self.session,
-    $uri,
-    body = payload,
-    headers = [
-      ("Content-Type", "application/json"),
-      ("User-Agent", NimLibp2pUserAgent),
-      ("Authorization", authHeader),
-    ],
-  )
-  .get()
-  .send()
+    .post(
+      self.session,
+      $uri,
+      body = payload,
+      headers = [
+        ("Content-Type", "application/json"),
+        ("User-Agent", NimLibp2pUserAgent),
+        ("Authorization", authHeader),
+      ],
+    )
+    .get()
+    .send()
 
   PeerIDAuthResponse(
     status: rawResponse.status,
@@ -229,7 +224,7 @@ proc parse3339DateTime(timeStr: string): DateTime {.raises: [ValueError].} =
   let parts = timeStr.split('.')
   let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
   let millis = parseInt(parts[1].strip(chars = {'Z'}))
-  result = base + initDuration(milliseconds = millis)
+  base + initDuration(milliseconds = millis)
 
 proc requestAuthorization*(
     self: PeerIDAuthClient,

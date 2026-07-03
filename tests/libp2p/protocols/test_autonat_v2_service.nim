@@ -8,11 +8,13 @@ import
   ../../../libp2p/[
     builders,
     switch,
+    observedaddrmanager,
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
     nameresolving/nameresolver,
     nameresolving/mockresolver,
+    utils/future,
   ]
 import ../../tools/[unittest, futures, crypto]
 
@@ -25,22 +27,24 @@ proc createSwitch(
 ): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)
     .withYamux()
     .withNoise()
+    .withNameResolver(nameResolver)
 
   if withAutonat:
-    builder = builder.withAutonatV2()
-    builder.autonatV2Service = autonatV2Service
+    builder = builder.withNAT(autonatConfig(AutonatV2))
 
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
+  var switch = builder.build()
 
-  return builder.build()
+  autonatV2Service.withValue(s):
+    switch.add(s)
+
+  return switch
 
 proc createSwitches(n: int): seq[Switch] =
   var switches: seq[Switch]
@@ -105,7 +109,17 @@ proc newService(
         ),
         expectedDials = expectedDials,
       )
-  (AutonatV2Service.new(rng, client = client, config = config), client)
+  (AutonatV2Service.new(rng(), client = client, config = config), client)
+
+const ObservedAddrQuorum = 3
+
+const AutonatV2ReachabilityConfidenceMetric =
+  "libp2p_autonat_v2_reachability_confidence"
+
+proc reachabilityConfidence(reachability: NetworkReachability): float64 =
+  libp2p_autonat_v2_reachability_confidence.valueByName(
+    AutonatV2ReachabilityConfidenceMetric, [$reachability]
+  )
 
 suite "AutonatV2 Service":
   teardown:
@@ -125,19 +139,20 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check reachabilityConfidence(Reachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -152,7 +167,7 @@ suite "AutonatV2 Service":
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -171,27 +186,27 @@ suite "AutonatV2 Service":
     let reachableObserved = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not notReachableObserved.finished:
-          notReachableObserved.complete()
+        notReachableObserved.completeOnce()
 
-          client.response = AutonatV2Response(
-            reachability: Reachable,
-            dialResp: DialResponse(
-              status: ResponseStatus.Ok,
-              dialStatus: Opt.some(DialStatus.Ok),
-              addrIdx: Opt.some(0.AddrIdx),
-            ),
-              # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
-          )
+        client.response = AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+            # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+        )
 
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not reachableObserved.finished:
-          reachableObserved.complete()
+        reachableObserved.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
@@ -200,7 +215,7 @@ suite "AutonatV2 Service":
     await reachableObserved
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check reachabilityConfidence(Reachable) == 0.3
 
     await client.finished
 
@@ -223,19 +238,20 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await switch.stop()
     await switches.stopAll()
@@ -253,7 +269,9 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
@@ -273,30 +291,15 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
-
-  asyncTest "Calling setup and stop twice must work":
-    let (service, _) = newService(
-      NetworkReachability.NotReachable,
-      config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
-    )
-
-    let switch = createSwitch()
-    check (await service.setup(switch)) == true
-    check (await service.setup(switch)) == false
-
-    check (await service.stop(switch)) == true
-    check (await service.stop(switch)) == false
-
-    await switch.stop()
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let (service, _) = newService(
@@ -305,19 +308,20 @@ suite "AutonatV2 Service":
         scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
       ),
     )
-    let switch1 = createSwitch(Opt.some(service), maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(service), maxConnsPerPeer = 1)
     let switch2 =
-      createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
+      createSwitch(maxConnsPerPeer = 1, nameResolver = MockResolver.default())
 
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -333,7 +337,7 @@ suite "AutonatV2 Service":
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
     await awaiter
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
@@ -356,28 +360,30 @@ suite "AutonatV2 Service":
           scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
         ),
       )
-      switch1 = createSwitch(Opt.some(service1), maxConnsPerPeer = 0)
-      switch2 = createSwitch(Opt.some(service2), maxConnsPerPeer = 0)
-      switch3 = createSwitch(Opt.some(service3), maxConnsPerPeer = 0)
+      switch1 = createSwitch(Opt.some(service1), maxConnsPerPeer = 1)
+      switch2 = createSwitch(Opt.some(service2), maxConnsPerPeer = 1)
+      switch3 = createSwitch(Opt.some(service3), maxConnsPerPeer = 1)
 
       awaiter1 = newFuture[void]()
       awaiter2 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     proc statusAndConfidenceHandler2(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter2.finished:
-          awaiter2.complete()
+        awaiter2.completeOnce()
 
     service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
     service2.setStatusAndConfidenceHandler(statusAndConfidenceHandler2)
@@ -396,7 +402,7 @@ suite "AutonatV2 Service":
 
     check service1.networkReachability == NetworkReachability.Reachable
     check service2.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
 
@@ -415,18 +421,19 @@ suite "AutonatV2 Service":
         ),
       )
 
-    let switch1 = createSwitch(Opt.some(service1), maxConnsPerPeer = 0)
-    let switch2 = createSwitch(Opt.some(service2), maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(service1), maxConnsPerPeer = 1)
+    let switch2 = createSwitch(Opt.some(service2), maxConnsPerPeer = 1)
 
     let awaiter1 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
 
@@ -447,7 +454,7 @@ suite "AutonatV2 Service":
     await awaiter1
 
     check service1.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     # Make sure remote peer can't create a connection to us
     check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
@@ -468,12 +475,13 @@ suite "AutonatV2 Service":
     var awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -489,12 +497,12 @@ suite "AutonatV2 Service":
     await switches[3].connect(switch.peerInfo.peerId, switch.peerInfo.addrs)
     # switch1 is now full, should stick to last observation
     awaiter = newFuture[void]()
-    await service.run(switch)
+    await service.start(switch)
 
     await sleepAsync(100.millis)
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await switch.stop()
     await switches.stopAll()
@@ -509,7 +517,9 @@ suite "AutonatV2 Service":
     let switch2 = createSwitch()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
@@ -523,3 +533,159 @@ suite "AutonatV2 Service":
     await sleepAsync(250.milliseconds)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
+
+  asyncTest "Handler must receive the dial-back address on Reachable":
+    let
+      (service, _) = newService(NetworkReachability.Reachable)
+      switch = createSwitch(Opt.some(service))
+    var switches = createSwitches(3)
+
+    let awaiter = newFuture[Opt[MultiAddress]]()
+
+    proc statusAndConfidenceHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
+          confidence.get() >= 0.3:
+        awaiter.completeOnce(dialBackAddr)
+
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    await switch.startAndConnect(switches)
+    let capturedAddr = await awaiter
+
+    check service.networkReachability == NetworkReachability.Reachable
+    check capturedAddr.isSome()
+    check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Handler must receive the attempted address on NotReachable":
+    let
+      (service, client) = newService(NetworkReachability.NotReachable)
+      switch = createSwitch(Opt.some(service))
+    var switches = createSwitches(3)
+
+    let awaiter = newFuture[Opt[MultiAddress]]()
+
+    proc statusAndConfidenceHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
+          confidence.get() >= 0.3:
+        awaiter.completeOnce(dialBackAddr)
+
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    await switch.startAndConnect(switches)
+    let capturedAddr = await awaiter
+    await client.finished
+
+    check service.networkReachability == NetworkReachability.NotReachable
+    check capturedAddr.isSome()
+    check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Observed addresses must be included in dial request candidates":
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = 1,
+        config = AutonatV2ServiceConfig.new(enableDialableCandidates = true),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = @[createSwitch()]
+
+    # Simulate identify reports from other peers: the same public address
+    # must be observed at least quorum times to become a candidate.
+    let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
+    for _ in 0 ..< ObservedAddrQuorum:
+      discard switch.peerStore.identify.observedAddrManager.addObservation(observedAddr)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let guessed = concat(MultiAddress.init("/ip4/8.8.8.8").tryGet(), tcpPart).tryGet()
+    check guessed in client.allTestAddrs[0]
+    # Ensure that the guessed IP is preferred over the observed IP when both are dialable.
+    check client.allTestAddrs[0].find(guessed) <
+      client.allTestAddrs[0].find(observedAddr)
+
+    # Observed address is kept as a fallback
+    check observedAddr in client.allTestAddrs[0]
+
+    for ma in switch.peerInfo.addrs:
+      check ma in client.allTestAddrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dial request must fall back to the guessed dialable address when the observed IP reaches quorum but the port does not":
+    # High minConfidence keeps the node Unknown for the whole test, so the
+    # address mapper stays inactive: candidates can only come from the
+    # observed addresses.
+    # Each connection triggers identify: after quorum of them the observed IP
+    # reaches quorum (ports are ephemeral, only the IP is stable), so the next
+    # ask must include the guessed dialable address (observed IP + listen port).
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = ObservedAddrQuorum + 1,
+        config = AutonatV2ServiceConfig.new(
+          minConfidence = 0.9, enableDialableCandidates = true
+        ),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(ObservedAddrQuorum + 1)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()
+    let expected =
+      concat(MultiAddress.init("/ip4/127.0.0.1").tryGet(), tcpPart).tryGet()
+
+    # Before the quorum (first quorum asks), only the listen addresses are sent.
+    for reqAddrs in client.allTestAddrs[0 ..< ObservedAddrQuorum]:
+      check reqAddrs == switch.peerInfo.listenAddrs
+
+    # The first ask after the quorum is reached must contain the guessed
+    # dialable address.
+    check expected in client.allTestAddrs[ObservedAddrQuorum]
+
+    # Make sure the guessed dialable address is not in the peer's listen addresses
+    check expected notin switch.peerInfo.addrs
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Dialable candidates are not added when disabled":
+    # Same setup as the mirror test above (node kept Unknown via high
+    # minConfidence, so the address mapper stays inactive), but with
+    # enableDialableCandidates left to its default of false. The node then
+    # advertises only its listen addresses, so every dial request must be
+    # exactly the listen addresses: no guessed or observed candidate is added,
+    # even after the observed IP reaches quorum.
+    let
+      (service, client) = newService(
+        NetworkReachability.Reachable,
+        expectedDials = ObservedAddrQuorum + 1,
+        config = AutonatV2ServiceConfig.new(minConfidence = 0.9),
+      )
+      switch = createSwitch(Opt.some(service))
+      switches = createSwitches(ObservedAddrQuorum + 1)
+
+    await switch.startAndConnect(switches)
+    await client.finished
+
+    for reqAddrs in client.allTestAddrs:
+      check reqAddrs == switch.peerInfo.listenAddrs
+
+    await switch.stop()
+    await switches.stopAll()

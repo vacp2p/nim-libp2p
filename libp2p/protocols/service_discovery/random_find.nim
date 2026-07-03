@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets]
+import std/[sequtils, sets, tables]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
-import ../kademlia/[types, find, get, protobuf, routing_table]
+import ../kademlia/[types, find, get, protobuf]
 import ./[types]
 
 logScope:
   topics = "ext-kad-dht random records"
 
-proc randomRecords*(
+proc randomRecords(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   ## Return all peer records on the path towards a random target ID.
@@ -22,28 +22,38 @@ proc randomRecords*(
 
   let randomKey = randomPeerId.toKey()
 
-  let queue = newAsyncQueue[(PeerId, Opt[Message])]()
+  let state = LookupState.init(disco, randomKey)
+  var queried: HashSet[PeerId]
+  var getValFuts: seq[Future[Result[Message, string]].Raising([CancelledError])]
 
-  let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
-  for peer in peers:
-    let addRes = catch:
-      queue.addFirstNoWait((peer, Opt.none(Message)))
-    if addRes.isErr:
-      error "cannot enqueue peer", error = addRes.error.msg
+  try:
+    while not closestAvailableStop(state):
+      let progressed =
+        await disco.lookOnce(state, disco.rtable, findNodeDispatch, noopReply)
+      if not progressed:
+        break
 
-  let findNodeFut = disco.findNode(randomKey, queue)
+      # Issue getValue requests as soon as peers respond, so they run in
+      # parallel with the next lookup round.
+      for peerId, status in state.responded:
+        if status == RespondedStatus.Success and peerId notin queried:
+          queried.incl(peerId)
+          getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
+  except CancelledError as e:
+    await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
+    raise e
 
   var buffers: seq[seq[byte]]
-  while not findNodeFut.finished or not queue.empty():
-    let (peerId, _) = await queue.popFirst()
+  for fut in getValFuts:
+    let res =
+      try:
+        await fut
+      except CancelledError as e:
+        await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
+        raise e
 
-    let res = catch:
-      await disco.dispatchGetVal(peerId, peerId.toKey())
-    let msgOpt = res.valueOr:
-      error "kad getValue failed", error = res.error.msg
-      continue
-
-    let reply = msgOpt.valueOr:
+    let reply = res.valueOr:
+      error "kad getValue failed", error = error
       continue
 
     let record = reply.record.valueOr:
@@ -54,11 +64,6 @@ proc randomRecords*(
 
     buffers.add(buffer)
 
-  let findNodeRes = catch:
-    await findNodeFut
-  if findNodeRes.isErr:
-    error "kad find node failed", error = findNodeRes.error.msg
-
   var records: HashSet[ExtendedPeerRecord]
   for buffer in buffers:
     let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
@@ -67,16 +72,9 @@ proc randomRecords*(
 
     records.incl(sxpr.data)
 
-  return records.toSeq()
+  records.toSeq()
 
-proc filterByServices*(
-    records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
-): seq[ExtendedPeerRecord] =
-  records.filterIt(it.services.anyIt(services.contains(it)))
-
-proc lookup*(
-    disco: ServiceDiscovery, service: ServiceInfo
+proc lookupRandom*(
+    disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let records = await disco.randomRecords()
-
-  return records.filterByServices(@[service].toHashSet())
+  await disco.randomRecords()

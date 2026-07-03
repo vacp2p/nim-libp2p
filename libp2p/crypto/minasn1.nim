@@ -10,8 +10,7 @@ import results
 export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utility
-import ../utils/sequninit
+import ../utils/conversion
 
 type
   Asn1Error* {.pure.} = enum
@@ -101,20 +100,20 @@ template isEmpty*(ab: Asn1Buffer): bool =
 template isEnough*(ab: Asn1Buffer, length: int64): bool =
   len(ab.buffer) >= ab.offset + length
 
-proc len*[T: Asn1Buffer | Asn1Composite](abc: T): int {.inline.} =
+proc len*[T: Asn1Buffer | Asn1Composite](abc: T): int =
   len(abc.buffer) - abc.offset
 
-proc len*(field: Asn1Field): int {.inline.} =
+proc len*(field: Asn1Field): int =
   field.length
 
 template getPtr*(field: untyped): pointer =
-  cast[pointer](unsafeAddr field.buffer[field.offset])
+  cast[pointer](addr field.buffer[field.offset])
 
-proc extend*[T: Asn1Buffer | Asn1Composite](abc: var T, length: int) {.inline.} =
+proc extend*[T: Asn1Buffer | Asn1Composite](abc: var T, length: int) =
   ## Extend buffer or composite's internal buffer by ``length`` octets.
   abc.buffer.setLen(len(abc.buffer) + length)
 
-proc code*(tag: Asn1Tag): byte {.inline.} =
+proc code*(tag: Asn1Tag): byte =
   ## Converts Nim ``tag`` enum to ASN.1 tag code.
   case tag
   of Asn1Tag.NoSupport: 0x00'u8
@@ -195,7 +194,7 @@ proc asn1EncodeInteger*(dest: var openArray[byte], value: openArray[byte]): int 
       if value[offset] >= 0x80'u8:
         dest[1 + lenlen] = 0x00'u8
         shift = 2
-      copyMem(addr dest[shift + lenlen], unsafeAddr value[offset], len(value) - offset)
+      copyMem(addr dest[shift + lenlen], addr value[offset], len(value) - offset)
   destlen
 
 proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openArray[byte], value: T): int =
@@ -247,7 +246,7 @@ proc asn1EncodeOctetString*(dest: var openArray[byte], value: openArray[byte]): 
     dest[0] = Asn1Tag.OctetString.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
     if len(value) > 0:
-      copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+      copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeBitString*(
@@ -282,7 +281,7 @@ proc asn1EncodeBitString*(
     dest[1 + lenlen] = byte(unused)
     if bytelen > 0:
       let lastbyte = value[bytelen - 1]
-      copyMem(addr dest[2 + lenlen], unsafeAddr value[0], bytelen)
+      copyMem(addr dest[2 + lenlen], addr value[0], bytelen)
       # Set unused bits to zero
       dest[2 + lenlen + bytelen - 1] = lastbyte and mask
   res
@@ -303,7 +302,7 @@ proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   if len(dest) >= res:
     dest[0] = Asn1Tag.Oid.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeSequence*(dest: var openArray[byte], value: openArray[byte]): int =
@@ -319,7 +318,7 @@ proc asn1EncodeSequence*(dest: var openArray[byte], value: openArray[byte]): int
   if len(dest) >= res:
     dest[0] = Asn1Tag.Sequence.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeComposite*(dest: var openArray[byte], value: Asn1Composite): int =
@@ -334,7 +333,7 @@ proc asn1EncodeComposite*(dest: var openArray[byte], value: Asn1Composite): int 
   if len(dest) >= res:
     dest[0] = value.tag.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value.buffer[0], len(value.buffer))
+    copyMem(addr dest[1 + lenlen], addr value.buffer[0], len(value.buffer))
   res
 
 proc asn1EncodeContextTag*(
@@ -355,7 +354,7 @@ proc asn1EncodeContextTag*(
   if len(dest) >= res:
     dest[0] = 0xA0'u8 or (byte(tag and 0xFF) and 0x0F'u8)
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
@@ -373,7 +372,7 @@ proc getLength(ab: var Asn1Buffer): Asn1Result[int] =
     let octets = safeConvert[int](b and 0x7F'u8)
     if octets > 8:
       return err(Asn1Error.Overflow)
-    if ab.isEnough(octets):
+    if ab.isEnough(octets + 1):
       var lengthU: uint64 = 0
       for i in 0 ..< octets:
         lengthU = (lengthU shl 8) or safeConvert[uint64](ab.buffer[ab.offset + i + 1])
@@ -642,7 +641,7 @@ proc read*(ab: var Asn1Buffer): Asn1Result[Asn1Field] =
     else:
       return err(Asn1Error.NoSupport)
 
-proc getBuffer*(field: Asn1Field): Asn1Buffer {.inline.} =
+proc getBuffer*(field: Asn1Field): Asn1Buffer =
   ## Return ``field`` as Asn1Buffer to enter composite types.
   Asn1Buffer(buffer: field.buffer, offset: field.offset, length: field.length)
 
@@ -828,6 +827,6 @@ proc write*[T: Asn1Buffer | Asn1Composite](abc: var T, value: Asn1Composite) =
     discard asn1EncodeContextTag(abc.toOpenArray(), value.buffer, value.idx)
   abc.offset += length
 
-proc finish*[T: Asn1Buffer | Asn1Composite](abc: var T) {.inline.} =
+proc finish*[T: Asn1Buffer | Asn1Composite](abc: var T) =
   ## Finishes buffer or composite and prepares it for writing.
   abc.offset = 0

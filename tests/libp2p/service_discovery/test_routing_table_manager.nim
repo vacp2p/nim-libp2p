@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets
+import chronos, results, sets, tables, sequtils
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -246,6 +246,18 @@ suite "ServiceRoutingTableManager":
       not manager.hasService(makeKey(1))
       not manager.hasService(makeKey(2))
 
+  test "manager has selfIdPreHashed set to true":
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(1)
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    check:
+      manager.getTable(serviceId).get().config.selfIdPreHashed
+
 suite "ServiceRoutingTableManager - refreshAllTables":
   teardown:
     checkTrackers()
@@ -323,3 +335,76 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       kad.findNodeCalls.len == 2
       kad.findNodeCalls[1] == kept
       removed notin kad.findNodeCalls
+
+  test "addService rejects local node insertion into service table":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let peer2 = makeKey(2)
+    let mainRt = makeMainTable(selfId, @[peer1, peer2])
+
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    manager.insertPeer(serviceId, selfId)
+
+    let table = manager.getTable(serviceId).get()
+    let peers = table.allKeys()
+
+    check:
+      selfId notin peers # local node must be rejected
+      peer1 in peers
+      peer2 in peers
+
+suite "ServiceRoutingTableManager - service id hashing":
+  test "service table buckets peers by the service id, not its re-hash":
+    let
+      serviceId = hashServiceId("/logos/service-discovery/1.0.0")
+      peer = makeKey(1)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(makeKey(0))
+    check manager.addService(serviceId, mainRt, 100, DefaultMaxBuckets, Interest)
+
+    manager.insertPeer(serviceId, peer)
+
+    let
+      serviceTable = manager.getTable(serviceId).get()
+      preHashBucket = serviceTable.bucketIndex(peer)
+
+    var nonServiceTable = serviceTable
+
+    # Service table always have this set to true
+    nonServiceTable.config.selfIdPreHashed = false
+
+    let doubleHashBucket = nonServiceTable.bucketIndex(peer)
+
+    check:
+      preHashBucket != doubleHashBucket
+      serviceTable.buckets[preHashBucket].peers.len == 1
+      serviceTable.buckets[preHashBucket].peers[0].nodeId == peer
+
+  test "service table with small bucketsCount uses scaled bucket mapping":
+    let
+      serviceId = hashServiceId("scaled-buckets-test")
+      peer = makeKey(42)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(makeKey(0))
+    check manager.addService(serviceId, mainRt, 20, 16, Interest)
+
+    manager.insertPeer(serviceId, peer)
+
+    let table = manager.getTable(serviceId).get()
+    let expectedScaled = table.bucketIndex(peer)
+
+    check:
+      peer in table.allKeys()
+      expectedScaled < 16
+
+    var actual = -1
+    for i, b in table.buckets:
+      if b.peers.anyIt(it.nodeId == peer):
+        actual = i
+        break
+    check actual == expectedScaled

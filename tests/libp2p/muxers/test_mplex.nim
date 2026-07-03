@@ -22,7 +22,7 @@ import
 import ../../tools/[unittest, trackers, futures, bufferstream, compare]
 
 proc noopWriteHandler(
-    data: seq[byte]
+    data: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
 
@@ -33,7 +33,7 @@ suite "Mplex":
   suite "channel encoding":
     asyncTest "encode header with channel id 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("000873747265616d2031")
 
@@ -43,7 +43,7 @@ suite "Mplex":
 
     asyncTest "encode header with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("88010873747265616d2031")
 
@@ -53,7 +53,7 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("020873747265616d2031")
 
@@ -63,7 +63,7 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("8a010873747265616d2031")
 
@@ -344,7 +344,7 @@ suite "Mplex":
       await chann.close()
       check await chann.reset()
       # this would hang
-      .withTimeout(100.millis)
+        .withTimeout(100.millis)
 
       check await allFuturesRaising(readerFut, writerFut).withTimeout(100.millis)
 
@@ -379,7 +379,7 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
@@ -417,7 +417,7 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
@@ -463,7 +463,9 @@ suite "Mplex":
         try:
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          mplexListen.streamHandler = proc(
+              stream: MuxedStream
+          ) {.async: (raises: []).} =
             try:
               let msg = await stream.readLp(MaxMsgSize)
               check msg == bigseq
@@ -510,7 +512,7 @@ suite "Mplex":
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           try:
             await stream.writeLp("Hello from stream!")
           except CancelledError, LPStreamError:
@@ -549,7 +551,7 @@ suite "Mplex":
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           try:
             let msg = await stream.readLp(1024)
             try:
@@ -597,7 +599,7 @@ suite "Mplex":
         var count = 1
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           try:
             let msg = await stream.readLp(1024)
             try:
@@ -641,12 +643,12 @@ suite "Mplex":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
 
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           try:
             discard await stream.readLp(1024)
@@ -690,11 +692,11 @@ suite "Mplex":
 
       var count = 0
       var done = newFuture[void]()
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           count.inc()
           if count == 10:
@@ -740,15 +742,52 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
+    asyncTest "Connection.reset aborts the dialer stream":
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let transport1 = TcpTransport.new(upgrade = Upgrade())
+
+      proc acceptHandler() {.async.} =
+        let conn = await transport1.accept()
+        let mplexListen = Mplex.new(conn)
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+          await stream.reset()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
+
+      let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+      let conn = await transport2.dial(transport1.addrs[0])
+
+      let mplexDial = Mplex.new(conn)
+      let mplexDialFut = mplexDial.handle()
+      let stream = await mplexDial.newStream()
+
+      expect LPStreamResetError:
+        discard await stream.readLp(1024)
+      expect LPStreamResetError:
+        await stream.writeLp("HELLO")
+
+      await stream.close()
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesRaising(transport1.stop(), transport2.stop())
+      await acceptFut
+
     asyncTest "dialing mplex closes both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           await noCancel stream.join()
 
@@ -783,11 +822,11 @@ suite "Mplex":
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexListen: Mplex
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           await noCancel stream.join()
 
@@ -825,11 +864,11 @@ suite "Mplex":
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexHandle: Future[void]
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           await noCancel stream.join()
 
@@ -838,7 +877,7 @@ suite "Mplex":
         await mplexListen.close()
 
       await transport1.start(ma)
-      let acceptFut = acceptHandler()
+      let _ = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let conn = await transport2.dial(transport1.addrs[0])
@@ -866,11 +905,11 @@ suite "Mplex":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
-      var listenStreams: seq[Connection]
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           await noCancel stream.join()
 
@@ -907,12 +946,12 @@ suite "Mplex":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
-      var listenConn: Connection
-      var listenStreams: seq[Connection]
+      var listenConn: MuxedStream
+      var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
         listenConn = await transport1.accept()
         let mplexListen = Mplex.new(listenConn)
-        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        mplexListen.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
           listenStreams.add(stream)
           await noCancel stream.join()
 
@@ -957,7 +996,9 @@ suite "Mplex":
         proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          mplexListen.streamHandler = proc(
+              stream: MuxedStream
+          ) {.async: (raises: []).} =
             try:
               let msg = await stream.readLp(MsgSize)
               check msg.len == MsgSize
@@ -1028,7 +1069,9 @@ suite "Mplex":
         proc acceptHandler() {.async.} =
           let conn = await transport1.accept()
           let mplexListen = Mplex.new(conn)
-          mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          mplexListen.streamHandler = proc(
+              stream: MuxedStream
+          ) {.async: (raises: []).} =
             try:
               let msg = await stream.readLp(MsgSize)
               check msg.len == MsgSize

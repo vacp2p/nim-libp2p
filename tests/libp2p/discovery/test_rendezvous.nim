@@ -3,7 +3,7 @@
 
 {.used.}
 
-import sequtils, strformat, sugar, chronos, stew/byteutils
+import sequtils, strformat, sugar, chronos, stew/byteutils, protobuf_serialization
 import
   ../../../libp2p/[
     protocols/rendezvous,
@@ -13,17 +13,16 @@ import
     routing_record,
     crypto/crypto,
     multicodec,
-    protobuf/minprotobuf,
     builders,
     utils/offsettedseq,
   ]
 import ../../tools/[lifecycle, topology, unittest, crypto]
 import ./utils
 
-type CustomPeerRecord* = object
-  peerId*: PeerId
-  seqNo*: uint64
-  customField*: string
+type CustomPeerRecord* {.proto2.} = object
+  peerId* {.fieldNumber: 1, required, ext.}: PeerId
+  seqNo* {.fieldNumber: 2, required, pint.}: uint64
+  customField* {.fieldNumber: 3, required.}: string
 
 proc payloadDomain*(T: typedesc[CustomPeerRecord]): string =
   $multiCodec("libp2p-custom-peer-record")
@@ -36,25 +35,14 @@ proc init*(T: typedesc[CustomPeerRecord], peerId: PeerId, seqNo: uint64): T =
 
 proc decode*(
     T: typedesc[CustomPeerRecord], buffer: seq[byte]
-): Result[CustomPeerRecord, ProtoError] =
-  let pb = initProtoBuffer(buffer)
-  var record = CustomPeerRecord()
-
-  ?pb.getRequiredField(1, record.peerId)
-  ?pb.getRequiredField(2, record.seqNo)
-  ?pb.getRequiredField(3, record.customField)
-
-  ok(record)
+): Result[CustomPeerRecord, SerializationError] =
+  try:
+    ok(Protobuf.decode(buffer, CustomPeerRecord))
+  except SerializationError as exc:
+    err(exc[])
 
 proc encode*(record: CustomPeerRecord): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, record.peerId)
-  pb.write(2, record.seqNo)
-  pb.write(3, record.customField)
-
-  pb.finish()
-  pb.buffer
+  Protobuf.encode(record)
 
 proc checkCustomPeerRecord(
     _: CustomPeerRecord, spr: seq[byte], peerId: PeerId
@@ -70,58 +58,39 @@ type CustomRendezVous = GenericRendezVous[CustomPeerRecord]
 
 proc new*(
     T: typedesc[CustomRendezVous],
-    minD = rendezvous.MinimumDuration,
-    maxD = rendezvous.MaximumDuration,
+    config: RendezVousConfig = RendezVousConfig.new(),
     peerRecordValidator: PeerRecordValidator[CustomPeerRecord] = checkCustomPeerRecord,
 ): T =
-  var minDuration = minD
-  var maxDuration = maxD
-  if minDuration < rendezvous.MinimumAcceptedDuration:
-    minDuration = rendezvous.MinimumAcceptedDuration
-
-  if maxDuration > rendezvous.MaximumDuration:
-    maxDuration = rendezvous.MaximumDuration
-
-  if minDuration >= maxDuration:
-    minDuration = rendezvous.MinimumAcceptedDuration
-    maxDuration = rendezvous.MaximumDuration
-
-  let
-    minTTL = minDuration.seconds.uint64
-    maxTTL = maxDuration.seconds.uint64
   let rdv = T(
-    rng: rng,
-    salt: string.fromBytes(generateBytes(rng[], 8)),
+    rng: rng(),
+    config: config,
+    salt: string.fromBytes(generateBytes(rng(), 8)),
     registered: initOffsettedSeq[RegisteredData](),
     expiredDT: Moment.now() - 1.days,
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
-    minDuration: minDuration,
-    maxDuration: maxDuration,
-    minTTL: minTTL,
-    maxTTL: maxTTL,
     peerRecordValidator: peerRecordValidator,
   )
   let pr = CustomPeerRecord.init(
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet(), 0
+    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet(), 0
   )
   logScope:
     topics = "libp2p discovery rendezvous"
   proc handleStream(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
       let
-        buf = await conn.readLp(4096)
+        buf = await stream.readLp(4096)
         msg = Message.decode(buf).tryGet()
       case msg.msgType
       of MessageType.Register:
-        await rdv.register(conn, msg.register.tryGet(), pr)
+        await rdv.register(stream, msg.register.tryGet(), pr)
       of MessageType.RegisterResponse:
         trace "Got an unexpected Register Response", response = msg.registerResponse
       of MessageType.Unregister:
-        rdv.unregister(conn, msg.unregister.tryGet())
+        rdv.unregister(stream, msg.unregister.tryGet())
       of MessageType.Discover:
-        await rdv.discover(conn, msg.discover.tryGet())
+        await rdv.discover(stream, msg.discover.tryGet())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
@@ -130,7 +99,7 @@ proc new*(
     except CatchableError as exc:
       trace "exception in rendezvous handler", description = exc.msg
     finally:
-      await conn.close()
+      await stream.close()
 
   rdv.handler = handleStream
   rdv.codec = "/cust-rendezvous/1.0.0"
@@ -144,9 +113,8 @@ proc advertise*(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
     raise newException(AdvertiseError, "Failed to sign Custom Peer Record")
-  let sprBuff = se.encode().valueOr:
-    raise newException(AdvertiseError, "Wrong Signed Peer Record")
-  await rdv.advertise(namespace, rdv.minDuration, rdv.peers, sprBuff)
+  let sprBuff = se.encode()
+  await rdv.advertise(namespace, rdv.config.minDuration, rdv.peers, sprBuff)
 
 suite "RendezVous":
   teardown:

@@ -15,7 +15,7 @@ import
   chronos/ratelimit
 import
   ../../../libp2p/[
-    builders,
+    switch,
     protocols/pubsub/errors,
     protocols/pubsub/pubsub,
     protocols/pubsub/pubsubpeer,
@@ -24,11 +24,12 @@ import
     protocols/pubsub/gossipsub/extensions,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
-    protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures]
+import
+  ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
+import ./converters
 
-export builders
+export switch, converters
 
 randomize()
 
@@ -50,6 +51,17 @@ proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.}
 proc waitForNextHeartbeat*[T: PubSub](node: T) {.async.} =
   await node.waitForHeartbeatByEvent(1)
 
+proc waitForScoringHeartbeatByEvent*(node: GossipSub, multiplier: int = 1) {.async.} =
+  for _ in 0 ..< multiplier:
+    let evnt = newAsyncEvent()
+    node.scoringHeartbeatEvents &= evnt
+    try:
+      await evnt.wait()
+    finally:
+      let i = node.scoringHeartbeatEvents.find(evnt)
+      if i != -1:
+        node.scoringHeartbeatEvents.delete(i)
+
 type
   TestGossipSub* = ref object of GossipSub
   DValues* = object
@@ -60,7 +72,7 @@ type
     dOut*: Opt[int]
     dLazy*: Opt[int]
 
-proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+proc noop*(data: sink seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
 
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
@@ -73,20 +85,21 @@ proc voidPeerHandler(
 
 proc randomPeerId*(): PeerId =
   try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet()
   except CatchableError as exc:
     raise newException(Defect, exc.msg)
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] {.
-      async: (raises: [CancelledError, GetConnDialError])
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
   .} =
     try:
       return await p.switch.dial(peerId, GossipSubCodec_12)
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e, msg: e.msg)
+      raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
+  let pubSubPeer =
+    PubSubPeer.new(peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -100,10 +113,8 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(
-    newStandardSwitch(transport = TransportType.QUIC, rng = rng()), rng = rng()
-  )
+): (TestGossipSub, seq[Stream], seq[PubSubPeer]) =
+  let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)
@@ -112,7 +123,7 @@ proc setupGossipSubWithPeers*(
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
 
-  var conns = newSeq[Connection]()
+  var conns = newSeq[Stream]()
   var peers = newSeq[PubSubPeer]()
   for i in 0 ..< numPeers:
     let conn = TestBufferStream.new(noop)
@@ -120,7 +131,7 @@ proc setupGossipSubWithPeers*(
     let peerId = randomPeerId()
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
-    peer.sendConn = conn
+    peer.sendStream = conn
     peer.handler = voidPeerHandler
     peers &= peer
     for topic in topics:
@@ -140,18 +151,18 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+): (TestGossipSub, seq[Stream], seq[PubSubPeer]) =
   return setupGossipSubWithPeers(
     numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
   )
 
-proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
+proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Stream]) {.async.} =
   await allFuturesRaising(conns.mapIt(it.close()))
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
-    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
-      byteutils.toHex(m.seqno) & $m.fromPeer
+    if m.seqno.isSome and m.fromPeer.isSome:
+      byteutils.toHex(m.seqno.get()) & $m.fromPeer.get()
     else:
       # This part is irrelevant because it's not standard,
       # We use it exclusively for testing basically and users should
@@ -178,8 +189,8 @@ proc applyDValues*(parameters: var GossipSubParams, dValues: Opt[DValues]) =
     parameters.dLazy = values.dLazy.get
 
 proc generateNodes*(
-    num: Natural,
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
+    num: int,
+    address: MultiAddress = QuicAutoAddress,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     gossip: bool = false,
     triggerSelf: bool = false,
@@ -215,15 +226,12 @@ proc generateNodes*(
       Opt.none(PingPongExtensionConfig),
     preambleExtensionConfig: Opt[PreambleExtensionConfig] =
       Opt.none(PreambleExtensionConfig),
-    transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
+  var pubsubs: seq[PubSub]
   for i in 0 ..< num:
-    let switch = newStandardSwitch(
-      rng = rng(),
-      secureManagers = secureManagers,
-      sendSignedPeerRecord = sendSignedPeerRecord,
-      transport = transport,
-    )
+    let switch = makeStandardSwitchBuilder(address)
+      .withSignedPeerRecord(sendSignedPeerRecord)
+      .build()
     let pubsub =
       if gossip:
         let g = GossipSub.init(
@@ -278,13 +286,14 @@ proc generateNodes*(
         ).PubSub
 
     switch.mount(pubsub)
-    result.add(pubsub)
+    pubsubs.add(pubsub)
+  pubsubs
 
 proc toFloodSub*(nodes: seq[PubSub]): seq[FloodSub] =
-  return nodes.mapIt(FloodSub(it))
+  nodes.mapIt(FloodSub(it))
 
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
-  return nodes.mapIt(GossipSub(it))
+  nodes.mapIt(GossipSub(it))
 
 proc setDefaultTopicParams*(nodes: seq[GossipSub], topic: string): void =
   for node in nodes:

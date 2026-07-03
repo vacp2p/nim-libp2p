@@ -3,9 +3,7 @@
 
 {.used.}
 
-when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
-  {.push raises: [].}
-
+when defined(linux) and defined(amd64):
   import chronos, chronos/apps/http/httpclient
   import
     ../../libp2p/[
@@ -14,77 +12,82 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       autotls/acme/api,
       autotls/acme/client,
       autotls/service,
+      crypto/rsa,
       autotls/utils,
       multiaddress,
       utils/ipaddr,
       switch,
-      builders,
       nameresolving/dnsresolver,
       wire,
     ]
-  import ../tools/[unittest, crypto]
+  import ../tools/[unittest, crypto, switch_builder]
+
+  template assertChallenge(challenge: ACMEChallengeDns01Response): auto =
+    check:
+      challenge.finalize.len > 0
+      challenge.order.len > 0
+      challenge.dns01.url.len > 0
+      challenge.dns01.`type` == ACMEChallengeType.DNS01
+      challenge.dns01.status == ACMEChallengeStatus.PENDING
+      challenge.dns01.token.len > 0
 
   suite "AutoTLS Integration":
     asyncTeardown:
       checkTrackers()
 
     asyncTest "request challenge without ACMEClient (ACMEApi only)":
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+      let key = RsaPrivateKey.random(rng()).get()
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
-      let registerResponse = await acmeApi.requestRegister(key)
-      # account was registered (kid set)
-      check registerResponse.kid != ""
-      if registerResponse.kid == "":
-        raiseAssert "unable to register acme account"
 
-      # challenge requested
-      let challenge = await acmeApi.requestChallenge(
-        @["some.dummy.domain.com"], key, registerResponse.kid
-      )
-      check challenge.finalize.len > 0
-      check challenge.order.len > 0
+      let challenge =
+        try:
+          let registerResponse = await acmeApi.requestRegister(key)
+          # account was registered (kid set)
+          check registerResponse.kid != ""
+          if registerResponse.kid == "":
+            raiseAssert "unable to register acme account"
 
-      check challenge.dns01.url.len > 0
-      check challenge.dns01.`type` == ACMEChallengeType.DNS01
-      check challenge.dns01.status == ACMEChallengeStatus.PENDING
-      check challenge.dns01.token.len > 0
+          # challenge requested
+          await acmeApi.requestChallenge(
+            @["some.dummy.domain.com"], key, registerResponse.kid
+          )
+        except ACMENetworkError:
+          skip()
+          return
+
+      assertChallenge(challenge)
 
     asyncTest "request challenge with ACMEClient":
       let acme = ACMEClient.new(
-        api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+        rng = rng(), api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       )
       defer:
         await acme.close()
 
-      let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
+      let challenge =
+        try:
+          await acme.getChallenge(@["some.dummy.domain.com"])
+        except ACMENetworkError:
+          skip()
+          return
 
-      check:
-        challenge.finalize.len > 0
-        challenge.order.len > 0
-        challenge.dns01.url.len > 0
-        challenge.dns01.`type` == ACMEChallengeType.DNS01
-        challenge.dns01.status == ACMEChallengeStatus.PENDING
-        challenge.dns01.token.len > 0
+      assertChallenge(challenge)
 
     asyncTest "AutotlsService correctly downloads challenges":
       if not hasPublicIPAddress():
         skip()
         return
 
-      let switch = SwitchBuilder
-        .new()
-        .withRng(rng)
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
-        .withTcpTransport()
+      let switch = makeStandardSwitchBuilder(
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        )
         .withAutotls(
           config = AutotlsConfig.new(
             acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
           )
         )
-        .withYamux()
-        .withNoise()
         .build()
 
       await switch.start()

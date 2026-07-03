@@ -2,12 +2,28 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import algorithm, chronos, chronicles, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[crypto, unittest]
+import algorithm, chronos, results, sequtils, sets, tables
+import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
+import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
+  Opt.some(a)
+
+converter toOptSeqMultiAddress*(a: seq[MultiAddress]): Opt[seq[MultiAddress]] =
+  Opt.some(a)
+
+converter toOptConnectionStatus*(a: ConnectionStatus): Opt[ConnectionStatus] =
+  Opt.some(a)
+
+converter toOptRecord*(a: protobuf.Record): Opt[protobuf.Record] =
+  Opt.some(a)
+
+converter toOptString*(a: string): Opt[string] =
+  Opt.some(a)
+
+converter toOptMessageType*(a: MessageType): Opt[MessageType] =
+  Opt.some(a)
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
@@ -33,42 +49,39 @@ method select*(
     return ok(0)
   ok(1)
 
-proc createSwitch*(): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(rng)
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
-
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
     selector: EntrySelector = CandSelector(),
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
-    timeout = chronos.seconds(1),
+    timeout = 1.seconds,
     retries: int = DefaultRetries,
+    providerRejection: bool = false,
+    providerExpirationInterval: Duration = 1.seconds,
+    recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
+    cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
     selector,
     timeout = timeout,
-    providerExpirationInterval = chronos.seconds(1),
+    providerExpirationInterval = providerExpirationInterval,
     cleanupProvidersInterval = cleanupProvidersInterval,
     republishProvidedKeysInterval = republishProvidedKeysInterval,
     replication = replication,
     retries = retries,
+    providerRejection = providerRejection,
+    recordExpirationInterval = recordExpirationInterval,
+    cleanupDataEntriesInterval = cleanupDataEntriesInterval,
   )
 
 proc setupKad*(
     config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): KadDHT =
-  let switch = createSwitch()
-  let kad = KadDHT.new(switch, bootstrapNodes, config)
+  let switch = makeStandardSwitch(TcpAutoAddress)
+  let kad = KadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.switch.mount(kad)
   kad
 
@@ -79,8 +92,8 @@ proc setupMockKad*(
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
     handleFindNodeDelay: Duration = ZeroDuration,
 ): MockKadDHT =
-  let switch = createSwitch()
-  let kad = MockKadDHT.new(switch, bootstrapNodes, config)
+  let switch = makeStandardSwitch(TcpAutoAddress)
+  let kad = MockKadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
   kad.handleFindNodeDelay = handleFindNodeDelay
@@ -95,6 +108,8 @@ proc setupKadSwitches*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
+    recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
+    cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
 ): seq[KadDHT] =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
@@ -104,6 +119,8 @@ proc setupKadSwitches*(
       cleanupProvidersInterval,
       republishProvidedKeysInterval,
       replication = replication,
+      recordExpirationInterval = recordExpirationInterval,
+      cleanupDataEntriesInterval = cleanupDataEntriesInterval,
     )
     kads.add(setupKad(config, bootstrapNodes))
   kads
@@ -162,7 +179,7 @@ proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
 
 proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
-  let providerIds = providers.toSeq().mapIt(it.id)
+  let providerIds = providers.toSeq().filterIt(it.id.isSome).mapIt(it.id.get())
   node.switch.peerInfo.peerId.getBytes() in providerIds
 
 proc toPeer*(node: KadDHT): Peer =
@@ -197,18 +214,50 @@ proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   peers
-  .mapIt((it, xorDistance(it, targetKey, hasher)))
-  .sorted(
-    proc(a, b: auto): int =
-      cmp(a[1], b[1])
-  )
-  .mapIt(it[0])
+    .mapIt((it, xorDistance(it, targetKey, hasher)))
+    .sorted(
+      proc(a, b: auto): int =
+        cmp(a[1], b[1])
+    )
+    .mapIt(it[0])
 
 proc addRandomPeers*(
-    state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
+    state: LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   var peers: seq[PeerId]
   for i in 0 ..< count:
     peers.add(randomPeerId())
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
   peers.sortPeers(target, hasher)
+
+proc sendAddProviderAndGetStatus*(
+    sender: KadDHT, receiver: KadDHT, key: Key
+): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
+  let streamRes = catch:
+    await sender.switch.dial(
+      receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
+    )
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
+  defer:
+    await stream.close()
+  let msg = Message(
+    msgType: MessageType.addProvider,
+    key: key,
+    providerPeers: @[sender.switch.peerInfo.toPeer()],
+  )
+  let writeRes = catch:
+    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus))
+  if writeRes.isErr:
+    return err(writeRes.error.msg)
+  let readFut = stream.readLp(MaxMsgSize)
+  if not (await readFut.withTimeout(sender.config.timeout)):
+    return ok(AddProviderStatus.accepted)
+  let readRes = catch:
+    await readFut
+  if readRes.isErr:
+    return ok(AddProviderStatus.accepted)
+  let reply = Message.decode(readRes.value).valueOr:
+    return ok(AddProviderStatus.accepted)
+  return ok(reply.providerStatus.get(AddProviderStatus.accepted))

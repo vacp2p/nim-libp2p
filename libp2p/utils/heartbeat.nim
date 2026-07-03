@@ -7,18 +7,6 @@ import chronos, chronicles
 
 export chronicles
 
-template runAfter*(waitTime: Duration, body: untyped): untyped =
-  asyncSpawn (
-    proc() {.async: (raises: [CancelledError]).} =
-      try:
-        await sleepAsync(waitTime)
-        body
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        error "runAfter task failed", msg = e.msg
-  )()
-
 template heartbeat*(
     name: string, interval: Duration, sleepFirst: bool, body: untyped
 ): untyped =

@@ -28,7 +28,6 @@ nim-libp2p/
 │   │   ├── connectivity/       # AutoNAT, DCUtR, Circuit Relay
 │   │   ├── pubsub/             # GossipSub, FloodSub
 │   │   ├── kademlia/           # Kademlia DHT
-│   │   ├── mix/                # Sphinx Mix Network (privacy)
 │   │   ├── perf/               # Performance measurement protocol
 │   │   └── secure/             # Noise, Plaintext
 │   ├── transports/             # TCP, QUIC, WebSocket, Tor, Memory
@@ -44,10 +43,12 @@ nim-libp2p/
 ├── examples/                   # Tutorial and example applications
 ├── cbind/                      # C/FFI bindings layer
 ├── docs/                       # Documentation
+│   ├── README.md               # Documentation index
 │   ├── development.md          # Setup and testing guide
 │   ├── contributing.md         # Contribution guidelines
 │   ├── compile_time_flags.md   # All compile-time flags documented
-│   └── common_hurdles.md       # Known issues and fixes
+│   ├── common_hurdles.md       # Known issues and fixes
+│   └── interop_hole_punching.md  # Hole punching interop test guide
 ├── tools/                      # Developer tools (dependency pinner, markdown runner, etc.)
 ├── libp2p.nim                  # Main entry point (re-exports public APIs)
 ├── libp2p.nimble               # Package manifest and build tasks
@@ -77,7 +78,6 @@ nimble test
 # Run tests matching a path substring
 nimble testpath quic                   # all quic tests
 nimble testpath transports/test_ws     # specific test file
-nimble testpath mix                    # mix protocol tests
 
 # Run specific test suites
 nimble testmultiformatexts             # MultiFormat extension tests
@@ -93,7 +93,7 @@ nim c -r tests/tools/test_multiaddress.nim
 
 ### Code Formatting
 ```sh
-nimble install nph@v0.6.1   # Install formatter (once)
+nimble install nph@v0.7.0   # Install formatter (once)
 nimble format               # Format all code
 ```
 
@@ -123,7 +123,6 @@ switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
-switch("hintAsError", "XCannotRaiseY:on")
 --styleCheck: usages
 --styleCheck: error
 --mm: refc          # Reference counting (not ORC yet)
@@ -139,8 +138,6 @@ These flags are used in CI and tests:
 
 | Flag | Purpose |
 |------|---------|
-| `-d:libp2p_autotls_support` | Enable AutoTLS support |
-| `-d:libp2p_mix_experimental_exit_is_dest` | MIX protocol: exit node is destination |
 | `-d:libp2p_expensive_metrics` | Per-peer cardinality metrics |
 | `-d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,...` | Known agent metrics |
 | `-d:KnownLibP2PTopics=topic1,topic2` | GossipSub topic metrics |
@@ -149,9 +146,6 @@ These flags are used in CI and tests:
 | `-d:libp2p_multiaddress_exts=<path>` | MultiAddress extensions file |
 | `-d:libp2p_multibase_exts=<path>` | MultiBase extensions file |
 | `-d:libp2p_contentids_exts=<path>` | ContentIds extensions file |
-
-The test runner (`libp2p.nimble`) always compiles with:
-`-d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest`
 
 ---
 
@@ -165,8 +159,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - **secp256k1** — Secp256k1 curve operations
 - **bearssl** — TLS/SSL
 - **dnsclient** (`>= 0.3.0, < 0.4.0`) — DNS client (used by AutoTLS)
-- **websock** (`>= 0.2.1`) — WebSocket transport
-- **nim-lsquic** — QUIC transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
+- **websock** (`>= 0.4.0`) — WebSocket transport (GitHub dependency; see `libp2p.nimble`)
+- **lsquic** (`>= 0.4.1`) — QUIC transport
 - **nim-jwt** — JWT library for AutoTLS/ACME (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
 - **unittest2** — Testing framework
 
@@ -184,8 +178,10 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Async procedures return `Future[T]` or `Future[void]`
 - Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
 - `init()` procedure should always be called with identifier of future that explains purpose of future or where it was created. For example `init("Stream.readOnce")`
-- `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
+- `cancel()` procedure of `Future` type is deprecated, code should either call `cancelSoon()` for non-blocking call or `cancelAndWait()` for blocking call until the future is canceled/has been canceled.
 - Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
+- Do not use `asyncSpawn` unless the future reference is explicitly tracked. Running a future with `asyncSpawn` without tracking its reference risks the future being freed/deallocated when it becomes unreferenced.
+- Usage of `AsyncLock` must always be documented. Provide a clear explanation of why the lock is required in that context. This ensures that locking decisions are transparent, justified, and maintainable.
 
 ### Avoid `sleepAsync`
 - `sleepAsync` should be avoided when is used to fix race condition, or to wait on condition, becasue it is always source of flakyness.
@@ -219,6 +215,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Style check is **strict** — naming must match declaration exactly
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
+- Use runtime feature flags or configs for experimental features. Use compile-time flags ONLY when the code must not exist in the binary due to security, compliance, platform, ABI, or substantial size/performance constraints.
 
 #### Detecting unused symbols
 - Always check for unused identifiers. Flag any variable, parameter, procedure, function, iterator, template, or macro that meets any of these conditions:
@@ -237,11 +234,25 @@ The test runner (`libp2p.nimble`) always compiles with:
   - Symbols required by an interface, callback, or external API
   - Compile‑time only symbols used via `static`, `when`, or macro expansion
 
+#### Leverage the Type System
+- Enforce strong typing: Always prefer explicit, well-defined types over loosely typed or primitive representations.
+- Use `chronos.Duration` for durations
+  - All duration values must be represented using `chronos.Duration`.
+  - Do not use primitive types (`float`, `int`, etc.) for storing or passing durations. Replace them with `chronos.Duration`.
+- Avoid tuples in public interfaces
+  - Public APIs must not expose tuples.
+  - Instead, define a named type (e.g., object) with clear field names to ensure readability and maintainability.
+  - Exception: Tuples may be used only in functions that are internal to a single file and invoked in one place. They must never leak into shared or public APIs.
+
 #### Exceptions
 - For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
 - If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler.
 - Do not catch `CancelledError`. By not catching, it is propagated by default. Sometimes this exception is captured and re-raised which is fine.
 - Use `e` as error variable name in `except` clause like `except LPStreamEOFError as e`
+- In `except` blocks, preserve the original error message unless the exception is `CancelledError`.
+  - If the code logs the error, include `e.msg` or `getCurrentExceptionMsg()` in the log message.
+  - If the code raises a new error, append the original message (`e.msg` or `getCurrentExceptionMsg()`) to the new error so the triggering reason is preserved.
+  - Do not do this for `CancelledError`, because those messages do not add value.
 
 #### Result
 - Use explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes
@@ -339,13 +350,17 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
 
 ### API Stability
-- Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
-- Do not warn about breaking changes in the following modules as they are still not considered stable and under active development: `kademlia`, `mix`, `service_discovery`
-- Internal procedures may change at MINOR versions
+- Treat the intended public API surface, especially modules re-exported from `libp2p.nim`, as backward-compatible within a MAJOR version.
+- If a PR introduces a breaking change to that public API surface, add a comment in the PR description that clearly documents the breaking change, the affected modules or APIs, and any required migration notes.
+- Do not warn about breaking changes in the following modules, because they are not yet considered stable and remain under active development: `kademlia`, `service_discovery`.
+- Internal procedures and other non-public implementation details may change in MINOR versions.
 
 ### Experimental GossipSub Extensions
 - Must use protobuf field numbers `> 0x200000` to force ≥4-byte tags
   (see `libp2p/protocols/pubsub/rpc/protobuf.nim`)
+
+### Code Formatting
+- After making any code changes, run `nph` on all modified files. If `nph` produces changes, include them in the same change or PR.
 
 ---
 
@@ -403,10 +418,6 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `rendezvous.nim` + `rendezvous/` — Rendezvous server protocol
 - `service_discovery.nim` + `service_discovery/` — Service discovery (random find, routing table manager)
 
-### Privacy (`protocols/mix/`)
-- Sphinx mix network for privacy-preserving message routing
-- Curve25519, fragmentation, delay strategies, spam protection
-
 ### Services (`services/`)
 - `autorelayservice.nim` — Automatic relay selection and connection
 - `hpservice.nim` — Hole punching service
@@ -414,7 +425,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ### AutoTLS (`autotls/`)
 - Automatic TLS certificate management using the ACME protocol
-- `service.nim` — AutoTLS service (enabled with `-d:libp2p_autotls_support`)
+- `service.nim` — AutoTLS service
 - `acme/` — ACME client and API for certificate issuance
 
 ### Peer ID Authentication (`peeridauth/`)
@@ -450,9 +461,10 @@ The `cbind/` directory contains the C/FFI layer for using nim-libp2p from C/C++:
 - `libp2p.nim` — FFI function implementations (exported with `{.exportc.}`)
 - `libp2p.h` — Generated C header
 - `ffi_types.nim` — C-compatible type definitions
+- `types.nim` — Additional C-compatible type implementations
 - `alloc.nim` — Cross-thread memory allocation helpers
 - `libp2p_thread/` — Thread management for async operations from C
-- `examples/cbindings.c`, `examples/mix.c` — C usage examples
+- `examples/cbindings.c`, `examples/echo.c` — C usage examples
 
 ```sh
 cd cbind
@@ -471,11 +483,12 @@ nimble examples      # Build and run C examples
 
 | Workflow | Description |
 |----------|-------------|
-| `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.0.16 & v2.2.6 |
+| `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.2.4 & v2.2.10 |
 | `daily_amd64.yml` / `daily_i386.yml` | Extended daily tests |
 | `daily_ci_report.yml` | Daily CI failure reporting: opens/updates GitHub issues for failed daily CI runs |
 | `daily_common.yml` | Shared steps/config reused by daily workflows |
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
+| `daily_runnable_examples.yml` | Daily runnable examples checks |
 | `daily_tests_no_flags.yml` | Tests without experimental flags |
 | `cbindings.yml` | C bindings compilation and tests |
 | `coverage.yml` | Code coverage (uploads to codecov) |
@@ -507,7 +520,7 @@ Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks
 `--define:nimRawSetjmp` is set on Windows (non-MSVC) to avoid stack corruption with SEH and exceptions.
 
 ### QUIC transport
-Uses `nim-lsquic` (pinned GitHub commit). May require extra system dependencies for building.
+Uses `lsquic` (`>= 0.4.1`). May require extra system dependencies for building.
 
 ---
 

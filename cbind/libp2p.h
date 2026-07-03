@@ -48,13 +48,8 @@ typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
 // libp2p instance (created by libp2p_new).
 typedef struct libp2p_ctx libp2p_ctx_t;
 
-// stream handle returned by dial/mix_dial callbacks.
+// stream handle returned by dial callbacks.
 typedef struct libp2p_stream libp2p_stream_t;
-
-// Curve25519 private/public key bytes used by the mix protocol.
-typedef struct {
-  uint8_t bytes[32];
-} libp2p_curve25519_key_t;
 
 // Compressed secp256k1 public key bytes (33 bytes, including prefix).
 typedef struct {
@@ -77,13 +72,6 @@ enum {
   Direction_Out = 1,
 };
 
-typedef uint32_t Libp2pMixReadBehavior;
-
-enum {
-  LIBP2P_MIX_READ_EXACTLY = 0,
-  LIBP2P_MIX_READ_LP = 1,
-};
-
 typedef uint32_t Libp2pMuxer;
 
 enum {
@@ -96,7 +84,6 @@ typedef uint32_t Libp2pTransport;
 enum {
   LIBP2P_TRANSPORT_QUIC = 0,
   LIBP2P_TRANSPORT_TCP = 1,
-  LIBP2P_TRANSPORT_MEMORY = 2,
 };
 
 // === Data Structures ===
@@ -140,9 +127,6 @@ typedef struct {
 
   // Enable/disable Kademlia DHT (default on).
   int mount_kad;
-
-  // Enable/disable mix protocol support (default off).
-  int mount_mix;
 
   // Enable Service Discovery  (default off).
   int mount_service_discovery;
@@ -206,6 +190,27 @@ typedef struct {
   size_t addrsLen;
 } Libp2pPeerInfo;
 
+// Peerstore entry containing all known metadata for a peer.
+// All fields are only valid for the duration of the callback; copy if needed.
+// publicKey is NULL and publicKeyLen is 0 when the key is not known.
+// agentVersion and protoVersion are empty strings when not known.
+typedef struct {
+  const char *peerId;
+  const char **addrs;
+  size_t addrsLen;
+  const char **protocols;
+  size_t protocolsLen;
+  const uint8_t *publicKey;
+  size_t publicKeyLen;
+  const char *agentVersion;
+  const char *protoVersion;
+} Libp2pPeerStoreEntry;
+
+typedef void (*PeerStoreEntryCallback)(int callerRet,
+                                       const Libp2pPeerStoreEntry *entry,
+                                       const char *msg, size_t len,
+                                       void *userData);
+
 // Service descriptor returned by Service discovery.
 // Fields are only valid for the duration of the callback; copy if needed.
 typedef struct {
@@ -242,15 +247,28 @@ typedef void (*RandomRecordsCallback)(int callerRet,
                                       size_t recordsLen, const char *msg,
                                       size_t len, void *userData);
 
+// record is only valid during the callback; copy if needed.
+typedef void (*ExtendedPeerRecordCallback)(
+    int callerRet, const Libp2pExtendedPeerRecord *record, const char *msg,
+    size_t len, void *userData);
+
 // peerIds is only valid during the callback; copy if needed.
 typedef void (*PeersCallback)(int callerRet, const char **peerIds,
                               size_t peerIdsLen, const char *msg, size_t len,
                               void *userData);
 
-// ConnectionCallback returns a stream handle that must be released with
+// StreamCallback returns a stream handle that must be released with
 // libp2p_stream_release when no longer needed.
-typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
-                                   const char *msg, size_t len, void *userData);
+typedef void (*StreamCallback)(int callerRet, libp2p_stream_t *stream,
+                               const char *msg, size_t len, void *userData);
+
+// Protocol handlers run on the libp2p worker thread. They must not block while
+// waiting for libp2p callbacks. Use the asynchronous libp2p_stream_* APIs and
+// release the stream with libp2p_stream_release when the handler is done.
+typedef void (*Libp2pProtocolHandler)(libp2p_ctx_t *ctx,
+                                      libp2p_stream_t *stream,
+                                      const char *proto, size_t protoLen,
+                                      void *userData);
 
 // providers is only valid during the callback; copy if needed.
 typedef void (*GetProvidersCallback)(int callerRet,
@@ -334,7 +352,7 @@ int libp2p_start(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
 int libp2p_stop(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-// === Connection APIs ===
+// === Peer Connection APIs ===
 
 int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId,
                    const char **multiaddrs, size_t multiaddrsLen,
@@ -354,37 +372,43 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
 // === Stream APIs ===
 
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
-                ConnectionCallback callback, void *userData);
+                StreamCallback callback, void *userData);
+
+// Mounts a custom protocol handler. The handler receives incoming streams for
+// proto and must eventually call libp2p_stream_release on each stream.
+int libp2p_mount_protocol(libp2p_ctx_t *ctx, const char *proto,
+                          Libp2pProtocolHandler handler,
+                          Libp2pCallback callback, void *userData);
 
 // Read callbacks receive a buffer that is freed immediately after the callback.
-int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                               size_t dataLen, Libp2pBufferCallback callback,
                               void *userData);
 
-int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                          int64_t maxSize, Libp2pBufferCallback callback,
                          void *userData);
 
 // Write calls copy the input buffer before enqueueing; data can be freed after
 // the function returns.
-int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                         const uint8_t *data, size_t dataLen,
                         Libp2pCallback callback, void *userData);
 
-int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                           const uint8_t *data, size_t dataLen,
                           Libp2pCallback callback, void *userData);
 
-int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                         Libp2pCallback callback, void *userData);
 
 // Closes the stream and then sends EOF to the remote side.
-int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                                Libp2pCallback callback, void *userData);
 
-// Releases the local stream handle. After this, conn must not be used again.
+// Releases the local stream handle. After this, stream must not be used again.
 // You usually call close/closeWithEOF first, then release.
-int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                           Libp2pCallback callback, void *userData);
 
 // === Pubsub APIs ===
@@ -447,41 +471,57 @@ int libp2p_kad_get_providers(libp2p_ctx_t *ctx, const char *cid,
 int libp2p_kad_random_records(libp2p_ctx_t *ctx, RandomRecordsCallback callback,
                               void *userData);
 
-// === Mix APIs ===
+// === Service Discovery APIs ===
 
-void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
+int libp2p_service_disco_start(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                               void *userData);
 
-void libp2p_mix_public_key(libp2p_curve25519_key_t inKey,
-                           libp2p_curve25519_key_t *outKey);
+int libp2p_service_disco_stop(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                              void *userData);
 
-int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
-                    const char *multiaddr, const char *proto,
-                    ConnectionCallback callback, void *userData);
+int libp2p_service_disco_start_advertising(
+    libp2p_ctx_t *ctx, const char *serviceId, const uint8_t *serviceData,
+    size_t serviceDataLen, Libp2pCallback callback, void *userData);
 
-int libp2p_mix_dial_with_reply(libp2p_ctx_t *ctx, const char *peerId,
-                               const char *multiaddr, const char *proto,
-                               int expect_reply, uint8_t num_surbs,
-                               ConnectionCallback callback, void *userData);
+// Builds and signs an Extended Peer Record (XPR) for the node's own peer with
+// its private key. peerId comes from the node; empty addrs uses the node's
+// listen addresses; seqNo 0 defaults to the current unix time. callback
+// receives the signed, protobuf-encoded XPR bytes, valid only during the call.
+int libp2p_create_xpr(libp2p_ctx_t *ctx, const char **addrs, size_t addrsLen,
+                      const Libp2pServiceInfo *services, size_t servicesLen,
+                      uint64_t seqNo, Libp2pBufferCallback callback,
+                      void *userData);
 
-// Registers how the exit-layer reads payloads for the given proto.
-// behavior + size_param:
-// - LIBP2P_MIX_READ_EXACTLY: read exactly size_param bytes
-// - LIBP2P_MIX_READ_LP: read length-prefixed frames up to size_param bytes
-int libp2p_mix_register_dest_read_behavior(libp2p_ctx_t *ctx, const char *proto,
-                                           Libp2pMixReadBehavior behavior,
-                                           uint32_t size_param,
+// Decodes a signed, protobuf-encoded XPR (as produced by libp2p_create_xpr),
+// verifies its signature, and passes the decoded record to the callback. This
+// is a pure operation and needs no running node, so it takes no context. The
+// record is only valid for the duration of the callback; copy if needed.
+int libp2p_decode_xpr(const uint8_t *encoded, size_t encodedLen,
+                      ExtendedPeerRecordCallback callback, void *userData);
+
+int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
+                                          const char *serviceId,
+                                          Libp2pCallback callback,
+                                          void *userData);
+
+int libp2p_service_disco_register_interest(libp2p_ctx_t *ctx,
+                                           const char *serviceId,
                                            Libp2pCallback callback,
                                            void *userData);
 
-int libp2p_mix_set_node_info(libp2p_ctx_t *ctx, const char *multiaddr,
-                             libp2p_curve25519_key_t mix_priv_key,
-                             Libp2pCallback callback, void *userData);
+int libp2p_service_disco_unregister_interest(libp2p_ctx_t *ctx,
+                                             const char *serviceId,
+                                             Libp2pCallback callback,
+                                             void *userData);
 
-int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
-                            const char *multiaddr,
-                            libp2p_curve25519_key_t mix_pub_key,
-                            libp2p_secp256k1_pubkey_t libp2p_pub_key,
-                            Libp2pCallback callback, void *userData);
+int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
+                                const uint8_t *serviceData,
+                                size_t serviceDataLen,
+                                RandomRecordsCallback callback, void *userData);
+
+int libp2p_service_disco_random_lookup(libp2p_ctx_t *ctx,
+                                       RandomRecordsCallback callback,
+                                       void *userData);
 
 // callback receives a buffer valid only during its execution
 int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
@@ -493,13 +533,57 @@ int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
 // from libp2p_circuit_relay_reserve with "/p2p-circuit" appended by the caller.
 int libp2p_dial_circuit_relay(libp2p_ctx_t *ctx, const char *dstPeerId,
                               const char *multiaddr, const char *proto,
-                              ConnectionCallback callback, void *userData);
+                              StreamCallback callback, void *userData);
 
 // Reserves a relay slot on relayPeerId, requires circuit_relay_client=1.
 // The callback receives relay addresses (without /p2p-circuit suffix).
 int libp2p_circuit_relay_reserve(libp2p_ctx_t *ctx, const char *relayPeerId,
                                  const char **relayAddrs, size_t relayAddrsLen,
                                  ReservationCallback callback, void *userData);
+
+// === Peerstore APIs ===
+
+// Returns peer IDs of all peers known to the address book.
+int libp2p_peerstore_get_peers(libp2p_ctx_t *ctx, PeersCallback callback,
+                               void *userData);
+
+// Returns all known metadata for peerId.
+// Addresses and protocols are populated from the peerstore books.
+// publicKey is set when the key has been received via identify.
+int libp2p_peerstore_get_peer_info(libp2p_ctx_t *ctx, const char *peerId,
+                                   PeerStoreEntryCallback callback,
+                                   void *userData);
+
+// Merges addrs into the address book for peerId (extends without duplicates).
+// Optionally merges protos into the protocol book when protosLen > 0.
+// addrsLen must be > 0.
+int libp2p_peerstore_add_peer(libp2p_ctx_t *ctx, const char *peerId,
+                              const char **addrs, size_t addrsLen,
+                              const char **protos, size_t protosLen,
+                              Libp2pCallback callback, void *userData);
+
+// Replaces all addresses stored for peerId.
+int libp2p_peerstore_set_peer_addresses(libp2p_ctx_t *ctx, const char *peerId,
+                                        const char **addrs, size_t addrsLen,
+                                        Libp2pCallback callback,
+                                        void *userData);
+
+// Replaces all protocols stored for peerId.
+int libp2p_peerstore_set_peer_protocols(libp2p_ctx_t *ctx, const char *peerId,
+                                        const char **protos, size_t protosLen,
+                                        Libp2pCallback callback,
+                                        void *userData);
+
+// Removes peerId from all peerstore books.
+int libp2p_peerstore_delete_peer(libp2p_ctx_t *ctx, const char *peerId,
+                                 Libp2pCallback callback, void *userData);
+
+// Delivers the metrics registry as a JSON array of
+// {name,type,help,labels,value,timestamp} objects via callback's (msg, len).
+// The buffer lives only for the synchronous duration of this call and is
+// not null-terminated; consume or copy it before the callback returns.
+int libp2p_collect_metrics(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                           void *userData);
 
 #ifdef __cplusplus
 }

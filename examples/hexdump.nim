@@ -28,14 +28,14 @@ proc dumpHex*(pbytes: pointer, nbytes: int, items = 1, ascii = true): string =
   ## ``items``  - number of bytes in group (supported ``items`` count is
   ##  1, 2, 4, 8)
   ## ``ascii``  - if ``true`` show ASCII representation of memory dump.
-  result = ""
+  var res = ""
   let hexSize = items * 2
   var i = 0
   var slider = pbytes
   var asciiText = ""
   while i < nbytes:
     if i %% 16 == 0:
-      result = result & toHex(cast[BiggestInt](slider), sizeof(BiggestInt) * 2) & ":  "
+      res &= toHex(cast[BiggestInt](slider), sizeof(BiggestInt) * 2) & ":  "
     var k = 0
     while k < items:
       var ch = cast[ptr char](cast[uint](slider) + k.uint)[]
@@ -46,28 +46,28 @@ proc dumpHex*(pbytes: pointer, nbytes: int, items = 1, ascii = true): string =
       inc(k)
     case items
     of 1:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint8](slider)[]), hexSize)
+      res &= toHex(cast[BiggestInt](cast[ptr uint8](slider)[]), hexSize)
     of 2:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint16](slider)[]), hexSize)
+      res &= toHex(cast[BiggestInt](cast[ptr uint16](slider)[]), hexSize)
     of 4:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint32](slider)[]), hexSize)
+      res &= toHex(cast[BiggestInt](cast[ptr uint32](slider)[]), hexSize)
     of 8:
-      result = result & toHex(cast[BiggestInt](cast[ptr uint64](slider)[]), hexSize)
+      res &= toHex(cast[BiggestInt](cast[ptr uint64](slider)[]), hexSize)
     else:
       raise newException(ValueError, "Wrong items size!")
-    result = result & " "
+    res &= " "
     slider = cast[pointer](cast[uint](slider) + items.uint)
     i = i + items
     if i %% 16 == 0:
-      result = result & " " & asciiText
+      res &= " " & asciiText
       asciiText.setLen(0)
-      result = result & "\n"
+      res &= "\n"
 
   if i %% 16 != 0:
     var spacesCount = ((16 - (i %% 16)) div items) * (hexSize + 1) + 1
-    result = result & repeat(' ', spacesCount)
-    result = result & asciiText
-  result = result & "\n"
+    res &= repeat(' ', spacesCount)
+    res &= asciiText
+  res & "\n"
 
 proc dumpHex*[T](v: openArray[T], items: int = 0, ascii = true): string =
   ## Return hexadecimal memory dump representation of openArray[T] ``v``.
@@ -87,4 +87,4 @@ proc dumpHex*[T](v: openArray[T], items: int = 0, ascii = true): string =
       i = 1
   else:
     i = items
-  result = dumpHex(unsafeAddr v[0], sizeof(T) * len(v), i, ascii)
+  dumpHex(addr v[0], sizeof(T) * len(v), i, ascii)

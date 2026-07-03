@@ -14,7 +14,6 @@ import
     transports/transport,
     multicodec,
     peerid,
-    protobuf/minprotobuf,
     utils/ipaddr,
   ],
   ../../protocol,
@@ -48,56 +47,57 @@ proc new*(
   )
 
 proc sendDialResponse(
-    conn: Connection,
+    stream: Stream,
     status: ResponseStatus,
     addrIdx: Opt[AddrIdx] = Opt.none(AddrIdx),
     dialStatus: Opt[DialStatus] = Opt.none(DialStatus),
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  await conn.writeLp(
+  await stream.writeLp(
     AutonatV2Msg(
-      msgType: MsgType.DialResponse,
-      dialResp: DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus),
-    ).encode().buffer
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse:
+          DialResponse(status: status, addrIdx: addrIdx, dialStatus: dialStatus),
+      )
+    ).encode()
   )
 
 proc findObservedIPAddr*(
-    conn: Connection, req: DialRequest
+    stream: Stream, req: DialRequest
 ): Future[Opt[MultiAddress]] {.async: (raises: [CancelledError, LPStreamError]).} =
-  let observedAddr = conn.observedAddr.valueOr:
-    await conn.sendDialResponse(ResponseStatus.EInternalError)
+  let observedAddr = stream.observedAddr.valueOr:
+    await stream.sendDialResponse(ResponseStatus.EInternalError)
     return Opt.none(MultiAddress)
 
   let isRelayed = observedAddr.contains(multiCodec("p2p-circuit")).valueOr:
     error "Invalid observed address"
-    await conn.sendDialResponse(ResponseStatus.EDialRefused)
+    await stream.sendDialResponse(ResponseStatus.EDialRefused)
     return Opt.none(MultiAddress)
 
   if isRelayed:
     error "Invalid observed address: relayed address"
-    await conn.sendDialResponse(ResponseStatus.EDialRefused)
+    await stream.sendDialResponse(ResponseStatus.EDialRefused)
     return Opt.none(MultiAddress)
 
   let hostIp = observedAddr[0].valueOr:
     error "Invalid observed address"
-    await conn.sendDialResponse(ResponseStatus.EInternalError)
+    await stream.sendDialResponse(ResponseStatus.EInternalError)
     return Opt.none(MultiAddress)
 
   return Opt.some(hostIp)
 
 proc dialBack(
-    conn: Connection, nonce: Nonce
+    stream: Stream, nonce: Nonce
 ): Future[DialStatus] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
   try:
     # send dial back
-    await conn.writeLp(DialBack(nonce: nonce).encode().buffer)
+    await stream.writeLp(DialBack(nonce: nonce).encode())
 
     # receive DialBackResponse
-    discard DialBackResponse.decode(
-      initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
-    ).valueOr:
-      trace "DialBack failed, could not decode DialBackResponse"
+    discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+      trace "DialBack failed, could not decode DialBackResponse", error = error
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
@@ -110,38 +110,42 @@ proc dialBack(
   return DialStatus.Ok
 
 proc handleDialDataResponses(
-    self: AutonatV2, conn: Connection
+    self: AutonatV2, stream: Stream
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   var dataReceived: uint64 = 0
 
   while dataReceived < self.config.dialDataSize:
-    let msg = AutonatV2Msg.decode(
-      initProtoBuffer(await conn.readLp(DialDataResponseLpSize))
-    ).valueOr:
-      raise newException(AutonatV2Error, "Received malformed message")
-    debug "Received message", msgType = $msg.msgType
-    if msg.msgType != MsgType.DialDataResponse:
-      raise
-        newException(AutonatV2Error, "Expecting DialDataResponse, got " & $msg.msgType)
-    let resp = msg.dialDataResp
+    let msg = AutonatV2Msg.decode(await stream.readLp(DialDataResponseLpSize)).valueOr:
+      raise newException(AutonatV2Error, error)
+    debug "Received message"
+
+    if msg.oneof.kind != MsgKind.DialDataResponse:
+      raise newException(
+        AutonatV2Error, "Expecting DialDataResponse, got " & $msg.oneof.kind
+      )
+
+    let resp = msg.oneof.dialDataResponse
     dataReceived += resp.data.len.uint64
     debug "received data",
       dataReceived = resp.data.len.uint64, totalDataReceived = dataReceived
 
 proc amplificationAttackPrevention(
-    self: AutonatV2, conn: Connection, addrIdx: AddrIdx
+    self: AutonatV2, stream: Stream, addrIdx: AddrIdx
 ): Future[bool] {.async: (raises: [CancelledError, LPStreamError]).} =
   # send DialDataRequest
-  await conn.writeLp(
+  await stream.writeLp(
     AutonatV2Msg(
-      msgType: MsgType.DialDataRequest,
-      dialDataReq: DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
-    ).encode().buffer
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialDataRequest,
+        dialDataRequest:
+          DialDataRequest(addrIdx: addrIdx, numBytes: self.config.dialDataSize),
+      )
+    ).encode()
   )
 
   # recieve DialDataResponses until we're satisfied
   try:
-    await self.handleDialDataResponses(conn)
+    await self.handleDialDataResponses(stream)
   except AutonatV2Error as exc:
     error "Amplification attack prevention failed", description = exc.msg
     return false
@@ -168,13 +172,13 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
 
 proc forceNewConnection(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[Opt[(Muxer, Connection)]] {.async: (raises: [CancelledError]).} =
+): Future[Opt[(Muxer, Stream)]] {.async: (raises: [CancelledError]).} =
   ## Bypasses connManager to force a new connection to ``pid``
   ## instead of reusing a preexistent one
   try:
     let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
     if mux.isNil():
-      return Opt.none((Muxer, Connection))
+      return Opt.none((Muxer, Stream))
     return Opt.some(
       (
         mux,
@@ -186,42 +190,45 @@ proc forceNewConnection(
   except CancelledError as exc:
     raise exc
   except CatchableError:
-    return Opt.none((Muxer, Connection))
+    return Opt.none((Muxer, Stream))
 
 proc chooseDialAddr(
     self: AutonatV2, pid: PeerId, addrs: seq[MultiAddress]
-): Future[(Opt[(Muxer, Connection)], Opt[AddrIdx])] {.
-    async: (raises: [CancelledError])
-.} =
+): Future[(Opt[(Muxer, Stream)], Opt[AddrIdx])] {.async: (raises: [CancelledError]).} =
   for i, ma in addrs:
     if self.canDial(ma):
       debug "Trying to dial", chosenAddrs = ma, addrIdx = i
-      let (mux, conn) =
+      let (mux, stream) =
         try:
           (await (self.forceNewConnection(pid, @[ma]).wait(self.config.dialTimeout))).valueOr:
-            return (Opt.none((Muxer, Connection)), Opt.none(AddrIdx))
+            # canDial is true, which means the dial was attempted but failed.
+            # Opt.some(i.AddrIdx) is returned so the response is EDialError, which
+            # triggers NotReachable, and not EDialRefused, which triggers Unknown
+            # and would never be updated.
+            return (Opt.none((Muxer, Stream)), Opt.some(i.AddrIdx))
         except AsyncTimeoutError:
           trace "Dial timed out"
-          return (Opt.none((Muxer, Connection)), Opt.some(i.AddrIdx))
-      return (Opt.some((mux, conn)), Opt.some(i.AddrIdx))
-  return (Opt.none((Muxer, Connection)), Opt.none(AddrIdx))
+          return (Opt.none((Muxer, Stream)), Opt.some(i.AddrIdx))
+      return (Opt.some((mux, stream)), Opt.some(i.AddrIdx))
+  return (Opt.none((Muxer, Stream)), Opt.none(AddrIdx))
 
 proc handleDialRequest(
-    self: AutonatV2, conn: Connection, req: DialRequest
+    self: AutonatV2, stream: Stream, req: DialRequest
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let observedIPAddr = (await conn.findObservedIPAddr(req)).valueOr:
+  let observedIPAddr = (await stream.findObservedIPAddr(req)).valueOr:
     trace "Could not find observed IP address"
-    await conn.sendDialResponse(ResponseStatus.ERequestRejected)
+    await stream.sendDialResponse(ResponseStatus.ERequestRejected)
     return
 
-  let (dialBackConnOpt, addrIdxOpt) = await self.chooseDialAddr(conn.peerId, req.addrs)
+  let (dialBackConnOpt, addrIdxOpt) =
+    await self.chooseDialAddr(stream.peerId, req.addrs)
   let addrIdx = addrIdxOpt.valueOr:
     trace "No dialable addresses found"
-    await conn.sendDialResponse(ResponseStatus.EDialRefused)
+    await stream.sendDialResponse(ResponseStatus.EDialRefused)
     return
   let (dialBackMux, dialBackConn) = dialBackConnOpt.valueOr:
     trace "Dial failed"
-    await conn.sendDialResponse(
+    await stream.sendDialResponse(
       ResponseStatus.Ok,
       addrIdx = Opt.some(addrIdx),
       dialStatus = Opt.some(DialStatus.EDialError),
@@ -237,12 +244,12 @@ proc handleDialRequest(
     debug "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
     # send DialDataRequest and wait until dataReceived is enough
-    if not await self.amplificationAttackPrevention(conn, addrIdx).withTimeout(
+    if not await self.amplificationAttackPrevention(stream, addrIdx).withTimeout(
       self.config.amplificationAttackTimeout
     ):
       debug "Amplification attack prevention timeout",
-        timeout = self.config.amplificationAttackTimeout, peer = conn.peerId
-      await conn.sendDialResponse(ResponseStatus.EDialRefused)
+        timeout = self.config.amplificationAttackTimeout, peer = stream.peerId
+      await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
   debug "Sending DialBack",
@@ -251,56 +258,57 @@ proc handleDialRequest(
   try:
     let dialStatus =
       await dialBackConn.dialBack(req.nonce).wait(self.config.dialTimeout)
-    await conn.sendDialResponse(
+    await stream.sendDialResponse(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )
   except DialFailedError as exc:
     debug "DialBack failed", description = exc.msg
-    await conn.sendDialResponse(
+    await stream.sendDialResponse(
       ResponseStatus.Ok,
       addrIdx = Opt.some(addrIdx),
       dialStatus = Opt.some(DialStatus.EDialBackError),
     )
   except AsyncTimeoutError:
     debug "DialBack timeout", timeout = self.config.dialTimeout
-    await conn.sendDialResponse(
+    await stream.sendDialResponse(
       ResponseStatus.Ok,
       addrIdx = Opt.some(addrIdx),
       dialStatus = Opt.some(DialStatus.EDialBackError),
     )
 
 proc new*(
-    T: typedesc[AutonatV2],
+    Self: typedesc[AutonatV2],
     switch: Switch,
     config: AutonatV2Config = AutonatV2Config.new(),
-): T =
-  let autonatV2 = T(switch: switch, config: config)
+): Self =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  let autonatV2 = Self(switch: switch, config: config)
   proc handleStream(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.close()
+      await stream.close()
 
     let msg =
       try:
-        AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))).valueOr:
-          trace "Unable to decode AutonatV2Msg"
+        AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
+          trace "Unable to decode AutonatV2Msg", error = error
           return
       except LPStreamError as exc:
         debug "Could not receive AutonatV2Msg", description = exc.msg
         return
 
-    debug "Received message", msgType = $msg.msgType
-    if msg.msgType != MsgType.DialRequest:
-      debug "Expecting DialRequest", receivedMsgType = msg.msgType
+    debug "Received message", kind = $msg.oneof.kind
+    if msg.oneof.kind != MsgKind.DialRequest:
+      debug "Expecting DialRequest", receivedMsgType = msg.oneof.kind
       return
 
     try:
-      await autonatV2.handleDialRequest(conn, msg.dialReq)
+      await autonatV2.handleDialRequest(stream, msg.oneof.dialRequest)
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
+      debug "Stream closed by peer", description = exc.msg, peer = stream.peerId
     except LPStreamError as exc:
       debug "Stream Error", description = exc.msg
 

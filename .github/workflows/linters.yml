@@ -14,17 +14,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2  # In PR, has extra merge commit: ^1 = PR, ^2 = base
 
       - name: Check NPH formatting
         uses: arnetheduck/nph-action@v1
         with:
-          version: 0.6.1
+          version: 0.7.0
           options: "./. *.nim*"
           fail: true
           suggest: true
+
+      - name: Check clang-format (C/H files in cbind/)
+        run: |
+          find cbind/ \( -name "*.c" -o -name "*.h" \) -print0 | \
+            xargs -0 clang-format --dry-run --Werror --style=file:cbind/.clang-format
+          echo "All C/H files in cbind/ are properly formatted."
 
       - name: Check License Header
         uses: apache/skywalking-eyes/header@v0.8.0

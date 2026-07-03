@@ -34,7 +34,7 @@ proc startSync*(
 
   var
     peerDialableAddrs: seq[MultiAddress]
-    stream: Connection
+    stream: Stream
   try:
     var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:
@@ -46,7 +46,8 @@ proc startSync*(
     await stream.send(MsgType.Connect, addrs)
     debug "Dcutr initiator has sent a Connect message."
     let rttStart = Moment.now()
-    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
+    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
+      raise newException(DcutrError, error)
 
     peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
@@ -57,13 +58,23 @@ proc startSync*(
     let rttEnd = Moment.now()
     debug "Dcutr initiator has received a Connect message back.", connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
+
+    # Expected DCUtR connections bypass ConnManager limits.
+    debug "Dcutr initiator registering expected incoming connection",
+      remotePeerId = stream.peerId
+    let expectedIncoming = switch.connManager.expectDcutrConnection(stream.peerId, In)
+    defer:
+      expectedIncoming.cancelSoon()
+
     await stream.send(MsgType.Sync, @[])
     debug "Dcutr initiator has sent a Sync message."
     await sleepAsync(halfRtt)
 
     if peerDialableAddrs.len > self.maxDialableAddrs:
       peerDialableAddrs = peerDialableAddrs[0 ..< self.maxDialableAddrs]
-    var futs = peerDialableAddrs.mapIt(
+    debug "Dcutr initiator starting direct dial attempts",
+      peerDialableAddrs, connectTimeout = self.connectTimeout
+    let dialFuts = peerDialableAddrs.mapIt(
       switch.connect(
         stream.peerId,
         @[it],
@@ -72,11 +83,23 @@ proc startSync*(
         dir = Direction.In,
       )
     )
+    var futs = dialFuts
+    futs.add(waitExpectedConnection(expectedIncoming))
+    debug "Dcutr initiator waiting for direct dial or incoming connection",
+      attempts = futs.len
     try:
-      discard await anyCompleted(futs).wait(self.connectTimeout)
+      try:
+        discard await anyCompleted(futs).wait(self.connectTimeout)
+      except AsyncTimeoutError as err:
+        if dialFuts.allIt(it.finished and not it.completed()):
+          raise newException(AllFuturesFailedError, "all direct dial attempts failed")
+        raise err
       debug "Dcutr initiator has directly connected to the remote peer."
     finally:
-      futs.cancelSoon()
+      debug "Dcutr initiator cancelling remaining direct dial attempts",
+        attempts = futs.len
+      await futs.cancelAndWait()
+      debug "Dcutr initiator finished direct dial cleanup"
   except CancelledError as err:
     raise err
   except AllFuturesFailedError as err:

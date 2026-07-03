@@ -35,9 +35,9 @@ proc init*(
     expiresAt: Moment,
 ): T =
   PreambleInfo(
-    messageId: preamble.messageID,
-    messageLength: preamble.messageLength,
-    topicId: preamble.topicID,
+    messageId: preamble.messageID.get(),
+    messageLength: preamble.messageLength.get(0),
+    topicId: preamble.topicID.get(),
     sender: sender,
     startsAt: startsAt,
     expiresAt: expiresAt,
@@ -45,8 +45,7 @@ proc init*(
   )
 
 proc init*(T: typedesc[PreambleStore]): T =
-  result.byId = initTable[MessageId, PreambleInfo]()
-  result.heap = initHeapQueue[PreambleInfo]()
+  T(byId: initTable[MessageId, PreambleInfo](), heap: initHeapQueue[PreambleInfo]())
 
 proc insert*(ps: var PreambleStore, info: PreambleInfo) =
   try:

@@ -20,7 +20,7 @@ logScope:
 
 type RelayTransport* = ref object of Transport
   client*: RelayClient
-  queue: AsyncQueue[Connection]
+  queue: AsyncQueue[RawConn]
   selfRunning: bool
 
 method start*(
@@ -31,7 +31,7 @@ method start*(
     return
 
   self.client.onNewConnection = proc(
-      conn: Connection, duration: uint32 = 0, data: uint64 = 0
+      conn: RawConn, duration: uint32 = 0, data: uint64 = 0
   ) {.async: (raises: [CancelledError]).} =
     await self.queue.addLast(RelayConnection.new(conn, duration, data))
     await conn.join()
@@ -51,12 +51,12 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
 
 method accept*(
     self: RelayTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  result = await self.queue.popFirst()
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  await self.queue.popFirst()
 
 proc dial*(
     self: RelayTransport, ma: MultiAddress
-): Future[Connection] {.async: (raises: [RelayDialError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [RelayDialError, CancelledError]).} =
   var
     relayAddrs: MultiAddress
     relayPeerId: PeerId
@@ -107,11 +107,11 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   peerId.withValue(pid):
     try:
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
-      result = await self.dial(address)
+      return await self.dial(address)
     except CancelledError as e:
       raise e
     except CatchableError as e:
@@ -119,17 +119,20 @@ method dial*(
         newException(transport.TransportDialError, "Caught error in dial: " & e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
+  var handles = false
   try:
     if ma.protocols.isOk():
       let sma = toSeq(ma.items())
-      result = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
+      handles = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
   except CatchableError:
-    result = false
-  trace "Handles return", ma, result
+    handles = false
+  trace "Handles return", ma, handles
+  handles
 
-proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
-  let self = T(client: cl, upgrader: upgrader)
+proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  let self = Self(client: cl, upgrader: upgrader)
   self.running = true
-  self.queue = newAsyncQueue[Connection](0)
+  self.queue = newAsyncQueue[RawConn](0)
   procCall Transport(self).initialize()
   self

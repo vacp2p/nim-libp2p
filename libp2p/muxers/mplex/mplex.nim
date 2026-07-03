@@ -9,7 +9,7 @@ import
   ../muxer,
   ../../stream/connection,
   ../../stream/bufferstream,
-  ../../utility,
+  ../../utils/shortlog,
   ../../peerinfo,
   ./coder,
   ./lpchannel
@@ -50,7 +50,19 @@ proc newTooManyChannels(): ref TooManyChannels =
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
 
-proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []), inline.} =
+proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
+  ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
+  ## have torn channels and connection down first.
+  var futs: seq[Future[void]]
+  for chann in channs:
+    futs.add(chann.cleanupFut)
+    if not chann.handlerFut.isNil():
+      futs.add(chann.handlerFut)
+    if not chann.resetMessageFut.isNil():
+      futs.add(chann.resetMessageFut)
+  discard await noCancel allFinished(futs)
+
+proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## remove the local channel from the internal tables
   ##
   try:
@@ -85,26 +97,28 @@ proc newStreamInternal*(
   if id in m.channels[initiator]:
     raise newInvalidChannelIdError()
 
-  result = LPChannel.init(id, m.connection, initiator, name, timeout = timeout)
+  let channel = LPChannel.init(id, m.connection, initiator, name, timeout = timeout)
 
-  result.peerId = m.connection.peerId
-  result.observedAddr = m.connection.observedAddr
-  result.localAddr = m.connection.localAddr
-  result.transportDir = m.connection.transportDir
+  channel.peerId = m.connection.peerId
+  channel.observedAddr = m.connection.observedAddr
+  channel.localAddr = m.connection.localAddr
+  channel.transportDir = m.connection.transportDir
   when defined(libp2p_agents_metrics):
-    result.shortAgent = m.connection.shortAgent
+    channel.shortAgent = m.connection.shortAgent
 
-  trace "Creating new channel", m, channel = result, id, initiator, name
+  trace "Creating new channel", m, channel = channel, id, initiator, name
 
-  m.channels[initiator][id] = result
+  m.channels[initiator][id] = channel
 
   # All the errors are handled inside `cleanupChann()` procedure.
-  asyncSpawn m.cleanupChann(result)
+  channel.cleanupFut = m.cleanupChann(channel)
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
       m.channels[initiator].len.int64, labelValues = [$initiator, $m.connection.peerId]
     )
+
+  channel
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
@@ -156,7 +170,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         if m.streamHandler != nil:
           # Launch handler task
           # All the errors are handled inside `handleStream()` procedure.
-          asyncSpawn m.handleStream(channel)
+          channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
           warn "attempting to send a packet larger than allowed",
@@ -175,8 +189,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
       of MessageType.CloseIn, MessageType.CloseOut:
         await channel.pushEof()
       of MessageType.ResetIn, MessageType.ResetOut:
-        channel.remoteReset = true
-        await channel.reset()
+        await channel.resetChannel(isLocal = false)
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
@@ -191,7 +204,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
 
 proc new*(
     M: type Mplex,
-    conn: Connection,
+    conn: RawConn,
     inTimeout: Duration = DefaultChanTimeout,
     outTimeout: Duration = DefaultChanTimeout,
     maxChannCount: int = MaxChannelCount,
@@ -206,7 +219,7 @@ proc new*(
 
 method newStream*(
     m: Mplex, name: string = "", lazy: bool = false
-): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
+): Future[MuxedStream] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let channel = m.newStreamInternal(timeout = m.inChannTimeout)
 
   if not lazy:
@@ -237,13 +250,17 @@ method close*(m: Mplex) {.async: (raises: []).} =
   for chann in channs:
     await chann.reset()
 
+  await drainChannelTasks(channs)
+
   m.channels[false].clear()
   m.channels[true].clear()
 
   trace "Closed mplex", m
 
-method getStreams*(m: Mplex): seq[Connection] {.gcsafe.} =
+method getStreams*(m: Mplex): seq[MuxedStream] {.gcsafe.} =
+  var streams: seq[MuxedStream]
   for c in m.channels[false].values:
-    result.add(c)
+    streams.add(c)
   for c in m.channels[true].values:
-    result.add(c)
+    streams.add(c)
+  streams

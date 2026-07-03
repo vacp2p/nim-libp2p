@@ -7,48 +7,75 @@ import std/sequtils
 
 import chronos
 import stew/objects
+import protobuf_serialization, protobuf_serialization/std/enums
+import results
 
-import ../../../multiaddress, ../../../errors, ../../../stream/connection
-import ../../../protobuf/minprotobuf
+import
+  ../../../multiaddress,
+  ../../../connmanager,
+  ../../../dial,
+  ../../../errors,
+  ../../../muxers/muxer,
+  ../../../stream/connection,
+  ../../../utils/protobuf
 
 export multiaddress
 
 const DcutrCodec* = "/libp2p/dcutr"
 
+# Implements https://github.com/libp2p/specs/blob/master/relay/DCUtR.md#rpc-messages
+
 type
-  MsgType* = enum
+  MsgType* {.pure.} = enum
     Connect = 100
     Sync = 300
 
-  DcutrMsg* = object
-    msgType*: MsgType
-    addrs*: seq[MultiAddress]
+  DcutrMsg* {.proto2.} = object
+    msgType* {.fieldNumber: 1, required, ext.}: MsgType
+    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
   DcutrError* = object of LPError
 
-proc encode*(msg: DcutrMsg): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, msg.msgType.uint)
-  for addr in msg.addrs:
-    result.write(2, addr)
-  result.finish()
+Protobuf.serializerFor([DcutrMsg], withMetrics = true, domain = "dcutr")
 
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrError].} =
-  var
-    msgTypeOrd: uint32
-    dcutrMsg: DcutrMsg
-  var pb = initProtoBuffer(buf)
-  var r1 = pb.getField(1, msgTypeOrd)
-  let r2 = pb.getRepeatedField(2, dcutrMsg.addrs)
-  if r1.isErr or r2.isErr or not checkedEnumAssign(dcutrMsg.msgType, msgTypeOrd):
-    raise newException(DcutrError, "Received malformed message")
-  return dcutrMsg
+proc expectDcutrConnection*(
+    connManager: ConnManager, peerId: PeerId, dir: Direction
+): Future[Muxer].Raising([AlreadyExpectingConnectionError, CancelledError]) {.
+    raises: [DcutrError]
+.} =
+  let expected = connManager.expectConnection(peerId, dir)
+  if expected.failed() and expected.error() of AlreadyExpectingConnectionError:
+    let err = expected.error()
+    raise newException(DcutrError, err.msg, err)
+
+  expected
 
 proc send*(
-    conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]
+    stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
-  await conn.writeLp(pb.buffer)
+  await stream.writeLp(pb)
+
+proc waitExpectedConnection*[T](
+    fut: Future[T]
+): Future[void].Raising([DialFailedError, CancelledError]) {.raises: [].} =
+  let expected = Future[void].Raising([DialFailedError, CancelledError]).init(
+      "Dcutr.waitExpectedConnection"
+    )
+
+  fut.addCallback proc(udata: pointer) {.raises: [].} =
+    if expected.finished:
+      return
+
+    if fut.completed():
+      expected.complete()
+    elif fut.cancelled():
+      expected.cancelSoon()
+    else:
+      let err = fut.error()
+      expected.fail(newException(DialFailedError, err.msg, err))
+
+  expected
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]
@@ -58,4 +85,8 @@ proc getHolePunchableAddrs*(
     # This is necessary to also accept addrs like /ip4/198.51.100/tcp/1234/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
     if [TCP, mapAnd(TCP_DNS, P2PPattern), mapAnd(TCP_IP, P2PPattern)].anyIt(it.match(a)):
       res.add(a[0 .. 1].tryGet())
+    elif [QUIC_V1, mapAnd(QUIC_V1_DNS, P2PPattern), mapAnd(QUIC_V1_IP, P2PPattern)].anyIt(
+      it.match(a)
+    ):
+      res.add(a[0 .. 2].tryGet())
   return res

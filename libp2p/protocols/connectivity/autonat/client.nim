@@ -14,12 +14,15 @@ logScope:
 type AutonatClient* = ref object of RootObj
 
 proc sendDial(
-    conn: Connection, pid: PeerId, addrs: seq[MultiAddress]
+    stream: Stream, pid: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let pb = AutonatDial(
-    peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
+  let pb = AutonatMsg(
+    msgType: MsgType.Dial,
+    dial: Opt.some(
+      AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs)))
+    ),
   ).encode()
-  await conn.writeLp(pb.buffer)
+  await stream.writeLp(pb)
 
 method dialMe*(
     self: AutonatClient,
@@ -30,16 +33,15 @@ method dialMe*(
     base, async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
 .} =
   proc getResponseOrRaise(
-      autonatMsg: Opt[AutonatMsg]
+      msg: AutonatMsg
   ): AutonatDialResponse {.raises: [AutonatError].} =
-    autonatMsg.withValue(msg):
-      if msg.msgType == DialResponse:
-        msg.response.withValue(res):
-          if not (res.status == Ok and res.ma.isNone()):
-            return res
+    if msg.msgType == MsgType.DialResponse:
+      msg.response.withValue(res):
+        if not (res.status == Ok and res.ma.isNone()):
+          return res
     raise newException(AutonatError, "Unexpected response")
 
-  let conn =
+  let stream =
     try:
       if addrs.len == 0:
         await switch.dial(pid, @[AutonatCodec])
@@ -57,7 +59,7 @@ method dialMe*(
       incomingConnection.error of AlreadyExpectingConnectionError:
     raise newException(AutonatError, incomingConnection.error.msg)
   defer:
-    await conn.close()
+    await stream.close()
     incomingConnection.cancelSoon()
       # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     if incomingConnection.completed():
@@ -69,7 +71,7 @@ method dialMe*(
 
   try:
     trace "sending Dial", addrs = switch.peerInfo.addrs
-    await conn.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
+    await stream.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   except CancelledError as e:
     raise e
   except CatchableError as e:
@@ -77,13 +79,15 @@ method dialMe*(
 
   var respBytes: seq[byte]
   try:
-    respBytes = await conn.readLp(1024)
+    respBytes = await stream.readLp(1024)
   except CancelledError as e:
     raise e
   except CatchableError as e:
     raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 
-  let response = getResponseOrRaise(AutonatMsg.decode(respBytes))
+  let msg = AutonatMsg.decode(move(respBytes)).valueOr:
+    raise newException(AutonatError, error)
+  let response = getResponseOrRaise(msg)
 
   return
     case response.status

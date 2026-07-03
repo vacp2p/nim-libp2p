@@ -58,12 +58,7 @@ suite "KadDHT - Get Providers":
   asyncTest "Get providers updates routing table with closerPeers when no providers are returned":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
-      3,
-      PermissiveValidator(),
-      CandSelector(),
-      @[],
-      chronos.seconds(1),
-      chronos.seconds(1),
+      3, PermissiveValidator(), CandSelector(), @[], 1.seconds, 1.seconds
     )
     startAndDeferStop(kads)
 
@@ -86,12 +81,7 @@ suite "KadDHT - Get Providers":
   asyncTest "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
-      3,
-      PermissiveValidator(),
-      CandSelector(),
-      @[],
-      chronos.seconds(1),
-      chronos.seconds(1),
+      3, PermissiveValidator(), CandSelector(), @[], 1.seconds, 1.seconds
     )
     startAndDeferStop(kads)
 
@@ -201,9 +191,7 @@ suite "KadDHT - Get Providers":
     kads[1].providerManager.knownKeys[key] = initHashSet[Provider]()
     kads[1].providerManager.knownKeys[key].incl(kads[2].toPeer())
     # Invalid provider with malformed peer ID bytes
-    kads[1].providerManager.knownKeys[key].incl(
-      Peer(id: @[1.byte, 1, 1], addrs: @[], connection: ConnectionType.notConnected)
-    )
+    kads[1].providerManager.knownKeys[key].incl(Peer(id: @[1.byte, 1, 1]))
 
     # kads[0] queries - should filter out invalid provider and return only valid one
     let providers = await kads[0].getProviders(key)

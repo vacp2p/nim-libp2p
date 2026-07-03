@@ -3,31 +3,72 @@
 
 {.push raises: [].}
 
-import std/[tables, sets, sequtils]
+import std/[algorithm, tables, sets, sequtils]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
+import utils/future
 
 logScope:
   topics = "libp2p connmanager"
 
 declareGauge(libp2p_peers, "total connected peers")
+declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles")
+declareCounter(
+  libp2p_connmgr_pruned_peers_total, "total peers pruned by connection manager"
+)
 
 const
-  MaxConnections* = 50
-  MaxConnectionsPerPeer* = 1
+  DefaultMaxConnections = 50
+  DefaultMaxConnectionsPerPeer = 2
+  ConnectionsUnlimited = high(int)
 
 type
+  DecayFn* = proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].}
+    ## Decay function applied to an ephemeral tag on each tick interval.
+    ## `elapsed` is the time since the tag's last tick, for time-proportional decay.
+    ## Returns the new value; returning ≤0 removes the tag.
+
+  DecayingTagValue = object
+    value: int
+    lastTick: Moment
+    interval: Duration
+    decayFn: DecayFn
+
+  PeerScoring* = object ## Configuration for peer scoring parameters.
+    outboundBonus*: int = 100
+      ## `outboundBonus` is added to the score of every peer with an outbound connection
+    decayResolution*: Duration = 1.minutes
+      ## `decayResolution` controls how often ephemeral tag decay functions are applied
+      ## It is the shortest interval at which any decaying tag can decay
+
+  WatermarkPolicy* = object
+    ## Configuration for hi/lo watermark connection management.
+    ## When peer count exceeds `highWater`, a trim cycle runs until
+    ## peer count drops to `lowWater`.
+    lowWater*: int ## target peer count after trimming
+    highWater*: int ## peer count that triggers a trim cycle
+    gracePeriod*: Duration ## newly connected peers are exempt from trimming
+    silencePeriod*: Duration ## minimum interval between trim cycles
+
+  ConnectionLimits* = object
+    ## Configuration for connection limits. Construct via `ConnectionLimits.maxTotal`
+    ## for a single shared cap, or `ConnectionLimits.maxInOut` for independent
+    ## inbound/outbound caps.
+    maxConnections: int = -1
+    maxIn: int = -1
+    maxOut: int = -1
+
   TooManyConnectionsError* = object of LPError
   AlreadyExpectingConnectionError* = object of LPError
 
   ConnEventKind* {.pure.} = enum
     Connected
-      # A connection was made and securely upgraded - there may be
-      # more than one concurrent connection thus more than one upgrade
-      # event per peer.
+      ## A connection was made and securely upgraded - there may be
+      ## more than one concurrent connection thus more than one upgrade
+      ## event per peer.
     Disconnected
-      # Peer disconnected - this event is fired once per upgrade
-      # when the associated connection is terminated.
+      ## Peer disconnected - this event is fired once per upgrade
+      ## when the associated connection is terminated.
 
   ConnEvent* = object
     case kind*: ConnEventKind
@@ -58,8 +99,8 @@ type
 
   ConnManager* = ref object of RootObj
     closed: bool
-    maxConnsPerPeer: int
     muxerStore: MuxerStore
+    maxConnsPerPeer: int
     maxConnectionsIn: int
     maxConnectionsOut: int
     inSema: AsyncSemaphore
@@ -67,60 +108,113 @@ type
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     readyEvents: Table[PeerId, Future[void].Raising([CancelledError])]
+    readyWaiters: Table[PeerId, int]
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
+    watermark: Opt[WatermarkPolicy]
+    connectedAt: Table[PeerId, Moment]
+    protectedPeers: Table[PeerId, HashSet[string]]
+    trimFut: Future[void]
+    lastTrim: Opt[Moment]
+    scoring: PeerScoring
+    staticTags: Table[PeerId, Table[string, int]]
+    decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
+    decayLoopFut: Future[void]
+    onCloseFuts: seq[Future[void]]
+    peerEventFuts: seq[Future[void]]
+    slotMonitorFuts: seq[Future[void]]
 
   ConnectionSlot* = object
     connManager: ConnManager
     direction: Direction
 
-proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
-  result = newException(TooManyConnectionsError, "Too many connections")
+proc decayLinear*(coef: float): DecayFn =
+  ## Returns a DecayFn that multiplies the tag value by `coef` on each tick.
+  ## The tag is removed when the value drops to 0 or below.
+  ## Example: decayLinear(0.9) reduces by 10% per interval.
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    int(float(value) * coef)
 
-proc newMaxTotal*(
-    C: type ConnManager,
-    maxConnections = MaxConnections,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+proc decayFixed*(amount: int): DecayFn =
+  ## Returns a DecayFn that subtracts `amount` from the tag value on each tick.
+  ## The tag is removed when the value drops to 0 or below.
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    value - amount
+
+proc decayNone*(): DecayFn =
+  ## Returns a DecayFn that never decays the value (permanent ephemeral tag).
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    value
+
+proc maxTotal*(T: type ConnectionLimits, maxConnections: int): ConnectionLimits =
+  ## Constructs ConnectionLimits with single shared cap limit.
+  doAssert maxConnections > 0, "maxConnections must be > 0"
+  ConnectionLimits(maxConnections: maxConnections)
+
+proc maxInOut*(T: type ConnectionLimits, maxIn: int, maxOut: int): ConnectionLimits =
+  ## Constructs ConnectionLimits with independent inbound/outbound caps.
+  doAssert maxIn > 0, "maxIn must be > 0"
+  doAssert maxOut > 0, "maxOut must be > 0"
+  ConnectionLimits(maxIn: maxIn, maxOut: maxOut)
+
+proc new*(
+    T: type ConnManager,
+    maxConnsPerPeer: int = 0,
+    limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
+    watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
+    scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
-  ## Creates a `ConnManager` where incoming and outgoing connections share a
-  ## single pool capped at `maxConnections`. Acquiring a slot for either
-  ## direction draws from the same semaphore, so the combined total never
-  ## exceeds `maxConnections`.
-  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
+  ## Creates a `ConnManager`.
+  ##
+  ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
+  ##
+  ## `limits` selects the connection-cap strategy: `ConnectionLimits.maxTotal(n)`
+  ## for a single shared cap, or `ConnectionLimits.maxInOut(i, o)` for independent
+  ## per-direction caps. When omitted, the total cap defaults to
+  ## `DefaultMaxConnections`.
+  ##
+  ## When `watermark` is provided without `limits` the semaphore is omitted
+  ## and hi/lo trimming is the only guard.  When both are provided the
+  ## semaphore blocks new connections hard while trimming also prunes
+  ## existing ones.
+  let cfg = limits.get(ConnectionLimits())
+  let hasWatermark = watermark.isSome
+  let hasInOut = cfg.maxIn > 0 and cfg.maxOut > 0
+  let hasTotal = cfg.maxConnections > 0
 
-  let sema = newAsyncSemaphore(maxConnections)
-  C(
+  var inSema, outSema: AsyncSemaphore
+  var maxInArg, maxOutArg: int
+
+  if hasInOut:
+    inSema = newAsyncSemaphore(cfg.maxIn)
+    outSema = newAsyncSemaphore(cfg.maxOut)
+    maxInArg = cfg.maxIn
+    maxOutArg = cfg.maxOut
+  elif hasTotal or not hasWatermark:
+    let cap = if cfg.maxConnections > 0: cfg.maxConnections else: DefaultMaxConnections
+    let sema = newAsyncSemaphore(cap)
+    inSema = sema
+    outSema = sema
+    maxInArg = cap
+    maxOutArg = cap
+  else:
+    maxInArg = ConnectionsUnlimited
+    maxOutArg = ConnectionsUnlimited
+
+  T(
     muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxConnections,
-    maxConnectionsOut: maxConnections,
-    inSema: sema,
-    outSema: sema,
+    maxConnsPerPeer:
+      if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
+    maxConnectionsIn: maxInArg,
+    maxConnectionsOut: maxOutArg,
+    inSema: inSema,
+    outSema: outSema,
+    watermark: watermark,
+    scoring: scoring,
   )
 
-proc newMaxInOut*(
-    C: type ConnManager,
-    maxIn: int,
-    maxOut: int,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
-): ConnManager =
-  ## Creates a `ConnManager` where incoming and outgoing connections are limited
-  ## independently: at most `maxIn` inbound and `maxOut` outbound connections
-  ## may be open concurrently, each tracked by its own semaphore.
-  doAssert maxIn > 0 and maxOut > 0,
-    "ConnManager.newMaxInOut requires maxIn > 0 and maxOut > 0"
-
-  C(
-    muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxIn,
-    maxConnectionsOut: maxOut,
-    inSema: newAsyncSemaphore(maxIn),
-    outSema: newAsyncSemaphore(maxOut),
-  )
-
-proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
+proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxerStore.count(peerId)
 
 proc getReadyEvent(
@@ -137,8 +231,7 @@ proc getReadyEvent(
 proc notifyPeerReady(c: ConnManager, peerId: PeerId) =
   c.readyPeers.incl(peerId)
   c.readyEvents.withValue(peerId, readyEvent):
-    if not readyEvent[].finished:
-      readyEvent[].complete()
+    readyEvent[].completeOnce()
     c.readyEvents.del(peerId)
 
 proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
@@ -146,6 +239,13 @@ proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
   c.readyEvents.withValue(peerId, readyEvent):
     readyEvent[].cancelSoon()
     c.readyEvents.del(peerId)
+
+func clearReadyEvent(c: ConnManager, peerId: PeerId) =
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      # All waiters timed out, but peer never completed an upgrade,
+      # so neither notifyPeerReady nor clearPeerReadyState were called.
+      c.readyEvents.del(peerId)
 
 proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
@@ -159,6 +259,14 @@ proc waitForPeerReady*(
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
+  c.readyWaiters.mgetOrPut(peerId, 0).inc()
+  defer:
+    c.readyWaiters.withValue(peerId, waiters):
+      waiters[].dec() # remove myself as waiter
+      let noMoreWaiters = waiters[] <= 0
+      if noMoreWaiters:
+        c.readyWaiters.del(peerId)
+        c.clearReadyEvent(peerId)
 
   let readyJoin = readyEvent.join()
   if timeout <= 0.seconds:
@@ -181,7 +289,6 @@ proc addConnEventHandler*(
     c: ConnManager, handler: ConnEventHandler, kind: ConnEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
   if handler.isNil:
     return
   c.connEvents[kind].incl(handler)
@@ -213,8 +320,6 @@ proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
-
   if handler.isNil:
     return
   c.peerEvents[kind].incl(handler)
@@ -289,7 +394,9 @@ proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} 
     return
 
   c.clearPeerReadyState(peerId)
+  c.connectedAt.del(peerId)
   if not c.peerStore.isNil:
+    c.peerStore.markPeerDisconnected(peerId)
     c.peerStore.cleanup(peerId)
   libp2p_peers.set(c.muxerStore.countPeers.int64)
   await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -316,14 +423,10 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
-  ##
   return c.muxerStore.selectMuxer(peerId, dir)
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
-  ## Select a connection for the provided giving priority
-  ## to outgoing connections
-  ##
-
+  ## Select a connection for the provided peer, giving priority to outgoing connections.
   var mux = c.selectMuxer(peerId, Direction.Out)
   if mux.isNil:
     mux = c.selectMuxer(peerId, Direction.In)
@@ -331,11 +434,23 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
     trace "connection not found", peerId
   return mux
 
+proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
+
+proc triggerTrimAfter(
+    c: ConnManager, fut: Future[void].Raising([CancelledError])
+) {.async: (raises: []).} =
+  try:
+    if not fut.isNil:
+      await fut
+  except CancelledError:
+    return
+  if c.watermark.isSome and c.muxerStore.countPeers() > c.watermark.get().highWater:
+    c.triggerTrim()
+
 proc storeMuxer*(
     c: ConnManager, muxer: Muxer
 ) {.async: (raises: [CancelledError, LPError]).} =
   ## store the connection and muxer
-  ##
 
   if muxer.isNil:
     raise newException(LPError, "muxer cannot be nil")
@@ -349,41 +464,54 @@ proc storeMuxer*(
   let
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
+    peerConnsCount = c.muxerStore.count(peerId)
+    isNewPeer = peerConnsCount == 0
 
-  if c.muxerStore.count(peerId) > c.maxConnsPerPeer:
+  if peerConnsCount >= c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer",
-        conns = c.muxerStore.count(peerId), peerId, dir
-
-      raise newTooManyConnectionsError()
-
-  let isNewPeer = c.muxerStore.count(peerId) == 0
+      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
 
-  asyncSpawn c.onClose(muxer)
+  if isNewPeer and not c.peerStore.isNil:
+    c.peerStore.markPeerConnected(peerId)
+
+  c.onCloseFuts.trackFut(c.onClose(muxer))
 
   let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
   )
 
   # this notifies that peer is ready once the Connected events have been started
-  # but before waiting for them to be completed, avoiding deadlocks where a 
+  # but before waiting for them to be completed, avoiding deadlocks where a
   # connected handler would need inbound streams to progress.
   c.notifyPeerReady(peerId)
   await connectedEvent
 
+  if muxer notin c:
+    trace "Muxer dropped before peer joined", muxer, peerId
+    return
+
+  var joinedEvent: Future[void].Raising([CancelledError])
   if isNewPeer:
-    asyncSpawn c.triggerPeerEvents(
+    joinedEvent = c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
+    c.peerEventFuts.trackFut(joinedEvent)
+
+  if c.watermark.isSome:
+    if isNewPeer:
+      c.connectedAt[peerId] = Moment.now()
+    if c.muxerStore.countPeers() > c.watermark.get().highWater:
+      c.peerEventFuts.trackFut(c.triggerTrimAfter(joinedEvent))
 
   trace "Stored muxer",
     muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
@@ -391,34 +519,45 @@ proc storeMuxer*(
 proc getIncomingSlot*(
     c: ConnManager
 ): Future[ConnectionSlot] {.async: (raises: [CancelledError]).} =
-  await c.inSema.acquire()
+  if c.inSema != nil:
+    await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
-  if forceDial:
-    # force dial by not blocking/waiting on acquire and 
-    # still calling acquire to track this connection.
-    discard c.outSema.acquire()
-  elif not c.outSema.tryAcquire():
-    trace "Too many outgoing connections"
-    raise newTooManyConnectionsError()
+  if c.outSema != nil:
+    if forceDial:
+      # force dial by not blocking/waiting on acquire and
+      # still calling acquire to track this connection.
+      discard c.outSema.acquire()
+    elif not c.outSema.tryAcquire():
+      trace "Total outgoing connections limit reached"
+      raise newException(
+        TooManyConnectionsError, "Total outgoing connections limit reached"
+      )
+
   return ConnectionSlot(connManager: c, direction: Out)
 
-func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
+func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore =
   return if dir == In: c.inSema else: c.outSema
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =
-  return semaphore(c, dir).availableSlots
+  let sema = semaphore(c, dir)
+  if sema == nil:
+    return ConnectionsUnlimited
+  return sema.availableSlots
 
 proc release*(cs: ConnectionSlot) =
+  let sema = semaphore(cs.connManager, cs.direction)
+  if sema == nil:
+    return
   try:
-    semaphore(cs.connManager, cs.direction).release()
+    sema.release()
   except AsyncSemaphoreError:
     raiseAssert "semaphore released without acquire"
 
-proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
+proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
   proc semaphoreMonitor() {.async: (raises: [CancelledError]).} =
     try:
       await conn.join()
@@ -427,39 +566,36 @@ proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
     finally:
       cs.release()
 
-  asyncSpawn semaphoreMonitor()
+  cs.connManager.slotMonitorFuts.trackFut(semaphoreMonitor())
 
 proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
   cs.trackConnection(mux.connection)
 
 proc getStream*(
     c: ConnManager, muxer: Muxer
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed muxer
-  ##
-
   if not muxer.isNil:
     return await muxer.newStream()
+  return nil
 
 proc getStream*(
     c: ConnManager, peerId: PeerId
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from any connection
-  ##
 
   return await c.getStream(c.selectMuxer(peerId))
 
 proc getStream*(
     c: ConnManager, peerId: PeerId, dir: Direction
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from a connection with `dir`
-  ##
 
   return await c.getStream(c.selectMuxer(peerId, dir))
 
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## drop connections and cleanup resources for peer
-  ##
+
   trace "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
@@ -471,13 +607,187 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
 
   trace "Peer dropped", peerId, connCount = muxers.len
 
-proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  ## cleanup resources for the connection
-  ## manager
-  ##
+proc protect*(c: ConnManager, peerId: PeerId, tag: string) =
+  ## Mark `peerId` as protected from watermark trimming under `tag`.
+  ## A peer remains protected as long as at least one tag is active.
+  c.protectedPeers.mgetOrPut(peerId, initHashSet[string]()).incl(tag)
 
+proc unprotect*(c: ConnManager, peerId: PeerId, tag: string): bool =
+  ## Remove `tag` protection from `peerId`.
+  ## Returns `true` if the peer is still protected via another tag, `false` otherwise.
+  c.protectedPeers.withValue(peerId, tags):
+    tags[].excl(tag)
+    let isProtected = tags[].len > 0
+    if not isProtected:
+      c.protectedPeers.del(peerId)
+    return isProtected
+  return false
+
+proc isProtected*(c: ConnManager, peerId: PeerId): bool =
+  ## Returns `true` if `peerId` has at least one active protection tag.
+  c.protectedPeers.withValue(peerId, tags):
+    return tags[].len > 0
+  return false
+
+proc tagPeer*(c: ConnManager, peerId: PeerId, tag: string, value: int) =
+  ## Set a static tag on `peerId`. Tags accumulate additively into the peer score.
+  c.staticTags.mgetOrPut(peerId, initTable[string, int]())[tag] = value
+
+proc untagPeer*(c: ConnManager, peerId: PeerId, tag: string) =
+  ## Remove a static tag from `peerId`.
+  c.staticTags.withValue(peerId, tags):
+    tags[].del(tag)
+    if tags[].len == 0:
+      c.staticTags.del(peerId)
+
+proc peerScore*(c: ConnManager, peerId: PeerId): int =
+  ## Returns the total score for `peerId`:
+  ##   outboundBonus (if peer has an outbound connection)
+  ##   + sum of all static tag values
+  ##   + sum of all current decaying tag values
+  var score = 0
+  if not c.selectMuxer(peerId, Direction.Out).isNil:
+    score += c.scoring.outboundBonus
+  c.staticTags.withValue(peerId, tags):
+    for _, v in tags[]:
+      score += v
+  c.decayingTags.withValue(peerId, tags):
+    for _, tag in tags[]:
+      score += tag.value
+  return score
+
+proc applyDecay(c: ConnManager) =
+  let now = Moment.now()
+  for peerId in c.decayingTags.keys.toSeq():
+    c.decayingTags.withValue(peerId, innerTable):
+      var tagsToRemove: seq[string]
+      for name, tag in innerTable[].mpairs():
+        if now >= tag.lastTick + tag.interval:
+          tag.value = tag.decayFn(tag.value, now - tag.lastTick)
+          tag.lastTick = now
+          if tag.value <= 0:
+            tagsToRemove.add(name)
+      for name in tagsToRemove:
+        innerTable[].del(name)
+      if innerTable[].len == 0:
+        c.decayingTags.del(peerId)
+
+proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
+  while c.decayingTags.len > 0:
+    await sleepAsync(c.scoring.decayResolution)
+    c.applyDecay()
+  c.decayLoopFut = nil
+
+proc tagPeerDecaying*(
+    c: ConnManager,
+    peerId: PeerId,
+    tag: string,
+    value: int,
+    interval: Duration,
+    decayFn: DecayFn,
+) =
+  ## Attach an ephemeral tag to `peerId` with an initial `value`.
+  ## A single decay loop runs every `decayResolution`.
+  ## On each run it applies `decayFn` to every tag whose `interval` has elapsed.
+  ## A tag therefore decays at most once per `decayResolution`, even with a shorter `interval`.
+  ## When the value drops to ≤0 the tag is removed automatically.
+  doAssert interval > 0.seconds
+  doAssert not decayFn.isNil
+
+  let now = Moment.now()
+  c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
+    DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
+  if c.decayLoopFut.isNil or c.decayLoopFut.finished:
+    c.decayLoopFut = c.runDecayLoop()
+
+proc bumpDecayingTag*(c: ConnManager, peerId: PeerId, tag: string, delta: int) =
+  ## Add `delta` to an existing decaying tag value. Clamps to 0 from below.
+  c.decayingTags.withValue(peerId, tags):
+    tags[].withValue(tag, t):
+      t[].value = max(0, t[].value + delta)
+
+proc removeDecayingTag*(c: ConnManager, peerId: PeerId, tag: string) =
+  ## Immediately remove a decaying tag from `peerId`.
+  c.decayingTags.withValue(peerId, tags):
+    tags[].del(tag)
+    if tags[].len == 0:
+      c.decayingTags.del(peerId)
+
+proc trimConnections(c: ConnManager) {.async: (raises: []).} =
+  ## Closes peers until the total peer count is at or below `lowWater`.
+  ## Skips peers within the grace period and peers that are protected.
+  ## Prunes lowest-scoring peers first; uses connection age as a tiebreaker.
+  libp2p_connmgr_trim_total.inc()
+  let wm = c.watermark.get()
+  let now = Moment.now()
+
+  var candidates: seq[(int, Moment, PeerId)]
+  for peerId in c.muxerStore.getPeers():
+    let connTime = c.connectedAt.getOrDefault(peerId, now)
+    if now - connTime < wm.gracePeriod:
+      continue
+    if c.isProtected(peerId):
+      continue
+    candidates.add((c.peerScore(peerId), connTime, peerId))
+
+  candidates.sort(
+    proc(a, b: (int, Moment, PeerId)): int =
+      if a[0] != b[0]:
+        cmp(a[0], b[0])
+      else:
+        a[1].cmp(b[1])
+  )
+
+  # initiate all drops concurrently and await them together.
+  # this frees peer state immediately while letting the underlying
+  # connection close futures run in parallel.
+  var dropFuts: seq[Future[void]]
+  for (_, _, peerId) in candidates:
+    if c.muxerStore.countPeers() <= wm.lowWater:
+      break
+    dropFuts.add(c.dropPeer(peerId))
+    libp2p_connmgr_pruned_peers_total.inc()
+
+  try:
+    await allFutures(dropFuts)
+  except CancelledError:
+    trace "watermark trim connection was cancelled"
+
+  c.lastTrim = Opt.some(Moment.now())
+
+proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
+  ## Schedules a trim cycle if none is running and the silence period has elapsed.
+  if not c.trimFut.isNil and not c.trimFut.finished:
+    # trim is ongoing
+    return
+
+  c.watermark.withValue(wm):
+    c.lastTrim.withValue(lastTrim):
+      if Moment.now() - lastTrim < wm.silencePeriod:
+        return
+    c.trimFut = c.trimConnections()
+
+proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
+  ## Drains the per-muxer onClose tasks once muxers are closed, so they finish
+  ## cleanup instead of being cancelled mid-flight.
+  discard await noCancel allFinished(c.onCloseFuts)
+  c.onCloseFuts = @[]
+
+proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
+  ## Cleanup resources for the connection manager.
   trace "Closing ConnManager"
   c.closed = true
+
+  if not c.decayLoopFut.isNil:
+    await c.decayLoopFut.cancelAndWait()
+
+  if not c.trimFut.isNil:
+    await c.trimFut.cancelAndWait()
+
+  await c.peerEventFuts.cancelAndWait()
+  c.peerEventFuts = @[]
+  await c.slotMonitorFuts.cancelAndWait()
+  c.slotMonitorFuts = @[]
 
   let expected = c.expectedConnectionsOverLimit
   c.expectedConnectionsOverLimit.clear()
@@ -496,5 +806,7 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
     if muxers.len > 0:
       await allFutures(muxers.mapIt(closeMuxer(it)))
       await c.onPeerDisconnected(peerId)
+
+  await c.drainOnCloseTasks()
 
   trace "Closed ConnManager"

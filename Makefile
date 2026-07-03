@@ -1,4 +1,56 @@
-.PHONY: all build deps cbind clean
+# test_all is compiled in `TEST_ALL_SLICES` translation units. Each slice
+# imports a deterministic 1/N subset of the test files (see tests/imports.nim).
+# On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
+# of address space; the unsharded TU overran that on orc. Two slices halve the
+# memory footprint enough to fit, and the overhead is small on 64-bit targets.
+# Number of test binaries to compile and run concurrently; 1 keeps `make test`
+# serial. CI raises it, using fewer lanes on 32-bit to stay under the ~3 GB cap.
+TEST_JOBS ?= 1
+
+TEST_ALL_SLICES ?= 2
+TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
+TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
+
+.PHONY: all build deps cbind clean test _run_all_tests $(TEST_ALL_SLICE_TARGETS) \
+        test_multiformat_exts test_integration \
+        install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
+
+NIM_VERSION  ?= 2.2.10
+NPH_VERSION  ?= 0.7.0
+
+NIMC     ?= nim
+NIMFLAGS ?=
+V        ?= 0
+
+ifeq ($(V),0)
+VERBOSITY_FLAG = --verbosity:0
+else
+VERBOSITY_FLAG =
+endif
+
+NIM_FLAGS = \
+  --styleCheck:usages --styleCheck:error \
+  $(VERBOSITY_FLAG) \
+  --skipUserCfg \
+  -f \
+  --threads:on \
+  --opt:speed \
+  $(NIMFLAGS)
+
+RUNNER_FLAGS = --output-level=VERBOSE --console
+
+# Allow: make test [path]
+# Captures the optional path argument and synthesises a do-nothing rule for it
+# so Make does not complain about a missing target.
+ifeq ($(firstword $(MAKECMDGOALS)),test)
+  _TEST_PATH_ARG := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  ifneq ($(_TEST_PATH_ARG),)
+    override TEST_PATH := $(_TEST_PATH_ARG)
+    $(eval $(_TEST_PATH_ARG):;@true)
+  endif
+endif
+
+TEST_PATH ?=
 
 all: build
 
@@ -13,11 +65,138 @@ deps: nix/deps.nix
 build: deps
 	nix build
 
-# Delegate to cbind/Makefile
 cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock nix/deps.nix
+	$(RM) nimble.lock nix/deps.nix nimble.paths
 	$(MAKE) -C cbind clean
 
+# Generate nimble.paths so config.nims can include it.
+# nimble injects per-package srcDir paths that --NimblePath alone doesn't provide;
+# this replicates that by reading srcDir from each package's .nimble file.
+nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
+	@rm -f $@
+	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
+	  [ -d "$$pkgdir" ] || continue; \
+	  for f in "$$pkgdir"/*/*.nimble; do \
+	    [ -f "$$f" ] || continue; \
+	    pkg=$$(dirname "$$f"); \
+	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
+	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
+	      path="$$pkg/$$src"; \
+	    else \
+	      path="$$pkg"; \
+	    fi; \
+	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
+	  done; \
+	done
+
+# nim-nat-traversal vendors miniupnpc and libnatpmp as C sources. The package's
+# `before install` hook builds them, but the resulting .a files are not always
+# preserved alongside the package dir (cross-OS cache reuse, different gcc
+# versions). Rebuild them up-front against the host's toolchain.
+NAT_PKG_DIR := $(firstword $(wildcard nimbledeps/pkgs2/nat_traversal-*) $(wildcard nimbledeps/pkgs/nat_traversal-*))
+NAT_PMP_LIB := $(NAT_PKG_DIR)/vendor/libnatpmp-upstream/libnatpmp.a
+
+# Use gcc rather than `cc` so the linux-i386 wrapper (external/bin/gcc, which
+# injects -m32) is picked up. On macOS and llvm-mingw, `gcc` is a clang
+# compatibility shim, so this stays ABI-compatible with nim's choice.
+NAT_CC ?= gcc
+
+# miniupnpc's unix Makefile drops the .a under `build/`, but its Windows
+# Makefile.mingw drops it at the package root. Match each one.
+ifeq ($(OS),Windows_NT)
+  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
+  NAT_UPNP_MAKE_ARGS := -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
+  NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
+  # libnatpmp's Makefile only appends wingettimeofday.o to LIBOBJS when $(OS)
+  # contains mingw/cygwin/msys. The CI Windows runner passes through Windows_NT
+  # (the host env var), so that branch never matches — leaving
+  # natpmp_gettimeofday undefined at link time. Pass LIBOBJS explicitly.
+  NAT_PMP_MAKE_ARGS := LIBOBJS="natpmp.o getgateway.o wingettimeofday.o" libnatpmp.a
+else
+  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
+  NAT_UPNP_MAKE_ARGS := CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
+  NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
+  NAT_PMP_MAKE_ARGS := libnatpmp.a
+endif
+
+# Stamp-based rebuild: the stamp records "the .a files in this package dir were
+# built by our recipe with the right compiler". Re-running install_pinned wipes
+# the package dir (and thus the stamp), forcing a rebuild.
+NAT_LIBS_STAMP := $(NAT_PKG_DIR)/.libp2p-nat-libs.stamp
+
+nat_libs: $(NAT_LIBS_STAMP)
+
+nat_pkg_dir_check:
+	@test -n "$(NAT_PKG_DIR)" || \
+	  (echo "Error: nat_traversal package not found under nimbledeps/pkgs2/ or nimbledeps/pkgs/. Run 'nimble install_pinned' first." && exit 1)
+
+$(NAT_LIBS_STAMP): | nat_pkg_dir_check
+	rm -f "$(NAT_UPNP_LIB)" "$(NAT_PMP_LIB)"
+	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
+	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
+	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
+	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
+	touch "$@"
+
+test: nimble.paths nat_libs
+ifeq ($(TEST_PATH),)
+	$(MAKE) -j$(TEST_JOBS) _run_all_tests
+else
+	$(NIMC) c $(NIM_FLAGS) \
+	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  -d:path=$(TEST_PATH) \
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+endif
+
+_run_all_tests: $(TEST_ALL_SLICE_TARGETS) test_multiformat_exts
+
+# Per-target nimcache, always: concurrent compiles must not share one.
+$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
+	$(NIMC) c $(NIM_FLAGS) \
+	  --nimcache:nimcache/test_all_$* \
+	  -d:sliceTotal=$(TEST_ALL_SLICES) \
+	  -d:sliceIdx=$* \
+	  -o:tests/test_all_$* \
+	  tests/test_all.nim
+	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
+
+test_multiformat_exts: nimble.paths nat_libs
+	$(NIMC) c $(NIM_FLAGS) \
+	  --nimcache:nimcache/test_all_multiformat \
+	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
+	  -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim \
+	  -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim \
+	  -d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim \
+	  -d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim \
+	  -d:path=multiformat_exts \
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
+
+test_integration: nimble.paths nat_libs
+	$(NIMC) c $(NIM_FLAGS) \
+	  $(if $(CICOV),--nimcache:nimcache/integration,) \
+	  tests/integration/test_all.nim
+	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
+
+install_pinned:
+	nimble install_pinned
+
+pin:
+	nimble pin
+
+unpin:
+	nimble unpin
+
+gen_multicodec:
+	nimble gen_multicodec
+
+format:
+	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
+
+clean-nim:
+	[ ! -d nimbledeps ] || rm -rf nimbledeps
+	rm nimble.locks nimble.paths 2>/dev/null || true

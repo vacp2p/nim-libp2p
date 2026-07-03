@@ -97,14 +97,30 @@ type RandomRecordsCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
-type Libp2pStream* = object
-  conn*: pointer
-
-type ConnectionCallback* = proc(
+type ExtendedPeerRecordCallback* = proc(
   callerRet: cint,
-  conn: ptr Libp2pStream,
+  record: ptr Libp2pExtendedPeerRecord,
   msg: ptr cchar,
   len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type Libp2pStream* = object
+  stream*: pointer
+
+type StreamCallback* = proc(
+  callerRet: cint,
+  stream: ptr Libp2pStream,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type Libp2pProtocolHandler* = proc(
+  ctx: pointer,
+  stream: ptr Libp2pStream,
+  proto: ptr cchar,
+  protoLen: csize_t,
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
@@ -125,7 +141,6 @@ type Libp2pConfig* {.bycopy.} = object
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
-  mountMix*: cint
   mountServiceDiscovery*: cint
   dnsResolver*: cstring
   addrs*: ptr cstring
@@ -168,15 +183,24 @@ type RetCode* {.size: sizeof(cint).} = enum
   RET_ERR = 1
   RET_MISSING_CALLBACK = 2
 
-type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
-  MIX_READ_EXACTLY = 0
-  MIX_READ_LP = 1
+type Libp2pPeerStoreEntry* {.bycopy.} = object
+  peerId*: cstring
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  protocols*: ptr cstring
+  protocolsLen*: csize_t
+  publicKey*: ptr byte
+  publicKeyLen*: csize_t
+  agentVersion*: cstring
+  protoVersion*: cstring
 
-type MixCurve25519Key* {.bycopy.} = object
-  bytes*: array[32, byte]
-
-type MixSecp256k1PubKey* {.bycopy.} = object
-  bytes*: array[33, byte]
+type PeerStoreEntryCallback* = proc(
+  callerRet: cint,
+  entry: ptr Libp2pPeerStoreEntry,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
 
 ### End of exported types
 ################################################################################

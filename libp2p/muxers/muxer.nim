@@ -15,16 +15,16 @@ type
   MuxerError* = object of LPError
   TooManyChannels* = object of MuxerError
 
-  StreamHandler* = proc(conn: Connection): Future[void] {.async: (raises: []).}
+  StreamHandler* = proc(stream: MuxedStream): Future[void] {.async: (raises: []).}
   MuxerHandler* = proc(muxer: Muxer): Future[void] {.async: (raises: []).}
 
   Muxer* = ref object of RootObj
     streamHandler*: StreamHandler
     handler*: Future[void].Raising([])
-    connection*: Connection
+    connection*: RawConn
 
   # user provider proc that returns a constructed Muxer
-  MuxerConstructor* = proc(conn: Connection): Muxer {.gcsafe, closure, raises: [].}
+  MuxerConstructor* = proc(conn: RawConn): Muxer {.gcsafe, closure, raises: [].}
 
   # this wraps a creator proc that knows how to make muxers
   MuxerProvider* = object
@@ -43,14 +43,14 @@ chronicles.formatIt(Muxer):
 # muxer interface
 method newStream*(
     m: Muxer, name: string = "", lazy: bool = false
-): Future[Connection] {.
+): Future[MuxedStream] {.
     base, async: (raises: [CancelledError, LPStreamError, MuxerError], raw: true)
 .} =
   raiseAssert("[Muxer.newStream] abstract method not implemented!")
 
 when defined(libp2p_agents_metrics):
   method setShortAgent*(m: Muxer, shortAgent: string) {.base, gcsafe.} =
-    m.connection.shortAgent = shortAgent
+    m.connection.setShortAgent(shortAgent)
 
 method close*(m: Muxer) {.base, async: (raises: []).} =
   if m.connection != nil:
@@ -65,5 +65,5 @@ proc new*(
   let muxerProvider = T(newMuxer: creator, codec: codec)
   muxerProvider
 
-method getStreams*(m: Muxer): seq[Connection] {.base, gcsafe.} =
+method getStreams*(m: Muxer): seq[MuxedStream] {.base, gcsafe.} =
   raiseAssert("[Muxer.getStreams] abstract method not implemented!")

@@ -4,9 +4,8 @@
 {.push raises: [].}
 
 import std/sequtils
-import stew/endians2
 import chronos, chronos/transports/[osnet, ipnet], chronicles, results
-import ../[multiaddress, multicodec]
+import ../[multiaddress]
 import ../switch
 
 logScope:
@@ -15,9 +14,6 @@ logScope:
 type
   WildcardAddressResolverService* = ref object of Service
     ## Service used to resolve wildcard addresses of the type "0.0.0.0" for IPv4 or "::" for IPv6.
-    ## When used with a `Switch`, this service will be automatically set up and stopped
-    ## when the switch starts and stops. This is facilitated by adding the service to the switch's
-    ## list of services using the `.withServices(@[svc])` method in the `SwitchBuilder`.
     networkInterfaceProvider: NetworkInterfaceProvider
     ## Provides a list of network addresses.
     addressMapper: AddressMapper
@@ -66,102 +62,46 @@ proc new*(
   ## - A new instance of `WildcardAddressResolverService`.
   return T(networkInterfaceProvider: networkInterfaceProvider)
 
-proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
-  for item in ma:
-    let
-      ritem = ?item
-      code = ?ritem.protoCode()
-    if code == codec:
-      let arg = ?ritem.protoAddress()
-      return ok(arg)
-
-  err("Multiaddress codec has not been found")
-
-proc getWildcardMultiAddresses(
-    interfaceAddresses: seq[InterfaceAddress],
-    protocol: Protocol,
-    port: Port,
-    isQuic: bool,
-): seq[MultiAddress] =
-  var addresses: seq[MultiAddress]
-  for ifaddr in interfaceAddresses:
-    var address = ifaddr.host
-    address.port = port
-    MultiAddress.init(address, protocol).withValue(maddress):
-      addresses.add(maddress)
-
-  if isQuic:
-    let quicV1 = MultiAddress.init("/quic-v1").value()
-    return addresses.mapIt(it.concat(quicV1).value())
-
-  addresses
-
-proc getWildcardAddress(
-    maddress: MultiAddress,
-    addrFamily: AddressFamily,
-    port: Port,
-    proto: Protocol,
-    isQuic: bool,
-    networkInterfaceProvider: NetworkInterfaceProvider,
-): seq[MultiAddress] =
-  let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
-  getWildcardMultiAddresses(filteredInterfaceAddresses, proto, port, isQuic)
+proc isWildcardIp(ip: IpAddress): bool =
+  case ip.family
+  of IpAddressFamily.IPv4:
+    ip.address_v4 == AnyAddress.address_v4
+  of IpAddressFamily.IPv6:
+    ip.address_v6 == AnyAddress6.address_v6
 
 proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
+  ## Expand bound wildcard addresses (``0.0.0.0`` / ``::``) into one address
+  ## per matching network interface. Non-wildcard addresses are passed through
+  ## unchanged. The transport, port, and any suffix (e.g. ``/quic-v1``,
+  ## ``/ws``, ``/wss``, ``/tls/ws``) of the listen address are preserved on
+  ## the expanded copies.
   var addresses: seq[MultiAddress]
-
-  # In this loop we expand bound addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
-    let tcpMatchPartial = TCP_IP.matchPartial(listenAddr)
-    let quicMatchPartial = QUIC_V1_IP.matchPartial(listenAddr)
-    if tcpMatchPartial or quicMatchPartial:
-      let (netCodec, proto, isQuic) =
-        if tcpMatchPartial:
-          (multiCodec("tcp"), IPPROTO_TCP, false)
-        else:
-          (multiCodec("udp"), IPPROTO_UDP, true)
-      listenAddr.getProtocolArgument(netCodec).withValue(portArg):
-        let port = Port(uint16.fromBytesBE(portArg))
-        if IP4.matchPartial(listenAddr):
-          listenAddr.getProtocolArgument(multiCodec("ip4")).withValue(ip4):
-            if ip4 == AnyAddress.address_v4:
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-            else:
-              addresses.add(listenAddr)
-        elif IP6.matchPartial(listenAddr):
-          listenAddr.getProtocolArgument(multiCodec("ip6")).withValue(ip6):
-            if ip6 == AnyAddress6.address_v6:
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv6, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-              # IPv6 dual stack
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-            else:
-              addresses.add(listenAddr)
-        else:
-          addresses.add(listenAddr)
-    else:
+    let listenIp = listenAddr.getIp().valueOr:
       addresses.add(listenAddr)
+      continue
+
+    if not isWildcardIp(listenIp):
+      addresses.add(listenAddr)
+      continue
+
+    let families =
+      case listenIp.family
+      of IpAddressFamily.IPv4:
+        @[AddressFamily.IPv4]
+      of IpAddressFamily.IPv6:
+        # IPv6 dual stack: also expand to IPv4 interfaces.
+        @[AddressFamily.IPv6, AddressFamily.IPv4]
+
+    for family in families:
+      for ifaddr in networkInterfaceProvider(family):
+        listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
+          addresses.add(remapped)
   addresses
 
-method setup*(
-    self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+method setup*(self: WildcardAddressResolverService, switch: Switch) {.raises: [].} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
   ## This method adds the address mapper to the peer's list of address mappers.
@@ -171,32 +111,29 @@ method setup*(
   ## - `switch`: The switch context in which the service operates.
   ##
   ## Returns:
-  ## - A `Future[bool]` that resolves to `true` if the setup was successful, otherwise `false`.
+  ## - No value.
+  debug "Setting up WildcardAddressResolverService"
+
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
-  debug "Setting up WildcardAddressResolverService"
-  let hasBeenSetup = await procCall Service(self).setup(switch)
-  if hasBeenSetup:
-    switch.peerInfo.addressMappers.add(self.addressMapper)
-  return hasBeenSetup
-
-method run*(
+method start*(
     self: WildcardAddressResolverService, switch: Switch
-) {.public, async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   ## Runs the WildcardAddressResolverService for a given switch.
   ##
   ## It updates the peer information for the provided switch by running the registered address mapper. Any other
   ## address mappers that are registered with the switch will also be run.
   ##
   trace "Running WildcardAddressResolverService"
+  switch.peerInfo.addressMappers.add(self.addressMapper)
   await switch.peerInfo.update()
 
 method stop*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   ## Stops the WildcardAddressResolverService.
   ##
   ## Handles the shutdown process of the WildcardAddressResolverService for a given switch.
@@ -206,12 +143,7 @@ method stop*(
   ## Parameters:
   ## - `self`: The instance of the WildcardAddressResolverService.
   ## - `switch`: The Switch object associated with the service.
-  ##
-  ## Returns:
-  ## - A future that resolves to `true` if the service was successfully stopped, otherwise `false`.
   debug "Stopping WildcardAddressResolverService"
-  let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped:
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
-  return hasBeenStopped
+
+  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  await switch.peerInfo.update()

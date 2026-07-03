@@ -6,8 +6,6 @@
 import std/[hashes, sets]
 import chronos/timer, results
 
-import ../../utility
-
 export results
 
 const Timeout* = 10.seconds # default timeout in ms
@@ -93,11 +91,7 @@ func put*[K](cache: var TimedCache[K], key: K, now = Moment.now()): bool =
 
   let
     previous = cache.del(key) # Refresh existing item
-    addedAt =
-      if previous.isSome():
-        previous[].addedAt
-      else:
-        now
+    addedAt = if previous.isSome(): previous[].addedAt else: now
 
   let node = TimedEntry[K](key: key, addedAt: addedAt, expiresAt: now + cache.timeout)
   if cache.head == nil:
@@ -128,7 +122,7 @@ func contains*[K](t: TimedCache[K], k: K): bool =
   let tmp = TimedEntry[K](key: k)
   tmp in t.entries
 
-func len*[K](t: TimedCache[K]): int {.inline.} =
+func len*[K](t: TimedCache[K]): int =
   ## Returns the number of entries in the cache.
   t.entries.len
 

@@ -77,10 +77,9 @@ suite "GossipSub Component - Gossip Protocol":
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
 
     # None of the nodes should have received an iHave message
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let receivedIHaves = messages[].mapIt(it[].len)
-      check:
         filterIt(receivedIHaves, it > 0).len == 0
 
   asyncTest "adaptive gossip dissemination, with gossipFactor priority":
@@ -118,10 +117,9 @@ suite "GossipSub Component - Gossip Protocol":
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let receivedIHaves = messages[].mapIt(it[].len)
-      check:
         filterIt(receivedIHaves, it > 0).len >= 8
 
   asyncTest "adaptive gossip dissemination, with dLazy priority":
@@ -159,10 +157,9 @@ suite "GossipSub Component - Gossip Protocol":
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let receivedIHaves = messages[].mapIt(it[].len)
-      check:
         filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":

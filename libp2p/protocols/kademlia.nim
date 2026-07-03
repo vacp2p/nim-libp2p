@@ -8,12 +8,14 @@ import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
 import ./kademlia/kademlia_metrics
 
-export routing_table, protobuf, types, find, get, put, provider, ping, kademlia_metrics
+export
+  chronicles, routing_table, protobuf, types, find, get, put, provider, ping,
+  kademlia_metrics
 
 logScope:
   topics = "kad-dht"
 
-const KadCodec = "/ipfs/kad/1.0.0"
+const KadCodec* = "/ipfs/kad/1.0.0"
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
@@ -34,41 +36,43 @@ proc refreshTable*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
+    let randomKey =
+      randomKeyInBucket(rtable.selfId, i, kad.rng, rtable.config.maxBuckets)
     discard await kad.findNode(randomKey, rtable)
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh)
-
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "Refreshing buckets (bootstrapping)",
-    kad.config.bucketRefreshTime, sleepFirst = true:
-    await kad.bootstrap()
+  heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
+    await kad.refreshTable(kad.rtable, false)
 
+# K instead of T to avoid clashing with the T type param in withValue[T] when
+# called inside a withValue block, which causes a compiler error under --lineDir:on
 proc new*(
-    T: typedesc[KadDHT],
+    K: typedesc[KadDHT],
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
-    rng: ref HmacDrbgContext = newRng(),
+    rng: Rng,
     client: bool = false,
     codec: string = KadCodec,
-): T {.raises: [].} =
+): K {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
   )
-  let kad = T(
+  let kad = K(
     rng: rng,
     switch: switch,
     rtable: rtable,
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -79,39 +83,42 @@ proc new*(
     return kad
 
   kad.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.close()
-    while not conn.atEof:
-      let buf =
+      await stream.close()
+    while not stream.atEof:
+      var buf =
         try:
-          await conn.readLp(MaxMsgSize)
+          await stream.readLp(MaxMsgSize)
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
+          debug "Read error when handling kademlia RPC", stream = stream, err = exc.msg
           return
-      let msg = Message.decode(buf).valueOr:
+      let bufLen = buf.len
+      let msg = Message.decode(move(buf)).valueOr:
         debug "Failed to decode message", err = error
         return
 
-      kad_messages_received.inc(labelValues = [$msg.msgType])
-      kad_message_bytes_received.inc(buf.len.int64, labelValues = [$msg.msgType])
+      let msgType = msg.msgType.get(MessageType.putValue)
 
-      case msg.msgType
+      kad_messages_received.inc(labelValues = [$msgType])
+      kad_message_bytes_received.inc(bufLen.int64, labelValues = [$msgType])
+
+      case msgType
       of MessageType.findNode:
-        await kad.handleFindNode(conn, msg)
+        await kad.handleFindNode(stream, msg)
       of MessageType.putValue:
-        await kad.handlePutValue(conn, msg)
+        await kad.handlePutValue(stream, msg)
       of MessageType.getValue:
-        await kad.handleGetValue(conn, msg)
+        await kad.handleGetValue(stream, msg)
       of MessageType.addProvider:
-        await kad.handleAddProvider(conn, msg)
+        await kad.handleAddProvider(stream, msg)
       of MessageType.getProviders:
-        await kad.handleGetProviders(conn, msg)
+        await kad.handleGetProviders(stream, msg)
       of MessageType.ping:
-        await kad.handlePing(conn, msg)
+        await kad.handlePing(stream, msg)
       of MessageType.register:
         trace "Unsupported message REGISTER"
         continue
@@ -126,11 +133,13 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  await kad.bootstrap(forceRefresh = true)
+  if not kad.config.disableBootstrapping:
+    await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
+  kad.recordExpirationLoop = kad.manageExpiredRecords()
 
   kad.started = true
 
@@ -150,3 +159,6 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
 
   kad.expiredLoop.cancelSoon()
   kad.expiredLoop = nil
+
+  kad.recordExpirationLoop.cancelSoon()
+  kad.recordExpirationLoop = nil

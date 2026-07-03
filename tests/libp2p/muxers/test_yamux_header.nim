@@ -123,25 +123,24 @@ suite "Yamux Header Tests":
     const
       streamId = 1
       length = 100
-    let cases: seq[(set[MsgFlags], uint8)] =
-      @[
-        ({}, 0'u8),
-        ({Syn}, 1'u8),
-        ({Ack}, 2'u8),
-        ({Syn, Ack}, 3'u8),
-        ({Fin}, 4'u8),
-        ({Syn, Fin}, 5'u8),
-        ({Ack, Fin}, 6'u8),
-        ({Syn, Ack, Fin}, 7'u8),
-        ({Rst}, 8'u8),
-        ({Syn, Rst}, 9'u8),
-        ({Ack, Rst}, 10'u8),
-        ({Syn, Ack, Rst}, 11'u8),
-        ({Fin, Rst}, 12'u8),
-        ({Syn, Fin, Rst}, 13'u8),
-        ({Ack, Fin, Rst}, 14'u8),
-        ({Syn, Ack, Fin, Rst}, 15'u8),
-      ]
+    let cases: seq[(set[MsgFlags], uint8)] = @[
+      ({}, 0'u8),
+      ({Syn}, 1'u8),
+      ({Ack}, 2'u8),
+      ({Syn, Ack}, 3'u8),
+      ({Fin}, 4'u8),
+      ({Syn, Fin}, 5'u8),
+      ({Ack, Fin}, 6'u8),
+      ({Syn, Ack, Fin}, 7'u8),
+      ({Rst}, 8'u8),
+      ({Syn, Rst}, 9'u8),
+      ({Ack, Rst}, 10'u8),
+      ({Syn, Ack, Rst}, 11'u8),
+      ({Fin, Rst}, 12'u8),
+      ({Syn, Fin, Rst}, 13'u8),
+      ({Ack, Fin, Rst}, 14'u8),
+      ({Syn, Ack, Fin, Rst}, 15'u8),
+    ]
 
     for (flags, low) in cases:
       let header = YamuxHeader.data(streamId = streamId, length = length, flags)

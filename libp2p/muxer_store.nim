@@ -4,26 +4,26 @@
 import std/[tables, sequtils]
 from peerinfo import PeerId
 from muxers/muxer import Muxer
-from stream/connection import Connection, Direction
+from stream/connection import Direction
 
 type MuxerStore* = ref object
   muxed: Table[PeerId, seq[Muxer]]
 
-proc getAll*(s: MuxerStore): Table[PeerId, seq[Muxer]] {.inline.} =
+proc getAll*(s: MuxerStore): Table[PeerId, seq[Muxer]] =
   return s.muxed
 
-proc countPeers*(s: MuxerStore): int {.inline.} =
+proc countPeers*(s: MuxerStore): int =
   return s.muxed.len
 
-proc count*(s: MuxerStore, peerId: PeerId): int {.inline.} =
+proc count*(s: MuxerStore, peerId: PeerId): int =
   s.muxed.withValue(peerId, muxers):
     return muxers[].len
   return 0
 
-proc contains*(s: MuxerStore, peerId: PeerId): bool {.inline.} =
+proc contains*(s: MuxerStore, peerId: PeerId): bool =
   peerId in s.muxed
 
-proc contains*(s: MuxerStore, muxer: Muxer): bool {.inline.} =
+proc contains*(s: MuxerStore, muxer: Muxer): bool =
   let peerId = muxer.connection.peerId
   s.muxed.withValue(peerId, muxers):
     return muxer in muxers[]
@@ -55,6 +55,9 @@ proc add*(s: MuxerStore, muxer: Muxer): bool =
   do:
     s.muxed[peerId] = @[muxer]
     return true
+
+proc getPeers*(s: MuxerStore): seq[PeerId] =
+  return s.muxed.keys().toSeq()
 
 proc getPeers*(s: MuxerStore, dir: Direction): seq[PeerId] =
   var peers = newSeqOfCap[PeerId](s.muxed.len)

@@ -13,7 +13,7 @@ import
     routing_record,
     crypto/crypto,
   ]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, unittest, crypto]
 import ./utils
 
 suite "RendezVous Errors":
@@ -22,7 +22,10 @@ suite "RendezVous Errors":
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(
-      minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
+      rng(),
+      RendezVousConfig.new(
+        minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
+      ),
     )
     expect AdvertiseError:
       discard await rendezvous.request(
@@ -43,57 +46,54 @@ suite "RendezVous Errors":
     expect AdvertiseError:
       await rdv.advertise("A", Opt.some(30.seconds))
 
-  let testCases =
-    @[
+  let testCases = @[
+    (
+      "Register - Invalid Namespace",
       (
-        "Register - Invalid Namespace",
-        (
-          proc(node: RendezVous): Message =
-            prepareRegisterMessage(
-              "A".repeat(300),
-              node.switch.peerInfo.signedPeerRecord.encode().get,
-              2.hours,
-            )
-        ),
-        ResponseStatus.InvalidNamespace,
+        proc(node: RendezVous): Message =
+          prepareRegisterMessage(
+            "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode(), 2.hours
+          )
       ),
+      ResponseStatus.InvalidNamespace,
+    ),
+    (
+      "Register - Invalid Signed Peer Record",
       (
-        "Register - Invalid Signed Peer Record",
-        (
-          proc(node: RendezVous): Message =
-            # Malformed SPR - empty bytes will fail validation
-            prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
-        ),
-        ResponseStatus.InvalidSignedPeerRecord,
+        proc(node: RendezVous): Message =
+          # Malformed SPR - empty bytes will fail validation
+          prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
       ),
+      ResponseStatus.InvalidSignedPeerRecord,
+    ),
+    (
+      "Register - Invalid TTL",
       (
-        "Register - Invalid TTL",
-        (
-          proc(node: RendezVous): Message =
-            prepareRegisterMessage(
-              "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
-            )
-        ),
-        ResponseStatus.InvalidTTL,
+        proc(node: RendezVous): Message =
+          prepareRegisterMessage(
+            "namespace", node.switch.peerInfo.signedPeerRecord.encode(), 73.hours
+          )
       ),
+      ResponseStatus.InvalidTTL,
+    ),
+    (
+      "Discover - Invalid Namespace",
       (
-        "Discover - Invalid Namespace",
-        (
-          proc(node: RendezVous): Message =
-            prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
-        ),
-        ResponseStatus.InvalidNamespace,
+        proc(node: RendezVous): Message =
+          prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
       ),
+      ResponseStatus.InvalidNamespace,
+    ),
+    (
+      "Discover - Invalid Cookie",
       (
-        "Discover - Invalid Cookie",
-        (
-          proc(node: RendezVous): Message =
-            # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
-            prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
-        ),
-        ResponseStatus.InvalidCookie,
+        proc(node: RendezVous): Message =
+          # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
+          prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
       ),
-    ]
+      ResponseStatus.InvalidCookie,
+    ),
+  ]
 
   for test in testCases:
     let (testName, getMessage, expectedStatus) = test
@@ -106,7 +106,7 @@ suite "RendezVous Errors":
 
       let
         peerNode = peerNodes[0]
-        messageBuf = encode(getMessage(peerNode)).buffer
+        messageBuf = encode(getMessage(peerNode))
 
       let
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
@@ -134,9 +134,9 @@ suite "RendezVous Errors":
     # Attempt one more registration which should be rejected with NotAuthorized
     let messageBuf = encode(
       prepareRegisterMessage(
-        namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode().get, 2.hours
+        namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode(), 2.hours
       )
-    ).buffer
+    )
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
     let responseMessage = Message.decode(responseBuf).tryGet()

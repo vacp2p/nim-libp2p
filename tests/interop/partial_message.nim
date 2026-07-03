@@ -33,11 +33,10 @@ proc partialMessageInteropTest*(
   #     the parts metadata that nim peer expects. other peer must know what to send in advance.
 
   let
-    keyBytes =
-      @[
-        8.byte, 2, 18, 32, 222, 176, 113, 24, 159, 196, 204, 239, 181, 76, 141, 249, 59,
-        226, 244, 36, 1, 145, 17, 142, 4, 151, 172, 69, 65, 12, 254, 222, 161, 39, 7, 73,
-      ]
+    keyBytes = @[
+      8.byte, 2, 18, 32, 222, 176, 113, 24, 159, 196, 204, 239, 181, 76, 141, 249, 59,
+      226, 244, 36, 1, 145, 17, 142, 4, 151, 172, 69, 65, 12, 254, 222, 161, 39, 7, 73,
+    ]
     key = PrivateKey.init(keyBytes).expect("should have a private key")
 
   var switch = SwitchBuilder
@@ -64,22 +63,22 @@ proc partialMessageInteropTest*(
     # in this callback code asserts that other peer
     # has published exactly that message and that nim peer has received.
 
-    if rpc.topicID != partialTopic:
+    if rpc.topicID.get() != partialTopic:
       error "partial message topic did not match",
-        got = $rpc.topicID, expected = $partialTopic
+        got = $rpc.topicID.get(), expected = $partialTopic
       requestFulfilled.complete(false)
       return
 
     let pm = makePartialMessage()
     let expectedMetadata = MyPartsMetadata.have(toSeq(pm.data.keys))
 
-    if rpc.groupID != pm.groupId:
+    if rpc.groupID.get() != pm.groupId:
       error "partial message groupId did not match",
-        got = $rpc.groupID, expected = $pm.groupId
+        got = $rpc.groupID.get(), expected = $pm.groupId
       requestFulfilled.complete(false)
       return
 
-    if rpc.partsMetadata != expectedMetadata:
+    if rpc.partsMetadata.isNone or rpc.partsMetadata.get() != expectedMetadata:
       error "parts metadata does not match"
       requestFulfilled.complete(false)
       return
@@ -89,6 +88,7 @@ proc partialMessageInteropTest*(
 
   var gossipsub = GossipSub.init(
     switch = switch,
+    rng = rng(),
     parameters = (
       var param = GossipSubParams.init()
       param.partialMessageExtensionConfig = Opt.some(

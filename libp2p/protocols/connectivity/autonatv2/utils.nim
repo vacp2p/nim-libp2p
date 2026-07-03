@@ -11,15 +11,10 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../protobuf/minprotobuf,
   ./types
 
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
-  if self.status == EInternalError:
-    return Unknown
-  if self.status == ERequestRejected:
-    return Unknown
-  if self.status == EDialRefused:
+  if self.status in [EInternalError, ERequestRejected, EDialRefused]:
     return Unknown
 
   # if got here it means a dial was attempted
@@ -42,8 +37,16 @@ proc asAutonatV2Response*(
       dialResp: self,
       addrs: Opt.none(MultiAddress),
     )
+
+  if addrIdx.uint64 >= testAddrs.len.uint64:
+    return AutonatV2Response(
+      reachability: self.asNetworkReachability(),
+      dialResp: self,
+      addrs: Opt.none(MultiAddress),
+    )
+
   AutonatV2Response(
     reachability: self.asNetworkReachability(),
     dialResp: self,
-    addrs: Opt.some(testAddrs[addrIdx]),
+    addrs: Opt.some(testAddrs[addrIdx.int]),
   )

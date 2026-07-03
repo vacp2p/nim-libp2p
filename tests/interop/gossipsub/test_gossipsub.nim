@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, json, stew/[byteutils]
+import chronos, json
 import
   ../../../libp2p/[peerid, protocols/pubsub/gossipsub, protocols/pubsub/rpc/message]
 import ../../../interop/gossipsub/src/[node, instructions]
@@ -29,15 +29,15 @@ suite "GossipSub Interop":
       let expected = PeerId.init(expectedPeerIds[i]).get()
       check pid == expected
 
-  test "message ID from big-endian u64":
+  test "message ID is the raw first 8 bytes":
     var data = newSeq[byte](1024)
     # Message ID 42: big-endian encoding
     data[7] = 42
-    let msg = Message(data: data, topic: "foobar")
+    let msg = Message(data: Opt.some(data), topic: "foobar")
     let res = interopMsgIdProvider(msg)
     check:
       res.isOk
-      string.fromBytes(res.get()) == "42"
+      res.get() == @[byte 0, 0, 0, 0, 0, 0, 0, 42]
 
   test "parse initGossipSub instruction":
     let j = parseJson("""{"type": "initGossipSub", "gossipSubParams": {"D": 6}}""")

@@ -44,22 +44,22 @@ type RandomRecordsResult* = object
   records*: ptr Libp2pExtendedPeerRecord
   recordsLen*: csize_t
 
-proc allocServiceInfoArrayFromSeq(
-    services: seq[ServiceInfo]
-): ptr Libp2pServiceInfo {.inline.} =
+proc allocServiceInfoArrayFromSeq(services: seq[ServiceInfo]): ptr Libp2pServiceInfo =
   if services.len == 0:
     return nil
-  result =
+  let ret =
     cast[ptr Libp2pServiceInfo](allocShared(sizeof(Libp2pServiceInfo) * services.len))
-  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](result)
+  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](ret)
   for i, svc in services:
     servicesArr[i].id = svc.id.alloc()
-    servicesArr[i].dataLen = svc.data.len.csize_t
-    if svc.data.len == 0:
-      servicesArr[i].data = nil
+    if svc.data.isSome and svc.data.get().len > 0:
+      servicesArr[i].dataLen = svc.data.get().len.csize_t
+      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.get().len))
+      copyMem(servicesArr[i].data, addr svc.data.get()[0], svc.data.get().len)
     else:
-      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.len))
-      copyMem(servicesArr[i].data, addr svc.data[0], svc.data.len)
+      servicesArr[i].dataLen = 0.csize_t
+      servicesArr[i].data = nil
+  ret
 
 proc createShared*(
     T: type KademliaRequest,
@@ -81,7 +81,7 @@ proc createShared*(
   ret[].quorumOverride = quorumOverride
   return ret
 
-proc destroyShared(self: ptr KademliaRequest) =
+proc destroyShared*(self: ptr KademliaRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].key)
   deallocSharedSeq(self[].value)
@@ -117,6 +117,12 @@ proc deallocLibp2pExtendedPeerRecord*(record: var Libp2pExtendedPeerRecord) =
       if not servicesArr[i].data.isNil():
         deallocShared(servicesArr[i].data)
     deallocShared(servicesArr)
+
+proc deallocExtendedPeerRecord*(record: ptr Libp2pExtendedPeerRecord) =
+  if record.isNil():
+    return
+  deallocLibp2pExtendedPeerRecord(record[])
+  deallocShared(record)
 
 proc deallocRandomRecordsResult*(res: ptr RandomRecordsResult) =
   if res.isNil():
@@ -183,7 +189,9 @@ proc buildProvidersResult(
 
   try:
     for i, provider in providers:
-      let peerId = PeerId.init(provider.id).valueOr:
+      let providerId = provider.id.valueOr:
+        raise newException(ValueError, "Provider Id not set")
+      let peerId = PeerId.init(providerId).valueOr:
         raise newException(ValueError, $error)
       arr[i].peerId = ($peerId).alloc()
 
@@ -199,7 +207,29 @@ proc buildProvidersResult(
 
   ok(resPtr)
 
-proc buildRandomRecordsResult(
+proc fillExtendedPeerRecord(
+    dst: var Libp2pExtendedPeerRecord, record: ExtendedPeerRecord
+) =
+  dst.peerId = ($record.peerId).alloc()
+  dst.seqNo = record.seqNo
+
+  let addrs = record.addresses.mapIt($it.address)
+  dst.addrsLen = addrs.len.csize_t
+  dst.addrs = allocCStringArrayFromSeq(addrs)
+
+  dst.servicesLen = record.services.len.csize_t
+  dst.services = allocServiceInfoArrayFromSeq(record.services)
+
+proc buildExtendedPeerRecord*(
+    record: ExtendedPeerRecord
+): Result[ptr Libp2pExtendedPeerRecord, string] =
+  let resPtr =
+    cast[ptr Libp2pExtendedPeerRecord](createShared(Libp2pExtendedPeerRecord, 1))
+  fillExtendedPeerRecord(resPtr[], record)
+
+  ok(resPtr)
+
+proc buildRandomRecordsResult*(
     records: seq[ExtendedPeerRecord]
 ): Result[ptr RandomRecordsResult, string] =
   let resPtr = cast[ptr RandomRecordsResult](createShared(RandomRecordsResult, 1))
@@ -214,21 +244,8 @@ proc buildRandomRecordsResult(
   ))
   let arr = cast[ptr UncheckedArray[Libp2pExtendedPeerRecord]](resPtr[].records)
 
-  try:
-    for i, record in records:
-      arr[i].peerId = ($record.peerId).alloc()
-      arr[i].seqNo = record.seqNo
-
-      let addrs = record.addresses.mapIt($it.address)
-      arr[i].addrsLen = addrs.len.csize_t
-      arr[i].addrs = allocCStringArrayFromSeq(addrs)
-
-      let services = record.services
-      arr[i].servicesLen = services.len.csize_t
-      arr[i].services = allocServiceInfoArrayFromSeq(services)
-  except LPError as exc:
-    deallocRandomRecordsResult(resPtr)
-    return err(exc.msg)
+  for i, record in records:
+    fillExtendedPeerRecord(arr[i], record)
 
   ok(resPtr)
 
@@ -358,6 +375,6 @@ proc processRandomRecords*(
     return err("ServiceDiscovery is not mounted")
 
   let disco = ServiceDiscovery(kad)
-  let records = await disco.randomRecords()
+  let records = await disco.lookupRandom()
 
   buildRandomRecordsResult(records)

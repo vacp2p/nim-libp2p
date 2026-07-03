@@ -17,11 +17,12 @@ jobs:
   codecov:
     name: Run coverage and upload to codecov
     runs-on: ubuntu-22.04
+    timeout-minutes: 55
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
       CICOV: YES
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -31,18 +32,29 @@ jobs:
           os: linux
           cpu: amd64
           shell: bash
+          nim_ref: v2.2.10
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+          # Keep this in sync with ci.yml's cache key so entries are
+          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
+
+      - name: Restore build cache
+        uses: actions/cache@v5
+        with:
+          path: nimcache
+          key: ${{ github.ref_name }}-nimcache-coverage-linux-amd64-gcc-2.2.10
+          restore-keys: |
+            master-nimcache-coverage-linux-amd64-gcc-2.2.10
 
       - name: Setup coverage
         run: |
@@ -50,10 +62,14 @@ jobs:
           sudo apt-get install -y lcov build-essential git curl
           mkdir coverage
 
-      - name: Run test suite with coverage flags
+      - name: Build test_all
         run: |
-          export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          nimble test
+          NIMFLAGS="--nimcache:nimcache/test_all --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage --threads:on --skipUserCfg"
+          nim c $NIMFLAGS ./tests/test_all
+
+      - name: Run tests
+        run: |
+          ./tests/test_all
 
       - name: Run coverage
         run: |

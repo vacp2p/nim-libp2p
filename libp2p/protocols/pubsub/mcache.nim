@@ -18,7 +18,7 @@ type
     msgs*: Table[MessageId, Message]
     history*: seq[seq[CacheEntry]]
     pos*: int
-    windowSize*: Natural
+    windowSize*: int
 
 func get*(c: MCache, msgId: MessageId): Opt[Message] =
   if msgId in c.msgs:
@@ -40,11 +40,13 @@ func put*(c: var MCache, msgId: MessageId, msg: Message) =
 func window*(c: MCache, topic: string): HashSet[MessageId] =
   let len = min(c.windowSize, c.history.len)
 
+  var msgIds: HashSet[MessageId]
   for i in 0 ..< len:
     # Work backwards from `pos` in the circular buffer
     for entry in c.history[(c.pos + c.history.len - i) mod c.history.len]:
       if entry.topic == topic:
-        result.incl(entry.msgId)
+        msgIds.incl(entry.msgId)
+  msgIds
 
 func shift*(c: var MCache) =
   # Shift circular buffer to write to a new position, clearing it from past
@@ -56,5 +58,8 @@ func shift*(c: var MCache) =
 
   reset(c.history[c.pos])
 
-func init*(T: type MCache, window, history: Natural): T =
+func init*(T: type MCache, window, history: int): T =
+  doAssert history > 0, "history must be > 0"
+  doAssert window >= 0, "window must be >= 0"
+
   T(history: newSeq[seq[CacheEntry]](history), windowSize: window)

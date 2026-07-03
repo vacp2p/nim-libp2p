@@ -4,15 +4,21 @@
 {.used.}
 
 import std/[sequtils, net], stew/byteutils
-import ../../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
-import ../../tools/[unittest]
+import protobuf_serialization
+import ../../../libp2p/[multicodec, multiaddress, peerid, protobuf/minprotobuf]
+import ../../tools/[unittest, multiaddress]
 
 {.push raises: [].}
 
-type PatternVector = object
-  pattern: MaPattern
-  good: seq[string]
-  bad: seq[string]
+type
+  PatternVector = object
+    pattern: MaPattern
+    good: seq[string]
+    bad: seq[string]
+
+  Serializable {.proto2.} = object
+    ma {.fieldNumber: 1, required, ext.}: MultiAddress
+    addrs {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
 const
   SuccessVectors = [
@@ -144,76 +150,66 @@ const
     PatternVector(
       pattern: QUIC,
       good: @["/ip4/1.2.3.4/udp/1234/quic", "/ip6/::/udp/1234/quic"],
-      bad:
-        @[
-          "/ip4/0.0.0.0/tcp/12345/quic", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic",
-          "/quic",
-        ],
+      bad: @[
+        "/ip4/0.0.0.0/tcp/12345/quic", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic", "/quic"
+      ],
     ),
     PatternVector(
       pattern: QUIC_V1,
       good: @["/ip4/1.2.3.4/udp/1234/quic-v1", "/ip6/::/udp/1234/quic-v1"],
-      bad:
-        @[
-          "/ip4/0.0.0.0/tcp/12345/quic-v1", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic-v1",
-          "/quic-v1",
-        ],
+      bad: @[
+        "/ip4/0.0.0.0/tcp/12345/quic-v1", "/ip6/fc00::/ip4/0.0.0.0/udp/1234/quic-v1",
+        "/quic-v1",
+      ],
     ),
     PatternVector(
       pattern: IPFS,
-      good:
-        @[
-          "/ip4/1.2.3.4/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip6/::/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip6/::/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip4/0.0.0.0/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-        ],
-      bad:
-        @[
-          "/ip4/1.2.3.4/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip6/::/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/tcp/123/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip6/::/udp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ip6/::/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-          "/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-        ],
+      good: @[
+        "/ip4/1.2.3.4/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/tcp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip4/0.0.0.0/udp/1234/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+      ],
+      bad: @[
+        "/ip4/1.2.3.4/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/tcp/123/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/udp/1234/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ip6/::/utp/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+        "/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+      ],
     ),
     PatternVector(
       pattern: DNS,
-      good:
-        @[
-          "/dns/example.io", "/dnsaddr/example.io", "/dns4/example.io",
-          "/dns6/example.io",
-        ],
+      good: @[
+        "/dns/example.io", "/dnsaddr/example.io", "/dns4/example.io", "/dns6/example.io"
+      ],
       bad: @["/ip4/127.0.0.1"],
     ),
     PatternVector(
       pattern: WebRTCDirect,
-      good:
-        @[
-          "/ip4/1.2.3.4/tcp/3456/http/p2p-webrtc-direct",
-          "/ip6/::/tcp/0/http/p2p-webrtc-direct",
-        ],
+      good: @[
+        "/ip4/1.2.3.4/tcp/3456/http/p2p-webrtc-direct",
+        "/ip6/::/tcp/0/http/p2p-webrtc-direct",
+      ],
       bad:
         @["/ip4/0.0.0.0", "/ip6/fc00::", "/udp/12345", "/ip6/fc00::/tcp/5523/udp/9543"],
     ),
     PatternVector(
       pattern: HTTP,
-      good:
-        @[
-          "/ip4/1.2.3.4/http", "/dns4/example.io/http", "/dns6/::/tcp/7011/http",
-          "/dnsaddr/example.io/http", "/ip6/fc00::/http",
-        ],
+      good: @[
+        "/ip4/1.2.3.4/http", "/dns4/example.io/http", "/dns6/::/tcp/7011/http",
+        "/dnsaddr/example.io/http", "/ip6/fc00::/http",
+      ],
       bad:
         @["/ip4/1.2.3.4/https", "/ip4/0.0.0.0/tcp/12345/quic", "/ip6/fc00::/tcp/5523"],
     ),
     PatternVector(
       pattern: HTTPS,
-      good:
-        @[
-          "/ip4/1.2.3.4/https", "/dns4/example.io/https", "/dns6/::/tcp/7011/https",
-          "/ip6/fc00::/https",
-        ],
+      good: @[
+        "/ip4/1.2.3.4/https", "/dns4/example.io/https", "/dns6/::/tcp/7011/https",
+        "/ip6/fc00::/https",
+      ],
       bad: @["/ip4/1.2.3.4/http", "/ip4/0.0.0.0/tcp/12345/quic", "/ip6/fc00::/tcp/5523"],
     ),
   ]
@@ -240,6 +236,38 @@ const
     "047f000001062a2a042a8000142a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2ad52a2a2a2a2a2a2a2a2a2a50900350900302030406005090030c2f622f00000203040600030406005090030c2f612f2a622f63030406005090030c2f612f2a622f632a2a002a2a2a2a2a2a37d52a2a2a2a2a2a2a2a2a2a5090032a",
     "90030c2a04",
   ]
+
+suite "Protobuf serialization of types containing MultiAddress":
+  test "valid multiaddress":
+    let
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded == serializable
+
+  test "invalid multiaddress":
+    let
+      serializable = Serializable(ma: MultiAddress(), addrs: @[])
+      encoded = Protobuf.encode(serializable)
+
+    expect ProtobufValueError:
+      discard Protobuf.decode(encoded, Serializable)
+
+  test "decode should skip invalid multiaddresses":
+    let
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress(), MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded.ma == serializable.ma
+    check decoded.addrs[0] == serializable.addrs[1]
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":
@@ -285,6 +313,21 @@ suite "MultiAddress test suite":
         hex(a) == PathExpects[i]
         $a == PathVectors[i]
 
+  test "p2p and ipfs accept CIDv1 peer id text":
+    const legacyPeerId = "QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
+    let
+      pid = PeerId.init(legacyPeerId).tryGet()
+      cidBase32 = pid.toCidString().tryGet()
+
+    for item in [("p2p", multiCodec("p2p")), ("ipfs", multiCodec("ipfs"))]:
+      let
+        proto = item[0]
+        ma = MultiAddress.init("/" & proto & "/" & cidBase32).tryGet()
+        part = ma.getPart(item[1]).tryGet()
+      check:
+        part.protoAddress().tryGet() == pid.getBytes()
+        $ma == "/" & proto & "/" & legacyPeerId
+
   test "MultiAddress pattern matching test vectors":
     for item in PatternVectors:
       for gitem in item.good:
@@ -326,9 +369,27 @@ suite "MultiAddress test suite":
     var
       address_v4: array[4, byte]
       address_v6: array[16, byte]
+    let
+      onionMa = MultiAddress.init("/onion/timaq4ygg2iegci7:1234/http").get()
+      onionPart = onionMa.getPart(multiCodec("onion")).get()
+      onionArg = onionPart.protoAddress().get()
     check:
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
+      $onionMa == "/onion/timaq4ygg2iegci7:1234/http"
+      onionMa.protocols().get() == @[multiCodec("onion"), multiCodec("http")]
+      len(onionMa).get() == 2
+      onionArg.len == 12
+      onionArg[10] == 0x04'u8
+      onionArg[11] == 0xD2'u8
+
+  test "MultiAddress init fixed byte length validation":
+    check:
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3]).isErr()
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3, 4, 5]).isErr()
+      MultiAddress.init(multiCodec("ip4"), @[1'u8, 2, 3, 4]).isOk()
+      MultiAddress.init(multiCodec("tcp"), @[0'u8]).isErr()
+      MultiAddress.init(multiCodec("tcp"), @[0'u8, 80]).isOk()
 
   test "MultiAddress getPart":
     let ma = MultiAddress
@@ -487,6 +548,29 @@ suite "MultiAddress test suite":
       MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
     )
 
+    # DNS/IP pairs should be symmetric for the first component
+    check:
+      areAddrsConsistent(
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/dns/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+      )
+      areAddrsConsistent(
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+        MultiAddress.init("/dnsaddr/example.com/tcp/4040").get(),
+      )
+      not areAddrsConsistent(
+        MultiAddress.init("/dns4/example.com/tcp/4040").get(),
+        MultiAddress.init("/ip6/::1/tcp/4040").get(),
+      )
+
 suite "parseIpAddress":
   test "valid IPv4 addresses parse to IPv4 family":
     check parseIpAddress("1.2.3.4").family == IpAddressFamily.IPv4
@@ -537,3 +621,41 @@ suite "parseIpAddress":
       discard parseIpAddress("1.2.3.4.5")
     expect ValueError:
       discard parseIpAddress(":::1")
+
+suite "MultiAddress IP utilities":
+  test "getIp":
+    check:
+      MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get().getIp() ==
+        Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [1'u8, 2, 3, 4]))
+      MultiAddress.init("/ip6/::1/tcp/1234").get().getIp() ==
+        Opt.some(
+          IpAddress(
+            family: IpAddressFamily.IPv6,
+            address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+          )
+        )
+      MultiAddress.init("/tcp/1234").get().getIp() == Opt.none(IpAddress)
+      MultiAddress.init("/ip4/5.6.7.8/tcp/80/ws").get().getIp() ==
+        Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]))
+
+  test "replaceIp":
+    let
+      ip4 = parseIpAddress("203.0.113.7")
+      ip6 = parseIpAddress("2001:db8::1")
+    check:
+      ma("/ip4/1.2.3.4/tcp/1234").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/1234")
+      ma("/ip4/1.2.3.4/tcp/80/ws").replaceIp(ip4).get == ma(
+        "/ip4/203.0.113.7/tcp/80/ws"
+      )
+      ma("/ip4/1.2.3.4/tcp/80/wss").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/tcp/80/wss")
+      ma("/ip4/1.2.3.4/tcp/80/tls/ws").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/tcp/80/tls/ws")
+      ma("/ip4/1.2.3.4/udp/9000/quic-v1").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/udp/9000/quic-v1")
+      ma("/ip6/::1/tcp/1234").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/1234")
+      # cross-family swap (IPv6 -> IPv4 and vice versa)
+      ma("/ip6/::/tcp/80/ws").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/80/ws")
+      ma("/ip4/0.0.0.0/tcp/80").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/80")
+      # no IP component
+      ma("/unix/tmp/sock").replaceIp(ip4).isErr

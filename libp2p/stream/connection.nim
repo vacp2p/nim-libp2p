@@ -33,6 +33,12 @@ type
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
+  ## Semantic aliases for stream endpoints at different stages of the stack.
+  ## These are aliases, not distinct types.
+  Stream* = Connection
+  RawConn* = Stream
+  MuxedStream* = Stream
+
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
 method closeWrite*(s: Connection): Future[void] {.base, async: (raises: []).} =
@@ -54,6 +60,12 @@ chronicles.formatIt(Connection):
   shortLog(it)
 
 declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
+
+when defined(libp2p_agents_metrics):
+  declarePublicGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
+  declarePublicCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
+  declarePublicCounter libp2p_peers_traffic_write,
+    "outgoing traffic", labels = ["agent"]
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:
@@ -148,7 +160,7 @@ proc new*(
     timeout: Duration = DefaultConnectionTimeout,
     timeoutHandler: TimeoutHandler = nil,
 ): Connection =
-  result = C(
+  let conn = C(
     peerId: peerId,
     dir: dir,
     timeout: timeout,
@@ -157,4 +169,5 @@ proc new*(
     localAddr: localAddr,
   )
 
-  result.initStream()
+  conn.initStream()
+  conn

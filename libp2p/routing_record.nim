@@ -7,70 +7,22 @@
 
 import std/[sequtils, times]
 import pkg/results
-import multiaddress, multicodec, peerid, protobuf/minprotobuf, signed_envelope
+import multiaddress, multicodec, peerid, signed_envelope
+import protobuf_serialization
+import utils/protobuf
 
 export peerid, multiaddress, signed_envelope
 
 type
-  AddressInfo* = object
-    address*: MultiAddress
+  AddressInfo* {.proto2.} = object
+    address* {.fieldNumber: 1, required, ext.}: MultiAddress
 
-  PeerRecord* = object
-    peerId*: PeerId
-    seqNo*: uint64
-    addresses*: seq[AddressInfo]
+  PeerRecord* {.proto2.} = object
+    peerId* {.fieldNumber: 1, required, ext.}: PeerId
+    seqNo* {.fieldNumber: 2, required, pint.}: uint64
+    addresses* {.fieldNumber: 3.}: seq[AddressInfo]
 
-proc decode*(
-    T: typedesc[AddressInfo], buffer: seq[byte]
-): Result[AddressInfo, ProtoError] =
-  let pb = initProtoBuffer(buffer)
-  var addInfo = AddressInfo()
-
-  ?pb.getRequiredField(1, addInfo.address)
-
-  ok(addInfo)
-
-proc decode*(
-    T: typedesc[PeerRecord], buffer: seq[byte]
-): Result[PeerRecord, ProtoError] =
-  let pb = initProtoBuffer(buffer)
-  var record = PeerRecord()
-
-  ?pb.getRequiredField(1, record.peerId)
-  ?pb.getRequiredField(2, record.seqNo)
-
-  var addressInfos: seq[seq[byte]]
-  if ?pb.getRepeatedField(3, addressInfos):
-    for addressBuf in addressInfos:
-      let addressInfo = AddressInfo.decode(addressBuf).valueOr:
-        continue
-
-      record.addresses &= addressInfo
-
-    if record.addresses.len == 0:
-      return err(ProtoError.RequiredFieldMissing)
-
-  ok(record)
-
-proc encode*(addrInfo: AddressInfo): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, addrInfo.address)
-
-  pb.finish()
-  pb.buffer
-
-proc encode*(record: PeerRecord): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, record.peerId)
-  pb.write(2, record.seqNo)
-
-  for address in record.addresses:
-    pb.write(3, address.encode())
-
-  pb.finish()
-  pb.buffer
+Protobuf.serializerFor([PeerRecord])
 
 proc init*(
     T: typedesc[PeerRecord],

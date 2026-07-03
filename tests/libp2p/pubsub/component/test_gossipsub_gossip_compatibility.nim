@@ -24,11 +24,11 @@ suite "GossipSub Component - Compatibility":
           # multistream protocol negotiation selects the first protocol
           # in the dialer's list that both peers support
       )
-      .toGossipSub()[0]
+        .toGossipSub()[0]
       node1 = generateNodes(
         1, gossip = true, codecs = @[GossipSubCodec_11, GossipSubCodec_10]
       )
-      .toGossipSub()[0]
+        .toGossipSub()[0]
       node2 =
         generateNodes(1, gossip = true, codecs = @[GossipSubCodec_10]).toGossipSub()[0]
       nodes = @[node0, node1, node2]
@@ -62,7 +62,7 @@ suite "GossipSub Component - Compatibility":
       nodeCodec11 = generateNodes(
         1, gossip = true, codecs = @[GossipSubCodec_11, GossipSubCodec_10]
       )
-      .toGossipSub()[0]
+        .toGossipSub()[0]
 
     nodes &= nodeCodec11
 

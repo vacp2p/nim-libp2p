@@ -23,20 +23,19 @@ suite "PeerID Auth":
     checkTrackers()
 
   asyncSetup:
-    client = PeerIDAuthClient.new(rng)
-    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
+    client = PeerIDAuthClient.new(rng())
+    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng()).get())
 
   asyncTest "test peerID send":
-    let payload =
-      %*{
-        "identifiers": [
-          {
-            "type": "dns",
-            "value":
-              "*.k51qzi5uqu5dj8c5nhiw2oceam0uebustsj7s36kjxwtscngp0y126o3b95mh9.libp2p.direct",
-          }
-        ]
-      }
+    let payload = %*{
+      "identifiers": [
+        {
+          "type": "dns",
+          "value":
+            "*.k51qzi5uqu5dj8c5nhiw2oceam0uebustsj7s36kjxwtscngp0y126o3b95mh9.libp2p.direct",
+        }
+      ]
+    }
 
     let (bearer, responseWithoutBearer) =
       await client.send(parseUri(AuthPeerURL), peerInfo, payload)

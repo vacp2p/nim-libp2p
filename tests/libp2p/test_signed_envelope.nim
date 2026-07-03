@@ -10,14 +10,14 @@ import ../tools/[unittest, crypto]
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       envelope =
         Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
-      buffer = envelope.encode().tryGet()
+      buffer = envelope.encode()
       decodedEnvelope = Envelope.decode(buffer, "domain").tryGet()
       wrongDomain = Envelope.decode(buffer, "wdomain")
 
-      reencodedEnvelope = decodedEnvelope.encode().tryGet()
+      reencodedEnvelope = decodedEnvelope.encode()
       redecodedEnvelope = Envelope.decode(reencodedEnvelope, "domain").tryGet()
 
     check:
@@ -70,10 +70,10 @@ proc payloadType*(T: typedesc[DummyPayload]): seq[byte] =
 suite "Signed payload":
   test "Simple encode -> decode":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
       decoded = SignedDummy.decode(encoded).tryGet()
 
     check:
@@ -82,20 +82,20 @@ suite "Signed payload":
 
   test "Invalid payload":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
 
     check SignedDummy.decode(encoded).error == EnvelopeInvalidSignature
 
   test "Invalid payload type":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = Envelope
         .init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain)
         .tryGet()
-      encoded = signed.encode().tryGet()
+      encoded = signed.encode()
 
     check SignedDummy.decode(encoded).error == EnvelopeWrongType

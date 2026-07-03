@@ -6,8 +6,7 @@ import strformat, strutils, stew/byteutils, chronos, libp2p
 
 const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
 
-const Help =
-  """
+const Help = """
   Commands: /[?|help|connect|disconnect|exit]
   help: Prints this help
   connect: dials a remote peer
@@ -18,7 +17,7 @@ const Help =
 type Chat = ref object
   switch: Switch # a single entry point for dialing and listening to peer
   stdinReader: StreamTransport # transport streams between read & write file descriptor
-  conn: Connection # connection to the other peer
+  stream: Stream # stream to the other peer
   connected: bool # if the node is connected to another peer
 
 ##
@@ -43,10 +42,10 @@ type ChatProto = ref object of LPProtocol
 proc new(T: typedesc[ChatProto], c: Chat): T =
   let chatproto = T()
 
-  # create handler for incoming connection
-  proc handle(stream: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  # create handler for incoming stream
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      if c.connected and not c.conn.closed:
+      if c.connected and not c.stream.closed:
         c.writeStdout "a chat session is already in progress - refusing incoming peer!"
       else:
         await c.handlePeer(stream)
@@ -64,24 +63,24 @@ proc new(T: typedesc[ChatProto], c: Chat): T =
 # Chat application
 ##
 proc handlePeer(
-    c: Chat, conn: Connection
+    c: Chat, stream: Stream
 ) {.async: (raises: [CancelledError, IOError]).} =
   # Handle a peer (incoming or outgoing)
   try:
-    c.conn = conn
+    c.stream = stream
     c.connected = true
-    c.writeStdout $conn.peerId & " connected"
+    c.writeStdout $stream.peerId & " connected"
 
     # Read loop
     while true:
       let
-        strData = await conn.readLp(1024)
+        strData = await stream.readLp(1024)
         str = string.fromBytes(strData)
-      c.writeStdout $conn.peerId & ": " & $str
+      c.writeStdout $stream.peerId & ": " & $str
   except LPStreamError:
     defer:
-      c.writeStdout $conn.peerId & " disconnected"
-    await c.conn.close()
+      c.writeStdout $stream.peerId & " disconnected"
+    await c.stream.close()
     c.connected = false
 
 proc dialPeer(c: Chat, address: string) {.async.} =
@@ -114,8 +113,8 @@ proc readLoop(c: Chat) {.async.} =
 
     if line.startsWith("/disconnect"):
       c.writeStdout "Ending current session"
-      if c.connected and c.conn.closed.not:
-        await c.conn.close()
+      if c.connected and c.stream.closed.not:
+        await c.stream.close()
       c.connected = false
     elif line.startsWith("/connect"):
       c.writeStdout "enter address of remote peer"
@@ -123,8 +122,8 @@ proc readLoop(c: Chat) {.async.} =
       if address.len > 0:
         await c.dialPeer(address)
     elif line.startsWith("/exit"):
-      if c.connected and c.conn.closed.not:
-        await c.conn.close()
+      if c.connected and c.stream.closed.not:
+        await c.stream.close()
         c.connected = false
 
       await c.switch.stop()
@@ -132,7 +131,7 @@ proc readLoop(c: Chat) {.async.} =
       return
     else:
       if c.connected:
-        await c.conn.writeLp(line)
+        await c.stream.writeLp(line)
       else:
         if line.startsWith("/") and "p2p" in line:
           await c.dialPeer(line)

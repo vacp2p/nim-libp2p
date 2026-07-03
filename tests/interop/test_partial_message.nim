@@ -7,14 +7,14 @@ import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, wire]
 import ../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
 import ../libp2p/pubsub/extensions/my_partial_message
-import ../tools/[crypto, unittest]
+import ../tools/[crypto, unittest, multiaddress]
 import ./partial_message
 
 proc createOtherPeer(): tuple[switch: Switch, gossipsub: GossipSub] =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+    .withAddresses(@[TcpAutoAddress])
     .withTcpTransport()
     .withMplex()
     .withNoise()
@@ -32,6 +32,7 @@ proc createOtherPeer(): tuple[switch: Switch, gossipsub: GossipSub] =
 
   var gossipsub = GossipSub.init(
     switch = switch,
+    rng = rng(),
     parameters = (
       var param = GossipSubParams.init()
       param.partialMessageExtensionConfig = Opt.some(
@@ -119,7 +120,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
 
   asyncTest "Fails when peer is unreachable":
     const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     expect DialFailedError:
       discard

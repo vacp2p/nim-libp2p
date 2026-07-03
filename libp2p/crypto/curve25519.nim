@@ -11,9 +11,10 @@
 
 {.push raises: [].}
 
-import bearssl/[ec, rand]
+import bearssl/ec
 import results
 from stew/assign2 import assign
+import rng
 export results
 
 const Curve25519KeySize* = 32
@@ -26,12 +27,14 @@ type
 
 proc intoCurve25519Key*(s: openArray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
-  assign(result, s)
+  var key: Curve25519Key
+  assign(key, s)
+  key
 
 proc getBytes*(key: Curve25519Key): seq[byte] =
   @key
 
-proc byteswap(buf: var Curve25519Key) {.inline.} =
+proc byteswap(buf: var Curve25519Key) =
   for i in 0 ..< 16:
     let x = buf[i]
     buf[i] = buf[31 - i]
@@ -64,14 +67,14 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
   assert size == Curve25519KeySize
 
 proc public*(private: Curve25519Key): Curve25519Key =
-  Curve25519.mulgen(result, private)
+  var key: Curve25519Key
+  Curve25519.mulgen(key, private)
+  key
 
-proc random*(_: type[Curve25519Key], rng: var HmacDrbgContext): Curve25519Key =
+proc random*(_: type[Curve25519Key], rng: Rng): Curve25519Key =
   var res: Curve25519Key
   let defaultBrEc = ecGetDefault()
-  let len = ecKeygen(
-    PrngClassPointerConst(addr rng.vtable), defaultBrEc, nil, addr res[0], EC_curve25519
-  )
+  let len = ecKeygen(bearSslPrng(rng), defaultBrEc, nil, addr res[0], EC_curve25519)
   # Per bearssl documentation, the keygen only fails if the curve is
   # unrecognised -
   doAssert len == Curve25519KeySize, "Could not generate curve"

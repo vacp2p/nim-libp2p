@@ -7,90 +7,32 @@
 
 import std/[sequtils, times, hashes]
 import pkg/results
-import
-  multiaddress,
-  multicodec,
-  peerid,
-  protobuf/minprotobuf,
-  signed_envelope,
-  routing_record
+import protobuf_serialization, protobuf_serialization/pkg/results
+import multiaddress, multicodec, peerid, signed_envelope, routing_record, utils/protobuf
 
 export peerid, multiaddress, signed_envelope
 
+const
+  ## Maximum allowed size (in bytes) for the `data` field inside a `ServiceInfo`.
+  ## Larger values are rejected at advertisement creation and on receipt.
+  MaxServiceDataSize* = 33
+
+  ## Maximum allowed size (in bytes) for an encoded `SignedExtendedPeerRecord`
+  ## (the full XPR advertisement that is stored and gossiped for a service).
+  MaxXPRSize* = 1024
+
 type
-  ServiceInfo* = object
-    id*: string
-    data*: seq[byte]
+  ServiceInfo* {.proto2.} = object
+    id* {.fieldNumber: 1, required.}: string
+    data* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  ExtendedPeerRecord* = object
-    peerId*: PeerId
-    seqNo*: uint64
-    addresses*: seq[AddressInfo]
-    services*: seq[ServiceInfo]
+  ExtendedPeerRecord* {.proto2.} = object
+    peerId* {.fieldNumber: 1, required, ext.}: PeerId
+    seqNo* {.fieldNumber: 2, required, pint.}: uint64
+    addresses* {.fieldNumber: 3.}: seq[AddressInfo]
+    services* {.fieldNumber: 4.}: seq[ServiceInfo]
 
-proc decode*(
-    T: typedesc[ServiceInfo], buffer: seq[byte]
-): Result[ServiceInfo, ProtoError] =
-  var pb = initProtoBuffer(buffer)
-  var servInf = ServiceInfo()
-
-  ?pb.getRequiredField(1, servInf.id)
-  discard ?pb.getField(2, servInf.data)
-
-  ok(servInf)
-
-proc decode*(
-    T: typedesc[ExtendedPeerRecord], buffer: seq[byte]
-): Result[ExtendedPeerRecord, ProtoError] =
-  var pb = initProtoBuffer(buffer)
-  var record = ExtendedPeerRecord()
-
-  ?pb.getRequiredField(1, record.peerId)
-  ?pb.getRequiredField(2, record.seqNo)
-
-  var addressInfos: seq[seq[byte]]
-  if ?pb.getRepeatedField(3, addressInfos):
-    for addressBuf in addressInfos:
-      let addressInfo = AddressInfo.decode(addressBuf).valueOr:
-        continue
-
-      record.addresses &= addressInfo
-
-    if record.addresses.len == 0:
-      return err(ProtoError.RequiredFieldMissing)
-
-  var serviceInfos: seq[seq[byte]]
-  if ?pb.getRepeatedField(4, serviceInfos):
-    for serviceBuf in serviceInfos:
-      record.services &= ?ServiceInfo.decode(serviceBuf)
-
-  ok(record)
-
-proc encode*(servInfo: ServiceInfo): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, servInfo.id)
-
-  if servInfo.data.len > 0:
-    pb.write(2, servInfo.data)
-
-  pb.finish()
-  return pb.buffer
-
-proc encode*(record: ExtendedPeerRecord): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, record.peerId)
-  pb.write(2, record.seqNo)
-
-  for address in record.addresses:
-    pb.write(3, address.encode())
-
-  for service in record.services:
-    pb.write(4, service.encode())
-
-  pb.finish()
-  return pb.buffer
+Protobuf.serializerFor([ExtendedPeerRecord])
 
 proc init*(
     T: typedesc[ExtendedPeerRecord],
@@ -120,6 +62,37 @@ proc checkValid*(spr: SignedExtendedPeerRecord): Result[void, EnvelopeError] =
     err(EnvelopeInvalidSignature)
   else:
     ok()
+
+proc isValid*(si: ServiceInfo): bool =
+  si.data.get(@[]).len <= MaxServiceDataSize
+
+proc isValid*(xpr: SignedExtendedPeerRecord): bool =
+  for svc in xpr.data.services:
+    if not svc.isValid():
+      return false
+  let encoded = xpr.encode()
+  if encoded.len == 0 or encoded.len > MaxXPRSize:
+    return false
+  true
+
+proc build*(
+    T: typedesc[SignedExtendedPeerRecord],
+    privateKey: PrivateKey,
+    record: ExtendedPeerRecord,
+): Result[SignedExtendedPeerRecord, string] =
+  for svc in record.services:
+    if not svc.isValid():
+      return err(
+        "ServiceInfo.data exceeds maximum size of " & $MaxServiceDataSize & " bytes"
+      )
+
+  let signed = SignedExtendedPeerRecord.init(privateKey, record).valueOr:
+    return err("failed to create signed extended peer record: " & $error)
+
+  if not signed.isValid():
+    return err("encoded XPR exceeds maximum size of " & $MaxXPRSize & " bytes")
+
+  ok(signed)
 
 # This is for internal use only
 proc hash*(service: ServiceInfo): Hash =

@@ -7,9 +7,8 @@
 {.used.}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint, results, utility
+import multibase, multicodec, multihash, vbuffer, varint, results
 import stew/base58
-import ./utils/sequninit
 
 export results
 
@@ -76,6 +75,7 @@ proc initCidCodeTable(
   return res
 
 when libp2p_contentids_exts != "":
+  import utils/macroutils
   includeFile(libp2p_contentids_exts)
   const CodeContentIds = initCidCodeTable(@ContentIdsList & @ContentIdsExts)
 else:
@@ -174,7 +174,7 @@ proc validate*(ctype: typedesc[Cid], data: openArray[byte]): bool =
     return false
   if not MultiHash.validate(data.toOpenArray(offset, last)):
     return false
-  result = true
+  true
 
 proc mhash*(cid: Cid): Result[MultiHash, CidError] =
   ## Returns MultiHash part of CID.
@@ -194,7 +194,7 @@ proc contentType*(cid: Cid): Result[MultiCodec, CidError] =
 
 proc version*(cid: Cid): CidVersion =
   ## Returns CID version
-  result = cid.cidver
+  cid.cidver
 
 proc init*[T: char | byte](
     ctype: typedesc[Cid], data: openArray[T]
@@ -250,29 +250,31 @@ proc `==`*(a: Cid, b: Cid): bool =
       return false
     if MultiHash.decode(b.data.buffer.toOpenArray(b.hpos, b.data.high), bh).isErr:
       return false
-    result = (ah == bh)
+    return ah == bh
+  false
 
 proc base58*(cid: Cid): string =
   ## Get BASE58 encoded string representation of content identifier ``cid``.
-  result = BTCBase58.encode(cid.data.buffer)
+  BTCBase58.encode(cid.data.buffer)
 
 proc hex*(cid: Cid): string =
   ## Get hexadecimal string representation of content identifier ``cid``.
-  result = $(cid.data)
+  $(cid.data)
 
 proc repr*(cid: Cid): string =
   ## Get string representation of content identifier ``cid``.
-  result = $(cid.cidver)
-  result.add("/")
-  result.add($(cid.mcodec))
-  result.add("/")
-  result.add($(cid.mhash()))
+  var s = $(cid.cidver)
+  s.add("/")
+  s.add($(cid.mcodec))
+  s.add("/")
+  s.add($(cid.mhash()))
+  s
 
-proc write*(vb: var VBuffer, cid: Cid) {.inline.} =
+proc write*(vb: var VBuffer, cid: Cid) =
   ## Write CID value ``cid`` to buffer ``vb``.
   vb.writeArray(cid.data.buffer)
 
-proc hash*(cid: Cid): Hash {.inline.} =
+proc hash*(cid: Cid): Hash =
   hash(cid.data.buffer)
 
 proc `$`*(cid: Cid): string =

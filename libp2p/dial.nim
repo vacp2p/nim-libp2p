@@ -5,7 +5,7 @@
 
 import chronos
 import results
-import peerid, stream/connection, transports/transport, muxers/muxer
+import peerid, stream/connection, transports/transport
 
 export results
 
@@ -36,28 +36,12 @@ method connect*(
 
 method dial*(
     self: Dial, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.base, async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream over an
   ## existing connection
   ##
 
   doAssert(false, "[Dial.dial] abstract method not implemented!")
-
-method dialAndUpgrade*(
-    self: Dial,
-    peerId: Opt[PeerId],
-    hostname: string,
-    addrs: MultiAddress,
-    dir = Direction.Out,
-): Future[Muxer] {.base, async: (raises: [CancelledError]).} =
-  doAssert(false, "[Dial.dialAndUpgrade] abstract method not implemented!")
-
-method dialAndUpgrade*(
-    self: Dial, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
-): Future[Muxer] {.
-    base, async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
-.} =
-  doAssert(false, "[Dial.dialAndUpgrade] abstract method not implemented!")
 
 method dial*(
     self: Dial,
@@ -65,7 +49,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.base, async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.base, async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
@@ -74,15 +58,3 @@ method dial*(
 
 method addTransport*(self: Dial, transport: Transport) {.base.} =
   doAssert(false, "[Dial.addTransport] abstract method not implemented!")
-
-method negotiateStream*(
-    self: Dial, conn: Connection, protos: seq[string]
-): Future[Connection] {.base, async: (raises: [CatchableError]).} =
-  doAssert(false, "[Dial.negotiateStream] abstract method not implemented!")
-
-method tryDial*(
-    self: Dial, peerId: PeerId, addrs: seq[MultiAddress]
-): Future[Opt[MultiAddress]] {.
-    base, async: (raises: [DialFailedError, CancelledError])
-.} =
-  doAssert(false, "[Dial.tryDial] abstract method not implemented!")

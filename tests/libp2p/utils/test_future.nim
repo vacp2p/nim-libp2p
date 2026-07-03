@@ -91,8 +91,89 @@ suite "Future":
     check f1.completed()
     check f2.failed()
 
-    # cancelSoon on already-finished futures should not raise or change state
     @[f1, f2].cancelSoon()
 
     check f1.completed()
     check f2.failed()
+
+  asyncTest "cancelAndWait cancels pending futures":
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    var f3 = newFuture[void]()
+
+    check not f1.finished()
+    check not f2.finished()
+    check not f3.finished()
+
+    await @[f1, f2, f3].cancelAndWait()
+
+    check f1.cancelled()
+    check f2.cancelled()
+    check f3.cancelled()
+
+  asyncTest "cancelAndWait is no-op for completed futures":
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    f1.complete()
+    f2.fail(newException(CatchableError, "error"))
+
+    check f1.completed()
+    check f2.failed()
+
+    await @[f1, f2].cancelAndWait()
+
+    check f1.completed()
+    check f2.failed()
+
+  asyncTest "allFuturesWaitOrTimeout completes all futures within timeout":
+    proc work() {.async.} =
+      await sleepAsync(10.milliseconds)
+
+    let futs = @[work(), work(), work()]
+    await futs.allFuturesWaitOrTimeout(500.milliseconds)
+    for f in futs:
+      check f.completed()
+
+  asyncTest "allFuturesWaitOrTimeout does not raise on timeout":
+    proc slow() {.async.} =
+      await sleepAsync(10.seconds)
+
+    let futs = @[slow(), slow()]
+    await futs.allFuturesWaitOrTimeout(10.milliseconds)
+
+  asyncTest "allFuturesWaitOrTimeout handles empty sequence":
+    await newSeq[Future[void]]().allFuturesWaitOrTimeout(100.milliseconds)
+
+  asyncTest "completeOnce completes a pending Future[void]":
+    var f = newFuture[void]()
+    check not f.finished()
+    f.completeOnce()
+    check f.completed()
+
+  asyncTest "completeOnce completes a pending Future[T] with a value":
+    var f = newFuture[int]()
+    check not f.finished()
+    f.completeOnce(42)
+    check f.completed()
+    check (await f) == 42
+
+  asyncTest "completeOnce is no-op for already-completed futures":
+    var f = newFuture[void]()
+    f.complete()
+    check f.completed()
+    f.completeOnce()
+    check f.completed()
+
+  asyncTest "completeOnce is no-op for failed futures":
+    var f = newFuture[void]()
+    f.fail(newException(CatchableError, "error"))
+    check f.failed()
+    f.completeOnce()
+    check f.failed()
+
+  asyncTest "completeOnce is no-op for cancelled futures":
+    var f = newFuture[void]()
+    await f.cancelAndWait()
+    check f.cancelled()
+    f.completeOnce()
+    check f.cancelled()

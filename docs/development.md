@@ -63,7 +63,6 @@ nimble test
 # - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
 nimble testpath quic
 nimble testpath transports/test_ws
-nimble testpath mix
 # etc ...
 
 # run specific test suites
@@ -90,7 +89,7 @@ nim c -r tests/tools/test_multiaddress.nim
 
 nim-libp2p uses [nph](https://github.com/arnetheduck/nph) to format code.
 
-Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
+Do `nimble install nph@v0.7.0` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
 
 ## Logs
 

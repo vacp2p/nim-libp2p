@@ -21,7 +21,7 @@ import
   ../../stream/connection,
   ../../peerinfo,
   ../../peerid,
-  ../../utility,
+  ../../utils/[opt, shortlog, collections],
   ../../switch
 import
   ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
@@ -39,6 +39,10 @@ declareCounter(
   "number of invalid topic subscriptions that happened",
 )
 declareCounter(
+  libp2p_gossipsub_over_topics_high_subscription,
+  "number of subscriptions rejected for exceeding topicsHigh",
+)
+declareCounter(
   libp2p_gossipsub_duplicate_during_validation,
   "number of duplicates received during message validation",
 )
@@ -52,6 +56,8 @@ declareCounter(
 )
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+
+const SubscriptionFloodPenalty = 0.1 ## behaviour penalty for subscription abuse
 
 when defined(libp2p_expensive_metrics):
   declareCounter(
@@ -90,7 +96,7 @@ proc init*(
     appSpecificWeight = 0.0,
     ipColocationFactorWeight = 0.0,
     ipColocationFactorThreshold = 1.0,
-    slowPeerPenaltyWeight = -0.05,
+    slowPeerPenaltyWeight = 0.0,
     slowPeerPenaltyThreshold = 2.0,
     slowPeerPenaltyDecay = 0.2,
     behaviourPenaltyWeight = -1.0,
@@ -104,33 +110,11 @@ proc init*(
     maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
     maxLowPriorityQueueLen = DefaultMaxLowPriorityQueueLen,
-    maxNumElementsInNonPriorityQueue: int = -1,
-      # Deprecated: use maxMediumPriorityQueueLen and maxLowPriorityQueueLen instead.
     sendIDontWantOnPublish = false,
     testExtensionConfig = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
     pingpongExtensionConfig = Opt.none(PingPongExtensionConfig),
 ): GossipSubParams =
-  if maxNumElementsInNonPriorityQueue >= 0:
-    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
-
-  let resolvedMaxMediumPriorityQueueLen =
-    if maxNumElementsInNonPriorityQueue >= 0 and
-        maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
-      maxNumElementsInNonPriorityQueue
-    else:
-      maxMediumPriorityQueueLen
-
-  let resolvedMaxLowPriorityQueueLen =
-    if maxNumElementsInNonPriorityQueue >= 0 and
-        maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
-      maxNumElementsInNonPriorityQueue
-    else:
-      maxLowPriorityQueueLen
-
-  let deprecatedMaxNumElementsInNonPriorityQueue =
-    if maxNumElementsInNonPriorityQueue >= 0: maxNumElementsInNonPriorityQueue else: 0
-
   GossipSubParams(
     explicit: true,
     pruneBackoff: pruneBackoff,
@@ -170,9 +154,8 @@ proc init*(
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,
-    maxMediumPriorityQueueLen: resolvedMaxMediumPriorityQueueLen,
-    maxLowPriorityQueueLen: resolvedMaxLowPriorityQueueLen,
-    maxNumElementsInNonPriorityQueue: deprecatedMaxNumElementsInNonPriorityQueue,
+    maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen: maxLowPriorityQueueLen,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
@@ -188,6 +171,10 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: gossipThreshold parameter error, Must be < 0")
   elif parameters.unsubscribeBackoff.seconds <= 0:
     err("gossipsub: unsubscribeBackoff parameter error, Must be > 0 seconds")
+  elif parameters.historyLength <= 0:
+    err("gossipsub: historyLength parameter error, Must be > 0")
+  elif parameters.historyGossip < 0:
+    err("gossipsub: historyGossip parameter error, Must be >= 0")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:
@@ -258,15 +245,15 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     ok()
 
 method init*(g: GossipSub) =
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handler(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
-      await g.handleConn(conn, proto)
+      await g.handleConn(stream, proto)
     except CancelledError as exc:
-      trace "gossipsub handler cancelled", conn
+      trace "gossipsub handler cancelled", stream
       raise exc
 
   g.handler = handler
@@ -284,30 +271,23 @@ proc usesExtensions(g: GossipSub): bool =
     g.parameters.preambleExtensionConfig.isSome()
 
 proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
-  proc send() =
-    g.extensionsState.addPeer(peer.peerId)
-    g.send(
-      peer,
-      RPCMsg.withControl(
-        ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
-      ),
-      MessagePriority.High, # must be the first message on the stream
-    )
+  # Called from StreamOpened where codec is always set from the negotiated connection.
+  doAssert peer.codec != "", "sendExtensionsControl requires codec to be negotiated"
 
-  # before extensions control is sent, node needs to known if peer actually supports
-  # version of gossipsub that supports extensions (in general). 
-  # only then node should send extensions control message.
+  if not gossipExtensionsSupported(peer.codec):
+    return
 
-  # it's very likely that codecs will not be set at this point as connection was 
-  # not established and details of negotiated protocol (codecs) are not known.
-  # in this case node needs to wait for connection to be established or 
-  # more precisely for codecs to be initialized.
-  proc sendAfterCodecInitialized(): Future[void] {.async: (raises: [CancelledError]).} =
-    await peer.codecInitializedFut
-    if gossipExtensionsSupported(peer.codec):
-      send()
+  if g.extensionsState.isControlSent(peer.peerId):
+    return
 
-  asyncSpawn sendAfterCodecInitialized()
+  g.extensionsState.addPeer(peer.peerId)
+  g.send(
+    peer,
+    RPCMsg.withControl(
+      ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
+    ),
+    MessagePriority.High, # must be the first message on the stream
+  )
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
@@ -323,17 +303,13 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
 
-  if g.usesExtensions():
-    # if gossipsub uses extensions it must send 
-    # extensions control message as first message on the stream
-    g.sendExtensionsControl(peer)
-
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
 ) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.StreamOpened:
-    discard
+    if p.usesExtensions():
+      p.sendExtensionsControl(peer)
   of PubSubPeerEventKind.StreamClosed:
     # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
@@ -344,7 +320,7 @@ method onPubSubPeerEvent*(
     for _, peers in p.fanout.mpairs():
       peers.excl(peer)
   of PubSubPeerEventKind.DisconnectionRequested:
-    asyncSpawn p.disconnectPeer(peer) # this should unsubscribePeer the peer too
+    p.pendingTasks.trackFut(p.disconnectPeer(peer)) # disconnectPeer also unsubscribes
 
   procCall FloodSub(p).onPubSubPeerEvent(peer, event)
 
@@ -382,13 +358,15 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopSendNonHighPriorityTask()
+  pubSubPeer.stopTasks()
 
   g.extensionsState.removePeer(peer)
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
+proc handleSubscribe(
+    g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool
+): bool =
   logScope:
     peer
     topic
@@ -400,18 +378,24 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
     # and eventually remove this workaround
     if peer.peerId notin g.peers:
       trace "ignoring unknown peer"
-      return
+      return false
 
     if not (isNil(g.subscriptionValidator)) and not (g.subscriptionValidator(topic)):
       # this is a violation, so warn should be in order
       trace "ignoring invalid topic subscription", topic, peer
       libp2p_gossipsub_invalid_topic_subscription.inc()
-      return
+      return false
+
+    if peer.subscribedTopics >= g.topicsHigh and not g.gossipsub.hasPeer(topic, peer):
+      trace "ignoring subscription over topicsHigh limit", limit = g.topicsHigh
+      libp2p_gossipsub_over_topics_high_subscription.inc()
+      peer.behaviourPenalty += SubscriptionFloodPenalty
+      return false
 
     trace "peer subscribed to topic"
 
-    # subscribe remote peer to the topic
-    discard g.gossipsub.addPeer(topic, peer)
+    if g.gossipsub.addPeer(topic, peer):
+      peer.subscribedTopics.inc()
     if peer.peerId in g.parameters.directPeers:
       discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
@@ -423,6 +407,8 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.pruned(peer, topic)
 
     # unsubscribe remote peer from the topic
+    if g.gossipsub.hasPeer(topic, peer):
+      peer.subscribedTopics.dec()
     g.gossipsub.removePeer(topic, peer)
 
     g.fanout.removePeer(topic, peer)
@@ -430,6 +416,7 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
       g.subscribedDirectPeers.removePeer(topic, peer)
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
+  true
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
@@ -454,7 +441,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       for prune in respControl.prune:
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
-    trace "sending control message", payload = shortLog(respControl), peer
+    trace "sending control message", control = shortLog(respControl), peer
     g.send(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
@@ -473,7 +460,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc sendIDontWant(
     g: GossipSub,
-    msg: Message,
+    topic: string,
     msgId: MessageId,
     peersToSendIDontWant: HashSet[PubSubPeer],
 ) =
@@ -491,7 +478,7 @@ proc sendIDontWant(
     (it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11) and
       #
       # IDONTWANT is only supported by >= GossipSubCodec_12
-    (not g.extensionsState.peerRequestsPartial(it.peerId, msg.topic))
+    (not g.extensionsState.peerRequestsPartial(it.peerId, topic))
       #
       # skip sending IDONTWANT if peer has requested partial for topic
   )
@@ -502,15 +489,16 @@ proc sendIDontWant(
 
 const iDontWantMessageSizeThreshold* = 512
 
-proc isLargeMessage(msg: Message, msgId: MessageId): bool =
-  msg.data.len > max(iDontWantMessageSizeThreshold, msgId.len * 10)
+proc isLargeMessage(dataLen: int, msgId: MessageId): bool =
+  dataLen > max(iDontWantMessageSizeThreshold, msgId.len * 10)
 
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
 ) {.async: (raises: []).} =
+  defer:
+    g.validationSeen.del(saltedId) # drop bookkeeping even if cancelled mid-task
   try:
-    template topic(): string =
-      msg.topic
+    let topic = msg.topic
 
     proc addToSendPeers(toSendPeers: var HashSet[PubSubPeer]) =
       g.floodsub.withValue(topic, peers):
@@ -521,18 +509,23 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if isLargeMessage(msg, msgId):
+    if isLargeMessage(msg.data.get(@[]).len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      g.sendIDontWant(msg, msgId, peersToSendIDontWant)
+      # Also exclude the original message publisher so we don't send IDontWant
+      # to a peer we won't relay to after the fix below.
+      msg.fromPeer.withValue(fromPeer):
+        g.peers.withValue(fromPeer, sourcePeer):
+          peersToSendIDontWant.excl(sourcePeer[])
+      g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
 
-    var seenPeers: HashSet[PubSubPeer]
-    discard g.validationSeen.pop(saltedId, seenPeers)
+    let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(
-      (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
+      (msg.data.get(@[]).len * seenPeers.len).int64,
+      labelValues = ["validation_duplicate"],
     )
 
     case validation
@@ -565,13 +558,19 @@ proc validateAndRelay(
     addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
+    # Also exclude the original message publisher to prevent relaying back to
+    # them. This handles the case where the message arrived via an intermediate
+    # relay node (e.g., A→B→C: when C relays, it should not send back to A).
+    msg.fromPeer.withValue(fromPeer):
+      g.peers.withValue(fromPeer, sourcePeer):
+        toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(
-            msg.data.len.int64, labelValues = ["idontwant"]
+            msg.data.get(@[]).len.int64, labelValues = ["idontwant"]
           )
           return true
       return false
@@ -579,7 +578,8 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     g.extensionsState.preambleBroadcastIfNotReceiving(
-      RPCMsg.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
+      RPCMsg.withPreamble(topic, msgId, msg.data.get(@[]).len),
+      toSendPeers.mapIt(it.peerId),
     )
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -591,14 +591,14 @@ proc validateAndRelay(
       toSendPeers.len.int64, labelValues = [g.topicLabel(topic)]
     )
 
-    await handleData(g, topic, msg.data)
-  except CancelledError as exc:
-    info "validateAndRelay failed", description = exc.msg
+    await handleData(g, topic, msg.data.get())
+  except CancelledError:
+    info "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
     info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
+  msgs.mapIt(it.data.get(@[]).len + it.topic.len).foldl(a + b, 0)
 
 proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
   # In this way we count even ignored fields by protobuf
@@ -634,7 +634,7 @@ method rpcHandler*(
     g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
-  var rpcMsg = decodeRpcMsg(data).valueOr:
+  var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
@@ -648,26 +648,29 @@ method rpcHandler*(
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
-  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
   # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
 
-  g.extensionsState.handleRPC(peer.peerId, rpcMsg)
-
+  var extensionsRpcMsg = rpcMsg
+  extensionsRpcMsg.subscriptions = @[]
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic, sub.subscribe)
+    if g.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe):
+      extensionsRpcMsg.subscriptions.add(sub)
+
+  g.extensionsState.handleRPC(peer.peerId, extensionsRpcMsg)
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
   if rpcMsg.subscriptions.len > g.topicsHigh:
     debug "received an rpc message with an oversized amount of subscriptions",
       peer, size = rpcMsg.subscriptions.len, limit = g.topicsHigh
-    peer.behaviourPenalty += 0.1
+    peer.behaviourPenalty += SubscriptionFloodPenalty
 
   for i in 0 ..< rpcMsg.messages.len(): # for every message
     template msg(): untyped =
@@ -688,7 +691,26 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
-    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
+    # avoid processing messages we are not interested in
+    if topic notin g.topics:
+      debug "Dropping message of topic without subscription",
+        msgId = shortLog(msgId), peer
+      continue
+
+    if (msg.signature.isSome or g.verifySignature) and not msg.verify():
+      debug "Dropping message due to failed signature verification", msg = msg
+
+      await g.punishInvalidMessage(peer, msg)
+      continue
+
+    if msg.seqno.isSome and msg.seqno.get().len != 8:
+      # if we have seqno should be 8 bytes long
+      debug "Dropping message due to invalid seqno length",
+        msgId = shortLog(msgId), peer
+      await g.punishInvalidMessage(peer, msg)
+      continue
+
+    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.get(@[]).len)
 
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
@@ -710,25 +732,6 @@ method rpcHandler*(
 
     libp2p_gossipsub_received.inc()
 
-    # avoid processing messages we are not interested in
-    if topic notin g.topics:
-      debug "Dropping message of topic without subscription",
-        msgId = shortLog(msgId), peer
-      continue
-
-    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      debug "Dropping message due to failed signature verification", msg = msg
-
-      await g.punishInvalidMessage(peer, msg)
-      continue
-
-    if msg.seqno.len > 0 and msg.seqno.len != 8:
-      # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length",
-        msgId = shortLog(msgId), peer
-      await g.punishInvalidMessage(peer, msg)
-      continue
-
     # g.anonymize needs no evaluation when receiving messages
     # as we have a "lax" policy and allow signed messages
 
@@ -736,14 +739,14 @@ method rpcHandler*(
     # (eg, pop everything you put in it)
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
-    asyncSpawn g.validateAndRelay(msg, msgId, msgIdSalted, peer)
+    g.pendingTasks.trackFut(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
 
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
 
   # Now, check subscription to update the meshes if required
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
-    let topic = rpcMsg.subscriptions[i].topic
+    let topic = rpcMsg.subscriptions[i].topic.get()
     if topic in g.topics and g.mesh.peers(topic) < g.parameters.dLow:
       # rebalance but don't update metrics here, we do that only in the heartbeat
       g.rebalanceMesh(topic, metrics = nil)
@@ -780,15 +783,15 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-proc makePeersForPublishUsingCustomConn(
+proc makePeersForPublishUsingCustomStream(
     g: GossipSub, topic: string
 ): HashSet[PubSubPeer] =
-  assert g.customConnCallbacks.isSome,
-    "GossipSub misconfiguration: useCustomConn was true, but no customConnCallbacks provided"
+  assert g.customStreamCallbacks.isSome,
+    "GossipSub misconfiguration: useCustomStream was true, but no customStreamCallbacks provided"
 
-  trace "Selecting peers via custom connection callback"
+  trace "Selecting peers via custom stream callback"
 
-  return g.customConnCallbacks.get().customPeerSelectionCB(
+  return g.customStreamCallbacks.get().customPeerSelectionCB(
       g.gossipsub.getOrDefault(topic),
       g.subscribedDirectPeers.getOrDefault(topic),
       g.mesh.getOrDefault(topic),
@@ -796,7 +799,7 @@ proc makePeersForPublishUsingCustomConn(
     )
 
 proc makePeersForPublishDefault(
-    g: GossipSub, topic: string, data: seq[byte] = @[]
+    g: GossipSub, topic: string, dataLen: int = 0
 ): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
@@ -816,7 +819,7 @@ proc makePeersForPublishDefault(
         let
           bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
             # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-          msToTransmit = max(data.len div bandwidth, 1)
+          msToTransmit = max(dataLen div bandwidth, 1)
         max(
           g.parameters.heartbeatInterval.milliseconds div msToTransmit,
           g.parameters.dLow,
@@ -855,7 +858,7 @@ proc makePeersForPublishDefault(
 method publish*(
     g: GossipSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   logScope:
@@ -865,18 +868,17 @@ method publish*(
     debug "Empty topic, skipping publish"
     return 0
 
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  handleSelfPublishing(g, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog
 
   let pubParams = publishParams.get(PublishParams())
 
   var peers =
-    if pubParams.useCustomConn:
-      g.makePeersForPublishUsingCustomConn(topic)
+    if pubParams.useCustomStream:
+      g.makePeersForPublishUsingCustomStream(topic)
     else:
-      g.makePeersForPublishDefault(topic, data)
+      g.makePeersForPublishDefault(topic, data.len)
 
   peers = peers.filterIt(
     (not g.extensionsState.peerRequestsPartial(it.peerId, topic))
@@ -908,7 +910,7 @@ method publish*(
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", payload = shortLog(msg), peers = peers.len
+  trace "Created new message", message = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
@@ -921,19 +923,19 @@ method publish*(
     g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish:
-    if not pubParams.skipIDontWant and isLargeMessage(msg, msgId):
-      g.sendIDontWant(msg, msgId, peers)
+    if not pubParams.skipIDontWant and isLargeMessage(msg.data.get().len, msgId):
+      g.sendIDontWant(topic, msgId, peers)
 
     if not pubParams.skipPreamble:
       g.extensionsState.preambleBroadcast(
-        RPCMsg.withPreamble(msg, msgId), peers.mapIt(it.peerId)
+        RPCMsg.withPreamble(topic, msgId, msg.data.get().len), peers.mapIt(it.peerId)
       )
 
   g.broadcast(
     peers,
     RPCMsg.withMessages(msg),
     MessagePriority.Medium,
-    useCustomConn = pubParams.useCustomConn,
+    useCustomStream = pubParams.useCustomStream,
   )
 
   libp2p_pubsub_messages_published.inc(
@@ -987,7 +989,7 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
 proc createExtensionsState(g: GossipSub): ExtensionsState =
   if not g.usesExtensions():
     # use noop state when no extensions are used
-    return ExtensionsState.new()
+    return ExtensionsState.new(g.rng)
 
   proc updatePeerBehaviorPenalty(id: PeerId, delta: float64) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
@@ -1074,7 +1076,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig = Opt.some(cfg)
 
   return ExtensionsState.new(
-    updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
+    g.rng, updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig, g.parameters.pingpongExtensionConfig,
     g.parameters.preambleExtensionConfig,
   )
@@ -1105,6 +1107,8 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
+  g.pendingTasks.cancelSoon()
+  g.pendingTasks = @[]
   newFutureCompleted[void]()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
@@ -1112,20 +1116,6 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
-
-  # If deprecated maxNumElementsInNonPriorityQueue was set
-  # and the new fields are still at their defaults, copy the value over.
-  if g.parameters.maxNumElementsInNonPriorityQueue > 0 and (
-    g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen or
-    g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen
-  ):
-    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
-    if g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
-      g.parameters.maxMediumPriorityQueueLen =
-        g.parameters.maxNumElementsInNonPriorityQueue
-    if g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
-      g.parameters.maxLowPriorityQueueLen =
-        g.parameters.maxNumElementsInNonPriorityQueue
 
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:

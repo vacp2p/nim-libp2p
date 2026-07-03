@@ -18,7 +18,7 @@ proc mockPreamble(
 ): PreambleInfo =
   let now = Moment.now()
   PreambleInfo.init(
-    Preamble(messageID: id, messageLength: 123, topicID: "topic-123"),
+    Preamble(messageID: id, messageLength: 123.uint32, topicID: "topic-123"),
     sender = sender,
     startsAt = now + startOffset,
     expiresAt = now + expireOffset,

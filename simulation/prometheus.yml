@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "apps"
+    dns_sd_configs:
+      - names: ["simulation"]
+        type: A
+        port: 8008
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]

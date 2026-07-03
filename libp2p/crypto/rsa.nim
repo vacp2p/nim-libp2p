@@ -12,10 +12,10 @@
 import bearssl/[rsa, rand, hash]
 import minasn1
 import results
-import stew/ctops
+import stew/[bitops2, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utils/sequninit
+import rng
 
 export Asn1Error, results
 
@@ -26,6 +26,9 @@ const
   MinKeySize* = 2048
     ## Minimal allowed RSA key size in bits.
     ## https://github.com/libp2p/go-libp2p-core/blob/master/crypto/rsa_common.go#L13
+  MaxKeySize* = 4096
+    ## Maximal allowed RSA key size in bits.
+    ## This matches BearSSL's BR_MAX_RSA_SIZE.
   DefaultKeySize* = 3072 ## Default RSA key size in bits.
 
   RsaOidSha1* = [byte 0x05, 0x2B, 0x0E, 0x03, 0x02, 0x1A]
@@ -64,12 +67,13 @@ type
     RsaKeyIncorrectError
     RsaSignatureError
     RsaLowSecurityError
+    RsaKeyTooLargeError
 
   RsaResult*[T] = Result[T, RsaError]
 
 template getStart(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)
-  let s = cast[uint](unsafeAddr bs[0])
+  let s = cast[uint](addr bs[0])
   var so = 0
   if p >= s:
     so = cast[int](p - s)
@@ -77,7 +81,7 @@ template getStart(bs, os, ls: untyped): untyped =
 
 template getFinish(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)
-  let s = cast[uint](unsafeAddr bs[0])
+  let s = cast[uint](addr bs[0])
   var eo = -1
   if p >= s:
     let so = cast[int](p - s)
@@ -96,11 +100,18 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     pt = cast[ptr byte](cast[uint](pt) + 1)
     ptlen -= 1
 
+proc bitLength(field: Asn1Field): int =
+  if len(field) == 0:
+    return 0
+
+  let first = field.buffer[field.offset]
+  ((len(field) - 1) shl 3) + bitWidth(first)
+
+func validKeySize(bits: int): bool =
+  bits >= MinKeySize and bits <= MaxKeySize
+
 proc random*[T: RsaKP](
-    t: typedesc[T],
-    rng: var HmacDrbgContext,
-    bits = DefaultKeySize,
-    pubexp = DefaultPublicExponent,
+    t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
 ): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
@@ -108,9 +119,11 @@ proc random*[T: RsaKP](
   ## ``bits`` number of bits in RSA key, must be in
   ## range [2048, 4096] (default = 3072).
   ##
-  ## ``pubexp`` is RSA public exponent, which must be prime (default = 3).
+  ## ``pubexp`` is RSA public exponent, which must be prime (default = 65537).
   if bits < MinKeySize:
     return err(RsaLowSecurityError)
+  if bits > MaxKeySize:
+    return err(RsaKeyTooLargeError)
 
   let
     sko = 0
@@ -124,7 +137,7 @@ proc random*[T: RsaKP](
   var keygen = rsaKeygenGetDefault()
 
   if keygen(
-    addr rng.vtable,
+    bearSslPrng(rng),
     addr res.seck,
     addr res.buffer[sko],
     addr res.pubk,
@@ -163,8 +176,8 @@ proc copy*[T: RsaPKI](key: T): T =
         key.seck.plen.uint + key.seck.qlen.uint + key.seck.dplen.uint +
         key.seck.dqlen.uint + key.seck.iqlen.uint + key.pubk.nlen.uint +
         key.pubk.elen.uint + key.pexplen.uint
-      result = new RsaPrivateKey
-      result.buffer = newSeqUninit[byte](length)
+      var res = new RsaPrivateKey
+      res.buffer = newSeqUninit[byte](length)
       let po: uint = 0
       let qo = po + key.seck.plen
       let dpo = qo + key.seck.qlen
@@ -173,69 +186,74 @@ proc copy*[T: RsaPKI](key: T): T =
       let no = iqo + key.seck.iqlen
       let eo = no + key.pubk.nlen
       let peo = eo + key.pubk.elen
-      copyMem(addr result.buffer[po], key.seck.p, key.seck.plen)
-      copyMem(addr result.buffer[qo], key.seck.q, key.seck.qlen)
-      copyMem(addr result.buffer[dpo], key.seck.dp, key.seck.dplen)
-      copyMem(addr result.buffer[dqo], key.seck.dq, key.seck.dqlen)
-      copyMem(addr result.buffer[iqo], key.seck.iq, key.seck.iqlen)
-      copyMem(addr result.buffer[no], key.pubk.n, key.pubk.nlen)
-      copyMem(addr result.buffer[eo], key.pubk.e, key.pubk.elen)
-      copyMem(addr result.buffer[peo], key.pexp, key.pexplen)
-      result.seck.p = addr result.buffer[po]
-      result.seck.q = addr result.buffer[qo]
-      result.seck.dp = addr result.buffer[dpo]
-      result.seck.dq = addr result.buffer[dqo]
-      result.seck.iq = addr result.buffer[iqo]
-      result.pubk.n = addr result.buffer[no]
-      result.pubk.e = addr result.buffer[eo]
-      result.pexp = addr result.buffer[peo]
-      result.seck.plen = key.seck.plen
-      result.seck.qlen = key.seck.qlen
-      result.seck.dplen = key.seck.dplen
-      result.seck.dqlen = key.seck.dqlen
-      result.seck.iqlen = key.seck.iqlen
-      result.pubk.nlen = key.pubk.nlen
-      result.pubk.elen = key.pubk.elen
-      result.pexplen = key.pexplen
-      result.seck.nBitlen = key.seck.nBitlen
+      copyMem(addr res.buffer[po], key.seck.p, key.seck.plen)
+      copyMem(addr res.buffer[qo], key.seck.q, key.seck.qlen)
+      copyMem(addr res.buffer[dpo], key.seck.dp, key.seck.dplen)
+      copyMem(addr res.buffer[dqo], key.seck.dq, key.seck.dqlen)
+      copyMem(addr res.buffer[iqo], key.seck.iq, key.seck.iqlen)
+      copyMem(addr res.buffer[no], key.pubk.n, key.pubk.nlen)
+      copyMem(addr res.buffer[eo], key.pubk.e, key.pubk.elen)
+      copyMem(addr res.buffer[peo], key.pexp, key.pexplen)
+      res.seck.p = addr res.buffer[po]
+      res.seck.q = addr res.buffer[qo]
+      res.seck.dp = addr res.buffer[dpo]
+      res.seck.dq = addr res.buffer[dqo]
+      res.seck.iq = addr res.buffer[iqo]
+      res.pubk.n = addr res.buffer[no]
+      res.pubk.e = addr res.buffer[eo]
+      res.pexp = addr res.buffer[peo]
+      res.seck.plen = key.seck.plen
+      res.seck.qlen = key.seck.qlen
+      res.seck.dplen = key.seck.dplen
+      res.seck.dqlen = key.seck.dqlen
+      res.seck.iqlen = key.seck.iqlen
+      res.pubk.nlen = key.pubk.nlen
+      res.pubk.elen = key.pubk.elen
+      res.pexplen = key.pexplen
+      res.seck.nBitlen = key.seck.nBitlen
+      return res
   elif T is RsaPublicKey:
     if len(key.buffer) > 0:
       let length = key.key.nlen + key.key.elen
-      result = new RsaPublicKey
-      result.buffer = newSeqUninit[byte](length)
+      var res = new RsaPublicKey
+      res.buffer = newSeqUninit[byte](length)
       let no = 0
       let eo = no + key.key.nlen
-      copyMem(addr result.buffer[no], key.key.n, key.key.nlen)
-      copyMem(addr result.buffer[eo], key.key.e, key.key.elen)
-      result.key.n = cast[ptr char](addr result.buffer[no])
-      result.key.e = cast[ptr char](addr result.buffer[eo])
-      result.key.nlen = key.key.nlen
-      result.key.elen = key.key.elen
+      copyMem(addr res.buffer[no], key.key.n, key.key.nlen)
+      copyMem(addr res.buffer[eo], key.key.e, key.key.elen)
+      res.key.n = cast[ptr char](addr res.buffer[no])
+      res.key.e = cast[ptr char](addr res.buffer[eo])
+      res.key.nlen = key.key.nlen
+      res.key.elen = key.key.elen
+      return res
   elif T is RsaSignature:
     if len(key.buffer) > 0:
-      result = new RsaSignature
-      result.buffer = key.buffer
+      var res = new RsaSignature
+      res.buffer = key.buffer
+      return res
+  nil
 
 proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   ## Get RSA public key from RSA private key.
   doAssert(not isNil(key))
   let length = key.pubk.nlen + key.pubk.elen
-  result = new RsaPublicKey
-  result.buffer = newSeqUninit[byte](length)
-  result.key.n = addr result.buffer[0]
-  result.key.e = addr result.buffer[key.pubk.nlen]
-  copyMem(addr result.buffer[0], cast[pointer](key.pubk.n), key.pubk.nlen)
-  copyMem(addr result.buffer[key.pubk.nlen], cast[pointer](key.pubk.e), key.pubk.elen)
-  result.key.nlen = key.pubk.nlen
-  result.key.elen = key.pubk.elen
+  var pubkey = new RsaPublicKey
+  pubkey.buffer = newSeqUninit[byte](length)
+  pubkey.key.n = addr pubkey.buffer[0]
+  pubkey.key.e = addr pubkey.buffer[key.pubk.nlen]
+  copyMem(addr pubkey.buffer[0], cast[pointer](key.pubk.n), key.pubk.nlen)
+  copyMem(addr pubkey.buffer[key.pubk.nlen], cast[pointer](key.pubk.e), key.pubk.elen)
+  pubkey.key.nlen = key.pubk.nlen
+  pubkey.key.elen = key.pubk.elen
+  pubkey
 
-proc seckey*(pair: RsaKeyPair): RsaPrivateKey {.inline.} =
+proc seckey*(pair: RsaKeyPair): RsaPrivateKey =
   ## Get RSA private key from pair ``pair``.
-  result = cast[RsaPrivateKey](pair).copy()
+  cast[RsaPrivateKey](pair).copy()
 
-proc pubkey*(pair: RsaKeyPair): RsaPublicKey {.inline.} =
+proc pubkey*(pair: RsaKeyPair): RsaPublicKey =
   ## Get RSA public key from pair ``pair``.
-  result = cast[RsaPrivateKey](pair).getPublicKey()
+  cast[RsaPrivateKey](pair).getPublicKey()
 
 proc clear*[T: RsaPKI | RsaKeyPair](pki: var T) =
   ## Wipe and clear EC private key, public key or scalar object.
@@ -450,8 +468,9 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
   if rawiq.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if len(rawn) >= (MinKeySize shr 3) and len(rawp) > 0 and len(rawq) > 0 and
-      len(rawdp) > 0 and len(rawdq) > 0 and len(rawiq) > 0:
+  let nBitlen = bitLength(rawn)
+  if validKeySize(nBitlen) and len(rawp) > 0 and len(rawq) > 0 and len(rawdp) > 0 and
+      len(rawdq) > 0 and len(rawiq) > 0:
     key = new RsaPrivateKey
     key.buffer = @data
     key.pubk.n = addr key.buffer[rawn.offset]
@@ -470,7 +489,7 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
     key.seck.dqlen = uint(len(rawdq))
     key.seck.iqlen = uint(len(rawiq))
     key.pexplen = uint(len(rawprie))
-    key.seck.nBitlen = cast[uint32](len(rawn) shl 3)
+    key.seck.nBitlen = cast[uint32](nBitlen)
     ok()
   else:
     err(Asn1Error.Incorrect)
@@ -533,7 +552,7 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if rawe.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if len(rawn) >= (MinKeySize shr 3) and len(rawe) > 0:
+  if validKeySize(bitLength(rawn)) and len(rawe) > 0:
     key = new RsaPublicKey
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]
@@ -556,7 +575,7 @@ proc init*(sig: var RsaSignature, data: openArray[byte]): Result[void, Asn1Error
   else:
     err(Asn1Error.Incorrect)
 
-proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] {.inline.} =
+proc init*[T: RsaPKI](sospk: var T, data: string): Result[void, Asn1Error] =
   ## Initialize EC `private key`, `public key` or `scalar` ``sospk`` from
   ## hexadecimal string representation ``data``.
   ##
@@ -592,59 +611,59 @@ proc init*(t: typedesc[RsaSignature], data: openArray[byte]): RsaResult[RsaSigna
   else:
     ok(res)
 
-proc init*[T: RsaPKI](t: typedesc[T], data: string): T {.inline.} =
+proc init*[T: RsaPKI](t: typedesc[T], data: string): T =
   ## Initialize RSA `private key`, `public key` or `signature` from hexadecimal
   ## string representation ``data`` and return constructed object.
-  result = t.init(ncrutils.fromHex(data))
+  t.init(ncrutils.fromHex(data))
 
 proc `$`*(key: RsaPrivateKey): string =
   ## Return string representation of RSA private key.
   if isNil(key) or len(key.buffer) == 0:
-    result = "Empty or uninitialized RSA key"
-  else:
-    result = "RSA key ("
-    result.add($key.seck.nBitlen)
-    result.add(" bits)\n")
-    result.add("p   = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
-    result.add("\nq   = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
-    result.add("\ndp  = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.dp, key.seck.dplen)))
-    result.add("\ndq  = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.dq, key.seck.dqlen)))
-    result.add("\niq  = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.seck.iq, key.seck.iqlen)))
-    result.add("\npre = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.pexp, key.pexplen)))
-    result.add("\nm   = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
-    result.add("\npue = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
-    result.add("\n")
+    return "Empty or uninitialized RSA key"
+  var s = "RSA key ("
+  s.add($key.seck.nBitlen)
+  s.add(" bits)\n")
+  s.add("p   = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
+  s.add("\nq   = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
+  s.add("\ndp  = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dp, key.seck.dplen)))
+  s.add("\ndq  = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dq, key.seck.dqlen)))
+  s.add("\niq  = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.iq, key.seck.iqlen)))
+  s.add("\npre = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.pexp, key.pexplen)))
+  s.add("\nm   = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
+  s.add("\npue = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
+  s.add("\n")
+  s
 
 proc `$`*(key: RsaPublicKey): string =
   ## Return string representation of RSA public key.
   if isNil(key) or len(key.buffer) == 0:
-    result = "Empty or uninitialized RSA key"
-  else:
-    let nbitlen = key.key.nlen shl 3
-    result = "RSA key ("
-    result.add($nbitlen)
-    result.add(" bits)\nn = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.key.n, key.key.nlen)))
-    result.add("\ne = ")
-    result.add(ncrutils.toHex(getArray(key.buffer, key.key.e, key.key.elen)))
-    result.add("\n")
+    return "Empty or uninitialized RSA key"
+  let nbitlen = key.key.nlen shl 3
+  var s = "RSA key ("
+  s.add($nbitlen)
+  s.add(" bits)\nn = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.key.n, key.key.nlen)))
+  s.add("\ne = ")
+  s.add(ncrutils.toHex(getArray(key.buffer, key.key.e, key.key.elen)))
+  s.add("\n")
+  s
 
 proc `$`*(sig: RsaSignature): string =
   ## Return string representation of RSA signature.
   if isNil(sig) or len(sig.buffer) == 0:
-    result = "Empty or uninitialized RSA signature"
-  else:
-    result = "RSA signature ("
-    result.add(ncrutils.toHex(sig.buffer))
-    result.add(")")
+    return "Empty or uninitialized RSA signature"
+  var s = "RSA signature ("
+  s.add(ncrutils.toHex(sig.buffer))
+  s.add(")")
+  s
 
 proc `==`*(a, b: RsaPrivateKey): bool =
   ## Compare two RSA private keys for equality.
@@ -752,7 +771,7 @@ proc sign*[T: byte | char](
   var kv = addr sha256Vtable
   kv.init(addr hc.vtable)
   if len(message) > 0:
-    kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+    kv.update(addr hc.vtable, addr message[0], uint(len(message)))
   else:
     kv.update(addr hc.vtable, nil, 0)
   kv.out(addr hc.vtable, addr hash[0])
@@ -766,7 +785,7 @@ proc sign*[T: byte | char](
 
 proc verify*[T: byte | char](
     sig: RsaSignature, message: openArray[T], pubkey: RsaPublicKey
-): bool {.inline.} =
+): bool =
   ## Verify RSA signature ``sig`` using public key ``pubkey`` and data
   ## ``message``.
   ##
@@ -781,7 +800,7 @@ proc verify*[T: byte | char](
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
-      kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+      kv.update(addr hc.vtable, addr message[0], uint(len(message)))
     else:
       kv.update(addr hc.vtable, nil, 0)
     kv.out(addr hc.vtable, addr hash[0])
@@ -795,4 +814,5 @@ proc verify*[T: byte | char](
       addr check[0],
     )
     if res == 1:
-      result = equalMem(addr check[0], addr hash[0], len(hash))
+      return equalMem(addr check[0], addr hash[0], len(hash))
+  false

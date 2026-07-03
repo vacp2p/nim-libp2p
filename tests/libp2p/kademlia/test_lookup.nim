@@ -96,12 +96,11 @@ suite "KadDHT Iterative Lookup":
     # Create message with existing peer + new peer + duplicate of new peer
     let msg = Message(
       msgType: MessageType.findNode,
-      closerPeers:
-        @[
-          Peer(id: existingPeer.toKey(), addrs: @[]),
-          Peer(id: newPeer.toKey(), addrs: @[]),
-          Peer(id: newPeer.toKey(), addrs: @[]), # Duplicate
-        ],
+      closerPeers: @[
+        Peer(id: existingPeer.toKey()),
+        Peer(id: newPeer.toKey()),
+        Peer(id: newPeer.toKey()), # Duplicate
+      ],
     )
 
     let added = state.updateShortlist(msg)
@@ -124,12 +123,11 @@ suite "KadDHT Iterative Lookup":
     # Create message with invalid peer ID (empty/malformed) and valid peer
     let msg = Message(
       msgType: MessageType.findNode,
-      closerPeers:
-        @[
-          Peer(id: @[], addrs: @[]), # Invalid: empty
-          Peer(id: @[0x00, 0x01], addrs: @[]), # Invalid: malformed
-          Peer(id: validPeer.toKey(), addrs: @[]), # Valid
-        ],
+      closerPeers: @[
+        Peer(id: Opt.none(seq[byte])), # Invalid: empty
+        Peer(id: @[0'u8, 1]), # Invalid: malformed
+        Peer(id: validPeer.toKey()), # Valid
+      ],
     )
 
     let added = state.updateShortlist(msg)
@@ -247,7 +245,7 @@ suite "KadDHT Iterative Lookup":
     # Create message with 10 peers (more than k=3)
     var peers: seq[Peer]
     for i in 0 ..< 10:
-      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
+      peers.add(Peer(id: randomPeerId().toKey()))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     let added = state.updateShortlist(msg)

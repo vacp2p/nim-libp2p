@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import std/[sequtils]
-import chronos, chronicles
+import chronos, chronicles, results
 import
   ./transport,
   ../wire,
@@ -14,7 +14,6 @@ import
   ../stream/connection,
   ../stream/chronosstream,
   ../upgrademngrs/upgrade,
-  ../utility,
   ../utils/future
 
 logScope:
@@ -35,6 +34,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
+    closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
 
@@ -44,7 +44,7 @@ proc connHandler*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
     dir: Direction,
-): Connection =
+): RawConn =
   trace "Handling tcp connection",
     address = $observedAddr,
     dir = $dir,
@@ -80,7 +80,7 @@ proc connHandler*(
 
   self.clients[dir].add(client)
 
-  asyncSpawn onClose()
+  self.closeFuts.trackFut(onClose())
 
   return conn
 
@@ -89,7 +89,7 @@ proc new*(
     flags: set[ServerFlags] = {},
     upgrade: Upgrade,
     connectionsTimeout = 10.minutes,
-): T {.public.} =
+): T =
   let self = T(
     flags: flags,
     clientFlags:
@@ -118,27 +118,24 @@ method start*(
 
   self.flags.incl(ServerFlags.ReusePort)
 
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
+
   var supported: seq[MultiAddress]
   var initialized = false
   try:
-    for i, ma in addrs:
-      if not self.handles(ma):
-        trace "Invalid address detected, skipping!", address = ma
-        continue
-
-      let
-        ta = initTAddress(ma).expect("valid address per handles check above")
-        server =
-          try:
-            createStreamServer(ta, flags = self.flags)
-          except common.TransportError as exc:
-            raise (ref TcpTransportError)(
-              msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
-            )
+    for i, ta in addrsTa:
+      let server =
+        try:
+          createStreamServer(ta, flags = self.flags)
+        except common.TransportError as exc:
+          raise (ref TcpTransportError)(
+            msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
+          )
 
       self.servers &= server
 
-      trace "Listening on", address = ma
+      trace "Listening on", address = addrs[i]
       supported.add(
         MultiAddress.init(server.sock.getLocalAddress()).expect(
           "Can init from local address"
@@ -181,6 +178,9 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
         await acceptFut.value().closeWait()
     self.acceptFuts = @[]
 
+    discard await noCancel allFinished(self.closeFuts)
+    self.closeFuts = @[]
+
     if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
       # Future updates could consider turning this warn into an assert since
       # it should never happen if the shutdown code is correct
@@ -198,9 +198,12 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       "No incoming connections possible without start"
     await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
+    discard await noCancel allFinished(self.closeFuts)
+    self.closeFuts = @[]
+
 method accept*(
     self: TcpTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new TCP connection, returning nil on non-fatal errors
   ##
   ## Raises an exception when the transport is broken and cannot be used for
@@ -283,7 +286,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   if self.stopping:
     raise newTransportClosedError()

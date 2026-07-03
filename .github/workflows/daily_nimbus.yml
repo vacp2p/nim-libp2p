@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Compile nimbus using nim-libp2p
         run: |
@@ -22,4 +22,3 @@ jobs:
 
           make -j"$(nproc)"
           make -j"$(nproc)" nimbus_beacon_node
-

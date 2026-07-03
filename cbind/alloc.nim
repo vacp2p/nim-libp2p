@@ -6,7 +6,6 @@
 # This file implements procedures for allocating and deallocating shared memory
 # used for communication between client and library threads.
 
-import ../libp2p/utils/sequninit
 import ./ffi_types
 
 ## Can be shared safely between threads
@@ -50,19 +49,21 @@ proc alloc*(str: string): cstring =
 proc allocCStringArrayFromSeq*(addrs: seq[string]): ptr cstring =
   if addrs.len == 0:
     return nil
-  result = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
-  let arr = cast[ptr UncheckedArray[cstring]](result)
+  let ret = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
+  let arr = cast[ptr UncheckedArray[cstring]](ret)
   for i, addrStr in addrs:
     arr[i] = addrStr.alloc()
+  ret
 
 proc allocCStringArrayFromCArray*(src: ptr cstring, len: csize_t): ptr cstring =
   if src.isNil() or len == 0:
     return nil
-  result = cast[ptr cstring](allocShared(sizeof(cstring) * int(len)))
+  let ret = cast[ptr cstring](allocShared(sizeof(cstring) * int(len)))
   let srcArr = cast[ptr UncheckedArray[cstring]](src)
-  let dstArr = cast[ptr UncheckedArray[cstring]](result)
+  let dstArr = cast[ptr UncheckedArray[cstring]](ret)
   for i in 0 ..< int(len):
     dstArr[i] = srcArr[i].alloc()
+  ret
 
 proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   let data = allocShared(sizeof(T) * s.len)

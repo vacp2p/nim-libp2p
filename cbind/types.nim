@@ -2,12 +2,12 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/tables
+import chronos
 import results
 import ../libp2p
+import ../libp2p/protocols/protocol
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/kademlia
-import ../libp2p/protocols/mix
-import ../libp2p/protocols/mix/mix_node
 import ../libp2p/protocols/connectivity/relay/client
 import ffi_types
 
@@ -24,10 +24,11 @@ type TopicHandlerEntry* = tuple[handler: TopicHandler, userData: pointer]
 
 type LibP2P* = ref object
   switch*: Switch
+  rng*: Rng
   gossipSub*: Opt[GossipSub]
   kad*: Opt[KadDHT]
-  mix*: Opt[MixProtocol]
-  mixNodeInfo*: Opt[MixNodeInfo]
   relayClient*: Opt[RelayClient]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
-  connections*: Table[ptr Libp2pStream, Connection]
+  streams*: Table[ptr Libp2pStream, Stream]
+  streamReleaseWaiters*: Table[ptr Libp2pStream, Future[void].Raising([CancelledError])]
+  customProtocols*: Table[string, LPProtocol]

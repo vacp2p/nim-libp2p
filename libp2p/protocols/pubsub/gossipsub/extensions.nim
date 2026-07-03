@@ -3,6 +3,7 @@
 
 import std/[sets, tables]
 import ../../../[peerid]
+import ../../../crypto/crypto
 import ../rpc/messages
 import
   ./[
@@ -33,6 +34,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
+    rng: Rng,
     updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc = noopBehaviorPenaltyProc,
     testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =
@@ -72,7 +74,7 @@ proc new*(
     nodeExtensions.pingpongExtension = Opt.some(true)
 
   preambleExtensionConfig.withValue(c):
-    preambleExtension = Opt.some(PreambleExtension.new(c))
+    preambleExtension = Opt.some(PreambleExtension.new(c, rng))
     extensions.add(preambleExtension.get())
     nodeExtensions.preambleExtension = Opt.some(true)
 
@@ -137,14 +139,18 @@ proc heartbeat*(state: ExtensionsState) =
 
   state.onHeartbeat()
 
-proc addPeer*(state: ExtensionsState, peerId: PeerId) =
-  # called after peer has connected to node and extensions control message is sent by gossipsub.
+proc isControlSent*(state: ExtensionsState, peerId: PeerId): bool =
+  peerId in state.sentExtensions
 
-  state.sentExtensions.incl(peerId)
+proc addPeer*(state: ExtensionsState, peerId: PeerId) =
+  # called after peer has connected to node, when gossipsub is about to send
+  # extensions control message and mark the peer as sent from our side.
 
   # when node has received control extensions from peer then extensions have negotiated
-  if peerId in state.peerExtensions:
+  if not state.isControlSent(peerId) and peerId in state.peerExtensions:
     state.onNegotiated(peerId)
+
+  state.sentExtensions.incl(peerId)
 
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has disconnected from node

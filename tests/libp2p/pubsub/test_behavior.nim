@@ -7,7 +7,7 @@ import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles, resul
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 suite "GossipSub Behavior":
   const
@@ -149,11 +149,10 @@ suite "GossipSub Behavior":
 
     # And some peers have signed peer records in the SPRBook
     let
-      mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
-      mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
-      mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-      peerRecord0 = PeerRecord.init(peers[0].peerId, @[mockAddr], 1)
-      peerRecord2 = PeerRecord.init(peers[2].peerId, @[mockAddr], 1)
+      mockPrivKey0 = PrivateKey.random(ECDSA, rng()).tryGet()
+      mockPrivKey2 = PrivateKey.random(ECDSA, rng()).tryGet()
+      peerRecord0 = PeerRecord.init(peers[0].peerId, @[TcpAutoAddress], 1)
+      peerRecord2 = PeerRecord.init(peers[2].peerId, @[TcpAutoAddress], 1)
       mockRecord0 = SignedPeerRecord.init(mockPrivKey0, peerRecord0).tryGet()
       mockRecord2 = SignedPeerRecord.init(mockPrivKey2, peerRecord2).tryGet()
     gossipSub.switch.peerStore[SPRBook][peers[0].peerId] = mockRecord0.envelope
@@ -174,9 +173,9 @@ suite "GossipSub Behavior":
       peer2Info = peerInfoList.filterIt(it.peerId == peers[2].peerId)[0]
 
     check:
-      peer0Info.signedPeerRecord == mockRecord0.envelope.encode().get()
-      peer1Info.signedPeerRecord.len == 0
-      peer2Info.signedPeerRecord == mockRecord2.envelope.encode().get()
+      peer0Info.signedPeerRecord == mockRecord0.envelope.encode()
+      peer1Info.signedPeerRecord.isNone
+      peer2Info.signedPeerRecord == mockRecord2.envelope.encode()
 
   asyncTest "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
@@ -413,11 +412,10 @@ suite "GossipSub Behavior":
     proc generateMessageIds(count: int): seq[MessageId] =
       return (0 ..< count).mapIt(("msg_id_" & $it & $Moment.now()).toBytes())
 
-    let iDontWants =
-      @[
-        ControlIWant(messageIDs: generateMessageIds(600)),
-        ControlIWant(messageIDs: generateMessageIds(600)),
-      ]
+    let iDontWants = @[
+      ControlIWant(messageIDs: generateMessageIds(600)),
+      ControlIWant(messageIDs: generateMessageIds(600)),
+    ]
 
     # When node handles iDontWants
     gossipSub.handleIDontWant(peer, iDontWants)
@@ -466,6 +464,65 @@ suite "GossipSub Behavior":
     let timeDifference = abs((actualBackoffTime - expectedBackoffTime).nanoseconds)
     check:
       timeDifference < 1.seconds.nanoseconds
+
+  asyncTest "handlePrune - ignores unsubscribed topics":
+    const unknownTopic = "not-subscribed"
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    var routingRecordsCalled = false
+    gossipSub.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        routingRecordsCalled = true
+    )
+
+    gossipSub.handlePrune(
+      peer,
+      @[
+        ControlPrune(
+          topicID: unknownTopic,
+          peers: @[PeerInfoMsg(peerId: peer.peerId)],
+          backoff: 300'u64,
+        )
+      ],
+    )
+
+    check:
+      unknownTopic notin gossipSub.backingOff
+      peer in gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == 1
+      routingRecordsCalled == false
+
+  asyncTest "handlePrune - ignores peers outside mesh":
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    var routingRecordsCalled = false
+    gossipSub.routingRecordsHandler.add(
+      proc(peer: PeerId, tag: string, peers: seq[RoutingRecordsPair]) =
+        routingRecordsCalled = true
+    )
+
+    gossipSub.handlePrune(
+      peer,
+      @[
+        ControlPrune(
+          topicID: topic, peers: @[PeerInfoMsg(peerId: peer.peerId)], backoff: 300'u64
+        )
+      ],
+    )
+
+    check:
+      topic notin gossipSub.backingOff
+      peer notin gossipSub.mesh[topic]
+      gossipSub.mesh[topic].len == 0
+      routingRecordsCalled == false
 
   asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
@@ -581,7 +638,7 @@ suite "GossipSub Behavior":
       await teardownGossipSub(gossipSub, conns)
 
     for peer in peers:
-      peer.sendConn.transportDir = Direction.In
+      peer.sendStream.transportDir = Direction.In
 
     # And configure dHigh to current mesh size, dOut higher than current outbound count
     gossipSub.parameters.dHigh = 5
@@ -589,7 +646,7 @@ suite "GossipSub Behavior":
 
     # And Peer to graft is outbound and not in the mesh
     gossipSub.mesh.removePeer(topic, peer)
-    peer.sendConn.transportDir = Direction.Out
+    peer.sendStream.transportDir = Direction.Out
 
     # And initially mesh has 5 peers at dHigh, but 0 outbound peers < dOut (2)
     check:
@@ -617,10 +674,10 @@ suite "GossipSub Behavior":
 
     # Configure some existing peers as outbound to meet dOut threshold, peer to graft + 2 in the mesh
     for i in 0 ..< 3:
-      peers[i].sendConn.transportDir = Direction.Out
+      peers[i].sendStream.transportDir = Direction.Out
     # Rest as inbound
     for i in 3 ..< 6:
-      peers[i].sendConn.transportDir = Direction.In
+      peers[i].sendStream.transportDir = Direction.In
 
     # And configure dHigh to current mesh size, dOut to current outbound count
     gossipSub.parameters.dHigh = 5
@@ -761,7 +818,7 @@ suite "GossipSub Behavior":
     check topic1 notin gossipSub.fanout
     check topic2 in gossipSub.fanout
 
-  asyncTest "getGossipPeers - should gather up to degree D non intersecting peers":
+  asyncTest "makeGossipControlMessages - should gather up to degree D non intersecting peers":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(45, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -793,13 +850,13 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len == 15
     check gossipSub.gossipsub[topic].len == 15
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
     for p in gossipPeers.keys:
       check not gossipSub.fanout.hasPeerId(topic, p.peerId)
       check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
-  asyncTest "getGossipPeers - should not crash on missing topics in mesh":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in mesh":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -820,10 +877,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in fanout":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in fanout":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -845,10 +902,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in gossip":
+  asyncTest "makeGossipControlMessages - should not crash on missing topics in gossip":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -870,10 +927,10 @@ suite "GossipSub Behavior":
         Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
     check gossipPeers.len == 0
 
-  asyncTest "getGossipPeers - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
+  asyncTest "makeGossipControlMessages - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) =
@@ -891,7 +948,7 @@ suite "GossipSub Behavior":
     gossipSub.mcache.put(id, Message(topic: topic))
 
     # When Node selects peers for IHave broadcast
-    let gossipPeers = gossipSub.getGossipPeers()
+    let gossipPeers = gossipSub.makeGossipControlMessages()
 
     # Then peer is not selected
     check:
@@ -943,9 +1000,8 @@ suite "GossipSub Behavior":
       await teardownGossipSub(gossipSub, conns)
 
     for peer in peers:
-      gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]()).add(
-        peer.peerId, Moment.now() + 1.hours
-      )
+      gossipSub.backingOff.mgetOrPut(topic, initTable[PeerId, Moment]())[peer.peerId] =
+        Moment.now() + 1.hours
       let prunes = gossipSub.handleGraft(peer, @[ControlGraft(topicID: topic)])
       # there must be a control prune due to violation of backoff
       check prunes.len != 0
@@ -1016,7 +1072,7 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len > gossipSub.parameters.dLow
     var outbound = 0
     for peer in gossipSub.mesh[topic]:
-      if peer.sendConn.transportDir == Direction.Out:
+      if peer.sendStream.transportDir == Direction.Out:
         inc outbound
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut

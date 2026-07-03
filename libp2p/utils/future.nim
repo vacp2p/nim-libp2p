@@ -3,7 +3,11 @@
 
 {.push raises: [].}
 
-import chronos
+import std/sequtils
+import chronos, chronicles
+
+logScope:
+  topics = "libp2p futures"
 
 type AllFuturesFailedError* = object of CatchableError
 
@@ -35,6 +39,80 @@ template newFutureCompleted*[T](): auto =
   fut.complete()
   fut
 
+proc warnNilCancelAndWait(firstNonNilProc = "", firstNonNilLoc = "") =
+  if firstNonNilProc.len > 0:
+    warn "cancelAndWait called on nil future", firstNonNilProc, firstNonNilLoc
+  else:
+    warn "cancelAndWait called on nil future"
+
+template cancelAndWait*[T](futs: seq[T]): auto =
+  var cancelFuts = newSeqOfCap[Future[void].Raising([])](futs.len)
+  for fut in futs:
+    if fut.isNil:
+      let nonNil = futs.filterIt(not it.isNil)
+      if nonNil.len > 0:
+        let loc = nonNil[0].location[LocationKind.Create]
+        warnNilCancelAndWait($loc.procedure, $loc.file & ":" & $loc.line)
+      else:
+        warnNilCancelAndWait()
+      continue
+    cancelFuts.add(fut.cancelAndWait())
+  allFutures(cancelFuts)
+
 template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
     fut.cancelSoon()
+
+proc trackFut*[T](futs: var seq[T], fut: T) =
+  ## Prune finished futures, then take ownership of `fut` for later teardown.
+  futs.keepItIf(not it.finished())
+  futs.add(fut)
+
+proc allFuturesWaitOrTimeout*[Fut](
+    futs: seq[Fut], timeout: Duration
+) {.async: (raises: [CancelledError]).} =
+  try:
+    await futs.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    discard
+
+template completeOnce*(fut: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete()
+
+template completeOnce*(fut: auto, val: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete(val)
+
+proc collectCompleted*[T, E](
+    futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
+): Future[seq[T]] {.async: (raises: [CancelledError]).} =
+  ## Wait up to `timeout`; collect only successfully completed futures.
+  ## Ignore results from futures throwing errors
+  try:
+    await futs.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    # Some futures didn’t finish in time, ignore
+    discard
+
+  # Collect only successful results
+  return futs.filterIt(it.completed()).mapIt(it.value())
+
+proc waitForTCPServer*(
+    taddr: TransportAddress,
+    retries: int = 20,
+    delay: chronos.Duration = 500.milliseconds,
+): Future[bool] {.async.} =
+  for i in 0 ..< retries:
+    try:
+      let conn = await connect(taddr)
+      await conn.closeWait()
+      return true
+    except OSError:
+      discard
+    except TransportOsError:
+      discard
+    await sleepAsync(delay)
+  return false

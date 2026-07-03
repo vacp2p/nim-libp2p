@@ -34,13 +34,13 @@ Jump into the [contributing](docs/contributing.md) page to get started, `nim-lib
 
 ## Install
 
-The currently supported Nim versions are v2.0.16 and v2.2.6.
+The currently supported Nim versions are v2.2.4 and v2.2.10.
 
 ```
 nimble install libp2p
 ```
 
-You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
+You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/). See [examples](./examples) for simple usage patterns.
 
 ## Development
 
@@ -64,6 +64,7 @@ nim-libp2p is used by:
 - [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
 - [logos-delivery](https://github.com/logos-messaging/logos-delivery), a decentralized messaging protocols
 - [logos-storage](https://github.com/logos-storage/logos-storage-nim), a decentralized storage protocols
+- [Mix Protocol](https://github.com/logos-co/nim-libp2p-mix), a decentralized anonymous message routing layer for libp2p networks
 - (open a pull request if you want to be included here)
 
 ## Stability
@@ -71,22 +72,19 @@ nim-libp2p is used by:
 nim-libp2p has been used in production for many years in high-stake scenarios, so its core is considered stable.
 Some modules are more recent and less stable.
 
-The versioning follows [semver](https://semver.org/), with some additions:
-
-- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
-- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
+Versioning follows [Semantic Versioning](https://semver.org/):
+ - Releases within the same `MAJOR` version are backwards compatible.
+ - `MINOR` releases may introduce new features and other non-breaking changes.
+ - `PATCH` releases are reserved for backwards-compatible bug fixes.
 
 ## License
 
-Licensed and distributed under either of
+Licensed under either of:
 
-- MIT license: [LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT
+- Apache License 2.0 ([LICENSE-APACHEv2](LICENSE-APACHEv2))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
 
-or
-
-- Apache License, Version 2.0, ([LICENSE-APACHEv2](LICENSE-APACHEv2) or http://www.apache.org/licenses/LICENSE-2.0)
-
-at your option. These files may not be copied, modified, or distributed except according to those terms.
+at your option.
 
 ## Modules
 
@@ -140,7 +138,5 @@ List of packages modules implemented in nim-libp2p:
 | **DHT** | |
 | [kademlia](nim-libp2p/libp2p/protocols/kademlia.nim) | [Kademlia DHT](https://github.com/libp2p/specs/tree/master/kad-dht) for peer/value discovery |
 | [kademlia-discovery](nim-libp2p/libp2p/protocols/kad_disco.nim) | Kademlia-based peer discovery |
-| **Privacy** | |
-| [mix](nim-libp2p/libp2p/protocols/mix.nim) | [Mix](https://lip.logos.co/ift-ts/raw/mix.html#5-protocol-overview) network protocol with [Sphinx](https://cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf) packet format for anonymity |
 | **Performance** | |
 | [perf](nim-libp2p/libp2p/protocols/perf/core.nim) | [Perf](https://github.com/libp2p/specs/blob/master/perf/perf.md) protocol for benchmarking libp2p nodes |

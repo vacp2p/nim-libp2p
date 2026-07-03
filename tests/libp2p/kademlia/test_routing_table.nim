@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results
+import chronos, results, algorithm
 import ../../../libp2p/[protocols/kademlia, crypto/crypto]
 import ../../tools/[unittest, crypto]
 
@@ -21,7 +21,7 @@ suite "KadDHT Routing Table":
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
-    let idx = bucketIndex(selfId, other, Opt.none(XorDHasher))
+    let idx = rt.bucketIndex(other)
     check:
       rt.buckets.len > idx
       rt.buckets[idx].peers.len == 1
@@ -38,7 +38,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 5:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng())
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
@@ -50,7 +50,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 10:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng())
       discard rt.insert(kid)
 
     check rt.buckets[TargetBucket].peers.len == config.replication
@@ -58,7 +58,7 @@ suite "KadDHT Routing Table":
     # new entry should evict oldest entry
     let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng))
+    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
 
     let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
@@ -70,9 +70,9 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
 
-    let key1 = randomKeyInBucket(selfId, TargetBucket, rng)
-    let key2 = randomKeyInBucket(selfId, TargetBucket, rng)
-    let key3 = randomKeyInBucket(selfId, TargetBucket, rng)
+    let key1 = randomKeyInBucket(selfId, TargetBucket, rng())
+    let key2 = randomKeyInBucket(selfId, TargetBucket, rng())
+    let key3 = randomKeyInBucket(selfId, TargetBucket, rng())
 
     discard rt.insert(key1)
     discard rt.insert(key2)
@@ -120,6 +120,35 @@ suite "KadDHT Routing Table":
       res.len == ids.len
       res == @[testKey(1), testKey(3), testKey(2)]
 
+  test "findClosest respects selfIdPreHashed=true (avoids double-hashing target)":
+    # Service discovery tables use pre-hashed serviceId as self + targets.
+    # findClosest must compute dist(target_raw, H(peer)) not H(target) to match bucketIndex.
+    let selfId = testKey(0)
+    let config =
+      RoutingTableConfig.new(hasher = Opt.none(XorDHasher), selfIdPreHashed = true)
+    var rt = RoutingTable.new(selfId, config)
+    let p1 = testKey(1)
+    let p2 = testKey(2)
+    let p3 = testKey(3)
+    for p in [p1, p2, p3]:
+      discard rt.insert(p)
+
+    let target = testKey(0x10)
+      # stands in for a hashServiceId() result (already in ID space)
+    let res = rt.findClosest(target, 3)
+
+    # Expected order uses the *correct* prehashed metric (raw target vs hashed peers).
+    # This is what bucketIndex(selfIdPreHashed=true) + the service RegT invariant require.
+    var expected = @[p1, p2, p3]
+    let hasher = config.hasher
+    expected.sort(
+      proc(a, b: Key): int =
+        cmp(
+          xorDistance(a.hashFor(hasher), target), xorDistance(b.hashFor(hasher), target)
+        )
+    )
+    check res == expected
+
   test "isStale returns true for empty or old keys":
     var bucket: Bucket
     check isStale(bucket) == true
@@ -132,24 +161,26 @@ suite "KadDHT Routing Table":
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
-    var rid = randomKeyInBucket(selfId, TargetBucket, rng)
-    let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
+    var rt =
+      RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
+    var rid = randomKeyInBucket(selfId, TargetBucket, rng())
+    let idx = rt.bucketIndex(rid)
     check:
       idx == TargetBucket
       rid != selfId
 
   test "randomKey returns none for empty bucket":
     var bucket: Bucket
-    check randomKey(bucket, rng).isNone()
+    check randomKey(bucket, rng()).isNone()
 
   test "randomKey returns the only peer in a single-peer bucket":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
-    let key = randomKeyInBucket(selfId, TargetBucket, rng)
+    let key = randomKeyInBucket(selfId, TargetBucket, rng())
     discard rt.insert(key)
 
-    let picked = randomKey(rt.buckets[TargetBucket], rng)
+    let picked = randomKey(rt.buckets[TargetBucket], rng())
     check:
       picked.isSome()
       picked.get() == key
@@ -160,11 +191,22 @@ suite "KadDHT Routing Table":
     var rt = RoutingTable.new(selfId, config)
     var keys: seq[Key]
     for _ in 0 ..< config.replication:
-      let k = randomKeyInBucket(selfId, TargetBucket, rng)
+      let k = randomKeyInBucket(selfId, TargetBucket, rng())
       keys.add(k)
       discard rt.insert(k)
 
-    let picked = randomKey(rt.buckets[TargetBucket], rng)
+    let picked = randomKey(rt.buckets[TargetBucket], rng())
     check:
       picked.isSome()
       keys.contains(picked.get())
+
+  test "insert rejects localNodeId even when it differs from selfId":
+    let selfId = testKey(0)
+    let localNodeId = testKey(99)
+    let peer = testKey(1)
+    var rt = RoutingTable.new(selfId, localNodeId = Opt.some(localNodeId))
+
+    check:
+      not rt.insert(localNodeId) # localNodeId is rejected
+      not rt.insert(selfId) # selfId is rejected
+      rt.insert(peer) # other peers are accepted

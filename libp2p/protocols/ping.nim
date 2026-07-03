@@ -6,19 +6,10 @@
 {.push raises: [].}
 
 import chronos, chronicles
-import bearssl/rand
 import
-  ../protobuf/minprotobuf,
-  ../peerinfo,
-  ../stream/connection,
-  ../peerid,
-  ../crypto/crypto,
-  ../multiaddress,
-  ../protocols/protocol,
-  ../utility,
-  ../errors
+  ../stream/connection, ../peerid, ../crypto/crypto, ../protocols/protocol, ../errors
 
-export chronicles, rand, connection
+export chronicles, rng, connection
 
 logScope:
   topics = "libp2p ping"
@@ -31,67 +22,66 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
+  PingHandler* = proc(peer: PeerId): Future[void] {.async: (raises: []), gcsafe.}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
-    rng: ref HmacDrbgContext
+    rng: Rng
 
-proc new*(
-    T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()
-): T {.public.} =
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: Rng): T =
+  doAssert not rng.isNil, "Rng is nil"
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      trace "handling ping", conn
+      trace "handling ping", stream
       var buf: array[PingSize, byte]
-      await conn.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", conn, pingData = @buf
-      await conn.write(@buf)
-      if not isNil(p.pingHandler):
-        await p.pingHandler(conn.peerId)
-    except CancelledError as exc:
-      trace "cancelled ping handler"
-      raise exc
-    except CatchableError as exc:
-      trace "exception in ping handler", description = exc.msg, conn
+      while true:
+        await stream.readExactly(addr buf[0], PingSize)
+        trace "echoing ping", stream, pingData = @buf
+        await stream.write(@buf)
+        if not isNil(p.pingHandler):
+          await p.pingHandler(stream.peerId)
+    except LPStreamEOFError as exc:
+      trace "ping stream closed", description = exc.msg, stream
+    except LPStreamError as exc:
+      trace "exception in ping handler", description = exc.msg, stream
 
   p.handler = handle
   p.codec = PingCodec
 
 proc ping*(
-    p: Ping, conn: Connection
+    p: Ping, stream: Stream
 ): Future[Duration] {.
-    public, async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
+    async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
 .} =
-  ## Sends ping to `conn`, returns the delay
+  ## Sends ping to `stream`, returns the delay
 
-  trace "initiating ping", conn
+  trace "initiating ping", stream
 
   var
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  hmacDrbgGenerate(p.rng[], randomBuf)
+  p.rng.generate(randomBuf)
 
   let startTime = Moment.now()
 
-  trace "sending ping", conn
-  await conn.write(@randomBuf)
+  trace "sending ping", stream
+  await stream.write(@randomBuf)
 
-  await conn.readExactly(addr resultBuf[0], PingSize)
+  await stream.readExactly(addr resultBuf[0], PingSize)
 
   let responseDur = Moment.now() - startTime
 
-  trace "got ping response", conn, responseDur
+  trace "got ping response", stream, responseDur
 
   for i in 0 ..< randomBuf.len:
     if randomBuf[i] != resultBuf[i]:
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 
-  trace "valid ping response", conn
+  trace "valid ping response", stream
   return responseDur

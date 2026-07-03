@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import algorithm, sequtils
-import bearssl/rand, chronos, chronicles, results
+import algorithm, sequtils, math, bitops
+import chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
 import ../../peerid
 import ../../crypto/crypto
-import ../../utils/sequninit
 
 logScope:
   topics = "kad-dht rtable"
@@ -19,8 +18,14 @@ proc new*(
     replication = DefaultReplication,
     hasher: Opt[XorDHasher] = NoneHasher,
     maxBuckets: int = DefaultMaxBuckets,
+    selfIdPreHashed = false,
 ): T =
-  RoutingTableConfig(replication: replication, hasher: hasher, maxBuckets: maxBuckets)
+  RoutingTableConfig(
+    replication: replication,
+    hasher: hasher,
+    maxBuckets: maxBuckets,
+    selfIdPreHashed: selfIdPreHashed,
+  )
 
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
@@ -29,11 +34,26 @@ proc new*(
     T: typedesc[RoutingTable],
     selfId: Key,
     config: RoutingTableConfig = RoutingTableConfig.new(),
+    localNodeId: Opt[Key] = Opt.none(Key),
 ): T =
-  RoutingTable(selfId: selfId, buckets: @[], config: config)
+  RoutingTable(
+    selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
+  )
 
-proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
-  return xorDistance(selfId, key, hasher).leadingZeros
+proc bucketIndex*(rtable: RoutingTable, key: Key): int =
+  let
+    selfHash =
+      if rtable.config.selfIdPreHashed:
+        rtable.selfId
+      else:
+        rtable.selfId.hashFor(rtable.config.hasher)
+    keyHash = key.hashFor(rtable.config.hasher)
+    lz = xorDistance(selfHash, keyHash).leadingZeros
+
+  if rtable.config.maxBuckets <= 1:
+    return 0
+
+  return min(((lz * rtable.config.maxBuckets) div 256), rtable.config.maxBuckets - 1)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -76,15 +96,11 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   kad_routing_table_buckets.set(rtable.buckets.len.float64)
 
 proc insert*(rtable: RoutingTable, nodeId: Key): bool =
-  if nodeId == rtable.selfId:
+  if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
-  let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)
-  if idx >= rtable.config.maxBuckets:
-    debug "Cannot insert node, max buckets have been reached",
-      nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets
-    return false
+  let idx = rtable.bucketIndex(nodeId)
 
   if idx >= rtable.buckets.len:
     # expand buckets lazily if needed
@@ -113,17 +129,25 @@ proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
+  ## Returns up to `count` nodes in the table with the smallest XOR distance to `targetId`.
   var allNodes: seq[Key] = @[]
 
   for bucket in rtable.buckets:
     for p in bucket.peers:
       allNodes.add(p.nodeId)
 
+  let hasher = rtable.config.hasher
+  let targetHash =
+    if rtable.config.selfIdPreHashed:
+      targetId
+    else:
+      targetId.hashFor(hasher)
+
   allNodes.sort(
     proc(a, b: Key): int =
       cmp(
-        xorDistance(a, targetId, rtable.config.hasher),
-        xorDistance(b, targetId, rtable.config.hasher),
+        xorDistance(a.hashFor(hasher), targetHash),
+        xorDistance(b.hashFor(hasher), targetHash),
       )
   )
 
@@ -131,6 +155,44 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 
 proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   return findClosest(rtable, targetId, count)
+    .mapIt(it.toPeerId())
+    .filterIt(it.isOk)
+    .mapIt(it.value())
+
+proc randomPeersClosestFirst*(
+    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
+): seq[Key] =
+  ## Returns up to `count` peers sampled randomly from the routing table's
+  ## buckets, starting from the closest buckets (highest indices) and moving
+  ## to farther buckets (lower indices).
+
+  if count <= 0:
+    return @[]
+
+  var selected: seq[Key] = @[]
+  var remaining = count
+
+  for i in countdown(rtable.buckets.high, 0):
+    if remaining <= 0:
+      break
+    let bucket = rtable.buckets[i]
+    if bucket.peers.len == 0:
+      continue
+
+    let take = min(remaining, min(maxPerBucket, bucket.peers.len))
+    let picked = rng.pick(bucket.peers, take).valueOr(@[])
+    for entry in picked:
+      selected.add(entry.nodeId)
+      remaining.dec
+      if remaining <= 0:
+        break
+
+  return selected
+
+proc randomPeersClosestFirstPeerIds*(
+    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
+): seq[PeerId] =
+  randomPeersClosestFirst(rtable, rng, count, maxPerBucket)
     .mapIt(it.toPeerId())
     .filterIt(it.isOk)
     .mapIt(it.value())
@@ -143,40 +205,42 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
-  var raw = selfId
+proc randomKeyInBucket*(
+    selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
+): Key =
+  let
+    index = clamp(bucketIndex, 0, (maxBuckets - 1))
+    buckets = max(1, maxBuckets)
+    leadingZeros = index * 256 div buckets
+    (byteIdx, rem) = divmod(leadingZeros, 8)
+    boundBitIdx = 7 - rem
 
-  # zero out higher bits
-  for i in 0 ..< bucketIndex:
-    let byteIdx = i div 8
-    let bitInByte = 7 - (i mod 8)
-    raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+  var key = selfId
 
-  # flip the target bit
-  let tgtByte = bucketIndex div 8
-  let tgtBitInByte = 7 - (bucketIndex mod 8)
-  raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
+  # For the boundary byte, from 0 to boundBitIdx the bits should be random.
+  for i in byteIdx ..< IdLength:
+    rng.generate(key[i])
 
-  # randomize lower bits of the boundary byte
-  let lsbMask = (1'u8 shl tgtBitInByte) - 1
-  if lsbMask != 0:
-    var rb: array[1, byte]
-    hmacDrbgGenerate(rng[], rb)
-    raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
+  # For the boundary byte, from boundBitIdx to 7 the bits should be the same as seflId.
+  for i in boundBitIdx .. 7:
+    if selfId[byteIdx].testBit(i):
+      key[byteIdx].setBit(i)
+    else:
+      key[byteIdx].clearBit(i)
 
-  # randomize remaining bytes
-  if tgtByte + 1 < raw.len:
-    hmacDrbgGenerate(rng[], raw.toOpenArray(tgtByte + 1, raw.len - 1))
+  # The bit at the boundary should be the opposite of selfId. So that the XOR is not 0.
+  if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
+    key[byteIdx].flipBit(boundBitIdx)
 
-  return raw
+  key
 
-proc allKeys*(bucket: Bucket): seq[Key] {.inline.} =
+proc allKeys*(bucket: Bucket): seq[Key] =
   return bucket.peers.mapIt(it.nodeId)
 
-proc allKeys*(rtable: RoutingTable): seq[Key] {.inline.} =
+proc allKeys*(rtable: RoutingTable): seq[Key] =
   rtable.buckets.mapIt(it.allKeys()).concat()
 
-proc randomKey*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
   rng.pickOne(bucket.peers).map(
     proc(e: NodeEntry): Key =
       e.nodeId

@@ -34,9 +34,9 @@ suite "WebSocket transport integration":
 
     let switch1 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()])
-      .withNameResolver(DnsResolver.new(@[initTAddress("1.1.1.1:53")]))
+      .withNameResolver(DnsResolver.new(DefaultDnsServers))
       .withWsTransport()
       .withYamux()
       .withNoise()
@@ -44,7 +44,8 @@ suite "WebSocket transport integration":
 
     let switch2 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withAutotls()
+      .withRng(rng())
       .withAddresses(
         @[
           MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -53,13 +54,12 @@ suite "WebSocket transport integration":
       )
       .withTcpTransport()
       .withWsTransport()
-      .withAutotls()
       .withYamux()
       .withNoise()
       .build()
 
     # Mount ping so protocol negotiation works
-    let pingProto = Ping.new()
+    let pingProto = Ping.new(rng = rng())
     switch2.mount(pingProto)
 
     await switch1.start()

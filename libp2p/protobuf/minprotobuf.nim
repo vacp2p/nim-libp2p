@@ -5,11 +5,8 @@
 
 {.push raises: [].}
 
-import ../varint, ../utility, stew/endians2, results
-import ../utils/sequninit
-export results, utility
-
-{.push public.}
+import ../varint, ../utils/[opt, shortlog, collections], stew/endians2, results
+export results, opt, shortlog, collections
 
 type
   ProtoFieldKind* = enum
@@ -65,13 +62,12 @@ type
     uint | uint32 | uint64 | zint | zint32 | zint64 | hint | hint32 | hint64 | float32 |
     float64
 
-const SupportedWireTypes* =
-  @[
-    uint64(ProtoFieldKind.Varint),
-    uint64(ProtoFieldKind.Fixed64),
-    uint64(ProtoFieldKind.Length),
-    uint64(ProtoFieldKind.Fixed32),
-  ]
+const SupportedWireTypes* = @[
+  uint64(ProtoFieldKind.Varint),
+  uint64(ProtoFieldKind.Fixed64),
+  uint64(ProtoFieldKind.Length),
+  uint64(ProtoFieldKind.Fixed32),
+]
 
 template checkFieldNumber*(i: int) =
   doAssert(
@@ -100,12 +96,12 @@ template isEnough*(pb: ProtoBuffer, length: uint64): bool =
   pb.offset <= len(pb.buffer) and length <= uint64(len(pb.buffer) - pb.offset)
 
 template getPtr*(pb: ProtoBuffer): pointer =
-  cast[pointer](unsafeAddr pb.buffer[pb.offset])
+  cast[pointer](addr pb.buffer[pb.offset])
 
 template getLen*(pb: ProtoBuffer): int =
   len(pb.buffer) - pb.offset
 
-proc vsizeof*(field: ProtoField): int {.inline.} =
+proc vsizeof*(field: ProtoField): int =
   ## Returns number of bytes required to store protobuf's field ``field``.
   case field.kind
   of ProtoFieldKind.Varint:
@@ -124,31 +120,29 @@ proc initProtoBuffer*(
     data: seq[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
-  result.buffer = data
-  result.offset = offset
-  result.options = options
+  ProtoBuffer(buffer: data, offset: offset, options: options)
 
 proc initProtoBuffer*(
     data: openArray[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
-  result.buffer = @data
-  result.offset = offset
-  result.options = options
+  ProtoBuffer(buffer: @data, offset: offset, options: options)
 
 proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``
-  result.options = options
+  var pb: ProtoBuffer
+  pb.options = options
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
-    result.buffer = newSeqUninit[byte](10)
-    result.offset = 10
+    pb.buffer = newSeqUninit[byte](10)
+    pb.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
     # in [0, 3].
-    result.buffer = newSeqUninit[byte](4)
-    result.offset = 4
+    pb.buffer = newSeqUninit[byte](4)
+    pb.offset = 4
+  pb
 
 proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
   checkFieldNumber(field)
@@ -261,10 +255,10 @@ proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]
   pb.offset += length
   if len(value) > 0:
     doAssert(pb.isEnough(value.lenu64))
-    copyMem(addr pb.buffer[pb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr pb.buffer[pb.offset], addr value[0], len(value))
     pb.offset += len(value)
 
-proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) {.inline.} =
+proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) =
   ## Encode Protobuf's sub-message ``value`` and store it to protobuf's buffer
   ## ``pb`` with field number ``field``.
   write(pb, field, value.buffer)
@@ -568,7 +562,7 @@ proc getField*[T: seq[byte] | string](
 
 proc getField*(
     pb: ProtoBuffer, field: int, output: var ProtoBuffer
-): ProtoResult[bool] {.inline.} =
+): ProtoResult[bool] =
   var buffer: seq[byte]
   if ?pb.getField(field, buffer):
     output = initProtoBuffer(buffer)
@@ -576,9 +570,7 @@ proc getField*(
   else:
     ok(false)
 
-proc getField*(
-    pb: ProtoBuffer, field: int, output: var bool
-): ProtoResult[bool] {.inline.} =
+proc getField*(pb: ProtoBuffer, field: int, output: var bool): ProtoResult[bool] =
   var boolValue: uint64
   if ?pb.getField(field, boolValue):
     output = bool(boolValue)
@@ -587,9 +579,7 @@ proc getField*(
     output = false
     ok(false)
 
-proc getField*(
-    pb: ProtoBuffer, field: int, output: var Opt[bool]
-): ProtoResult[bool] {.inline.} =
+proc getField*(pb: ProtoBuffer, field: int, output: var Opt[bool]): ProtoResult[bool] =
   var boolValue: uint64
   if ?pb.getField(field, boolValue):
     output = Opt.some(bool(boolValue))
@@ -600,7 +590,7 @@ proc getField*(
 
 proc getRequiredField*[T](
     pb: ProtoBuffer, field: int, output: var T
-): ProtoResult[void] {.inline.} =
+): ProtoResult[void] =
   if ?pb.getField(field, output):
     ok()
   else:
@@ -686,7 +676,7 @@ proc getRepeatedField*[T: ProtoScalar](
 
 proc getRequiredRepeatedField*[T](
     pb: ProtoBuffer, field: int, output: var seq[T]
-): ProtoResult[void] {.inline.} =
+): ProtoResult[void] =
   if ?pb.getRepeatedField(field, output):
     ok()
   else:

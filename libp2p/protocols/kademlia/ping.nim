@@ -8,44 +8,38 @@ import ./[protobuf, types, kademlia_metrics]
 
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
-): Future[bool] {.async: (raises: [CancelledError, ValueError, LPStreamError]).} =
-  let conn =
-    try:
-      await kad.switch.dial(peerId, addrs, kad.codec)
-    except DialFailedError as e:
-      error "Kad ping could not dial peer", description = e.msg
-      return false
+): Future[bool] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+.} =
+  let stream = await kad.switch.dial(peerId, addrs, kad.codec)
   defer:
-    await conn.close()
+    await stream.close()
 
-  let request = Message(msgType: MessageType.ping)
-  let encoded = request.encode()
+  let request = Message(msgType: Opt.some(MessageType.ping))
+  let encoded = request.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.ping])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.ping]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.ping])
 
   var replyBuf: seq[byte]
   kad_message_duration_ms.time(labelValues = [$MessageType.ping]):
-    await conn.writeLp(encoded.buffer)
-    replyBuf = await conn.readLp(MaxMsgSize)
+    await stream.writeLp(encoded)
+    replyBuf = await stream.readLp(MaxMsgSize)
 
   kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = [$MessageType.ping])
 
-  let reply = Message.decode(replyBuf).tryGet()
+  let reply = Message.decode(replyBuf).valueOr:
+    return false
 
-  reply == request
+  return reply == request
 
 proc handlePing*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let encoded = msg.encode()
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.ping]
-  )
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.ping])
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send ping reply", conn = conn, err = exc.msg
+    debug "Failed to send ping reply", stream = stream, err = exc.msg
     return

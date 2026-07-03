@@ -17,17 +17,18 @@ import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/protocol
 import ../../../../libp2p/protocols/service_discovery
 import ../../../../libp2p/protocols/ping
-import ../../../../libp2p/protocols/mix
-import ../../../../libp2p/protocols/mix/mix_protocol
-import ../../../../libp2p/protocols/mix/mix_node
 import ../../../../libp2p/protocols/connectivity/relay/client
 
-const
-  DefaultDnsResolver = "1.1.1.1:53"
-  DefaultMaxConnections = MaxConnections
-  DefaultMaxConnectionsPerPeer = MaxConnectionsPerPeer
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
+
+type MuxerType* {.pure.} = enum
+  MPLEX
+  YAMUX
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -63,8 +64,6 @@ proc fromCint(T: typedesc[TransportType], val: cint): Result[T, string] =
     ok(TransportType.QUIC)
   of ord(TransportType.TCP).cint:
     ok(TransportType.TCP)
-  of ord(TransportType.Memory).cint:
-    ok(TransportType.Memory)
   else:
     err("invalid transport")
 
@@ -174,7 +173,9 @@ proc mountGossipsub(libp2p: var LibP2P, config: Libp2pConfig) =
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:
     let gs = GossipSub.init(
-      switch = libp2p.switch, triggerSelf = config.gossipsubTriggerSelf != 0
+      switch = libp2p.switch,
+      triggerSelf = config.gossipsubTriggerSelf != 0,
+      rng = libp2p.rng,
     )
     libp2p.switch.mount(gs)
     gossipSub = Opt.some(gs)
@@ -190,24 +191,21 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
         libp2p.switch,
         bootstrapNodes = bootstrapNodes,
         config = kadCfg,
+        rng = libp2p.rng,
         codec = ExtendedServiceDiscoveryCodec,
       )
       libp2p.switch.mount(k)
       kad = Opt.some(KadDHT(k))
     else:
-      let k =
-        KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes, config = kadCfg)
+      let k = KadDHT.new(
+        libp2p.switch,
+        bootstrapNodes = bootstrapNodes,
+        config = kadCfg,
+        rng = libp2p.rng,
+      )
       libp2p.switch.mount(k)
       kad = Opt.some(k)
   libp2p.kad = kad
-
-proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
-  var mix = Opt.none(MixProtocol)
-  if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
-    var mixProto = MixProtocol.new(libp2p.mixNodeInfo.get(), libp2p.switch)
-    libp2p.switch.mount(mixProto)
-    mix = Opt.some(mixProto)
-  libp2p.mix = mix
 
 proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountGossipsub != 0:
@@ -215,19 +213,25 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountKad != 0 or config.mountServiceDiscovery != 0:
     libp2p.mountKad(config)
 
-  libp2p.switch.mount(Ping.new())
-
-  libp2p.mountMix(config)
+  libp2p.switch.mount(Ping.new(rng = libp2p.rng))
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
-  let dnsResolver =
-    Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
+  let dnsServersAddrs =
+    if config.dnsResolver.isNil():
+      DefaultDnsServers
+    elif config.dnsResolver == "":
+      DefaultDnsServers
+    else:
+      @[initTAddress($config.dnsResolver)]
+
+  let rng = newRng()
 
   var privKey = Opt.none(PrivateKey)
   if config.privKey.data != nil and config.privKey.dataLen > 0:
     let keySeq = config.privKey.toByteSeq()
-    PrivateKey.init(keySeq).withValue(copyKey):
-      privKey = Opt.some(copyKey)
+    let key = PrivateKey.init(keySeq).valueOr:
+      raise newException(LPError, "invalid private key: " & $error)
+    privKey = Opt.some(key)
 
   var addrs: seq[MultiAddress] = @[]
   if config.addrsLen > 0 and not config.addrs.isNil():
@@ -238,23 +242,40 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
           raiseAssert "invalid listen address: " & $error
         addrs.add(address)
 
-  let muxer = MuxerType.fromCint(config.muxer).valueOr:
-    raiseAssert "invalid muxer type"
-
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
-  var switchBuilder = newStandardSwitchBuilder(
-    privKey = privKey,
-    addrs = addrs,
-    muxer = muxer,
-    transport = transport,
-    maxConnections = config.maxConnections,
-    maxIn = config.maxIn,
-    maxOut = config.maxOut,
-    maxConnsPerPeer = config.maxConnsPerPeer,
-    nameResolver = dnsResolver,
-  )
+  var switchBuilder = SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withMaxConnsPerPeer(config.maxConnsPerPeer)
+    .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
+    .withNoise()
+    .withPrivateKey(privKey)
+    .withAddresses(addrs)
+
+  case transport
+  of TransportType.QUIC:
+    switchBuilder = switchBuilder.withQuicTransport()
+  of TransportType.TCP:
+    switchBuilder = switchBuilder.withTcpTransport()
+
+    let muxer = MuxerType.fromCint(config.muxer).valueOr:
+      raiseAssert "invalid muxer type"
+    case muxer
+    of MuxerType.MPLEX:
+      switchBuilder = switchBuilder.withMplex()
+    of MuxerType.YAMUX:
+      switchBuilder = switchBuilder.withYamux()
+
+  if config.maxIn > 0 and config.maxOut > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxInOut(config.maxIn, config.maxOut)
+    )
+  elif config.maxConnections > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxTotal(config.maxConnections)
+    )
 
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:
@@ -269,7 +290,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     switchBuilder = switchBuilder.withAutonat()
 
   if config.autonatV2 == 1:
-    switchBuilder = switchBuilder.withAutonatV2()
+    switchBuilder = switchBuilder.withNAT(autonatConfig(AutonatV2))
 
   if config.autonatV2Server == 1:
     switchBuilder = switchBuilder.withAutonatV2Server()
@@ -278,13 +299,15 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   var ret = LibP2P(
     switch: switch,
+    rng: rng,
     gossipSub: Opt.none(GossipSub),
     kad: Opt.none(KadDHT),
-    mix: Opt.none(MixProtocol),
-    mixNodeInfo: Opt.none(MixNodeInfo),
     relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
-    connections: initTable[ptr Libp2pStream, Connection](),
+    streams: initTable[ptr Libp2pStream, Stream](),
+    streamReleaseWaiters:
+      initTable[ptr Libp2pStream, Future[void].Raising([CancelledError])](),
+    customProtocols: initTable[string, LPProtocol](),
   )
 
   mountProtocols(ret, config)
@@ -296,19 +319,18 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
-    mountMix: 0,
     mountServiceDiscovery: 0,
-    dnsResolver: DefaultDnsResolver.alloc(),
+    dnsResolver: nil,
     addrs: nil,
     addrsLen: 0,
     muxer: ord(MuxerType.MPLEX),
     transport: ord(TransportType.TCP),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
-    maxConnections: DefaultMaxConnections,
+    maxConnections: -1,
     maxIn: -1,
     maxOut: -1,
-    maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
+    maxConnsPerPeer: -1,
     circuitRelay: 0,
     circuitRelayClient: 0,
     autonat: 0,
@@ -330,7 +352,6 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountGossipsub = config[].mountGossipsub
   resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
   resolved.mountKad = config[].mountKad
-  resolved.mountMix = config[].mountMix
   resolved.mountServiceDiscovery = config[].mountServiceDiscovery
   resolved.muxer = config[].muxer
   resolved.transport = config[].transport
@@ -395,7 +416,7 @@ proc createShared*(
 
   return ret
 
-proc destroyShared(self: ptr LifecycleRequest) =
+proc destroyShared*(self: ptr LifecycleRequest) =
   # TODO: Free any newly added fields here if you change the object structure
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():

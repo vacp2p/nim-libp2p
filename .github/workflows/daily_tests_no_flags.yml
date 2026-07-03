@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -29,22 +29,29 @@ jobs:
           shell: bash
           os: linux
           cpu: amd64
-          nim_ref: v2.2.6
+          nim_ref: v2.2.10
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
+          # Keep this in sync with ci.yml's cache key so entries are
+          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
-      - name: Build and run tests without feature flags
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+        
+      - name: Build feature flags
         run: |
-          nim c -r tests/test_all.nim
-  
+          nim c ./tests/test_all
 
+      - name: Run tests
+        run: |
+          ./tests/test_all

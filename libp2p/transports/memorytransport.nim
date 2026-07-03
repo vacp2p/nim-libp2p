@@ -16,21 +16,17 @@ import ./memorymanager
 export connection
 export MemoryTransportError, MemoryTransportAcceptStopped
 
-const MemoryAutoAddress* = "/memory/*"
+const MemoryAutoAddress* = "/memorytransport/*"
 
 logScope:
   topics = "libp2p memorytransport"
 
 type MemoryTransport* = ref object of Transport
-  rng: ref HmacDrbgContext
-  connections: seq[Connection]
+  rng: Rng
+  connections: seq[RawConn]
   listener: Opt[MemoryListener]
 
-proc new*(
-    T: typedesc[MemoryTransport],
-    upgrade: Upgrade = Upgrade(),
-    rng: ref HmacDrbgContext = newRng(),
-): T =
+proc new*(T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: Rng): T =
   let self = T(upgrader: upgrade, rng: rng)
   procCall Transport(self).initialize()
   self
@@ -39,12 +35,12 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   if $ma != MemoryAutoAddress:
     return ma
 
-  # when special address is used `/memory/*` use any free address.
+  # when special address is used `/memorytransport/*` use any free address.
   # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
-  hmacDrbgGenerate(self.rng[], randomBuf)
+  self.rng.generate(randomBuf)
 
-  return MultiAddress.init("/memory/" & toHex(randomBuf)).get()
+  return MultiAddress.init("/memorytransport/" & toHex(randomBuf)).get()
 
 method start*(
     self: MemoryTransport, addrs: seq[MultiAddress]
@@ -76,7 +72,7 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
 
 method accept*(
     self: MemoryTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   if not self.running:
     raise newException(MemoryTransportError, "Transport closed, no more connections!")
 
@@ -101,7 +97,7 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   try:
     let listener = getInstance().dial($ma)
     let conn = await listener.dial()
@@ -116,7 +112,7 @@ method dial*(
 
 proc dial*(
     self: MemoryTransport, ma: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
-): Future[Connection] {.gcsafe.} =
+): Future[RawConn] {.gcsafe.} =
   self.dial("", ma)
 
 method handles*(self: MemoryTransport, ma: MultiAddress): bool {.gcsafe, raises: [].} =

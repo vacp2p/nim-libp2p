@@ -10,7 +10,7 @@ logScope:
   topics = "libp2p autorelay"
 
 type
-  OnReservationHandler = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
+  OnReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
 
   AutoRelayService* = ref object of Service
     running: bool
@@ -19,11 +19,11 @@ type
     maxNumRelays: int # maximum number of relays we can reserve at the same time
     relayPeers: Table[PeerId, Future[void]]
     relayAddresses: Table[PeerId, seq[MultiAddress]]
-    backingOff: seq[PeerId]
+    backingOff: Table[PeerId, Future[void]]
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
-    rng: ref HmacDrbgContext
+    rng: Rng
 
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
@@ -50,51 +50,44 @@ proc reserveAndUpdate(
       self.relayAddresses[relayPid] = relayedAddr
       await switch.peerInfo.update()
       debug "Updated relay addresses", relayPid, relayedAddr
-      if not self.onReservation.isNil():
+      if self.running and not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(
-    self: AutoRelayService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+method setup*(self: AutoRelayService, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, listenAddrs)
 
-  let hasBeenSetUp = await procCall Service(self).setup(switch)
-  if hasBeenSetUp:
-    proc handlePeerIdentified(
-        peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: [CancelledError]).} =
-      trace "Peer Identified", peerId
-      if self.relayPeers.len < self.maxNumRelays:
-        self.peerAvailable.fire()
+  proc handlePeerIdentified(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    trace "Peer Identified", peerId
+    if self.relayPeers.len < self.maxNumRelays:
+      self.peerAvailable.fire()
 
-    proc handlePeerLeft(
-        peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: [CancelledError]).} =
-      trace "Peer Left", peerId
-      self.relayPeers.withValue(peerId, future):
-        future[].cancelSoon()
+  proc handlePeerLeft(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    trace "Peer Left", peerId
+    self.relayPeers.withValue(peerId, future):
+      future[].cancelSoon()
 
-    switch.addPeerEventHandler(handlePeerIdentified, Identified)
-    switch.addPeerEventHandler(handlePeerLeft, Left)
-    switch.peerInfo.addressMappers.add(self.addressMapper)
-    await self.run(switch)
-  return hasBeenSetUp
+  switch.addPeerEventHandler(handlePeerIdentified, Identified)
+  switch.addPeerEventHandler(handlePeerLeft, Left)
 
 proc manageBackedOff(
     self: AutoRelayService, pid: PeerId
 ) {.async: (raises: [CancelledError]).} =
   await sleepAsync(chronos.seconds(5))
-  self.backingOff.keepItIf(it != pid)
+  self.backingOff.del(pid)
   self.peerAvailable.fire()
 
 proc innerRun(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  while true:
+  while self.running:
     # Remove relayPeers that failed
     let peers = toSeq(self.relayPeers.keys())
     for k in peers:
@@ -102,11 +95,10 @@ proc innerRun(
         if self.relayPeers[k].finished():
           self.relayPeers.del(k)
           self.relayAddresses.del(k)
-          if not self.onReservation.isNil():
+          if self.running and not self.onReservation.isNil():
             self.onReservation(concat(toSeq(self.relayAddresses.values)))
           # To avoid ddosing our peers in certain conditions
-          self.backingOff.add(k)
-          asyncSpawn self.manageBackedOff(k)
+          self.backingOff[k] = self.manageBackedOff(k)
       except KeyError:
         raiseAssert "checked with in"
 
@@ -132,35 +124,38 @@ proc innerRun(
     else:
       await self.peerAvailable.wait()
 
-method run*(
+method start*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   if self.running:
-    trace "Autorelay is already running"
     return
   self.running = true
+  switch.peerInfo.addressMappers.add(self.addressMapper)
+  await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
 
 method stop*(
     self: AutoRelayService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
-  let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped:
-    self.running = false
-    self.runner.cancelSoon()
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
-  return hasBeenStopped
+) {.async: (raises: [CancelledError]).} =
+  if not self.running:
+    return
+  self.running = false
+  self.runner.cancelSoon()
+  for fut in self.backingOff.values:
+    fut.cancelSoon()
+  self.backingOff.clear()
+  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  await switch.peerInfo.update()
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
-  result = concat(toSeq(self.relayAddresses.values))
+  concat(toSeq(self.relayAddresses.values))
 
 proc new*(
     T: typedesc[AutoRelayService],
     maxNumRelays: int,
     client: RelayClient,
     onReservation: OnReservationHandler,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
 ): T =
   T(
     maxNumRelays: maxNumRelays,

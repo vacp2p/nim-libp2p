@@ -5,17 +5,7 @@
 
 import chronos, results
 import
-  ../../../libp2p/[
-    stream/connection,
-    transports/transport,
-    transports/tcptransport,
-    transports/tortransport,
-    transports/wstransport,
-    transports/quictransport,
-    upgrademngrs/upgrade,
-    multiaddress,
-    multicodec,
-  ]
+  ../../../libp2p/[stream/connection, transports/transport, multiaddress, multicodec]
 import ../../tools/[unittest]
 import ./utils
 
@@ -83,6 +73,24 @@ template basicTransportTest*(
         clientConn.closed()
         serverConn.closed()
 
+    asyncTest "stopping transport unblocks a pending accept":
+      # TODO: nim-libp2p#2713
+      let ma = @[MultiAddress.init(address).tryGet()]
+
+      let server = transportProvider()
+      await server.start(ma)
+
+      # park an accept with nothing dialing, then stop the transport under it
+      let acceptFut = server.accept()
+      await server.stop()
+
+      # quic resolves the parked accept to nil, the rest raise a stopped error
+      if isQuicTransport(ma[0]):
+        check (await acceptFut).isNil
+      else:
+        expect TransportClosedError:
+          discard await acceptFut
+
     asyncTest "transport start/stop events":
       let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()
@@ -99,50 +107,26 @@ template basicTransportTest*(
         await transport.start(@[MultiAddress.init(ma).tryGet()])
         await transport.stop()
 
-    # TODO: See issue nim-libp2p#2230
+    asyncTest "start fails when no address is provided":
+      let transport = transportProvider()
+      expect TransportStartError:
+        await transport.start(@[])
+
     asyncTest "start fails for valid non-wire addresses":
       for addrs in validNonWireAddresses:
         let transport = transportProvider()
         let ma = MultiAddress.init(addrs).tryGet()
 
-        if transport of TcpTransport:
-          expect ResultDefect:
-            await transport.start(@[ma])
-        elif transport of TorTransport:
-          expect TransportStartError:
-            await transport.start(@[ma])
-        else:
-          expect LPError:
-            await transport.start(@[ma])
+        expect TransportStartError:
+          await transport.start(@[ma])
 
-    # TODO: See issue nim-libp2p#2230
     asyncTest "start behaviour for invalid addresses":
       for addrs in invalidAddresses:
         let transport = transportProvider()
         let ma = MultiAddress.init(addrs).tryGet()
 
-        if transport of TcpTransport:
+        expect TransportStartError:
           await transport.start(@[ma])
-          await transport.stop()
-        elif transport of TorTransport:
-          expect TransportStartError:
-            await transport.start(@[ma])
-        elif transport of QuicTransport:
-          if UDP.match(ma):
-            # matches "/ip4/127.0.0.1/udp/1234", UDP without quic-v1
-            await transport.start(@[ma])
-            await transport.stop()
-          else:
-            expect LPError:
-              await transport.start(@[ma])
-        elif transport of WsTransport:
-          if TCP.match(ma):
-            # matches "/ip4/127.0.0.1/tcp/1234", Missing /ws or /wss
-            await transport.start(@[ma])
-            await transport.stop()
-          else:
-            expect LPError:
-              await transport.start(@[ma])
 
     asyncTest "multiaddress validation - accept valid addresses":
       let transport = transportProvider()

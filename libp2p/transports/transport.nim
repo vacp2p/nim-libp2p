@@ -5,14 +5,15 @@
 {.push raises: [].}
 
 import sequtils
-import chronos, chronicles
+import chronos, chronicles, results
 import
   ../stream/connection,
   ../multiaddress,
   ../multicodec,
   ../muxers/muxer,
   ../upgrademngrs/upgrade,
-  ../protocols/connectivity/autonat/types
+  ../protocols/connectivity/autonat/types,
+  ../wire
 
 export types.NetworkReachability
 
@@ -23,6 +24,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportStartError* = object of TransportError
   TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj
@@ -62,9 +64,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
 
 method accept*(
     self: Transport
-): Future[Connection] {.
-    gcsafe, base, async: (raises: [TransportError, CancelledError])
-.} =
+): Future[RawConn] {.gcsafe, base, async: (raises: [TransportError, CancelledError]).} =
   ## accept incoming connections
   ##
 
@@ -75,9 +75,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.
-    base, gcsafe, async: (raises: [TransportError, CancelledError])
-.} =
+): Future[RawConn] {.base, gcsafe, async: (raises: [TransportError, CancelledError]).} =
   ## dial a peer
   ##
 
@@ -85,11 +83,11 @@ method dial*(
 
 proc dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
-): Future[Connection] {.gcsafe.} =
-  self.dial("", address)
+): Future[RawConn] {.gcsafe.} =
+  self.dial("", address, peerId)
 
 method upgrade*(
-    self: Transport, conn: Connection, peerId: Opt[PeerId]
+    self: Transport, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.base, async: (raises: [CancelledError, LPError], raw: true).} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades
@@ -121,3 +119,19 @@ template safeClose*(stream: untyped) =
       await noCancel stream.close()
     except CatchableError as e:
       trace "Error closing", description = e.msg
+
+proc toTransportAddress*(
+    self: Transport, addrsMa: seq[MultiAddress]
+): Result[seq[TransportAddress], string] =
+  var addrsTa = newSeq[TransportAddress](addrsMa.len)
+  for i, maAddr in addrsMa:
+    if not self.handles(maAddr):
+      return err("unsupported address: " & $maAddr)
+
+    addrsTa[i] = initTAddress(maAddr).valueOr:
+      return err("cannot use non-wire address: " & $maAddr & ". " & error)
+
+  if addrsTa.len == 0:
+    return err("no addr was provided.")
+
+  return ok(addrsTa)

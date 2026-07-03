@@ -5,22 +5,23 @@
 
 import chronos
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
-import ../tools/[crypto, unittest]
+import ../tools/[crypto, unittest, multiaddress]
 import ./kad
 
 proc createSwitch(mountKad = true): Switch =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+    .withAddresses(@[TcpAutoAddress])
     .withTcpTransport()
     .withMplex()
     .withNoise()
     .build()
 
   if mountKad:
-    let kad =
-      KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2))
+    let kad = KadDHT.new(
+      switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2), rng = rng()
+    )
     switch.mount(kad)
 
   switch
@@ -56,6 +57,6 @@ suite "KadDHT Interop Tests with Nim nodes":
 
   asyncTest "Fails when peer is unreachable":
     const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     check not await kadInteropTest(ourAddress, unreachableAddress, fakePeerId)

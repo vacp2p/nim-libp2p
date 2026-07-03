@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[times, tables]
+import std/tables
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
+import ../../utils/future
 import ../protocol
 import ./[protobuf, types, find, put, kademlia_metrics]
 
@@ -12,44 +13,45 @@ logScope:
 
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
-): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
-  let conn =
-    try:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    except DialFailedError as e:
-      error "GetValue could not dial peer", description = e.msg
-      return Opt.none(Message)
+): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  withRpcSlot(kad)
+  let streamRes = catch:
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
 
-  let msg = Message(msgType: MessageType.getValue, key: key)
-  let encoded = msg.encode()
+  let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
 
   var replyBuf: seq[byte]
+  var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
-    await conn.writeLp(encoded.buffer)
-    replyBuf = await conn.readLp(MaxMsgSize)
+    ioRes = catch:
+      await stream.writeLp(encoded)
+      replyBuf = await stream.readLp(MaxMsgSize)
+  if ioRes.isErr:
+    return err(ioRes.error.msg)
 
   kad_message_bytes_received.inc(
     replyBuf.len.int64, labelValues = [$MessageType.getValue]
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    error "GetValue reply decode fail", error = error, conn = conn
-    return Opt.none(Message)
+    return err("GetValue reply decode fail")
 
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
-  conn.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
+  stream.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
-  return Opt.some(reply)
+  return ok(reply)
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
@@ -77,16 +79,25 @@ proc getValue*(
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let received = ReceivedTable()
 
-  # if locally present
-  if kad.dataTable.hasKey(key):
-    received[kad.switch.peerInfo.peerId] = kad.dataTable.get(key)
+  # if locally present and not expired, include our own copy
+  kad.dataTable.get(key).withValue(localRecord):
+    if not localRecord.isExpired(kad.config.recordExpirationInterval):
+      received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
+    else:
+      kad.dataTable.del(key)
+      debug "Local record expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
 
   let onReply = proc(
-      peer: PeerId, msgOpt: Opt[Message], state: var LookupState
+      peer: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
+    if not received.hasKey(peer) and received.len >= kad.config.limits.maxReceivedSize:
+      debug "GetValue: ReceivedTable cap reached, dropping reply",
+        peer = peer, cap = kad.config.limits.maxReceivedSize
+      return
+
     received[peer] = Opt.none(EntryRecord)
 
     let reply = msgOpt.valueOr:
@@ -97,7 +108,7 @@ proc getValue*(
       debug "GetValue returned empty record", reply = reply
       return
 
-    if record.key != key:
+    if record.key.isNone or record.key.get() != key:
       debug "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
@@ -106,10 +117,15 @@ proc getValue*(
       debug "GetValue returned record with no value", reply = reply
       return
 
+    if value.len > kad.config.limits.maxValueSize:
+      debug "GetValue dropped: value exceeds maxValueSize",
+        peer = peer, size = value.len, cap = kad.config.limits.maxValueSize
+      return
+
     let time = record.timeReceived.valueOr:
       debug "GetValue returned record with no timeReceived, using current time instead",
         reply = reply
-      TimeStamp($times.now().utc)
+      Timestamp.now()
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
@@ -121,67 +137,75 @@ proc getValue*(
   let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
-  kad.dataTable.insert(key, best.value, $times.now().utc)
+  if kad.canStoreLocalRecord(key):
+    kad.dataTable.insert(key, best.value, Timestamp.now())
+  else:
+    debug "GetValue: local record limit reached", key = key, current = kad.dataTable.len
 
   # update peers that
   # - don't have best value
   # - don't have valid records
   # - don't have the values at all
-  var rpcBatch: seq[Future[void]]
+  var rpcBatch: seq[Future[Result[void, string]]]
   for p, r in received:
     let record = r.valueOr:
       # peer doesn't have value
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
+      rpcBatch.add(kad.dispatchPutVal(p, key, best.value))
       continue
     if record.value != best.value:
       # value is invalid or not best
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
+      rpcBatch.add(kad.dispatchPutVal(p, key, best.value))
 
-  try:
-    await rpcBatch.allFutures().wait(chronos.seconds(5))
-  except AsyncTimeoutError:
-    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-    discard
+  await rpcBatch.allFuturesWaitOrTimeout(kad.config.timeout)
 
   ok(best)
 
 method handleGetValue*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let key = msg.key
+  let key = msg.key.valueOr:
+    error "Key not set: handleGetValue", msg = msg, stream = stream
+    return
 
-  let entryRecord = kad.dataTable.get(key).valueOr:
+  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
+  # as absent and sends the standard "no record found" response.
+  var entryRecordOpt = kad.dataTable.get(key)
+  entryRecordOpt.withValue(record):
+    if record.isExpired(kad.config.recordExpirationInterval):
+      debug "record expired, dropping", key = key
+      kad.dataTable.del(key)
+      entryRecordOpt = Opt.none(EntryRecord)
+
+  let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
-      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key),
+      closerPeers: kad.findClosestPeers(key),
     )
-    let encoded = response.encode()
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-    )
+    let encoded = response.encode(kad.config.hideConnectionStatus)
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
     try:
-      await conn.writeLp(encoded.buffer)
+      await stream.writeLp(encoded)
     except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+      debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return
 
   let response = Message(
-    msgType: MessageType.getValue,
-    key: key,
+    msgType: Opt.some(MessageType.getValue),
+    key: Opt.some(key),
     record: Opt.some(
       Record(
-        key: key,
+        key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
     ),
     closerPeers: kad.findClosestPeers(key),
   )
-  let encoded = response.encode()
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+  let encoded = response.encode(kad.config.hideConnectionStatus)
+  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return

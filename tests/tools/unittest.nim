@@ -60,58 +60,6 @@ const
   timeoutDefault: Duration = 30.seconds
   sleepIntervalDefault: Duration = 50.milliseconds
 
-macro untilTimeout*(args: untyped): untyped =
-  ## Periodically checks a given condition until it is true or a timeout occurs.
-  ## 
-  ## `pre`: untyped - Any logic that needs to be updated before calling `check`.
-  ## `check`: untyped - A condition expression that should eventually evaluate to true.
-  ## 
-  ## Examples:
-  ##   ```nim
-  ##   # Example 1:
-  ##   untilTimeout:
-  ##     pre:
-  ##       let value = getLatestValue()
-  ##     check:
-  ##       value == 3
-  if args.kind != nnkStmtList:
-    error "untilTimeout requires a block with check: and pre:"
-
-  var checkBlock: NimNode = nil
-  var preconditionBlock: NimNode = nil
-
-  for stmt in args:
-    if stmt.kind == nnkCall and $stmt[0] == "check":
-      checkBlock = stmt[1]
-    elif stmt.kind == nnkCall and $stmt[0] == "pre":
-      preconditionBlock = stmt[1]
-
-  if checkBlock.isNil or preconditionBlock.isNil:
-    error "untilTimeout block must contain both `check:` and `pre:` sections."
-
-  let combinedBoolExpr = buildAndExpr(checkBlock)
-
-  result = quote:
-    proc checkExpiringInternal(): Future[void] {.gensym, async.} =
-      let start = Moment.now()
-      while true:
-        if Moment.now() > (start + `timeoutDefault`):
-          checkpoint(
-            "[TIMEOUT] Timeout was reached and the conditions were not true. Check if the code is working as " &
-              "expected or consider increasing the timeout param."
-          )
-          `preconditionBlock`
-          check `checkBlock`
-          return
-        else:
-          `preconditionBlock`
-          if `combinedBoolExpr`:
-            return
-          else:
-            await sleepAsync(`sleepIntervalDefault`)
-
-    await checkExpiringInternal()
-
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped
 ): untyped =
@@ -142,7 +90,7 @@ macro checkUntilTimeoutCustom*(
   # Build the combined expression
   let combinedBoolExpr = buildAndExpr(code)
 
-  result = quote:
+  quote:
     proc checkExpiringInternal(): Future[void] {.gensym, async.} =
       let start = Moment.now()
       while true:
@@ -182,7 +130,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##       a == 2
   ##       b == 1
   ##   ```
-  result = quote:
+  quote:
     checkUntilTimeoutCustom(timeoutDefault, sleepIntervalDefault, `code`)
 
 template finalCheckTrackers*(): untyped =

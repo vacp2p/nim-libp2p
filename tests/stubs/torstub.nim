@@ -22,7 +22,7 @@ type TorServerStub* = ref object of RootObj
   tcpTransport: TcpTransport
   addrTable: Table[string, string]
 
-proc new*(T: typedesc[TorServerStub]): T {.public.} =
+proc new*(T: typedesc[TorServerStub]): T =
   T(
     tcpTransport: TcpTransport.new(flags = {ReuseAddr}, upgrade = Upgrade()),
     addrTable: initTable[string, string](),

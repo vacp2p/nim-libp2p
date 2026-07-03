@@ -15,6 +15,7 @@ import
     protocols/pubsub/rpc/protobuf,
   ]
 import ../../tools/[unittest, crypto as cryptoTools]
+import converters
 
 suite "Message":
   const topic = "foobar"
@@ -22,7 +23,7 @@ suite "Message":
   test "signature":
     var seqno = 11'u64
     let
-      peer = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
+      peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
       msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
 
     check verify(msg)
@@ -30,7 +31,7 @@ suite "Message":
   test "signature with missing key":
     let
       seqno = 11'u64
-      seckey = PrivateKey.random(Ed25519, rng[]).get()
+      seckey = PrivateKey.random(Ed25519, rng()).get()
       peer = PeerInfo.new(seckey)
     check peer.peerId.hasPublicKey() == true
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
@@ -41,7 +42,7 @@ suite "Message":
   test "signature without inlined pubkey in peerId":
     let
       seqno = 11'u64
-      peer = PeerInfo.new(PrivateKey.random(RSA, rng[]).get())
+      peer = PeerInfo.new(PrivateKey.random(RSA, rng()).get())
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
     msg.key = @[]
     # shouldn't work since there's no key field
@@ -51,8 +52,7 @@ suite "Message":
   test "defaultMsgIdProvider success":
     let
       seqno = 11'u64
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -70,8 +70,7 @@ suite "Message":
   test "defaultMsgIdProvider error - no source peer id":
     let
       seqno = 11'u64
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -80,7 +79,7 @@ suite "Message":
       peer = PeerInfo.new(seckey)
 
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
-    msg.fromPeer = PeerId()
+    msg.fromPeer = Opt.none(PeerId)
     let msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -89,8 +88,7 @@ suite "Message":
 
   test "defaultMsgIdProvider error - no source seqno":
     let
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -136,7 +134,7 @@ suite "Message":
     let controlPrune = ControlPrune(
       topicID: "uvw", # 3 bytes
       peers: @[peerInfo, peerInfo], # (1 + 2) * 2 = 6 bytes
-      backoff: 12345678, # 8 bytes for uint64
+      backoff: 12345678.uint64, # 8 bytes for uint64
     )
 
     let control = ControlMessage(
@@ -160,16 +158,15 @@ suite "Message":
     )
 
     let rpcMsg = RPCMsg(
-      subscriptions:
-        @[
-          SubOpts(
-            subscribe: true,
-            topic: "a".repeat(12),
-            requestsPartial: Opt.some(true),
-            supportsSendingPartial: Opt.some(true),
-          ), # 1 + 12 + 1 + 1 = 15 bytes
-          SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
-        ],
+      subscriptions: @[
+        SubOpts(
+          subscribe: true,
+          topic: "a".repeat(12),
+          requestsPartial: Opt.some(true),
+          supportsSendingPartial: Opt.some(true),
+        ), # 1 + 12 + 1 + 1 = 15 bytes
+        SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
+      ],
       messages: @[msg, msg], # 16 * 2 = 32 bytes
       control: Opt.some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
       partialMessageExtension: Opt.some(partialMessageExtensionRPC), # 4 bytes
@@ -193,26 +190,85 @@ suite "Message":
       )
     )
     #data encoded using protoc cmd tool
-    let expectedEncoded: seq[byte] =
-      @[
-        26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
-        123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
-        97, 114, 24, 10, 42, 3, 10, 1, 123,
-      ]
+    let expectedEncoded: seq[byte] = @[
+      26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1, 123,
+      26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98, 97,
+      114, 24, 10, 42, 3, 10, 1, 123,
+    ]
 
-    let actualEncoded = encodeRpcMsg(message, true)
+    let actualEncoded = message.encode(true)
     check:
       actualEncoded == expectedEncoded
 
-    let actualDecoded = decodeRpcMsg(expectedEncoded).value
+    let actualDecoded = RPCMsg.decode(expectedEncoded).get()
     check:
       actualDecoded == message
 
   asyncTest "RPCMsg:testExtension - encoding and decoding":
     let messageWith = RPCMsg(testExtension: Opt.some(TestExtensionRPC()))
-    var decoded = decodeRpcMsg(encodeRpcMsg(messageWith, true)).value
+    var decoded = RPCMsg.decode(encode(messageWith, true)).get()
     check decoded.testExtension.isSome()
 
     let messageWithout = RPCMsg(testExtension: Opt.none(TestExtensionRPC))
-    decoded = decodeRpcMsg(encodeRpcMsg(messageWithout, true)).value
+    decoded = RPCMsg.decode(encode(messageWithout, true)).get()
     check decoded.testExtension.isNone()
+
+  test "anonymize Message - anonymize=true strips identity fields":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(true)
+    check:
+      anon.data == msg.data
+      anon.topic == msg.topic
+      anon.fromPeer.isNone
+      anon.seqno.isNone
+      anon.signature.isNone
+      anon.key.isNone
+
+  test "anonymize Message - anonymize=false returns message unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg =
+      Message.init(Opt.some(peer), @[1'u8, 2, 3], topic, Opt.some(1'u64), sign = true)
+    let anon = msg.anonymize(false)
+    check:
+      anon.fromPeer == msg.fromPeer
+      anon.seqno == msg.seqno
+      anon.signature == msg.signature
+      anon.key == msg.key
+      anon.data == msg.data
+      anon.topic == msg.topic
+
+  test "anonymize RPCMsg - anonymize=true strips identity fields from all messages":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg1 =
+      Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let msg2 =
+      Message.init(Opt.some(peer), @[2'u8], topic, Opt.some(2'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg1, msg2])
+    let anon = rpc.anonymize(true)
+    for m in anon.messages:
+      check:
+        m.fromPeer.isNone
+        m.seqno.isNone
+        m.signature.isNone
+        m.key.isNone
+    check:
+      anon.messages[0].data == msg1.data
+      anon.messages[1].data == msg2.data
+
+  test "anonymize RPCMsg - anonymize=false returns RPCMsg unchanged":
+    let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
+    let msg = Message.init(Opt.some(peer), @[1'u8], topic, Opt.some(1'u64), sign = true)
+    let rpc = RPCMsg(messages: @[msg])
+    let anon = rpc.anonymize(false)
+    check:
+      anon.messages[0].fromPeer == msg.fromPeer
+      anon.messages[0].seqno == msg.seqno
+      anon.messages[0].signature == msg.signature
+      anon.messages[0].key == msg.key
+
+  test "anonymize RPCMsg - anonymize=true with no messages returns unchanged":
+    let rpc = RPCMsg(subscriptions: @[SubOpts(subscribe: true, topic: topic)])
+    let anon = rpc.anonymize(true)
+    check anon.messages.len == 0

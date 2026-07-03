@@ -37,4 +37,4 @@ proc calculateReceiveTimeMs*(msgLen: int64, dataRate: int64 = InitialRate): int6
   let txTime = ((msgLen * 1000) div dataRate)
   #ideally (RTT * 2) + 5% TxTime ? Need many testruns to precisely adjust safety margin
   let margin = 250 + (txTime.float64 * 0.05)
-  result = txTime + margin.int64
+  txTime + margin.int64

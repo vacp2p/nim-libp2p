@@ -15,7 +15,7 @@ import
   ../multistream,
   ../connmanager,
   ../errors,
-  ../utility
+  results
 
 export connmanager, connection, identify, secure, multistream
 
@@ -37,13 +37,13 @@ type
     secureManagers*: seq[Secure]
 
 method upgrade*(
-    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
+    self: Upgrade, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
   raiseAssert("[Upgrade.upgrade] abstract method not implemented!")
 
 proc secure*(
-    self: Upgrade, conn: Connection, peerId: Opt[PeerId]
-): Future[Connection] {.async: (raises: [CancelledError, LPError]).} =
+    self: Upgrade, conn: RawConn, peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
     raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 

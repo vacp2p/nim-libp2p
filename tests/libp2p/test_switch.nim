@@ -18,18 +18,17 @@ import
     peerinfo,
     crypto/crypto,
     protocols/protocol,
-    protocols/secure/secure,
     muxers/muxer,
     muxers/mplex/lpchannel,
     stream/lpstream,
     nameresolving/mockresolver,
-    nameresolving/nameresolver,
     stream/chronosstream,
     transports/tcptransport,
     transports/wstransport,
     transports/quictransport,
   ]
-import ../tools/[unittest, trackers, futures, crypto, sync]
+import
+  ../tools/[unittest, trackers, futures, crypto, sync, switch_builder, multiaddress]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -41,38 +40,38 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in protocol handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -83,15 +82,15 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string with custom matcher":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in custom matcher protocol handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -103,23 +102,23 @@ suite "Switch":
     proc match(proto: string): bool {.gcsafe.} =
       return proto == callProto
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto, match)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, callProto)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -130,38 +129,38 @@ suite "Switch":
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in bufferstream leak test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -171,50 +170,47 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in connect-then-dial test handler"
       finally:
-        await conn.close()
+        await stream.close()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
 
-    await allFuturesRaising(conn.close(), switch1.stop(), switch2.stop())
+    await allFuturesRaising(stream.close(), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e connect to peer with unknown PeerId":
     let resolver = MockResolver.new()
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    let switch2 = newStandardSwitch(
-      secureManagers = [SecureProtocol.Noise],
-      nameResolver = Opt.some(NameResolver(resolver)),
-    )
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitchBuilder().withNameResolver(resolver).build()
     await switch1.start()
     await switch2.start()
 
@@ -237,8 +233,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -252,33 +248,33 @@ suite "Switch":
     # with invalid PeerId, will fail
     let fakeMa = concat(
         switch1.peerInfo.addrs[0],
-        MultiAddress.init(multiCodec("p2p"), PeerId.random.tryGet().data).tryGet(),
+        MultiAddress.init(multiCodec("p2p"), PeerId.random(rng()).tryGet().data).tryGet(),
       )
       .tryGet()
     expect(DialFailedError):
       discard (await switch2.connect(fakeMa))
 
     # real thing works
-    check (await switch2.connect(switch1.peerInfo.fullAddrs.tryGet()[0])) ==
-      switch1.peerInfo.peerId
+    let fullAddr = switch1.peerInfo.fullAddrs.tryGet()[0]
+    let connectedPeerId = await switch2.connect(fullAddr)
+    check connectedPeerId == switch1.peerInfo.peerId
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should not leak on peer disconnect":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
-    let startCounts =
-      @[
-        switch1.connManager.availableSlots(Direction.In),
-        switch1.connManager.availableSlots(Direction.Out),
-        switch2.connManager.availableSlots(Direction.In),
-        switch2.connManager.availableSlots(Direction.Out),
-      ]
+    let startCounts = @[
+      switch1.connManager.availableSlots(Direction.In),
+      switch1.connManager.availableSlots(Direction.Out),
+      switch2.connManager.availableSlots(Direction.In),
+      switch2.connManager.availableSlots(Direction.Out),
+    ]
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -306,8 +302,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (remote)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -354,8 +350,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (local)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -402,8 +398,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (remote)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -451,8 +447,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (local)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
+    let switch2 = makeStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -500,13 +496,13 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitch()
+    let switch1 = makeStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
 
     # use same private keys to emulate two connection from same peer
-    let privKey = PrivateKey.random(rng[]).tryGet()
-    let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
+    let privKey = PrivateKey.random(rng()).tryGet()
+    let switch2 = makeStandardSwitchBuilder().withPrivateKey(privKey).build()
 
-    let switch3 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
+    let switch3 = makeStandardSwitchBuilder().withPrivateKey(privKey).build()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -563,7 +559,7 @@ suite "Switch":
   asyncTest "e2e should allow dropping peer from connection events":
     # use same private keys to emulate two connection from same peer
     let
-      privateKey = PrivateKey.random(rng[]).tryGet()
+      privateKey = PrivateKey.random(rng()).tryGet()
       peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
@@ -582,13 +578,13 @@ suite "Switch":
       except DialFailedError:
         raiseAssert "Unexpected DialFailedError in connection event hook"
 
-    switches.add(newStandardSwitch(rng = rng))
+    switches.add(makeStandardSwitch())
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
-    switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+    switches.add(makeStandardSwitchBuilder().withPrivateKey(privateKey).build())
     await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     onConnect.done()
 
@@ -597,7 +593,7 @@ suite "Switch":
     await allFuturesRaising(switches.mapIt(it.stop()))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let privateKey = PrivateKey.random(rng[]).tryGet()
+    let privateKey = PrivateKey.random(rng()).tryGet()
     let peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
@@ -612,14 +608,18 @@ suite "Switch":
         allDisconnected.done()
 
     # Start first switch
-    switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))
+    switches.add(
+      makeStandardSwitchBuilder(TcpAutoAddress).withMaxConnsPerPeer(10).build()
+    )
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
     # Connect remaining switches sequentially
     for i in 1 .. 5:
-      switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+      switches.add(
+        makeStandardSwitchBuilder(TcpAutoAddress).withPrivateKey(privateKey).build()
+      )
       switches[i].addConnEventHandler(hook, ConnEventKind.Connected)
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       await switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
@@ -640,22 +640,22 @@ suite "Switch":
 
     await allFuturesRaising(switches[0].stop())
 
-  asyncTest "e2e closing remote conn should not leak":
+  asyncTest "e2e closing remote raw connection should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async.} =
-      let conn = await transport.accept()
-      await conn.closeWithEOF()
+      let rawConn = await transport.accept()
+      await rawConn.closeWithEOF()
 
     let handlerWait = acceptHandler()
-    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch = makeStandardSwitch(TcpAutoAddress)
 
     await switch.start()
 
-    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng()).get()).get()
     expect DialFailedError:
       await switch.connect(peerId, transport.addrs)
 
@@ -668,9 +668,9 @@ suite "Switch":
     await allFuturesRaising(transport.stop(), switch.stop())
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        discard await conn.readLp(100)
+        discard await stream.readLp(100)
       except LPStreamError:
         check true # should be here
 
@@ -678,18 +678,18 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = makeStandardSwitch()
 
     await switch1.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     proc closeReader() {.async.} =
-      await conn.closeWithEOF()
+      await stream.closeWithEOF()
 
     var readers: seq[Future[void]]
     for i in 0 .. 10:
@@ -707,10 +707,10 @@ suite "Switch":
     await switch1.stop()
 
   asyncTest "connect to inexistent peer":
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 = makeStandardSwitch(TcpAutoAddress)
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
-    let seckey = PrivateKey.random(ECDSA, rng[]).get()
+    let seckey = PrivateKey.random(ECDSA, rng()).get()
     let somePeer = PeerInfo.new(seckey, [someAddr])
     expect(DialFailedError):
       discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
@@ -718,13 +718,15 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxConnections = 3)
+    let destSwitch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withConnectionLimits(ConnectionLimits.maxTotal(3))
+      .build()
     switches.add(destSwitch)
     await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitch()
+      let switch = makeStandardSwitch(TcpAutoAddress)
       switches.add(switch)
       await switch.start()
 
@@ -732,7 +734,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitch()
+    let switchFail = makeStandardSwitch(TcpAutoAddress)
     switches.add(switchFail)
     await switchFail.start()
 
@@ -747,14 +749,18 @@ suite "Switch":
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitch())
+      switches.add(makeStandardSwitch(TcpAutoAddress))
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(maxConnections = 3)
+    let srcSwitch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withConnectionLimits(ConnectionLimits.maxTotal(3))
+      .build()
     await srcSwitch.start()
+    switches.add(srcSwitch)
 
-    let dstSwitch = newStandardSwitch()
+    let dstSwitch = makeStandardSwitch(TcpAutoAddress)
     await dstSwitch.start()
+    switches.add(dstSwitch)
 
     for s in switches:
       check await srcSwitch.connect(s.peerInfo.peerId, s.peerInfo.addrs).withTimeout(
@@ -764,20 +770,19 @@ suite "Switch":
     expect DialFailedError:
       await srcSwitch.connect(dstSwitch.peerInfo.peerId, dstSwitch.peerInfo.addrs)
 
-    switches.add(srcSwitch)
-    switches.add(dstSwitch)
-
     await allFuturesRaising(switches.mapIt(it.stop()))
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxIn = 3, maxOut = 1)
+    let destSwitch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withConnectionLimits(ConnectionLimits.maxInOut(3, 1))
+      .build()
     switches.add(destSwitch)
     await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitch()
+      let switch = makeStandardSwitch(TcpAutoAddress)
       switches.add(switch)
       await switch.start()
 
@@ -785,7 +790,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitch()
+    let switchFail = makeStandardSwitch(TcpAutoAddress)
     switches.add(switchFail)
     await switchFail.start()
 
@@ -800,13 +805,15 @@ suite "Switch":
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitch())
+      switches.add(makeStandardSwitch(TcpAutoAddress))
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(maxOut = 3, maxIn = 1)
+    let srcSwitch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withConnectionLimits(ConnectionLimits.maxInOut(1, 3))
+      .build()
     await srcSwitch.start()
 
-    let dstSwitch = newStandardSwitch()
+    let dstSwitch = makeStandardSwitch(TcpAutoAddress)
     await dstSwitch.start()
 
     for s in switches:
@@ -824,38 +831,39 @@ suite "Switch":
 
   asyncTest "e2e peer store":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in peer store test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = makeStandardSwitch(TcpAutoAddress)
     switch1.mount(testProto)
-
-    let switch2 = newStandardSwitch(peerStoreCapacity = 0)
     await switch1.start()
+
+    let switch2 =
+      makeStandardSwitchBuilder(TcpAutoAddress).withPeerStore(capacity = 0).build()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -875,39 +883,39 @@ suite "Switch":
 
   asyncTest "e2e LastSeenOutboundBook tracks outbound connections":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in LastSeenOutboundBook test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = makeStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = makeStandardSwitch()
     await switch1.start()
     await switch2.start()
 
     # Switch2 dials switch1 (outbound from switch2's perspective)
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -928,53 +936,43 @@ suite "Switch":
       # this randomly locks the Windows CI job
       skip()
     else:
-      proc handle(
-          conn: Connection, proto: string
-      ) {.async: (raises: [CancelledError]).} =
+      proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
         try:
-          let msg = string.fromBytes(await conn.readLp(1024))
+          let msg = string.fromBytes(await stream.readLp(1024))
           check "Hello!" == msg
-          await conn.writeLp("Hello!")
+          await stream.writeLp("Hello!")
         except LPStreamError:
           raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
         finally:
-          await conn.close()
+          await stream.close()
 
       let testProto = new TestProto
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let addrs =
-        @[
-          MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-          MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
-        ]
+      let addrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
 
-      let switch1 = newStandardSwitch(
-        addrs = addrs, transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort}
-      )
-
+      let switch1 = makeStandardSwitch(addrs)
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitch()
-      let switch3 =
-        newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
+      let switch2 = makeStandardSwitch(TcpAutoAddress)
+      let switch3 = makeStandardSwitch(TcpAutoAddress)
 
       await allFuturesRaising(switch1.start(), switch2.start(), switch3.start())
 
       check IP4.matchPartial(switch1.peerInfo.addrs[0])
       check IP6.matchPartial(switch1.peerInfo.addrs[1])
 
-      let conn = await switch2.dial(
+      let stream = await switch2.dial(
         switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[0]], TestCodec
       )
 
       check switch1.isConnected(switch2.peerInfo.peerId)
       check switch2.isConnected(switch1.peerInfo.peerId)
 
-      await conn.writeLp("Hello!")
-      check "Hello!" == string.fromBytes(await conn.readLp(1024))
-      await conn.close()
+      await stream.writeLp("Hello!")
+      check "Hello!" == string.fromBytes(await stream.readLp(1024))
+      await stream.close()
 
       let connv6 = await switch3.dial(
         switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[1]], TestCodec
@@ -998,8 +996,9 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
-      destSwitch = newStandardSwitch()
+      srcSwitch =
+        makeStandardSwitchBuilder(TcpAutoAddress).withNameResolver(resolver).build()
+      destSwitch = makeStandardSwitch(TcpAutoAddress)
 
     await destSwitch.start()
     await srcSwitch.start()
@@ -1018,45 +1017,20 @@ suite "Switch":
     let resolver = MockResolver.new()
 
     let
-      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-
-      srcTcpSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
-      srcWsSwitch = SwitchBuilder
-        .new()
-        .withAddress(wsAddress)
-        .withRng(rng)
-        .withMplex()
-        .withTransport(
-          proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
-        )
-        .withNameResolver(resolver)
-        .withNoise()
-        .build()
-
-      destSwitch = SwitchBuilder
-        .new()
-        .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(rng)
-        .withMplex()
-        .withTransport(
-          proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
-        )
-        .withTcpTransport()
-        .withNoise()
-        .build()
+      srcTcpSwitch =
+        makeStandardSwitchBuilder(TcpAutoAddress).withNameResolver(resolver).build()
+      srcWsSwitch =
+        makeStandardSwitchBuilder(WsAutoAddress).withNameResolver(resolver).build()
+      destSwitch = makeStandardSwitch(@[TcpAutoAddress, WsAutoAddress])
 
     await destSwitch.start()
     await srcWsSwitch.start()
 
-    resolver.txtResponses["_dnsaddr.test.io"] =
-      @[
-        "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
-          "/p2p/" & $destSwitch.peerInfo.peerId,
-        "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1 ..^ 1].tryGet(),
-      ]
+    resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
+        "/p2p/" & $destSwitch.peerInfo.peerId,
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1 ..^ 1].tryGet(),
+    ]
     resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
 
     let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
@@ -1073,24 +1047,8 @@ suite "Switch":
 
   asyncTest "e2e quic transport":
     let
-      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-
-      srcSwitch = SwitchBuilder
-        .new()
-        .withAddress(quicAddress1)
-        .withRng(rng)
-        .withQuicTransport()
-        .withNoise()
-        .build()
-
-      destSwitch = SwitchBuilder
-        .new()
-        .withAddress(quicAddress2)
-        .withRng(rng)
-        .withQuicTransport()
-        .withNoise()
-        .build()
+      srcSwitch = makeStandardSwitch(QuicAutoAddress)
+      destSwitch = makeStandardSwitch(QuicAutoAddress)
 
     await destSwitch.start()
     await srcSwitch.start()
@@ -1103,39 +1061,23 @@ suite "Switch":
 
   asyncTest "e2e multiple transports coexistence":
     let
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
-      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-
       destSwitch = SwitchBuilder
         .new()
-        .withAddresses(@[tcpAddress, wsAddress, quicAddress])
-        .withRng(rng)
+        .withAddresses(@[TcpAutoAddress, WsAutoAddress, QuicAutoAddress])
+        .withRng(rng())
         .withMplex()
+        .withTcpTransport()
         .withTransport(
           proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
+            WsTransport.new(config.upgr, config.rng)
         )
-        .withTcpTransport()
         .withQuicTransport()
         .withNoise()
         .build()
 
-      srcTcpSwitch =
-        newStandardSwitch(addrs = tcpAddress, transport = TransportType.TCP)
-      srcWsSwitch = SwitchBuilder
-        .new()
-        .withAddress(wsAddress)
-        .withRng(rng)
-        .withMplex()
-        .withTransport(
-          proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
-        )
-        .withNoise()
-        .build()
-      srcQuicSwitch =
-        newStandardSwitch(addrs = quicAddress, transport = TransportType.QUIC)
+      srcTcpSwitch = makeStandardSwitch(TcpAutoAddress)
+      srcWsSwitch = makeStandardSwitch(WsAutoAddress)
+      srcQuicSwitch = makeStandardSwitch(QuicAutoAddress)
 
     let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
     await allFutures(switches.mapIt(it.start()))
@@ -1165,19 +1107,19 @@ suite "Switch":
 
   asyncTest "mount unstarted protocol":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        check "test123" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test456")
+        check "test123" == string.fromBytes(await stream.readLp(1024))
+        await stream.writeLp("test456")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let
-      src = newStandardSwitch()
-      dst = newStandardSwitch()
+      src = makeStandardSwitch()
+      dst = makeStandardSwitch()
       testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
@@ -1191,44 +1133,19 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn =
-      # On Windows, there is a brief gap between switch.start() returning and the
-      # TCP transport being ready to accept connections, causing sporadic
-      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-      when defined(windows):
-        var dialConn: Connection
-        var lastDialError: ref DialFailedError
-        var connected = false
-        for _ in 0 ..< 10:
-          try:
-            dialConn =
-              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
-            connected = true
-            break
-          except DialFailedError as e:
-            lastDialError = e
-            # Bounded retry for the documented Windows listener readiness gap.
-            await sleepAsync(200.milliseconds)
-        if not connected:
-          if not isNil(lastDialError):
-            raise lastDialError
-          raiseAssert "dial retry loop exited without establishing a connection"
-        dialConn
-      else:
-        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let stream = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
-    await conn.writeLp("test123")
-    check "test456" == string.fromBytes(await conn.readLp(1024))
-    await conn.close()
+    await stream.writeLp("test123")
+    check "test456" == string.fromBytes(await stream.readLp(1024))
+    await stream.close()
     await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
-    let switch = newStandardSwitch(
-      addrs =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-          MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
-        ]
+    let switch = makeStandardSwitch(
+      @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+        MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
+      ]
     )
 
     expect LPError:
@@ -1236,10 +1153,106 @@ suite "Switch":
     # test is that this doesn't leak
 
   asyncTest "starting two times does not crash":
-    let switch =
-      newStandardSwitch(addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    let switch = makeStandardSwitch()
 
     await switch.start()
     await switch.start()
 
     await allFuturesRaising(switch.stop())
+
+  asyncTest "withAnnouncedAddresses overrides what peers see":
+    # Bind locally, but advertise a fake public address. Listen addrs must
+    # reflect the actual bound socket; announced addrs must be returned by
+    # peerInfo.addrs verbatim regardless of the mapper chain (including the
+    # wildcard resolver, which would normally rewrite/expand listenAddrs).
+    let
+      announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
+      switch = makeStandardSwitchBuilder(TcpAutoAddress)
+        .withAnnouncedAddresses(@[announcedAddr])
+        .build()
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Transport actually bound a local socket — listenAddrs is populated, and
+    # the *original* zero-port address has been resolved to something else.
+    check switch.peerInfo.listenAddrs.len == 1
+    check switch.peerInfo.listenAddrs[0] != TcpAutoAddress
+
+    # Announced set wins regardless of wildcard-resolver or other mappers.
+    check switch.peerInfo.addrs == @[announcedAddr]
+
+  asyncTest "accept loop not blocked by upgrade semaphore":
+    # Regression: old code held the upgrade semaphore in the accept loop, blocking
+    # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
+    # getting stuck on bootstrap.
+    const NumPeers = 85
+    let server = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withConnectionLimits(ConnectionLimits.maxTotal(NumPeers))
+      .build()
+    await server.start()
+
+    var clients: seq[Switch]
+    for _ in 0 ..< NumPeers:
+      let c = makeStandardSwitch(TcpAutoAddress)
+      await c.start()
+      clients.add(c)
+    defer:
+      await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
+
+    let connects =
+      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
+    let allConnects = allFuturesRaising(connects)
+    check await allConnects.withTimeout(30.seconds)
+    await allConnects
+
+suite "Switch :: IdentifyPusher Service":
+  var
+    switch1 {.threadvar.}: Switch
+    switch2 {.threadvar.}: Switch
+
+  asyncSetup:
+    switch1 = makeStandardSwitchBuilder(TcpAutoAddress).withIdentifyPusher().build()
+    switch2 = makeStandardSwitchBuilder(TcpAutoAddress).withIdentifyPusher().build()
+    await switch1.start()
+    await switch2.start()
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+  asyncTeardown:
+    await switch1.stop()
+    await switch2.stop()
+
+  asyncTest "broadcasts on mount of new protocol":
+    checkUntilTimeout:
+      switch1.isConnected(switch2.peerInfo.peerId)
+      switch2.isConnected(switch1.peerInfo.peerId)
+
+    # mount new protocol to switch2
+    let codecs = "/switch/protocol/1.0.0"
+    proc dummyHandler(
+        stream: Stream, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      await stream.close()
+
+    let dummy = LPProtocol.new(@[codecs], dummyHandler)
+    await dummy.start()
+    switch2.mount(dummy)
+
+    # switch1 should get information about new protocol
+    checkUntilTimeout:
+      codecs in switch1.peerStore[ProtoBook][switch2.peerInfo.peerId]
+
+  asyncTest "broadcasts on updateAddrs":
+    checkUntilTimeout:
+      switch1.isConnected(switch2.peerInfo.peerId)
+      switch2.isConnected(switch1.peerInfo.peerId)
+
+    # switch2 starts listening on new address
+    let extra = MultiAddress.init("/ip4/127.0.0.1/tcp/999").tryGet()
+    switch2.peerInfo.listenAddrs.add(extra)
+    await switch2.peerInfo.update()
+
+    # switch1 should receive new address
+    checkUntilTimeout:
+      extra in switch1.peerStore[AddressBook][switch2.peerInfo.peerId]

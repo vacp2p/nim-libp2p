@@ -33,10 +33,11 @@ type
 {.push raises: [].}
 
 proc encode(m: Metric): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, m.name)
-  result.write(2, m.value)
-  result.finish()
+  var pb = initProtoBuffer()
+  pb.write(1, m.name)
+  pb.write(2, m.value)
+  pb.finish()
+  pb
 
 proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   var res: Metric
@@ -46,11 +47,12 @@ proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   ok(res)
 
 proc encode(m: MetricList): ProtoBuffer =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
   for metric in m.metrics:
-    result.write(1, metric.encode())
-  result.write(2, m.hostname)
-  result.finish()
+    pb.write(1, metric.encode())
+  pb.write(2, m.hostname)
+  pb.finish()
+  pb
 
 proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] =
   var
@@ -72,12 +74,12 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 
 type Node = tuple[switch: Switch, gossip: GossipSub, hostname: string]
 
-proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
+proc oneNode(node: Node, rng: Rng) {.async.} =
   # This procedure will handle one of the node of the network
   node.gossip.addValidator(
     ["metrics"],
     proc(topic: string, message: Message): Future[ValidationResult] {.async.} =
-      let decoded = MetricList.decode(message.data)
+      let decoded = MetricList.decode(message.data.get())
       if decoded.isErr:
         return ValidationResult.Reject
       return ValidationResult.Accept,
@@ -104,14 +106,24 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
   for _ in 0 ..< 10:
     await sleepAsync(500.milliseconds)
     var metricList = MetricList(hostname: node.hostname)
-    let metricCount = rng[].generate(uint32) mod 4
+    let metricCount = rng.generate(uint32) mod 4
     for i in 0 ..< metricCount + 1:
       metricList.metrics.add(
-        Metric(name: "metric_" & $i, value: float(rng[].generate(uint16)) / 1000.0)
+        Metric(name: "metric_" & $i, value: float(rng.generate(uint16)) / 1000.0)
       )
 
     discard await node.gossip.publish("metrics", encode(metricList).buffer)
   await node.switch.stop()
+
+proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
+  return SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
 
 ## For our main procedure, we'll create a few nodes, and connect them together.
 ## Note that they are not all interconnected, but GossipSub will take care of
@@ -122,8 +134,8 @@ proc main() {.async.} =
 
   for hostname in ["John", "Walter", "David", "Thuy", "Amy"]:
     let
-      switch = newStandardSwitch(rng = rng)
-      gossip = GossipSub.init(switch = switch, triggerSelf = true)
+      switch = createSwitch(rng)
+      gossip = GossipSub.init(switch = switch, triggerSelf = true, rng = rng)
     switch.mount(gossip)
     await switch.start()
 

@@ -14,31 +14,32 @@ proc getAddressesMock(
 ): seq[InterfaceAddress] {.gcsafe, raises: [].} =
   try:
     if addrFamily == AddressFamily.IPv4:
-      return
-        @[
-          InterfaceAddress.init(initTAddress("127.0.0.1:0"), 8),
-          InterfaceAddress.init(initTAddress("192.168.1.22:0"), 24),
-        ]
+      return @[
+        InterfaceAddress.init(initTAddress("127.0.0.1:0"), 8),
+        InterfaceAddress.init(initTAddress("192.168.1.22:0"), 24),
+      ]
     else:
-      return
-        @[
-          InterfaceAddress.init(initTAddress("::1:0"), 8),
-          InterfaceAddress.init(initTAddress("fe80::1:0"), 64),
-        ]
+      return @[
+        InterfaceAddress.init(initTAddress("::1:0"), 8),
+        InterfaceAddress.init(initTAddress("fe80::1:0"), 64),
+      ]
   except TransportAddressError as e:
     echo "Error: " & $e.msg
     fail()
 
 proc createSwitch(svc: Service, addrs: seq[MultiAddress]): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(rng)
-  .withAddresses(addrs, false)
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .withServices(@[svc])
-  .build()
+  var switch = SwitchBuilder
+    .new()
+    .withRng(rng())
+    .withAddresses(addrs, false)
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
+
+  switch.add(svc)
+
+  return switch
 
 suite "WildcardAddressResolverService":
   teardown:

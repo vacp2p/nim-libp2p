@@ -28,15 +28,21 @@ type
 
 proc intoChaChaPolyKey*(s: openArray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
-  assign(result, s)
+  var key: ChaChaPolyKey
+  assign(key, s)
+  key
 
 proc intoChaChaPolyNonce*(s: openArray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
-  assign(result, s)
+  var nonce: ChaChaPolyNonce
+  assign(nonce, s)
+  nonce
 
 proc intoChaChaPolyTag*(s: openArray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
-  assign(result, s)
+  var tag: ChaChaPolyTag
+  assign(tag, s)
+  tag
 
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime
@@ -52,13 +58,13 @@ proc encrypt*(
 ) =
   let ad =
     if aad.len > 0:
-      unsafeAddr aad[0]
+      addr aad[0]
     else:
       nil
 
   poly1305CtmulRun(
-    unsafeAddr key[0],
-    unsafeAddr nonce[0],
+    addr key[0],
+    addr nonce[0],
     baseAddr(data),
     uint(data.len),
     ad,
@@ -79,13 +85,13 @@ proc decrypt*(
 ) =
   let ad =
     if aad.len > 0:
-      unsafeAddr aad[0]
+      addr aad[0]
     else:
       nil
 
   poly1305CtmulRun(
-    unsafeAddr key[0],
-    unsafeAddr nonce[0],
+    addr key[0],
+    addr nonce[0],
     baseAddr(data),
     uint(data.len),
     ad,

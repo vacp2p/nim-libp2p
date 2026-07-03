@@ -35,30 +35,28 @@ type TestProto = ref object of LPProtocol
 {.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      let msg = string.fromBytes(await conn.readLp(1024))
+      let msg = string.fromBytes(await stream.readLp(1024))
       check "Hello!" == msg
-      await conn.writeLp("Hello!")
+      await stream.writeLp("Hello!")
     except LPStreamError:
       raiseAssert "LPStreamError while handling connection"
     finally:
-      await conn.close()
+      await stream.close()
 
   p.codec = TestCodec
   p.handler = handle
 
 {.pop.}
 
-proc createSwitch(
-    ma: MultiAddress, outgoing: bool, plaintext: bool = false
-): (Switch, PeerInfo) =
+proc makeSwitch(ma: MultiAddress, outgoing: bool, plaintext: bool = false): Switch =
   var
-    privateKey = PrivateKey.random(ECDSA, rng[]).get()
+    privateKey = PrivateKey.random(ECDSA, rng()).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
 
-  proc createMplex(conn: Connection): Muxer =
-    result = Mplex.new(conn)
+  proc createMplex(conn: RawConn): Muxer =
+    Mplex.new(conn)
 
   let
     identify = Identify.new(peerInfo)
@@ -69,26 +67,35 @@ proc createSwitch(
       if plaintext:
         [Secure(PlainText.new())]
       else:
-        [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
-    connManager = ConnManager.newMaxTotal()
+        [Secure(Noise.new(rng(), privateKey, outgoing = outgoing))]
+    connManager = ConnManager.new()
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]
+    dialer = Dialer.new(peerInfo.peerId, connManager, peerStore, transports, ms, nil)
 
-  let switch =
-    newSwitch(peerInfo, transports, secureManagers, connManager, ms, peerStore)
-  result = (switch, peerInfo)
+  Switch(
+    peerInfo: peerInfo,
+    transports: transports,
+    connManager: connManager,
+    ms: ms,
+    peerStore: peerStore,
+    dialer: dialer,
+    rng: rng(),
+  )
 
 suite "Noise":
   teardown:
     checkTrackers()
 
+  let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+
   asyncTest "e2e: handle write + noise":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      server = @[ma]
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
@@ -105,8 +112,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
@@ -124,16 +131,16 @@ suite "Noise":
 
   asyncTest "e2e: handle write + noise (wrong prologue)":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      server = @[ma]
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
 
     asyncSpawn transport1.start(server)
 
     proc acceptHandler() {.async.} =
-      var conn: Connection
+      var conn: RawConn
       expect LPStreamError:
         conn = await transport1.accept()
         discard await serverNoise.secure(conn, Opt.none(PeerId))
@@ -142,13 +149,13 @@ suite "Noise":
     let
       handlerWait = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
       clientNoise = Noise.new(
-        rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
+        rng(), clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
       )
       conn = await transport2.dial(transport1.addrs[0])
 
-    var sconn: Connection = nil
+    var sconn: SecureConn = nil
     expect NoiseDecryptTagError:
       sconn = await clientNoise.secure(conn, Opt.some(conn.peerId))
 
@@ -159,10 +166,10 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      server = @[ma]
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
@@ -181,8 +188,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
@@ -195,14 +202,14 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise fragmented":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      server = @[ma]
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
       readTask = newFuture[void]()
 
     var hugePayload = newSeq[byte](0xFFFFF)
-    hmacDrbgGenerate(rng[], hugePayload)
+    rng().generate(hugePayload)
     trace "Sending huge payload", size = hugePayload.len
 
     let
@@ -221,8 +228,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
@@ -236,20 +243,14 @@ suite "Noise":
     await transport1.stop()
     await listenFut
 
-  asyncTest "e2e use switch dial proto string":
-    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-    var peerInfo1, peerInfo2: PeerInfo
-    var switch1, switch2: Switch
-
-    (switch1, peerInfo1) = createSwitch(ma1, false)
+  asyncTest "e2e: use switch dial proto string":
+    var switch1 = makeSwitch(ma, false)
+    var switch2 = makeSwitch(ma, true)
 
     let testProto = new TestProto
     testProto.init()
     testProto.codec = TestCodec
     switch1.mount(testProto)
-    (switch2, peerInfo2) = createSwitch(ma2, true)
     await switch1.start()
     await switch2.start()
     let conn =
@@ -261,20 +262,15 @@ suite "Noise":
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
-  asyncTest "e2e test wrong secure negotiation":
-    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-    var peerInfo1, peerInfo2: PeerInfo
-    var switch1, switch2: Switch
-
-    (switch1, peerInfo1) = createSwitch(ma1, false)
+  asyncTest "e2e: test wrong secure negotiation":
+    var switch1 = makeSwitch(ma, false)
+    var switch2 = makeSwitch(ma, true, true)
+      # PlainText enabled; mismatched with Noise, so we want this to fail
 
     let testProto = new TestProto
     testProto.init()
     testProto.codec = TestCodec
     switch1.mount(testProto)
-    (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
     expect DialFailedError:
