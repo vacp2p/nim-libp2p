@@ -31,11 +31,15 @@ proc makeStandardSwitchBuilder*(addresses: seq[MultiAddress]): SwitchBuilder =
   if hasQuic:
     b = b.withQuicTransport()
   if hasTcp:
-    b = b.withTcpTransport().withMplex()
+    b = b.withTcpTransport()
   if hasWs:
-    b = b.withWsTransport().withMplex()
+    b = b.withWsTransport()
   if hasMemory:
-    b = b.withMemoryTransport().withMplex()
+    b = b.withMemoryTransport()
+
+  # mplex is default muxer
+  if hasTcp or hasWs or hasMemory:
+    b = b.withMplex()
 
   b
 
@@ -48,3 +52,6 @@ proc makeStandardSwitch*(
     address: MultiAddress = QuicAutoAddress
 ): Switch {.raises: [LPError].} =
   return makeStandardSwitchBuilder(address).build()
+
+proc makeStandardSwitch*(addresses: seq[MultiAddress]): Switch {.raises: [LPError].} =
+  return makeStandardSwitchBuilder(addresses).build()

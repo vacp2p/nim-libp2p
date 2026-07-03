@@ -164,14 +164,8 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 = makeStandardSwitchBuilder(TcpAutoAddress)
-        .withAddresses(ma)
-        .withSignedPeerRecord(true)
-        .build()
-      switch2 = makeStandardSwitchBuilder(TcpAutoAddress)
-        .withAddresses(ma)
-        .withSignedPeerRecord(true)
-        .build()
+      switch1 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
+      switch2 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
 
       proc updateStore1(info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -281,18 +275,9 @@ suite "Identify":
         switch1.peerStore[AddressBook][oldPeerId] != wrongPeerInfo.addrs
 
   asyncTest "identify exposes QUIC transport addresses":
-    # Server switch with both QUIC and TCP
     let
-      server = SwitchBuilder
-        .new()
-        .withAddresses(@[QuicAutoAddress, TcpAutoAddress])
-        .withRng(rng())
-        .withMplex()
-        .withTcpTransport()
-        .withQuicTransport()
-        .withNoise()
-        .build()
-
+      # Server switch with both QUIC and TCP
+      server = makeStandardSwitch(@[QuicAutoAddress, TcpAutoAddress])
       # Client switch to dial and identify
       client = makeStandardSwitch(TcpAutoAddress)
 
