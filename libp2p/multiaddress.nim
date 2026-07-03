@@ -448,6 +448,7 @@ const
   QUIC_V1_DNS* = mapAnd(UDP_DNS, mapEq("quic-v1"))
   QUIC_V1* = mapOr(QUIC_V1_DNS, QUIC_V1_IP)
   TCP_IP4* = mapAnd(IP4, mapEq("tcp"))
+  TCP_IP6* = mapAnd(IP6, mapEq("tcp"))
   UDP_IP4* = mapAnd(IP4, mapEq("udp"))
   QUIC_V1_IP4* = mapAnd(UDP_IP4, mapEq("quic-v1"))
   UNIX* = mapEq("unix")

@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, net
+import chronos, net, sequtils
 import
   ../../../libp2p/[
     switch,
+    multiaddress,
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,
@@ -19,16 +20,13 @@ import
 import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc setupAutonat(
-    srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
+    srcAddrs: seq[MultiAddress] = @[TcpAutoAddress],
+    dstAddrs: seq[MultiAddress] = @[TcpAutoAddress],
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
-  var srcBuilder = makeStandardSwitchBuilder(TcpAutoAddress)
-  if srcAddrs.len > 0:
-    srcBuilder = srcBuilder.withAddresses(srcAddrs)
-
   let
-    src = srcBuilder.build()
-    dst = makeStandardSwitchBuilder(TcpAutoAddress).withAutonatV2Server(config).build()
+    src = makeStandardSwitchBuilder(srcAddrs).build()
+    dst = makeStandardSwitchBuilder(dstAddrs).withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)
@@ -70,7 +68,7 @@ suite "AutonatV2":
     ) == Reachable
 
   asyncTest "asAutonatV2Response":
-    let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4000").get()]
+    let addrs = @[ma("/ip4/127.0.0.1/tcp/4000")]
     let errorDialResp = DialResponse(
       status: ResponseStatus.Ok,
       addrIdx: Opt.none(AddrIdx),
@@ -137,8 +135,7 @@ suite "AutonatV2":
     # use ip address other than 127.0.0.1 for client
     let
       listenAddrs = @[
-        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
       ]
       reqAddrs = @[listenAddrs[0]]
       (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
@@ -163,9 +160,7 @@ suite "AutonatV2":
       await allFutures(src.stop(), dst.stop())
 
     check (
-      await client.sendDialRequest(
-        dst.peerInfo.peerId, @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
-      )
+      await client.sendDialRequest(dst.peerInfo.peerId, @[ma("/ip4/1.1.1.1/tcp/4040")])
     ) ==
       AutonatV2Response(
         reachability: NotReachable,
@@ -174,17 +169,16 @@ suite "AutonatV2":
           dialStatus: Opt.some(DialStatus.EDialError),
           addrIdx: Opt.some(0.AddrIdx),
         ),
-        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+        addrs: Opt.some(ma("/ip4/1.1.1.1/tcp/4040")),
       )
 
   asyncTest "Failed DialRequest with amplification attack prevention":
     # use ip address other than 127.0.0.1 for client
     let
       listenAddrs = @[
-        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
       ]
-      reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+      reqAddrs = @[ma("/ip4/1.1.1.1/tcp/4040")]
       (src, dst, client) = await setupAutonat(
         srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)
       )
@@ -202,13 +196,122 @@ suite "AutonatV2":
         addrs: Opt.some(reqAddrs[0]),
       )
 
+  asyncTest "DialRequest with IPv6 addr refused by IPv4-only server":
+    # server listens on IPv4 only, so it refuses to dial any IPv6 addr
+    let (src, dst, client) = await setupAutonat()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let reqAddrs = @[ma("/ip6/2001:db8::1/tcp/4040")]
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: Unknown,
+        dialResp: DialResponse(
+          status: EDialRefused,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.none(DialStatus),
+        ),
+        addrs: Opt.none(MultiAddress),
+      )
+
+  asyncTest "DialRequest with IPv4 addr refused by IPv6-only server":
+    # server listens on IPv6 only, so it refuses to dial any IPv4 addr
+    let (src, dst, client) = await setupAutonat(dstAddrs = @[TcpAutoAddressIP6])
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let reqAddrs = @[ma("/ip4/1.1.1.1/tcp/4040")]
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: Unknown,
+        dialResp: DialResponse(
+          status: EDialRefused,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.none(DialStatus),
+        ),
+        addrs: Opt.none(MultiAddress),
+      )
+
+  asyncTest "DialRequest with private IPv6 addr succeeds despite allowPrivateAddresses=false":
+    # TODO: nim-libp2p#2710
+    # isPrivate classifies every IPv6 address as non-private
+    # the server therefore dials back the loopback IPv6 addr instead of refusing it
+    let
+      dualStackAddrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
+      (src, dst, client) =
+        await setupAutonat(srcAddrs = dualStackAddrs, dstAddrs = dualStackAddrs)
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    # request only the IPv6 listen addr of the client
+    let reqAddrs = src.peerInfo.addrs.filterIt(TCP_IP6.match(it))
+    check reqAddrs.len == 1
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(reqAddrs[0]),
+      )
+
+  asyncTest "Amplification attack prevention skipped when observed IPv4 addr matches a requested addr":
+    # the requested addr matches the observed addr of the client,
+    # so the server dials back right away without demanding dial data
+    # dialDataSize is set above what the client accepts to prove the skip:
+    # a DialDataRequest would have failed the request with AutonatV2Error
+    let (src, dst, client) = await setupAutonat(
+      config = AutonatV2Config.new(
+        dialDataSize = (MaxAcceptedDialDataRequest + 1).uint64,
+        allowPrivateAddresses = true,
+      )
+    )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)) ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
+
+  asyncTest "Amplification attack prevention not skipped when observed IPv6 addr matches a requested addr":
+    # TODO: nim-libp2p#2731
+    # the requested addr matches the observed addr of the client,
+    # yet the server demands dial data before the dial back
+    # dialDataSize is set above what the client accepts to prove the demand:
+    # the DialDataRequest fails the request with AutonatV2Error
+    let
+      ipv6Addrs = @[TcpAutoAddressIP6]
+      (src, dst, client) = await setupAutonat(
+        srcAddrs = ipv6Addrs,
+        dstAddrs = ipv6Addrs,
+        config = AutonatV2Config.new(
+          dialDataSize = (MaxAcceptedDialDataRequest + 1).uint64,
+          allowPrivateAddresses = true,
+        ),
+      )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)
+
   asyncTest "Server responding with invalid messages":
     let
       src = makeStandardSwitch()
       dst = makeStandardSwitch()
       client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
-      reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
+      reqAddrs = @[ma("/ip4/127.0.0.1/tcp/4040")]
 
     client.setup(src)
     dst.mount(autonatV2Mock)
