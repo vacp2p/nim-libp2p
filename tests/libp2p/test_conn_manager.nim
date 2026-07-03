@@ -260,6 +260,60 @@ suite "Connection Manager":
     check (await connMngr.waitForPeerReady(peerId, 10.millis)) == false
     await connMngr.close()
 
+  asyncTest "does not emit Joined when muxer is dropped before connected handlers finish":
+    let connMngr = newMaxTotal()
+    defer:
+      await connMngr.close()
+
+    let
+      muxer = makeMuxer(peerId)
+      unblockConnected = newAsyncEvent()
+    var
+      connectedStarted = false
+      events: seq[string]
+
+    proc connectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        events.add("Connected")
+        connectedStarted = true
+        await unblockConnected.wait()
+
+    proc disconnectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        events.add("Disconnected")
+
+    proc peerHandler(kind: string): PeerEventHandler =
+      return proc(
+          handlerPeerId: PeerId, event: PeerEvent
+      ) {.async: (raises: [CancelledError]).} =
+        if handlerPeerId == peerId:
+          events.add(kind)
+
+    connMngr.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
+    connMngr.addConnEventHandler(disconnectedHandler, ConnEventKind.Disconnected)
+    connMngr.addPeerEventHandler(peerHandler("Joined"), PeerEventKind.Joined)
+    connMngr.addPeerEventHandler(peerHandler("Left"), PeerEventKind.Left)
+
+    let storeFut = connMngr.storeMuxer(muxer)
+
+    checkUntilTimeout:
+      connectedStarted
+
+    check muxer in connMngr
+
+    await connMngr.dropPeer(peerId)
+    check peerId notin connMngr
+
+    unblockConnected.fire()
+    await storeFut
+
+    checkUntilTimeout:
+      events == @["Connected", "Left", "Disconnected"]
+
   asyncTest "drop connections for peer":
     let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
@@ -554,11 +608,9 @@ suite "Connection Manager Watermark":
 
     await connMngr.close()
 
-  asyncTest "lifecycle events are emitted not in order when the trim prunes the new connection":
-    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
-    # storeMuxer triggers the trim before emitting Connected and Joined for the stored peer.
-    # the trim can prune the just-stored connection, emitting Left and Disconnected first.
-    # consumers assume the order: Connected, Joined, Left, Disconnected.
+  asyncTest "lifecycle events stay ordered when trim prunes the new connection":
+    # The trim may prune the just-stored connection, but consumers such as
+    # pubsub rely on Joined being observed before Left for the same peer.
     let connMngr = newWatermark(1, 2)
     defer:
       await connMngr.close()
@@ -566,7 +618,9 @@ suite "Connection Manager Watermark":
     let peers = PeerId.random(3, rng()).tryGet()
     let prunedPeer = peers[2]
 
-    var events: seq[string]
+    var
+      events: seq[string]
+      peerTracked = false
     proc connHandler(kind: string): ConnEventHandler =
       return proc(
           peerId: PeerId, event: ConnEvent
@@ -580,6 +634,13 @@ suite "Connection Manager Watermark":
       ) {.async: (raises: [CancelledError]).} =
         if peerId == prunedPeer:
           events.add(kind)
+          case event.kind
+          of PeerEventKind.Joined:
+            peerTracked = true
+          of PeerEventKind.Left:
+            peerTracked = false
+          of PeerEventKind.Identified:
+            discard
 
     connMngr.addConnEventHandler(connHandler("Connected"), ConnEventKind.Connected)
     connMngr.addConnEventHandler(
@@ -597,13 +658,11 @@ suite "Connection Manager Watermark":
 
     checkUntilTimeout:
       events.len == 4
-    check events == @["Left", "Disconnected", "Connected", "Joined"]
+    check events == @["Connected", "Joined", "Left", "Disconnected"]
+    check not peerTracked
 
-  asyncTest "ready state is not cleared when the trim prunes the new connection":
-    # TODO nim-libp2p#2621 conn-manager: trim of the just-stored connection emits Left before Joined
-    # the trim drops the stored peer and clears its ready state mid-storeMuxer.
-    # storeMuxer then re-adds the dropped peer to readyPeers.
-    # a pruned peer must not be reported ready.
+  asyncTest "ready state is cleared when trim prunes the new connection":
+    # A pruned peer must not remain ready after trim removes its only muxer.
     let connMngr = newWatermark(1, 2)
     defer:
       await connMngr.close()
@@ -621,7 +680,7 @@ suite "Connection Manager Watermark":
       prunedPeer notin connMngr
 
     let readyState = await connMngr.waitForPeerReady(prunedPeer, 50.millis)
-    check readyState
+    check not readyState
 
 suite "Connection Manager Scoring":
   teardown:

@@ -80,7 +80,7 @@ proc createQuicTransport*(
     isServer: bool = false,
     withInvalidCert: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
-    address: MultiAddress = QuicAutoAddress,
+    addresses: seq[MultiAddress] = @[QuicAutoAddress],
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:
@@ -95,8 +95,7 @@ proc createQuicTransport*(
       QuicTransport.new(Upgrade(), key)
 
   if isServer: # servers are started because they need to listen
-    let ma = @[address]
-    await trans.start(ma)
+    await trans.start(addresses)
 
   return trans
 
@@ -108,6 +107,13 @@ type StreamProvider* =
   proc(conn: RawConn, handle: bool = true): Muxer {.gcsafe, raises: [].}
 
 type StreamHandler* = proc(stream: MuxedStream) {.async: (raises: []).}
+
+proc addrByFamily*(addrs: seq[MultiAddress], family: MaPattern): MultiAddress =
+  ## First address whose leading ip component matches `family` (IP4 or IP6).
+  for a in addrs:
+    if family.matchPartial(a):
+      return a
+  raiseAssert "no address for the requested family"
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -148,15 +154,15 @@ proc serverHandlerSingleStream*(
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
-proc clientRunSingleStream*(
-    server: Transport,
+proc clientRunSingleStreamTo*(
+    address: MultiAddress,
     transportProvider: TransportProvider,
     streamProvider: StreamProvider,
     handler: StreamHandler,
 ) {.async: (raises: []).} =
   try:
     let client = transportProvider()
-    let conn = await client.dial("", server.addrs[0])
+    let conn = await client.dial("", address)
     let muxer = streamProvider(conn)
 
     let stream = await muxer.newStream()
@@ -165,6 +171,24 @@ proc clientRunSingleStream*(
     await muxer.close()
     await conn.close()
     await client.stop()
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+proc clientRunSingleStream*(
+    server: Transport,
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    handler: StreamHandler,
+) {.async: (raises: []).} =
+  await clientRunSingleStreamTo(
+    server.addrs[0], transportProvider, streamProvider, handler
+  )
+
+proc runStreamHandler*(muxer: Muxer, handler: StreamHandler) {.async: (raises: []).} =
+  ## Open a new stream on an already-established muxer and run `handler` on it.
+  try:
+    let stream = await muxer.newStream()
+    await handler(stream)
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
@@ -183,8 +207,42 @@ proc runSingleStreamScenario*(
   let clientTask = clientRunSingleStream(
     server, transportProvider, streamProvider, clientStreamHandler
   )
-  await allFutures(clientTask, serverTask)
+  await clientTask
   await server.stop()
+  await serverTask
+
+proc dualStackStreamScenario*(
+    listenAddrs: seq[MultiAddress],
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    serverStreamHandler: StreamHandler,
+    clientStreamHandler: StreamHandler,
+) {.async: (raises: [CancelledError, LPError]).} =
+  ## Start one server on `listenAddrs`, then dial it once per address family from
+  ## a fresh client, serving each accepted connection with `serverStreamHandler`.
+  let server = transportProvider()
+  await server.start(listenAddrs)
+  defer:
+    await server.stop()
+
+  # dial the server's resolved address of each family, not the wildcard input
+  let targets = @[server.addrs.addrByFamily(IP4), server.addrs.addrByFamily(IP6)]
+
+  # accept() is single-consumer, so serve the clients one after another
+  proc serveAll() {.async: (raises: []).} =
+    for _ in targets:
+      await serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+  let serverTask = serveAll()
+  var clientTasks: seq[Future[void]]
+  for target in targets:
+    clientTasks.add(
+      clientRunSingleStreamTo(
+        target, transportProvider, streamProvider, clientStreamHandler
+      )
+    )
+  await allFutures(clientTasks)
+  await serverTask
 
 proc countTransitions*(readOrder: seq[byte]): int =
   var transitions = 0

@@ -4,7 +4,8 @@
 {.used.}
 
 import chronos, stew/byteutils, std/random
-import ../../../libp2p/[stream/connection, transports/transport, muxers/muxer]
+import
+  ../../../libp2p/[stream/connection, transports/transport, muxers/muxer, multiaddress]
 import ../../tools/[stream, sync]
 import ./utils
 
@@ -19,9 +20,7 @@ template runTransportTest(
 ) =
   proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
     noExceptionWithStreamClose(stream):
-      var buffer: array[clientMessage.len, byte]
-      await stream.readExactly(addr buffer, clientMessage.len)
-      check string.fromBytes(buffer) == clientMessage
+      check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
       await stream.write(serverMessage)
 
@@ -29,9 +28,7 @@ template runTransportTest(
     noExceptionWithStreamClose(stream):
       await stream.write(clientMessage)
 
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
+      check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
   await runSingleStreamScenario(
     @[address],
@@ -57,6 +54,138 @@ template streamTransportTest*(
 
     runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
+  asyncTest "start binds both IPv4 and IPv6 addresses":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      extractPort(server.addrs.addrByFamily(IP4)) > 0
+      extractPort(server.addrs.addrByFamily(IP6)) > 0
+
+  asyncTest "dual-stack server exchanges data with IPv4 and IPv6 clients":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
+
+    await dualStackStreamScenario(
+      @[addressIP4, addressIP6.get()],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "dial cancellation leaves established connection working":
+    if addressIP6.isNone:
+      skip() # scoped to dual-stack transports (tcp, quic)
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    # establish a connection on the first address
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(conn)
+
+    # a completed exchange proves the server has accepted the connection and is
+    # now serving its streams
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # serverTask calls accept() only once and already used it on the established
+    # connection, so this dial is never accepted on the server side.
+    # cancelAndWait runs before the dial coroutine can resume, so the in-flight
+    # dial is cancelled rather than completed
+    let dialer = transportProvider()
+    let connFut = dialer.dial("", server.addrs[1])
+    await connFut.cancelAndWait()
+    check connFut.cancelled
+
+    # the established connection still exchanges data after the cancellation
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # closing the muxer ends the session so serverTask returns
+    await muxer.close()
+    await conn.close()
+    await allFutures(client.stop(), dialer.stop())
+    await serverTask
+
+  asyncTest "accept cancellation leaves established connection working":
+    if addressIP6.isNone:
+      skip() # scoped to dual-stack transports (tcp, quic)
+      return
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
+
+    let server = transportProvider()
+    await server.start(@[addressIP4, addressIP6.get()])
+    defer:
+      await server.stop()
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(conn)
+
+    # serverTask has accepted the connection and moved on to serving its
+    # streams, so the only in-flight accept below is the one we start and cancel
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    # a fresh accept with nobody dialing, cancelling it must not disturb
+    # the established connection, and no new connection forms
+    let acceptFut = server.accept()
+    await acceptFut.cancelAndWait()
+    check acceptFut.cancelled
+
+    # the established connection still exchanges data after the cancellation
+    await runStreamHandler(muxer, clientStreamHandler)
+
+    await muxer.close()
+    await conn.close()
+    await client.stop()
+    await serverTask
+
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -76,15 +205,43 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
+  asyncTest "Connection.reset aborts the initiator stream":
+    var serverResetDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        let msg = await stream.readLp(100)
+        check msg == fromHex("1234")
+        await stream.reset()
+        serverResetDone.complete()
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.writeLp(fromHex("1234"))
+        await serverResetDone
+
+        var buffer: array[1, byte]
+        check (await stream.readOnce(addr buffer[0], 1)) == 0
+
+        expect LPStreamResetError:
+          await stream.writeLp(fromHex("1234"))
+
+    await runSingleStreamScenario(
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
+        var buffer: array[1, byte]
         # First readOnce after EOF
         let bytesRead = await stream.readOnce(addr buffer, 1)
         check bytesRead == 0
@@ -121,9 +278,7 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # step 2: read message from client (ensure connection is established)
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
         # and notify this to client
         serverReadDone.complete()
 
@@ -212,11 +367,10 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Client reads server data
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
+        check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
         # Server has closed write side, so further reads should EOF
+        var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer, 1)
         check bytesRead == 0
 
@@ -234,9 +388,7 @@ template streamTransportTest*(
           await stream.write("should fail")
 
         # Server should still be able to read from client
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
+        check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
     await runSingleStreamScenario(
       @[addressIP4],
@@ -300,9 +452,7 @@ template streamTransportTest*(
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         try:
-          var buffer: array[clientMessage.len, byte]
-          await stream.readExactly(addr buffer[0], clientMessage.len)
-          check string.fromBytes(buffer) == clientMessage
+          check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
           successfulReadsWG.done()
         except LPStreamIncompleteError:
