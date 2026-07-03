@@ -165,15 +165,18 @@ jobs:
           echo "nimble install -y $DEPS"
           nimble install -y $DEPS
 
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+
       - name: Build test_all
         run: |
           NIMFLAGS="--mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
           NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=DEBUG"
           NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
-          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+          if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          if [[ '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+          if [[ '${{ matrix.config.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
             # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
             # space and cannot compile the full test_all in one go. Split the
             # test corpus into `sliceTotal` translation units; each slice
