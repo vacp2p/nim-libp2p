@@ -20,21 +20,13 @@ import
 import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc setupAutonat(
-    srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
-    dstAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
+    srcAddrs: seq[MultiAddress] = @[TcpAutoAddress],
+    dstAddrs: seq[MultiAddress] = @[TcpAutoAddress],
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
-  var srcBuilder = makeStandardSwitchBuilder(TcpAutoAddress)
-  if srcAddrs.len > 0:
-    srcBuilder = srcBuilder.withAddresses(srcAddrs)
-
-  var dstBuilder = makeStandardSwitchBuilder(TcpAutoAddress).withAutonatV2Server(config)
-  if dstAddrs.len > 0:
-    dstBuilder = dstBuilder.withAddresses(dstAddrs)
-
   let
-    src = srcBuilder.build()
-    dst = dstBuilder.build()
+    src = makeStandardSwitchBuilder(srcAddrs).build()
+    dst = makeStandardSwitchBuilder(dstAddrs).withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)
@@ -76,7 +68,7 @@ suite "AutonatV2":
     ) == Reachable
 
   asyncTest "asAutonatV2Response":
-    let addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4000").get()]
+    let addrs = @[ma("/ip4/127.0.0.1/tcp/4000")]
     let errorDialResp = DialResponse(
       status: ResponseStatus.Ok,
       addrIdx: Opt.none(AddrIdx),
@@ -143,8 +135,7 @@ suite "AutonatV2":
     # use ip address other than 127.0.0.1 for client
     let
       listenAddrs = @[
-        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
       ]
       reqAddrs = @[listenAddrs[0]]
       (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
@@ -169,9 +160,7 @@ suite "AutonatV2":
       await allFutures(src.stop(), dst.stop())
 
     check (
-      await client.sendDialRequest(
-        dst.peerInfo.peerId, @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
-      )
+      await client.sendDialRequest(dst.peerInfo.peerId, @[ma("/ip4/1.1.1.1/tcp/4040")])
     ) ==
       AutonatV2Response(
         reachability: NotReachable,
@@ -180,17 +169,16 @@ suite "AutonatV2":
           dialStatus: Opt.some(DialStatus.EDialError),
           addrIdx: Opt.some(0.AddrIdx),
         ),
-        addrs: Opt.some(MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()),
+        addrs: Opt.some(ma("/ip4/1.1.1.1/tcp/4040")),
       )
 
   asyncTest "Failed DialRequest with amplification attack prevention":
     # use ip address other than 127.0.0.1 for client
     let
       listenAddrs = @[
-        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+        ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
       ]
-      reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+      reqAddrs = @[ma("/ip4/1.1.1.1/tcp/4040")]
       (src, dst, client) = await setupAutonat(
         srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)
       )
@@ -214,7 +202,7 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    let reqAddrs = @[MultiAddress.init("/ip6/2001:db8::1/tcp/4040").get()]
+    let reqAddrs = @[ma("/ip6/2001:db8::1/tcp/4040")]
     check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
       AutonatV2Response(
         reachability: Unknown,
@@ -232,7 +220,7 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    let reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
+    let reqAddrs = @[ma("/ip4/1.1.1.1/tcp/4040")]
     check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
       AutonatV2Response(
         reachability: Unknown,
@@ -323,7 +311,7 @@ suite "AutonatV2":
       dst = makeStandardSwitch()
       client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
-      reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
+      reqAddrs = @[ma("/ip4/127.0.0.1/tcp/4040")]
 
     client.setup(src)
     dst.mount(autonatV2Mock)
