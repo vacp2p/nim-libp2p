@@ -167,7 +167,7 @@ jobs:
 
       - name: Build test_all
         run: |
-          NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="--mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
           NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=DEBUG"
           NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
