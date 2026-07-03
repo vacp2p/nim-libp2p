@@ -45,6 +45,13 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Build and run tests without feature flags
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
+        
+      - name: Build feature flags
         run: |
-          nim c -r tests/test_all.nim
+          nim c ./tests/test_all
+
+      - name: Run tests
+        run: |
+          ./tests/test_all

@@ -496,6 +496,10 @@ proc storeMuxer*(
   c.notifyPeerReady(peerId)
   await connectedEvent
 
+  if muxer notin c:
+    trace "Muxer dropped before peer joined", muxer, peerId
+    return
+
   var joinedEvent: Future[void].Raising([CancelledError])
   if isNewPeer:
     joinedEvent = c.triggerPeerEvents(
