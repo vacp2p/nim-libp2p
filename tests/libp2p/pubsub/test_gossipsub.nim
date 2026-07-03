@@ -5,6 +5,7 @@
 
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
+import ../../../libp2p/stream/connection
 import
   ../../../libp2p/protocols/pubsub/[
     floodsub,
@@ -119,6 +120,47 @@ suite "GossipSub":
       not gossipSub.mesh.hasPeerId(topic, peer.peerId)
       not gossipSub.fanout.hasPeerId(topic, peer.peerId)
       not gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
+
+  asyncTest "drop during Connected handlers does not leave stale pubsub peer":
+    let
+      gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
+      connMngr = gossipSub.switch.connManager
+      peerId = randomPeerId()
+      muxer = Muxer(connection: Connection.new(peerId, Direction.In))
+      unblockConnected = newAsyncEvent()
+    var connectedStarted = false
+
+    defer:
+      await connMngr.close()
+
+    proc connectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        connectedStarted = true
+        await unblockConnected.wait()
+
+    connMngr.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
+
+    let storeFut = connMngr.storeMuxer(muxer)
+    checkUntilTimeout:
+      connectedStarted
+
+    check:
+      peerId in connMngr
+      peerId notin gossipSub.peers
+
+    await connMngr.dropPeer(peerId)
+    checkUntilTimeout:
+      peerId notin connMngr
+      peerId notin gossipSub.peers
+
+    unblockConnected.fire()
+    await storeFut
+
+    check:
+      peerId notin connMngr
+      peerId notin gossipSub.peers
 
   asyncTest "unsubscribePeer - handles nil peer gracefully":
     # Given a GossipSub instance
