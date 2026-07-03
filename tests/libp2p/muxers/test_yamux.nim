@@ -578,6 +578,7 @@ suite "Yamux":
       yamuxb.maxChannCount = 2
 
       for streamId in [11'u32, 13'u32, 15'u32]:
+        let streamId = streamId # capture loop var for the asyncTest closure
         let stream =
           yamuxb.createStream(streamId, false, YamuxDefaultWindowSize, MaxSendQueueSize)
         stream.isReset = true
