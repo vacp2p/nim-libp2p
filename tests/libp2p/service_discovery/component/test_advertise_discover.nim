@@ -15,7 +15,7 @@ import
     protocols/service_discovery/types,
     switch,
   ]
-import ../../../tools/[crypto, lifecycle, unittest, topology]
+import ../../../tools/[crypto, lifecycle, multiaddress, unittest, topology]
 import ../utils
 
 suite "Service Discovery Component - Advertise Discover":
@@ -390,3 +390,43 @@ suite "Service Discovery Component - Advertise Discover":
     # The maintenance loop rotates the new bucket peer in and registers with it.
     checkUntilTimeout:
       lateRegistrar.countAdsInCache(serviceId) == 1
+
+  asyncTest "an IPv6 node registers three services one after another":
+    # A node listening only on IPv6 advertises only IPv6 addresses, which never
+    # enter the IPv4-only IP tree, so its advertisements draw no IP-similarity
+    # waiting time: each is Confirmed and cached, even under default settings.
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode(addresses = @[TcpAutoAddressIP6()])
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    for i in 1 .. 3:
+      let service = makeServiceInfo("ipv6-service-" & $i)
+      let serviceId = service.id.hashServiceId()
+      advertiserNode.addProvidedService(service)
+      checkUntilTimeout:
+        registrarNode.countAdsInCache(serviceId) == 1
+
+  asyncTest "a dual-stack node is told to Wait on its second advertisement":
+    # A dual-stack node advertises its IPv4 address, which enters the IP tree on
+    # its first, Confirmed advertisement. Its second advertisement is scored
+    # against that address, so it is told to Wait and never reaches the cache.
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode =
+      setupServiceDiscoveryNode(addresses = @[TcpAutoAddressIP4(), TcpAutoAddressIP6()])
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let firstService = makeServiceInfo("dual-stack-service-1")
+    let firstServiceId = firstService.id.hashServiceId()
+    advertiserNode.addProvidedService(firstService)
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(firstServiceId) == 1
+
+    let secondService = makeServiceInfo("dual-stack-service-2")
+    let secondServiceId = secondService.id.hashServiceId()
+    advertiserNode.addProvidedService(secondService)
+    # A Wait records a service lower bound, the ad never reaches the cache.
+    checkUntilTimeout:
+      registrarNode.registrar.boundService.hasKey(secondServiceId)
+    check registrarNode.countAdsInCache(secondServiceId) == 0
