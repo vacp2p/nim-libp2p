@@ -74,7 +74,7 @@ jobs:
     needs: [delete_cache, resolve_deps]
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
-    timeout-minutes: 55
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:
@@ -143,8 +143,16 @@ jobs:
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install dependencies (pinned)
+      - name: Restore dependencies from cache (pinned)
+        id: deps-cache
         if: ${{ inputs.pinned_deps }}
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ matrix.config.os }}-${{ matrix.config.cpu }}-${{ matrix.config.cc }}-${{ hashFiles('.pinned') }}
+
+      - name: Install dependencies (pinned)
+        if: ${{ inputs.pinned_deps && steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
