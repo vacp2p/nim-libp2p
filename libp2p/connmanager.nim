@@ -601,7 +601,12 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
   let muxers = c.muxerStore.remove(peerId)
   if muxers.len > 0:
     try:
-      await allFutures(muxers.mapIt(closeMuxer(it)))
+      # Drain the muxers in the background: `dropPeer` may be awaited from one
+      # of this peer's own stream handlers, which `closeMuxer` in turn awaits,
+      # so awaiting it here can deadlock and `PeerEvent.Left` would never fire.
+      for mux in muxers:
+        c.onCloseFuts.trackFut(closeMuxer(mux))
+      await allFutures(muxers.mapIt(it.connection.close()))
     finally:
       await noCancel c.onPeerDisconnected(peerId)
 
