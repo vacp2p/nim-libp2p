@@ -101,6 +101,9 @@ proc expandWildcardAddresses(
           addresses.add(remapped)
   addresses
 
+when defined(libp2p_testing):
+  export expandWildcardAddresses
+
 method setup*(self: WildcardAddressResolverService, switch: Switch) {.raises: [].} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
