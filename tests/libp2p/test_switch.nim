@@ -648,6 +648,13 @@ suite "Switch":
     let switch2 = makeStandardSwitch(TcpAutoAddress)
 
     proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+      # Wait for the remote's dial to fully complete before disconnecting,
+      # to avoid racing with multistream protocol negotiation completion
+      # (the handler fires before the remote reads the protocol confirmation).
+      try:
+        discard await stream.readLp(1024)
+      except LPStreamError:
+        discard
       try:
         await switch1.disconnect(stream.peerId)
         disconnected.done()
@@ -672,6 +679,10 @@ suite "Switch":
 
     let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+
+    # Signal to the handler that the dial has completed so it can proceed
+    # with the disconnect, avoiding the protocol negotiation race.
+    await stream.writeLp("ready")
 
     # with the deadlock, the disconnect never completes and this times out
     await disconnected.wait(5.seconds)
