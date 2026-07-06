@@ -411,6 +411,13 @@ method getOrCreatePeer*(
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
 
+  if not p.switch.isConnected(peerId):
+    # The peer was dropped while this stream was being negotiated, so
+    # `PeerEvent.Left` has already fired (or never will for this peer) and
+    # nothing else would remove the peer.
+    debug "created pubsub peer for disconnected peer, removing", peerId
+    p.unsubscribePeer(peerId)
+
   return pubSubPeer
 
 proc handleData*(
