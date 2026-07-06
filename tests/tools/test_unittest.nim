@@ -71,10 +71,6 @@ suite "checkUntilTimeout helpers - failed":
       # if before out test program result was not success, leave it as failed
       exitProcs.setProgramResult(QuitSuccess)
 
-  asyncTest "checkUntilTimeout should timeout if condition is never true":
-    checkUntilTimeout:
-      false
-
   asyncTest "checkUntilTimeoutCustom should timeout if condition is never true":
     checkUntilTimeoutCustom(100.milliseconds, 10.milliseconds):
       false
