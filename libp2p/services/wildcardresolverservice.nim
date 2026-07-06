@@ -69,7 +69,7 @@ proc isWildcardIp(ip: IpAddress): bool =
   of IpAddressFamily.IPv6:
     ip.address_v6 == AnyAddress6.address_v6
 
-proc expandWildcardAddresses*(
+proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   ## Expand bound wildcard addresses (``0.0.0.0`` / ``::``) into one address
@@ -100,6 +100,9 @@ proc expandWildcardAddresses*(
         listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
           addresses.add(remapped)
   addresses
+
+when defined(libp2p_testing):
+  export expandWildcardAddresses
 
 method setup*(self: WildcardAddressResolverService, switch: Switch) {.raises: [].} =
   ## Sets up the `WildcardAddressResolverService`.
