@@ -43,7 +43,7 @@ type
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
-    onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure.}
+    onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
 
