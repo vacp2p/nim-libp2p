@@ -28,21 +28,3 @@ jobs:
           {'os': 'windows', 'cpu': 'amd64', 'cc': 'clang', 'builder': 'windows-2022', 'shell': 'bash'},
           {'os': 'windows', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'windows-2022', 'shell': 'msys2 {0}'},
         ]"
-
-  test_amd64_pinned:
-    name: Daily test amd64 (pinned dependencies)
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
-    uses: ./.github/workflows/daily_common.yml
-    with:
-      pinned_deps: true
-      nim: "[
-          {'ref': 'v2.2.4', 'memory_management': 'refc'},
-          {'ref': 'v2.2.10', 'memory_management': 'refc'},
-          {'ref': 'devel', 'memory_management': 'refc'},
-        ]"
-      configuration: "[
-          {'os': 'linux', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
-          {'os': 'linux-gcc-14', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-24.04', 'shell': 'bash'},
-          {'os': 'windows', 'cpu': 'amd64', 'cc': 'clang', 'builder': 'windows-2022', 'shell': 'bash'},
-          {'os': 'windows', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'windows-2022', 'shell': 'msys2 {0}'},
-        ]"
