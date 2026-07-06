@@ -392,6 +392,7 @@ suite "Service Discovery Component - Advertise Discover":
       lateRegistrar.countAdsInCache(serviceId) == 1
 
   asyncTest "an IPv6 node registers three services one after another":
+    # TODO: vacp2p/nim-libp2p#2756
     # A node listening only on IPv6 advertises only IPv6 addresses, which never
     # enter the IPv4-only IP tree, so its advertisements draw no IP-similarity
     # waiting time: each is Confirmed and cached, even under default settings.
@@ -407,10 +408,7 @@ suite "Service Discovery Component - Advertise Discover":
       checkUntilTimeout:
         registrarNode.countAdsInCache(serviceId) == 1
 
-  asyncTest "a dual-stack node is told to Wait on its second advertisement":
-    # A dual-stack node advertises its IPv4 address, which enters the IP tree on
-    # its first, Confirmed advertisement. Its second advertisement is scored
-    # against that address, so it is told to Wait and never reaches the cache.
+  asyncTest "a dual-stack node follows the normal path and is told to Wait":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode =
       setupServiceDiscoveryNode(addresses = @[TcpAutoAddressIP4(), TcpAutoAddressIP6()])
@@ -426,7 +424,8 @@ suite "Service Discovery Component - Advertise Discover":
     let secondService = makeServiceInfo("dual-stack-service-2")
     let secondServiceId = secondService.id.hashServiceId()
     advertiserNode.addProvidedService(secondService)
-    # A Wait records a service lower bound, the ad never reaches the cache.
+    # The registrar answered Wait, not Confirmed: it records the Wait in
+    # boundService and does not admit the second ad to the cache.
     checkUntilTimeout:
       registrarNode.registrar.boundService.hasKey(secondServiceId)
     check registrarNode.countAdsInCache(secondServiceId) == 0

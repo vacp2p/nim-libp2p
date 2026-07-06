@@ -92,6 +92,7 @@ suite "WildcardAddressResolverService":
       ]
 
   test "expandWildcardAddresses expands an IPv6 wildcard to both IPv6 and IPv4 interfaces":
+    # TODO: vacp2p/nim-libp2p#2757
     # an IPv6 wildcard expands to the IPv6 interfaces
     # and additionally to every IPv4 interface the provider offers
     let expanded = expandWildcardAddresses(
