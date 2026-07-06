@@ -5,6 +5,8 @@
 
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
+import ../../../libp2p/stream/connection
+import ../../../libp2p/utils/future
 import
   ../../../libp2p/protocols/pubsub/[
     floodsub,
@@ -119,6 +121,46 @@ suite "GossipSub":
       not gossipSub.mesh.hasPeerId(topic, peer.peerId)
       not gossipSub.fanout.hasPeerId(topic, peer.peerId)
       not gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
+
+  asyncTest "drop during Connected handlers does not leave stale pubsub peer":
+    let
+      gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
+      connMngr = gossipSub.switch.connManager
+      peerId = randomPeerId()
+      muxer = Muxer(connection: Connection.new(peerId, Direction.In))
+      unblockConnected = newAsyncEvent()
+      connectedStartedFut = newFuture[void]("connectedStarted")
+
+    defer:
+      await gossipSub.switch.stop()
+
+    proc connectedHandler(
+        handlerPeerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      if handlerPeerId == peerId:
+        connectedStartedFut.completeOnce()
+        await unblockConnected.wait()
+
+    connMngr.addConnEventHandler(connectedHandler, ConnEventKind.Connected)
+
+    let storeFut = connMngr.storeMuxer(muxer)
+    await connectedStartedFut
+
+    check:
+      peerId in connMngr
+      peerId notin gossipSub.peers
+
+    await connMngr.dropPeer(peerId)
+    checkUntilTimeout:
+      peerId notin connMngr
+      peerId notin gossipSub.peers
+
+    unblockConnected.fire()
+    await storeFut
+
+    check:
+      peerId notin connMngr
+      peerId notin gossipSub.peers
 
   asyncTest "unsubscribePeer - handles nil peer gracefully":
     # Given a GossipSub instance
@@ -270,6 +312,19 @@ suite "GossipSub":
     # Then the peer is ignored
     check:
       not gossipSub.gossipsub.hasPeer(topic, peer)
+
+  asyncTest "getOrCreatePeer removes peer created without a live connection":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let disconnectedPeer = randomPeerId()
+    discard gossipSub.getOrCreatePeer(disconnectedPeer, @[], GossipSubCodec_12)
+
+    check:
+      disconnectedPeer notin gossipSub.peers
+      # peers created by other means are untouched
+      peers[0].peerId in gossipSub.peers
 
   asyncTest "subscribe and unsubscribeAll":
     let (gossipSub, conns, _) =
