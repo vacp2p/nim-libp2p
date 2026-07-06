@@ -652,8 +652,10 @@ suite "Switch":
       # to avoid racing with multistream protocol negotiation completion
       # (the handler fires before the remote reads the protocol confirmation).
       try:
-        discard await stream.readLp(1024)
+        discard await stream.readLp(1024) # 1024 matches other readLp uses in this suite
       except LPStreamError:
+        # If the stream closes before receiving the sync signal (e.g. due to
+        # an unexpected connection reset), proceed with the disconnect anyway.
         discard
       try:
         await switch1.disconnect(stream.peerId)
