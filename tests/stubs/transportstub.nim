@@ -7,11 +7,7 @@
 
 import chronos
 import
-  ../../libp2p/[
-    transports/transport,
-    transports/memorytransport,
-    upgrademngrs/upgrade,
-  ]
+  ../../libp2p/[transports/transport, transports/memorytransport, upgrademngrs/upgrade]
 
 type
   StubAcceptBehavior* = enum
@@ -36,9 +32,7 @@ proc new*(
 
 method accept*(
     self: MemoryTransportStub
-): Future[RawConn] {.
-    async: (raises: [transport.TransportError, CancelledError])
-.} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   inc self.acceptCalls
 
   case self.behavior

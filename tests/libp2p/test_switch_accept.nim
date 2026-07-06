@@ -5,14 +5,7 @@
 
 import sequtils
 import chronos
-import
-  ../../libp2p/[
-    builders,
-    switch,
-    dial,
-    multiaddress,
-    transports/transport,
-  ]
+import ../../libp2p/[builders, switch, dial, multiaddress, transports/transport]
 import ../stubs/transportstub
 import ../tools/[unittest, crypto, lifecycle, multiaddress, switch_builder]
 
