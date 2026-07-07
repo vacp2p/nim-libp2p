@@ -1058,7 +1058,6 @@ suite "Mplex":
         await allFuturesRaising(transport1.stop(), transport2.stop())
         await acceptFut
         await mplexDialFut
-
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
