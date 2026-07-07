@@ -8,6 +8,7 @@ import stew/byteutils
 import ../../../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
+import ../../../libp2p/connmanager
 import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
 import ../../tools/[unittest, switch_builder, multiaddress]
@@ -59,6 +60,8 @@ suite "Dcutr":
     publicSwitch.mount(dcutrProto)
 
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
+    defer:
+      await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
     await publicSwitch.connect(
       behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
@@ -82,8 +85,6 @@ suite "Dcutr":
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
 
-    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
-
   asyncTest "DCUtR establishes a new QUIC connection":
     let behindNATSwitch = makeSwitch(QuicAutoAddress)
     let publicSwitch = makeSwitch(QuicAutoAddress)
@@ -92,6 +93,8 @@ suite "Dcutr":
     publicSwitch.mount(dcutrProto)
 
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
+    defer:
+      await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
     await publicSwitch.connect(
       behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
@@ -99,6 +102,24 @@ suite "Dcutr":
     let initialConnCount =
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId)
     check initialConnCount == 1
+
+    let directConnSeen =
+      Future[void].Raising([CancelledError]).init("dcutr direct connection seen")
+
+    proc onDirectConn(
+        peerId: PeerId, event: ConnEvent
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      if peerId == publicSwitch.peerInfo.peerId and
+          behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
+          initialConnCount:
+        directConnSeen.completeOnce()
+
+    # use event handler to wait-and-assert exact moment when condition 
+    # (publicSwitch has connected to behindNATSwitch) is satisfied 
+    # instead of polling, as polling can miss a short-lived true state
+    behindNATSwitch.connManager.addConnEventHandler(
+      onDirectConn, ConnEventKind.Connected
+    )
 
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
@@ -110,11 +131,7 @@ suite "Dcutr":
       )
       .wait(10.seconds)
 
-    checkUntilTimeout:
-      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
-        initialConnCount
-
-    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
+    check await directConnSeen.withTimeout(10.seconds)
 
   template ductrClientTest(
       behindNATSwitch: Switch, publicSwitch: Switch, body: untyped
@@ -123,6 +140,8 @@ suite "Dcutr":
     publicSwitch.mount(dcutrProto)
 
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
+    defer:
+      await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
     await publicSwitch.connect(
       behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
@@ -136,8 +155,6 @@ suite "Dcutr":
     checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
-
-    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
   asyncTest "Client connect timeout":
     proc connectTimeoutProc(
@@ -191,6 +208,8 @@ suite "Dcutr":
     publicSwitch.mount(dcutrProto)
 
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
+    defer:
+      await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
     await publicSwitch.connect(
       behindNATSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
@@ -215,8 +234,6 @@ suite "Dcutr":
     checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 1
-
-    await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
   asyncTest "DCUtR server timeout when establishing a new connection":
     proc connectProc(
