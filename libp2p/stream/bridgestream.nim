@@ -3,6 +3,7 @@
 
 import pkg/chronos
 import connection, bufferstream
+import ../utils/lock
 
 export connection
 
@@ -16,25 +17,14 @@ type
     closeHandler: proc(): Future[void] {.async: (raises: []).}
     writeLock: AsyncLock
 
-proc writeLocked(
-    s: BridgeStream, msg: sink seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-  await s.writeLock.acquire()
-  try:
-    await s.writeHandler(move(msg))
-  finally:
-    try:
-      s.writeLock.release()
-    except AsyncLockError as exc:
-      raiseAssert "BridgeStream write lock release failed: " & exc.msg
-
 method write*(
     s: BridgeStream, msg: sink seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   if s.writeLock.isNil:
-    s.writeHandler(move(msg))
+    await s.writeHandler(move(msg))
   else:
-    s.writeLocked(move(msg))
+    s.writeLock.withLock:
+      await s.writeHandler(move(msg))
 
 method closeImpl*(s: BridgeStream): Future[void] {.async: (raises: [], raw: true).} =
   if not isNil(s.closeHandler):
