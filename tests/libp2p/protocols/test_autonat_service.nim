@@ -141,7 +141,9 @@ suite "Autonat Service":
     let switch3 = createSwitch()
     let switch4 = createSwitch()
 
-    let awaiter = newFuture[void]()
+    let notReachableAwaiter = newFuture[void]()
+    let reachableAwaiter = newFuture[void]()
+    var reachableConfidence = Opt.none(float)
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
@@ -149,7 +151,11 @@ suite "Autonat Service":
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         autonatClientStub.answer = Reachable
-        awaiter.completeOnce()
+        notReachableAwaiter.completeOnce()
+      elif networkReachability == NetworkReachability.Reachable and confidence.isSome() and
+          confidence.get() >= 0.3 and reachableConfidence.isNone():
+        reachableConfidence = confidence
+        reachableAwaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -164,15 +170,16 @@ suite "Autonat Service":
     await switch1.connect(switch3.peerInfo.peerId, switch3.peerInfo.addrs)
     await switch1.connect(switch4.peerInfo.peerId, switch4.peerInfo.addrs)
 
-    await awaiter
+    await notReachableAwaiter
 
     check autonatService.networkReachability == NetworkReachability.NotReachable
     check reachabilityConfidence(NetworkReachability.NotReachable) == 0.3
 
     await autonatClientStub.finished
+    await reachableAwaiter
 
     check autonatService.networkReachability == NetworkReachability.Reachable
-    check reachabilityConfidence(NetworkReachability.Reachable) == 0.3
+    check reachableConfidence == Opt.some(0.3)
 
     await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
