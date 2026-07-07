@@ -34,6 +34,14 @@
             inherit pkgs;
             src = ./.;
           };
+
+          # Temporary target for the nim-ffi library (cbind/libp2p_ffi.nim),
+          # built in parallel to `.#cbind` during the PR-train migration.
+          # Removed at the flip PR, when libp2p_ffi.nim replaces libp2p.nim.
+          cbind-ffi = import ./nix/cbind-ffi.nix {
+            inherit pkgs;
+            src = ./.;
+          };
         }
       );
 
@@ -56,4 +64,3 @@
       );
     };
 }
-
