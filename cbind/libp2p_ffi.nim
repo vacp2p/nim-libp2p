@@ -14,11 +14,12 @@
 
 import ffi
 
-import std/tables
+import std/[tables, sequtils]
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
 import ../libp2p/crypto/crypto
+import ../libp2p/crypto/secp
 import ../libp2p/nameresolving/dnsresolver
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/protocol
@@ -50,6 +51,30 @@ declareLibrary("libp2p", LibP2P)
 
 include "libp2p_ffi/config"
 
+type PeerInfoResponse {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type PeersResponse {.ffi.} = object
+  peerIds: seq[string]
+
+type ConnectRequest {.ffi.} = object
+  peerId: string
+  multiaddrs: seq[string]
+  timeoutMs: int64
+
+type DialRequest {.ffi.} = object
+  peerId: string
+  proto: string
+
+type DialResponse {.ffi.} = object
+  streamId: uint64
+
+type DialCircuitRelayRequest {.ffi.} = object
+  peerId: string
+  multiaddr: string
+  proto: string
+
 proc register(reg: var StreamRegistry, stream: Stream): uint64 =
   reg.nextStreamId.inc()
   let id = reg.nextStreamId
@@ -61,6 +86,14 @@ func get(reg: StreamRegistry, id: uint64): Result[Stream, string] =
   if stream.isNil():
     return err("unknown stream handle")
   ok(stream)
+
+proc parseMultiaddrs(addrs: seq[string]): Result[seq[MultiAddress], string] =
+  var parsed: seq[MultiAddress]
+  for a in addrs:
+    let ma = MultiAddress.init(a).valueOr:
+      return err("invalid multiaddress '" & a & "': " & $error)
+    parsed.add(ma)
+  ok(parsed)
 
 const MaxReadBytes = 64 * 1024 * 1024
   ## Upper bound on a single stream read. Caps the buffer an untrusted peer can
@@ -259,5 +292,107 @@ type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
 
 proc libp2p_new_default_config(): CLibp2pConfig {.exportc, cdecl, dynlib.} =
   CLibp2pConfig()
+
+proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  let pubKey =
+    case peerInfo.publicKey.scheme
+    of PKScheme.Secp256k1:
+      peerInfo.publicKey.skkey
+    else:
+      return err("peerInfo public key must be secp256k1")
+
+  ok(@(pubKey.getBytes()))
+
+proc libp2pConnect*(
+    lib: LibP2P, req: ConnectRequest
+): Future[Result[void, string]] {.ffi: "timeout = 30000".} =
+  # The FFI runtime caps every handler at a 5s default; a dial+upgrade can take
+  # up to libp2p's 30s UpgradeTimeout, so raise the backstop to match. The
+  # per-call `req.timeoutMs` still governs below whenever it is shorter.
+  let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
+    return err(error)
+
+  let peerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+
+  let timeout =
+    if req.timeoutMs <= 0:
+      InfiniteDuration
+    else:
+      chronos.milliseconds(req.timeoutMs)
+
+  try:
+    await lib.switch.connect(peerId, multiaddresses).wait(timeout)
+  except AsyncTimeoutError:
+    return err("dial timeout")
+  except DialFailedError as e:
+    return err(e.msg)
+
+  ok()
+
+proc libp2pDisconnect*(
+    lib: LibP2P, peerId: string
+): Future[Result[void, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  await lib.switch.disconnect(pid)
+  ok()
+
+proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+  try:
+    ok(PeerInfoResponse(peerId: $peerInfo.peerId, addrs: peerInfo.addrs.mapIt($it)))
+  except LPError as e:
+    err(e.msg)
+
+proc libp2pConnectedPeers*(
+    lib: LibP2P, direction: int
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  let dir =
+    case direction
+    of ord(Direction.In):
+      Direction.In
+    of ord(Direction.Out):
+      Direction.Out
+    else:
+      return err("invalid direction: " & $direction)
+
+  let peers = lib.switch.connectedPeers(dir)
+  ok(PeersResponse(peerIds: peers.mapIt($it)))
+
+proc libp2pDial*(
+    lib: LibP2P, req: DialRequest
+): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
+  # See libp2pConnect: a dial can run to the 30s UpgradeTimeout, so the handler
+  # needs more than the FFI runtime's 5s default or the caller is unblocked with
+  # a spurious timeout while this handler keeps running and leaks the streamId.
+  let peerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  let stream =
+    try:
+      await lib.switch.dial(peerId, req.proto)
+    except DialFailedError as e:
+      return err(e.msg)
+  ok(DialResponse(streamId: lib.streams.register(stream)))
+
+proc libp2pDialCircuitRelay*(
+    lib: LibP2P, req: DialCircuitRelayRequest
+): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
+  let dstPeerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  let relayCircuitAddr = MultiAddress.init(req.multiaddr).valueOr:
+    return err($error)
+  let stream =
+    try:
+      await lib.switch.dial(dstPeerId, @[relayCircuitAddr], req.proto)
+    except DialFailedError as e:
+      return err(e.msg)
+  ok(DialResponse(streamId: lib.streams.register(stream)))
 
 genBindings()
