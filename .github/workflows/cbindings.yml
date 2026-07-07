@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
-      
+
     defaults:
       run:
         shell: bash
@@ -62,5 +62,6 @@ jobs:
 
           nimble setup
           cd cbind
+          nimble install_pinned
           nimble setup
           nimble examples
