@@ -7,7 +7,6 @@ on:
       - edited
       - reopened
       - synchronize
-  merge_group:
 
 jobs:
   main:
