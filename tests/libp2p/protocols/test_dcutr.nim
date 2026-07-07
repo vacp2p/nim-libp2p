@@ -113,7 +113,7 @@ suite "Dcutr":
           behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
           initialConnCount:
         directConnSeen.completeOnce()
-    
+
     # use event handler to wait-and-assert exact moment when condition 
     # (publicSwitch has connected to behindNATSwitch) is satisfied 
     # instead of polling, as polling can miss a short-lived true state
