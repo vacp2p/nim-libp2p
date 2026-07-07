@@ -96,14 +96,11 @@ proc new*(
   # Fill up buckets with initial bootstrap nodes
   disco.updatePeers(bootstrapNodes)
 
-  # Whenever a brand-new service table is created, bootstrap it immediately
-  # (mirroring kademlia's startup bootstrap) instead of waiting up to one
-  # `bucketRefreshTime` for the maintenance heartbeat. Fire-and-forget so the
-  # (often synchronous) creation paths don't block on the network.
   disco.rtManager.onServiceTableCreated = proc(serviceId: ServiceId) =
     if disco.config.disableBootstrapping:
       return
-    trackFut(disco.serviceBootstrapFuts, disco.bootstrapServiceTable(serviceId))
+
+    disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
 
   disco.codec = codec
   if client:
