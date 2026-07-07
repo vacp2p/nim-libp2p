@@ -642,6 +642,7 @@ suite "Switch":
 
   asyncTest "e2e drop peer from inside its own stream handler":
     let disconnected = newWaitGroup(1)
+    let futSwitch1Connected = newWaitGroup(1)
     var events: set[PeerEventKind]
 
     let switch1 = makeStandardSwitch(TcpAutoAddress)
@@ -651,12 +652,7 @@ suite "Switch":
       # Wait for the remote's dial to fully complete before disconnecting,
       # to avoid racing with multistream protocol negotiation completion
       # (the handler fires before the remote reads the protocol confirmation).
-      try:
-        discard await stream.readLp(1024) # 1024 matches other readLp uses in this suite
-      except LPStreamError:
-        # If the stream closes before receiving the sync signal (e.g. due to
-        # an unexpected connection reset), proceed with the disconnect anyway.
-        discard
+      await futSwitch1Connected.wait()
       try:
         await switch1.disconnect(stream.peerId)
         disconnected.done()
@@ -682,9 +678,8 @@ suite "Switch":
     let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    # Signal to the handler that the dial has completed so it can proceed
-    # with the disconnect, avoiding the protocol negotiation race.
-    await stream.writeLp("ready")
+    # Signal to the handler that the dial has completed so it can proceed with the disconnect.
+    futSwitch1Connected.done()
 
     # with the deadlock, the disconnect never completes and this times out
     await disconnected.wait(5.seconds)
