@@ -42,32 +42,32 @@ suite "Switch accept-loop failure handling":
 
   asyncTest "accept raising exits the loop while the transport still looks reachable":
     # a single inbound slot lets us check the loop hands it back when accept fails
-    let (server, stub) = newStubAcceptSwitch(RaiseAlways, maxIn = 1)
+    let (server, transport) = newStubAcceptSwitch(RaiseAlways, maxIn = 1)
     startAndDeferStop(@[server])
 
     # the loop calls accept, it raises, and the loop returns and is not respawned
     checkUntilTimeout:
       server.acceptFuts[0].finished
-    check stub.acceptCalls == 1
+    check transport.acceptCalls == 1
 
     # yet the transport still reports running and its address stays advertised,
     # so the switch keeps looking reachable while nothing is accepting
-    check stub.running
-    check stub.addrs[0] in server.peerInfo.listenAddrs
+    check transport.running
+    check transport.addrs[0] in server.peerInfo.listenAddrs
 
     check server.connManager.availableSlots(Direction.In) == 1
 
   asyncTest "accept returning nil is non-fatal and the loop keeps retrying":
-    let (server, stub) = newStubAcceptSwitch(NilAlways)
+    let (server, transport) = newStubAcceptSwitch(NilAlways)
     startAndDeferStop(@[server])
 
-    # nil is treated as a transient miss, so the loop keeps calling accept
+    # nil is treated as a transient miss, so the loop keeps calling accept indefinitely
     checkUntilTimeout:
-      stub.acceptCalls >= 5
+      transport.acceptCalls >= 5 # arbitrary count
     check not server.acceptFuts[0].finished
 
   asyncTest "inbound connections are dropped after a transport's accept loop dies":
-    let (server, stub) = newStubAcceptSwitch(RaiseAlways)
+    let (server, transport) = newStubAcceptSwitch(RaiseAlways)
     let client = makeStandardSwitch(MemoryAutoAddress())
     startAndDeferStop(@[server, client])
 
@@ -76,7 +76,7 @@ suite "Switch accept-loop failure handling":
       server.acceptFuts[0].finished
 
     # the server still advertises its address
-    check stub.addrs[0] in server.peerInfo.listenAddrs
+    check transport.addrs[0] in server.peerInfo.listenAddrs
     # but nothing is accepting, so an inbound dial fails
     expect DialFailedError:
       await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
@@ -86,13 +86,13 @@ suite "Switch accept-loop failure handling":
     # only one inbound slot and the loop pre-acquires it before every accept.
     # reaching a real accept after nilCount nils is possible only if each
     # nil released that slot, else the next getIncomingSlot would block forever
-    let (server, stub) =
+    let (server, transport) =
       newStubAcceptSwitch(NilThenAccept, nilCount = nilCount, maxIn = 1)
     let client = makeStandardSwitch(MemoryAutoAddress())
     startAndDeferStop(@[server, client])
 
     checkUntilTimeout:
-      stub.acceptCalls > nilCount
+      transport.acceptCalls > nilCount
 
     # the recovered accept serves a real inbound connection, and the one slot is used
     await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
