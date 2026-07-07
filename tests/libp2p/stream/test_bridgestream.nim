@@ -26,7 +26,7 @@ suite "BridgeStream":
     await c2.close()
 
   asyncTest "serializes concurrent writes to peer buffer":
-    let (c1, c2) = bridgedConnections()
+    let (c1, c2) = bridgedConnections(serializeWrites = true)
     var msg: array[5, byte]
 
     await c1.write("first")

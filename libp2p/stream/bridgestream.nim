@@ -16,7 +16,7 @@ type
     closeHandler: proc(): Future[void] {.async: (raises: []).}
     writeLock: AsyncLock
 
-method write*(
+proc writeLocked(
     s: BridgeStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   await s.writeLock.acquire()
@@ -28,6 +28,14 @@ method write*(
     except AsyncLockError as exc:
       raiseAssert "BridgeStream write lock release failed: " & exc.msg
 
+method write*(
+    s: BridgeStream, msg: sink seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
+  if s.writeLock.isNil:
+    s.writeHandler(move(msg))
+  else:
+    s.writeLocked(move(msg))
+
 method closeImpl*(s: BridgeStream): Future[void] {.async: (raises: [], raw: true).} =
   if not isNil(s.closeHandler):
     discard s.closeHandler()
@@ -38,14 +46,18 @@ method getWrapped*(s: BridgeStream): Connection =
   nil
 
 proc bridgedConnections*(
-    closeTogether: bool = true, dirA = Direction.In, dirB = Direction.In
+    closeTogether: bool = true,
+    dirA = Direction.In,
+    dirB = Direction.In,
+    serializeWrites = false,
 ): (BridgeStream, BridgeStream) =
   let connA = BridgeStream()
   let connB = BridgeStream()
   connA.dir = dirA
   connB.dir = dirB
-  connA.writeLock = newAsyncLock()
-  connB.writeLock = newAsyncLock()
+  if serializeWrites:
+    connA.writeLock = newAsyncLock()
+    connB.writeLock = newAsyncLock()
   connA.initStream()
   connB.initStream()
 
