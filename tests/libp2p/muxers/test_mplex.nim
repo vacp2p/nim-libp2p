@@ -585,8 +585,8 @@ suite "Mplex":
       await done.wait(10.seconds)
       await conn.close()
       await acceptFut.wait(1.seconds)
-      await mplexDialFut
       await allFuturesRaising(transport1.stop(), transport2.stop())
+      await mplexDialFut
       await listenFut
 
     asyncTest "multiple read/write streams":
@@ -683,8 +683,8 @@ suite "Mplex":
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
-      await mplexDialFut
       await allFuturesRaising(transport1.stop(), transport2.stop())
+      await mplexDialFut
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
@@ -878,7 +878,7 @@ suite "Mplex":
         await mplexListen.close()
 
       await transport1.start(ma)
-      let _ = acceptHandler()
+      let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let conn = await transport2.dial(transport1.addrs[0])
@@ -901,6 +901,7 @@ suite "Mplex":
       await conn.close()
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await mplexDialFut
+      await acceptFut
 
     asyncTest "closing dialing connection should close both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
