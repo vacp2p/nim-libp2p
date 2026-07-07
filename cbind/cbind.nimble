@@ -16,8 +16,6 @@ requires "taskpools >= 0.1.0"
 task install_pinned,
   "Install cbind's pinned deps (taskpools, cbor_serialization, nim-ffi)":
   # cbind-scoped lock; kept out of the root .pinned so the Nim 2.2.4 CI job stays green.
-  if not dirExists("nimbledeps"):
-    mkDir("nimbledeps")
   let deps = readFile(".pinned").splitWhitespace().mapIt(it.split(";", 1)[1])
   exec "nimble install -y " & deps.join(" ")
 
