@@ -16,7 +16,7 @@ jobs:
         shell: bash
 
     name: "Build and run"
-    runs-on: ubuntu-22.04
+    runs-on: macos-15 # using macos-15 as it is fastests to compile and run
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -27,8 +27,8 @@ jobs:
         uses: "./.github/actions/install_nim"
         with:
           shell: bash
-          os: linux
-          cpu: amd64
+          os: macos-15
+          cpu: arm64
           nim_ref: v2.2.10
 
       - name: Restore deps from cache
@@ -38,7 +38,7 @@ jobs:
           path: nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
@@ -48,9 +48,9 @@ jobs:
       - name: Build prerequisites
         run: make nimble.paths nat_libs
         
-      - name: Build feature flags
+      - name: Build without feature flags
         run: |
-          nim c ./tests/test_all
+          nim c --mm:refc --cc:clang ./tests/test_all
 
       - name: Run tests
         run: |
