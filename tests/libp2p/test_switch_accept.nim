@@ -5,22 +5,17 @@
 
 import sequtils
 import chronos
-import ../../libp2p/[builders, switch, dial, multiaddress, transports/transport]
+import
+  ../../libp2p/[
+    builders, switch, dial, multiaddress, transports/transport, stream/connection
+  ]
 import ../stubs/transportstub
 import ../tools/[unittest, crypto, lifecycle, multiaddress, switch_builder]
 
-var memoryAddressCounter {.threadvar.}: int
-
-proc uniqueMemoryAddress(): MultiAddress =
-  # a concrete memory address per switch, so the shared memory registry never
-  # collides across tests, and so `start`/`accept` never need the wildcard rng
-  inc memoryAddressCounter
-  MultiAddress.init("/memorytransport/stub-" & $memoryAddressCounter).get()
-
 proc newStubServer(
-    behavior: StubAcceptBehavior, nilCount = 0, withTcp = false
+    behavior: StubAcceptBehavior, nilCount = 0, withTcp = false, maxIn = 0
 ): (Switch, MemoryTransportStub) =
-  var addrs = @[uniqueMemoryAddress()]
+  var addrs = @[MemoryAutoAddress()]
   if withTcp:
     addrs.add(TcpAutoAddress)
 
@@ -32,10 +27,12 @@ proc newStubServer(
     .withAddresses(addrs)
     .withTransport(
       proc(config: TransportConfig): Transport =
-        MemoryTransportStub.new(config.upgr, behavior, nilCount)
+        MemoryTransportStub.new(config.upgr, rng(), behavior, nilCount)
     )
   if withTcp:
     b = b.withTcpTransport()
+  if maxIn > 0:
+    b = b.withMaxInOut(maxIn, 8)
 
   let switch = b.build()
   (switch, MemoryTransportStub(switch.transports[0]))
@@ -45,7 +42,8 @@ suite "Switch accept-loop failure handling":
     checkTrackers()
 
   asyncTest "accept raising exits the loop while the transport still looks reachable":
-    let (switch, stub) = newStubServer(RaiseAlways)
+    # a single inbound slot lets us check the loop hands it back when accept fails
+    let (switch, stub) = newStubServer(RaiseAlways, maxIn = 1)
     startAndDeferStop(@[switch])
 
     # the loop calls accept, it raises, and the loop returns and is not respawned
@@ -57,6 +55,8 @@ suite "Switch accept-loop failure handling":
     # so the switch keeps looking reachable while nothing is accepting
     check stub.running
     check stub.addrs[0] in switch.peerInfo.listenAddrs
+
+    check switch.connManager.availableSlots(Direction.In) == 1
 
   asyncTest "accept returning nil is non-fatal and the loop keeps retrying":
     let (switch, stub) = newStubServer(NilAlways)
@@ -97,8 +97,25 @@ suite "Switch accept-loop failure handling":
     await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
     check client.isConnected(server.peerInfo.peerId)
 
+  asyncTest "the accept loop releases its slot on each nil so a one-slot transport recovers":
+    const nilCount = 3
+    # only one inbound slot and the loop pre-acquires it before every accept.
+    # if the nil branch forgot to release it, the second accept would
+    # block on getIncomingSlot and the transport could never recover
+    let (server, stub) = newStubServer(NilThenAccept, nilCount = nilCount, maxIn = 1)
+    let client = makeStandardSwitch(MemoryAutoAddress())
+    startAndDeferStop(@[server, client])
+
+    checkUntilTimeout:
+      stub.acceptCalls > nilCount
+
+    # and a real inbound connection is still accepted end-to-end and slot is used
+    await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
+    check client.isConnected(server.peerInfo.peerId)
+    check server.connManager.availableSlots(Direction.In) == 0
+
   asyncTest "one transport's accept failure does not stop other transports from accepting":
-    let (server, stub) = newStubServer(RaiseAlways, withTcp = true)
+    let (server, _) = newStubServer(RaiseAlways, withTcp = true)
     let client = makeStandardSwitch(TcpAutoAddress)
     startAndDeferStop(@[server, client])
 

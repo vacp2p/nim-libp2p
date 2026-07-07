@@ -22,7 +22,7 @@ logScope:
   topics = "libp2p memorytransport"
 
 type MemoryTransport* = ref object of Transport
-  rng: Rng
+  rng*: Rng
   connections: seq[RawConn]
   listener: Opt[MemoryListener]
 
