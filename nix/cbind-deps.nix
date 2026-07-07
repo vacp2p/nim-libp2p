@@ -2,7 +2,7 @@
 # Do not edit manually
 #
 # NOTE: the `ffi` and `cbor_serialization` entries below were added by hand for
-# the nim-ffi migration. Keep their `rev` in sync with `.pinned`; regenerate the
+# the nim-ffi migration. Keep their `rev` in sync with `cbind/.pinned`; regenerate the
 # file with `make -C cbind deps` (runs tools/gen-deps.sh against an updated
 # nimble.lock), or run `nix build .#cbind` and copy the hashes Nix reports.
 { pkgs }:

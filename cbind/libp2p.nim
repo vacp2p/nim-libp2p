@@ -3,8 +3,7 @@
 
 ## C FFI bindings for nim-libp2p, built on top of `nim-ffi`.
 ##
-## The whole FFI runtime (worker thread, request channel, CBOR codec, event
-## queue and the generated C/CDDL bindings) is provided by `nim-ffi`. This
+## `nim-ffi` provides the FFI runtime and generates the C/CDDL bindings. This
 ## file only declares the library state, the request/response shapes and the
 ## libp2p-specific bodies; `genBindings()` at the bottom emits the foreign
 ## bindings consumed by `logos-co/logos-libp2p-module`.
@@ -349,14 +348,18 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
     if config.dnsResolver.len == 0:
       DefaultDnsServers
     else:
-      @[initTAddress(config.dnsResolver)]
+      try:
+        @[initTAddress(config.dnsResolver)]
+      except TransportAddressError as e:
+        return err("invalid dnsResolver address: " & e.msg)
 
   let rng = newRng()
 
   var privKey = Opt.none(PrivateKey)
   if config.privKey.len > 0:
-    PrivateKey.init(config.privKey).withValue(copyKey):
-      privKey = Opt.some(copyKey)
+    let parsedKey = PrivateKey.init(config.privKey).valueOr:
+      return err("invalid private key: " & $error)
+    privKey = Opt.some(parsedKey)
 
   var addrs: seq[MultiAddress]
   for a in config.addrs:
@@ -731,6 +734,8 @@ proc libp2pKadGetValue*(
 ): Future[Result[ReadResponse, string]] {.ffi.} =
   let kad = lib.kad.valueOr:
     return err("kad-dht not initialized")
+  if req.quorum == 0:
+    return err("quorum must be greater than 0 (use a negative value for the default)")
   let quorum =
     if req.quorum < 0:
       Opt.none(int)
@@ -891,7 +896,7 @@ proc libp2pCreateXpr*(
 
   let seqNo =
     if req.seqNo == 0:
-      Moment.now().epochSeconds.uint64
+      getTime().toUnix().uint64
     else:
       req.seqNo
 

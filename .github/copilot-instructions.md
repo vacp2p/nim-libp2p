@@ -472,7 +472,7 @@ annotations in `libp2p.nim`:
 ```sh
 cd cbind
 nimble setup
-nimble buildffi         # Build ../build/libp2p.{so,dylib,dll}
+nimble buildffi         # Build ../build/liblibp2p.{so,dylib,dll}
 nimble genbindings_c    # Generate c_bindings/libp2p.h
 nimble genbindings_cddl # Generate the CDDL schema
 ```

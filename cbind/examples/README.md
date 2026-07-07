@@ -4,7 +4,7 @@ Worked examples of consuming nim-libp2p from C through the FFI bindings generate
 
 The bindings are a header-only C API over a C ABI. Every generated method is asynchronous: it takes a result callback and returns immediately, and the callback fires from the library's dispatch thread. Library-initiated events (incoming streams, pub/sub messages) arrive through `libp2p_ctx_add_on_…_listener` callbacks. The examples turn each async call back into a blocking step with the small helpers in `common.h`.
 
-- `echo.c` — two TCP nodes; the server mounts a custom `/cbind/echo/1.0.0` protocol and echoes the bytes it reads, the client dials it and verifies the round-trip. The server serves each stream on its own thread, since calling back into the library from the dispatch thread would deadlock.
+- `echo.c` — two TCP nodes; the server mounts a custom `/cbind/echo/1.0.0` protocol and echoes the bytes it reads, the client dials it and verifies the round-trip. The incoming-stream handler only hands the stream id to `main`, which serves it inline, since calling back into the library from the dispatch thread would deadlock.
 - `gossipsub.c` — two TCP nodes mount GossipSub, connect on a shared topic and exchange one message delivered via the pubsub-message listener.
 
 ## Build
@@ -13,8 +13,8 @@ From `cbind/`, produce the runtime library and the generated header first:
 
 ```sh
 nimble setup
-nimble buildffi       # -> ../build/libp2p.so
-nimble genbindings_c  # -> cbind/c_bindings/libp2p.h
+nimble buildffi       # -> ../build/liblibp2p.so
+nimble genbindings_c  # -> c_bindings/libp2p.h
 ```
 
 Then build the examples:

@@ -2,7 +2,7 @@
 
 all: build genbindings
 
-# Builds ../build/libp2p.so plus the C/CDDL bindings. Run `nimble setup` once first.
+# Builds ../build/liblibp2p.so plus the C/CDDL bindings. Run `nimble setup` once first.
 build:
 	nimble buildffi
 
