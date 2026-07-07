@@ -109,20 +109,20 @@ pkgs.stdenv.mkDerivation {
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
 
     echo "== Building Android FFI library (shared) for ${abi} =="
-    nim c $commonArgs --app:lib --out:build/liblibp2p.so cbind/libp2p_ffi.nim
+    nim c $commonArgs --app:lib --out:build/liblibp2p.so cbind/libp2p.nim
 
     echo "== Building Android FFI library (static) for ${abi} =="
-    nim c $commonArgs --app:staticlib --out:build/liblibp2p.a cbind/libp2p_ffi.nim
+    nim c $commonArgs --app:staticlib --out:build/liblibp2p.a cbind/libp2p.nim
 
     echo "== Generating C bindings =="
     nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=c \
-      -d:ffiOutputDir=cbind/c_bindings -d:ffiSrcPath=libp2p_ffi.nim \
-      -o:/dev/null cbind/libp2p_ffi.nim
+      -d:ffiOutputDir=cbind/c_bindings -d:ffiSrcPath=libp2p.nim \
+      -o:/dev/null cbind/libp2p.nim
 
     echo "== Generating CDDL schema =="
     nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=cddl \
-      -d:ffiOutputDir=cbind/cddl_bindings -d:ffiSrcPath=libp2p_ffi.nim \
-      -o:/dev/null cbind/libp2p_ffi.nim
+      -d:ffiOutputDir=cbind/cddl_bindings -d:ffiSrcPath=libp2p.nim \
+      -o:/dev/null cbind/libp2p.nim
 
     mkdir -p cbind/c_bindings/tinycbor
     cp ${tinycborVendor}/* cbind/c_bindings/tinycbor/
@@ -131,8 +131,8 @@ pkgs.stdenv.mkDerivation {
     mkdir -p build/check-objects
     "$ANDROID_CC" -std=c11 -fPIE -pthread \
       -I cbind/c_bindings -I cbind/c_bindings/tinycbor \
-      -c cbind/examples/libp2p_ffi_mobile_check.c \
-      -o build/check-objects/libp2p_ffi_android_check.o
+      -c cbind/examples/libp2p_mobile_check.c \
+      -o build/check-objects/libp2p_android_check.o
     for src in cbind/c_bindings/tinycbor/*.c; do
       obj=build/check-objects/$(basename "$src" .c).o
       "$ANDROID_CC" -std=c11 -fPIE -I cbind/c_bindings/tinycbor -c "$src" -o "$obj"
@@ -140,10 +140,10 @@ pkgs.stdenv.mkDerivation {
     "$ANDROID_CXX" -L build -fPIE -pie -pthread \
       build/check-objects/*.o build/liblibp2p.so \
       -lc++_shared -ldl -lm -llog \
-      -o build/libp2p_ffi_android_check
+      -o build/libp2p_android_check
 
     "$ANDROID_READELF" -h build/liblibp2p.so > build/liblibp2p.so.readelf
-    "$ANDROID_READELF" -h build/libp2p_ffi_android_check > build/libp2p_ffi_android_check.readelf
+    "$ANDROID_READELF" -h build/libp2p_android_check > build/libp2p_android_check.readelf
     "$ANDROID_AR" t build/liblibp2p.a > /dev/null
   '';
 
@@ -157,7 +157,7 @@ pkgs.stdenv.mkDerivation {
     cp -r cbind/c_bindings/tinycbor $out/include/
     cp -r cbind/cddl_bindings $out/include/
 
-    cp build/libp2p_ffi_android_check $out/bin/
+    cp build/libp2p_android_check $out/bin/
     cp build/*.readelf $out/nix-support/
 
     printf '%s\n' \
@@ -170,7 +170,7 @@ pkgs.stdenv.mkDerivation {
   '';
 
   meta = with pkgs.lib; {
-    description = "Android ${abi} C ABI build of nim-libp2p libp2p_ffi";
+    description = "Android ${abi} C ABI build of nim-libp2p libp2p";
     platforms = platforms.linux ++ platforms.darwin;
   };
 }

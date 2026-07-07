@@ -59,16 +59,16 @@ jobs:
           test -f "$out/include/nim_ffi_prelude.h"
           test -f "$out/include/tinycbor/cbor.h"
           test -f "$out/include/cddl_bindings/libp2p.cddl"
-          test -x "$out/bin/libp2p_ffi_android_check"
+          test -x "$out/bin/libp2p_android_check"
 
           readelf -h "$out/lib/liblibp2p.so" | tee liblibp2p.readelf
-          readelf -h "$out/bin/libp2p_ffi_android_check" | tee check.readelf
+          readelf -h "$out/bin/libp2p_android_check" | tee check.readelf
 
           grep -q "Machine:[[:space:]]*${{ matrix.machine }}" liblibp2p.readelf
           grep -q "Machine:[[:space:]]*${{ matrix.machine }}" check.readelf
 
           file "$out/lib/liblibp2p.so"
-          file "$out/bin/libp2p_ffi_android_check"
+          file "$out/bin/libp2p_android_check"
 
       - name: Enable KVM for Android emulator
         if: matrix.abi == 'x86_64'
@@ -93,7 +93,7 @@ jobs:
             adb shell "mkdir -p /data/local/tmp/nim-libp2p"
             adb push "result-x86_64/lib/liblibp2p.so" "/data/local/tmp/nim-libp2p/"
             adb push "result-x86_64/lib/libc++_shared.so" "/data/local/tmp/nim-libp2p/"
-            adb push "result-x86_64/bin/libp2p_ffi_android_check" "/data/local/tmp/nim-libp2p/"
-            adb shell "chmod 755 /data/local/tmp/nim-libp2p/libp2p_ffi_android_check"
-            adb shell "cd /data/local/tmp/nim-libp2p && LD_LIBRARY_PATH=/data/local/tmp/nim-libp2p ./libp2p_ffi_android_check; echo RC=\$?" | tee run.log
+            adb push "result-x86_64/bin/libp2p_android_check" "/data/local/tmp/nim-libp2p/"
+            adb shell "chmod 755 /data/local/tmp/nim-libp2p/libp2p_android_check"
+            adb shell "cd /data/local/tmp/nim-libp2p && LD_LIBRARY_PATH=/data/local/tmp/nim-libp2p ./libp2p_android_check; echo RC=\$?" | tee run.log
             grep -q '^RC=0' run.log

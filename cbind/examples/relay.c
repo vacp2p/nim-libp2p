@@ -5,7 +5,7 @@
 // its incoming stream from main. Calls are made blocking via common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p_ffi/config.nim.
+// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
 static const int64_t TransportTcp = 1;
 static const int64_t MuxerMplex = 0;
 

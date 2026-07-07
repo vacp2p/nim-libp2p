@@ -1,4 +1,4 @@
-name: C bindings examples
+name: C bindings
 
 on:
   push:
@@ -54,7 +54,7 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Build and run c bindings examples
+      - name: Build FFI library and generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
@@ -64,18 +64,18 @@ jobs:
           cd cbind
           nimble install_pinned
           nimble setup
+          nimble buildffi
+          nimble genbindings_c
+          nimble genbindings_cddl
+
+      - name: Build and run C bindings examples
+        run: |
+          cd cbind
           nimble examples
 
-  # Temporary parallel job: builds the new nim-ffi library (cbind/libp2p_ffi.nim)
-  # and generates its C/CDDL bindings. Folded into the main flow at the flip PR,
-  # when libp2p_ffi.nim replaces the legacy libp2p.nim.
-  #
-  # Disabled until the final PR of the nim-ffi migration series: libp2p_ffi.nim is
-  # built up incrementally across PRs 2..9 and only compiles end-to-end at the
-  # flip. Re-enable (drop `if: false`) once the library is complete and expected
-  # to pass.
+  # macOS coverage for the FFI library build + C/CDDL binding generation; the
+  # main c-bindings job above covers linux.
   c-bindings-ffi:
-    if: false
     timeout-minutes: 30
     strategy:
       fail-fast: false

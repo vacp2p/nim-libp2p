@@ -177,20 +177,20 @@ EOF
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
 
     echo "== Building iOS FFI library (dynamic/shared) for ${targetName} =="
-    nim c $commonArgs --app:lib --out:build/liblibp2p.dylib cbind/libp2p_ffi.nim
+    nim c $commonArgs --app:lib --out:build/liblibp2p.dylib cbind/libp2p.nim
 
     echo "== Building iOS FFI library (static) for ${targetName} =="
-    nim c $commonArgs --app:staticlib --out:build/liblibp2p.a cbind/libp2p_ffi.nim
+    nim c $commonArgs --app:staticlib --out:build/liblibp2p.a cbind/libp2p.nim
 
     echo "== Generating C bindings =="
     nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=c \
-      -d:ffiOutputDir=cbind/c_bindings -d:ffiSrcPath=libp2p_ffi.nim \
-      -o:/dev/null cbind/libp2p_ffi.nim
+      -d:ffiOutputDir=cbind/c_bindings -d:ffiSrcPath=libp2p.nim \
+      -o:/dev/null cbind/libp2p.nim
 
     echo "== Generating CDDL schema =="
     nim c $commonArgs --app:lib -d:ffiGenBindings -d:targetLang=cddl \
-      -d:ffiOutputDir=cbind/cddl_bindings -d:ffiSrcPath=libp2p_ffi.nim \
-      -o:/dev/null cbind/libp2p_ffi.nim
+      -d:ffiOutputDir=cbind/cddl_bindings -d:ffiSrcPath=libp2p.nim \
+      -o:/dev/null cbind/libp2p.nim
 
     mkdir -p cbind/c_bindings/tinycbor
     cp ${tinycborVendor}/* cbind/c_bindings/tinycbor/
@@ -199,8 +199,8 @@ EOF
     mkdir -p build/check-objects
     "$CC" -std=c11 -fPIE -pthread \
       -I cbind/c_bindings -I cbind/c_bindings/tinycbor \
-      -c cbind/examples/libp2p_ffi_mobile_check.c \
-      -o build/check-objects/libp2p_ffi_ios_check.o
+      -c cbind/examples/libp2p_mobile_check.c \
+      -o build/check-objects/libp2p_ios_check.o
     for src in cbind/c_bindings/tinycbor/*.c; do
       obj=build/check-objects/$(basename "$src" .c).o
       "$CC" -std=c11 -fPIE -I cbind/c_bindings/tinycbor -c "$src" -o "$obj"
@@ -208,21 +208,21 @@ EOF
     "$CXX" -fPIE -pthread \
       build/check-objects/*.o build/liblibp2p.dylib \
       -lc++ \
-      -o build/libp2p_ffi_ios_check
+      -o build/libp2p_ios_check
 
     echo "== Inspecting iOS artifacts for ${targetName} =="
     "$IOS_OTOOL" -l build/liblibp2p.dylib | tee build/liblibp2p.dylib.otool
     "$IOS_OTOOL" -l build/liblibp2p.a | tee build/liblibp2p.a.otool
-    "$IOS_OTOOL" -l build/libp2p_ffi_ios_check | tee build/libp2p_ffi_ios_check.otool
+    "$IOS_OTOOL" -l build/libp2p_ios_check | tee build/libp2p_ios_check.otool
     "$IOS_LIPO" -info build/liblibp2p.dylib | tee build/liblibp2p.dylib.lipo
     "$IOS_LIPO" -info build/liblibp2p.a | tee build/liblibp2p.a.lipo
-    "$IOS_LIPO" -info build/libp2p_ffi_ios_check | tee build/libp2p_ffi_ios_check.lipo
+    "$IOS_LIPO" -info build/libp2p_ios_check | tee build/libp2p_ios_check.lipo
     grep -Eq "${platformCheck}" build/liblibp2p.dylib.otool
     grep -Eq "${platformCheck}" build/liblibp2p.a.otool
-    grep -Eq "${platformCheck}" build/libp2p_ffi_ios_check.otool
+    grep -Eq "${platformCheck}" build/libp2p_ios_check.otool
     grep -q "arm64" build/liblibp2p.dylib.lipo
     grep -q "arm64" build/liblibp2p.a.lipo
-    grep -q "arm64" build/libp2p_ffi_ios_check.lipo
+    grep -q "arm64" build/libp2p_ios_check.lipo
   '';
 
   installPhase = ''
@@ -235,7 +235,7 @@ EOF
     cp -r cbind/c_bindings/tinycbor $out/include/
     cp -r cbind/cddl_bindings $out/include/
 
-    cp build/libp2p_ffi_ios_check $out/bin/
+    cp build/libp2p_ios_check $out/bin/
     cp build/*.otool build/*.lipo $out/nix-support/
 
     printf '%s\n' \
@@ -249,7 +249,7 @@ EOF
   '';
 
   meta = with pkgs.lib; {
-    description = "iOS ${targetName} C ABI build of nim-libp2p libp2p_ffi";
+    description = "iOS ${targetName} C ABI build of nim-libp2p libp2p";
     platforms = platforms.darwin;
   };
 }
