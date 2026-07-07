@@ -8,6 +8,7 @@ import stew/byteutils
 import ../../../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
+import ../../../libp2p/connmanager
 import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
 import ../../tools/[unittest, switch_builder, multiaddress]
@@ -100,6 +101,21 @@ suite "Dcutr":
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId)
     check initialConnCount == 1
 
+    let directConnSeen =
+      Future[void].Raising([CancelledError]).init("dcutr direct connection seen")
+
+    proc onDirectConn(
+        peerId: PeerId, event: ConnEvent
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      if peerId == publicSwitch.peerInfo.peerId and
+          behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
+          initialConnCount:
+        directConnSeen.completeOnce()
+
+    behindNATSwitch.connManager.addConnEventHandler(
+      onDirectConn, ConnEventKind.Connected
+    )
+
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
@@ -110,9 +126,7 @@ suite "Dcutr":
       )
       .wait(10.seconds)
 
-    checkUntilTimeout:
-      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
-        initialConnCount
+    await directConnSeen.wait(10.seconds)
 
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
