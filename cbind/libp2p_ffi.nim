@@ -14,8 +14,9 @@
 
 import ffi
 
-import std/[tables, sequtils]
-from std/times import getTime, toUnix
+import std/[tables, sequtils, sets, json, jsonutils, strutils, locks]
+from std/times import getTime, toUnix, Time, toMilliseconds
+import metrics
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
@@ -157,6 +158,35 @@ type DecodeXprRequest {.ffi.} = object
 type LookupRequest {.ffi.} = object
   serviceId: string
   serviceData: seq[byte]
+
+type ReservationResponse {.ffi.} = object
+  addrs: seq[string]
+  expireTime: uint64
+
+type CircuitRelayReserveRequest {.ffi.} = object
+  relayPeerId: string
+  relayAddrs: seq[string]
+
+type AddPeerRequest {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+  protocols: seq[string]
+
+type SetAddressesRequest {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type SetProtocolsRequest {.ffi.} = object
+  peerId: string
+  protocols: seq[string]
+
+type PeerStoreEntryResponse {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+  protocols: seq[string]
+  publicKey: seq[byte]
+  agentVersion: string
+  protoVersion: string
 
 type IncomingStreamEvent {.ffi.} = object
   proto: string
@@ -882,6 +912,103 @@ proc libp2pDecodeXpr*(
 
   ok(toExtendedRecordEntry(sxpr.data))
 
+proc libp2pCircuitRelayReserve*(
+    lib: LibP2P, req: CircuitRelayReserveRequest
+): Future[Result[ReservationResponse, string]] {.ffi.} =
+  let cl = lib.relayClient.valueOr:
+    return err("relay client is not mounted (set circuitRelayClient=true in config)")
+
+  let peerId = PeerId.init(req.relayPeerId).valueOr:
+    return err($error)
+
+  let multiaddresses = parseMultiaddrs(req.relayAddrs).valueOr:
+    return err(error)
+
+  let rsvp =
+    try:
+      await cl.reserve(peerId, multiaddresses)
+    except ReservationError as e:
+      return err("reservation failed: " & e.msg)
+    except DialFailedError as e:
+      return err("dial failed: " & e.msg)
+
+  ok(ReservationResponse(addrs: rsvp.addrs.mapIt($it), expireTime: rsvp.expire))
+
+proc libp2pPeerstoreGetPeers*(
+    lib: LibP2P
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  var peerIds: seq[string]
+  try:
+    for peerId in keys(lib.switch.peerStore[AddressBook].book):
+      peerIds.add($peerId)
+  except LPError as e:
+    return err(e.msg)
+  ok(PeersResponse(peerIds: peerIds))
+
+proc libp2pPeerstoreGetPeerInfo*(
+    lib: LibP2P, peerId: string
+): Future[Result[PeerStoreEntryResponse, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  let peerStore = lib.switch.peerStore
+  try:
+    var entry = PeerStoreEntryResponse(peerId: $pid)
+    entry.addrs = peerStore[AddressBook][pid].mapIt($it)
+    entry.protocols = peerStore[ProtoBook][pid]
+    if peerStore[KeyBook].contains(pid):
+      entry.publicKey = peerStore[KeyBook][pid].getBytes().valueOr:
+        seq[byte].default
+    entry.agentVersion = peerStore[AgentBook][pid]
+    entry.protoVersion = peerStore[ProtoVersionBook][pid]
+    ok(entry)
+  except LPError as e:
+    err(e.msg)
+
+proc libp2pPeerstoreAddPeer*(
+    lib: LibP2P, req: AddPeerRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  if req.addrs.len == 0:
+    return err("at least one address is required")
+
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+
+  let peerStore = lib.switch.peerStore
+  peerStore[AddressBook].extend(pid, addrs)
+  if req.protocols.len > 0:
+    peerStore[ProtoBook].extend(pid, req.protocols)
+  ok(true)
+
+proc libp2pPeerstoreSetPeerAddresses*(
+    lib: LibP2P, req: SetAddressesRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+
+  lib.switch.peerStore[AddressBook][pid] = addrs
+  ok(true)
+
+proc libp2pPeerstoreSetPeerProtocols*(
+    lib: LibP2P, req: SetProtocolsRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  lib.switch.peerStore[ProtoBook][pid] = req.protocols
+  ok(true)
+
+proc libp2pPeerstoreDeletePeer*(
+    lib: LibP2P, peerId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  lib.switch.peerStore.del(pid)
+  ok(true)
+
 proc libp2pCreateCid*(
     lib: LibP2P, req: CreateCidRequest
 ): Future[Result[string, string]] {.ffi.} =
@@ -920,5 +1047,91 @@ proc libp2pNewPrivateKey*(
     return err("could not get bytes for private key")
 
   ok(keyData)
+
+type LabelPair = object
+  name: string
+  value: string
+
+type MetricEntry = object
+  name: string
+  `type`: string
+  help: string
+  labels: seq[LabelPair]
+  value: float64
+  timestamp: int64
+
+const UntypedMetricKind = "untyped"
+
+proc parseMetricType(typeLine: string): string =
+  ## `typeLine` is the collector's pre-formatted "# TYPE <name> <kind>\n";
+  ## returns <kind>, or "untyped" when the line is empty or malformed.
+  let tokens = typeLine.splitWhitespace()
+  if tokens.len < 4:
+    return UntypedMetricKind
+  tokens[^1]
+
+proc parseMetricHelp(helpLine: string): string =
+  ## `helpLine` is the collector's pre-formatted "# HELP <name> <text>\n";
+  ## returns <text> (which itself may contain whitespace), or "" when absent.
+  const PrefixTokens = 3 # "#", "HELP", "<name>"
+  let tokens = helpLine.splitWhitespace(maxsplit = PrefixTokens)
+  if tokens.len <= PrefixTokens:
+    return ""
+  tokens[PrefixTokens].strip()
+
+proc addMetricEntry(
+    entries: ptr seq[MetricEntry],
+    metricType: string,
+    help: string,
+    name: string,
+    value: float64,
+    labels, labelValues: openArray[string],
+    timestamp: Time,
+) {.gcsafe, raises: [].} =
+  # Skip _created entries: OpenMetrics timestamp metadata, not measurements.
+  if name.endsWith("_created"):
+    return
+  doAssert labels.len == labelValues.len, "metric label count mismatch"
+  var labelPairs = newSeq[LabelPair](labels.len)
+  for i in 0 ..< labels.len:
+    labelPairs[i] = LabelPair(name: labels[i], value: labelValues[i])
+  entries[].add MetricEntry(
+    name: name,
+    `type`: metricType,
+    help: help,
+    labels: labelPairs,
+    value: value,
+    timestamp: timestamp.toMilliseconds(),
+  )
+
+proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
+  var entries: seq[MetricEntry]
+  {.cast(gcsafe).}:
+    withLock registry.lock:
+      for collector in registry.collectors:
+        let metricType = parseMetricType(collector.typ)
+        let help = parseMetricHelp(collector.help)
+        let entriesPtr = addr entries
+        collector.collect(
+          proc(
+              name: string,
+              value: float64,
+              labels, labelValues: openArray[string],
+              timestamp: Time,
+          ) {.gcsafe, raises: [].} =
+            addMetricEntry(
+              entriesPtr, metricType, help, name, value, labels, labelValues, timestamp
+            )
+        )
+  entries
+
+proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+  var jsonText: string
+  try:
+    {.cast(gcsafe).}:
+      jsonText = $collectRegistryMetrics(defaultRegistry).toJson()
+  except CatchableError as e:
+    return err("failed to serialize metrics: " & e.msg)
+  ok(jsonText)
 
 genBindings()
