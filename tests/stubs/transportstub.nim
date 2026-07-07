@@ -8,7 +8,9 @@
 import chronos
 import
   ../../libp2p/[
-    transports/transport, transports/memorytransport, upgrademngrs/upgrade,
+    transports/transport,
+    transports/memorytransport,
+    upgrademngrs/upgrade,
     crypto/crypto,
   ]
 
@@ -30,8 +32,7 @@ proc new*(
     behavior: StubAcceptBehavior,
     nilCount: int = 0,
 ): T =
-  let self =
-    T(upgrader: upgrade, rng: rng, behavior: behavior, nilCount: nilCount)
+  let self = T(upgrader: upgrade, rng: rng, behavior: behavior, nilCount: nilCount)
   procCall Transport(self).initialize()
   self
 

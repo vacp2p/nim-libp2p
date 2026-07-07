@@ -6,9 +6,8 @@
 import sequtils
 import chronos
 import
-  ../../libp2p/[
-    builders, switch, dial, multiaddress, transports/transport, stream/connection
-  ]
+  ../../libp2p/
+    [builders, switch, dial, multiaddress, transports/transport, stream/connection]
 import ../stubs/transportstub
 import ../tools/[unittest, crypto, lifecycle, multiaddress, switch_builder]
 
@@ -87,7 +86,8 @@ suite "Switch accept-loop failure handling":
     # only one inbound slot and the loop pre-acquires it before every accept.
     # reaching a real accept after nilCount nils is possible only if each
     # nil released that slot, else the next getIncomingSlot would block forever
-    let (server, stub) = newStubAcceptSwitch(NilThenAccept, nilCount = nilCount, maxIn = 1)
+    let (server, stub) =
+      newStubAcceptSwitch(NilThenAccept, nilCount = nilCount, maxIn = 1)
     let client = makeStandardSwitch(MemoryAutoAddress())
     startAndDeferStop(@[server, client])
 
