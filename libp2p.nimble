@@ -14,7 +14,7 @@ requires "nim >= 2.2.4",
   "results", "serialization", "lsquic >= 0.5.4", "protobuf_serialization >= 0.5.3",
   "https://github.com/status-im/nim-websock >= 0.4.0",
   "https://github.com/status-im/nim-nat-traversal >= 0.0.1",
-  "https://github.com/vladopajic/nim-unittest3#e6431b079a3ef961af48c51dd93342f1d96a17cf"
+  "https://github.com/vladopajic/nim-unittest3#e31e2f48bfa622b29b154ab08faadd4292951b84
 
 import os, sequtils, strutils
 
