@@ -87,14 +87,6 @@ func get(reg: StreamRegistry, id: uint64): Result[Stream, string] =
     return err("unknown stream handle")
   ok(stream)
 
-proc parseMultiaddrs(addrs: seq[string]): Result[seq[MultiAddress], string] =
-  var parsed: seq[MultiAddress]
-  for a in addrs:
-    let ma = MultiAddress.init(a).valueOr:
-      return err("invalid multiaddress '" & a & "': " & $error)
-    parsed.add(ma)
-  ok(parsed)
-
 const MaxReadBytes = 64 * 1024 * 1024
   ## Upper bound on a single stream read. Caps the buffer an untrusted peer can
   ## make us pre-allocate before any byte arrives; well above libp2p's largest
