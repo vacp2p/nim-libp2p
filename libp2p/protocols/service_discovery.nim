@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import chronos, chronicles, results, sets
-import ../utils/heartbeat
+import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
 import
@@ -50,6 +50,15 @@ proc maintainServiceTables(
     disco.config.bucketRefreshTime, sleepFirst = true:
     await disco.rtManager.refreshAllTables(disco)
 
+proc bootstrapServiceTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId
+) {.async: (raises: [CancelledError]).} =
+  let rtable = disco.rtManager.getTable(serviceId).valueOr:
+    return
+
+  await disco.refreshTable(rtable, forceRefresh = true)
+  debug "Service table bootstrap complete", serviceId
+
 proc new*(
     T: typedesc[ServiceDiscovery],
     switch: Switch,
@@ -86,6 +95,12 @@ proc new*(
 
   # Fill up buckets with initial bootstrap nodes
   disco.updatePeers(bootstrapNodes)
+
+  disco.rtManager.onServiceTableCreated = proc(serviceId: ServiceId) =
+    if disco.config.disableBootstrapping:
+      return
+
+    disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
 
   disco.codec = codec
   if client:
@@ -157,6 +172,9 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
     return
 
   disco.advertiser.clear()
+
+  disco.serviceBootstrapFuts.cancelSoon()
+  disco.serviceBootstrapFuts = @[]
 
   if not disco.selfSignedPeerRecordLoop.isNil():
     disco.selfSignedPeerRecordLoop.cancelSoon()

@@ -43,6 +43,7 @@ type
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
+    onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
 
@@ -94,6 +95,7 @@ type
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
+    serviceBootstrapFuts*: seq[Future[void]]
     clientMode*: bool
 
 proc new*(
