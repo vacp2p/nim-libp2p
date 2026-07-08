@@ -200,14 +200,13 @@ suite "Yamux Header Tests":
     expect LPStreamIncompleteError:
       discard await headerFut
 
-  asyncTest "Non-zero version byte is preserved":
+  asyncTest "Non-zero version byte should raise YamuxError":
     let valid = YamuxHeader.data(streamId = 1, length = 100, {Syn}).encode()
     var mutated = valid
     mutated[0] = 1'u8
 
-    let decoded = await readBytes(mutated)
-    check:
-      decoded.version == 1
+    expect YamuxError:
+      discard await readBytes(mutated)
 
   asyncTest "Invalid msgType should raise YamuxError":
     let valid = YamuxHeader.data(streamId = 1, length = 0, {}).encode()

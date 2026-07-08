@@ -25,12 +25,12 @@ const
   DefaultProvidedKeyCapacity* = 500 # maximum number of provided keys to store at once
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
-  DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultProviderExpirationInterval* = 48.hours
   DefaultRecordExpirationInterval* = 24.hours
     # KV entries older than this are considered stale and will be evicted
   DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
-  MaxMsgSize* = 4096
+  MaxMsgSize* = 1 shl 22 # 4 MiB
 
   DefaultMaxProvidersPerKey* = 20 ## upper bound on providers stored per key
   DefaultMaxShortlistSize* = DefaultReplication * 2
@@ -38,9 +38,8 @@ const
   DefaultMaxReceivedSize* = DefaultReplication
     ## upper bound on per-query ``ReceivedTable``
   DefaultMaxValueSize* = 3072
-    ## upper bound (bytes) on a stored record value. Held below ``MaxMsgSize``
-    ## (4096) to leave headroom for the protobuf overhead from other message
-    ## fields, so an accepted value still fits in a single LP frame.
+    ## upper bound (bytes) on a stored record value. Kept much lower than the
+    ## RPC frame cap so PUT_VALUE/GET_VALUE records stay independently bounded.
   DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider

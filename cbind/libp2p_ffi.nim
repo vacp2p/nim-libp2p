@@ -231,9 +231,9 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   try:
-    return createLibp2pNode(config)
+    createLibp2pNode(config)
   except LPError as e:
-    return err("could not create libp2p node: " & e.msg)
+    err("could not create libp2p node: " & e.msg)
 
 proc shutdownSwitch(lib: LibP2P) {.async.} =
   ## Single source of truth for graceful shutdown. Idempotent: safe to call from
@@ -261,11 +261,8 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## optional and only useful for an explicit, error-reporting shutdown.
   await shutdownSwitch(lib)
 
-# Legacy compatibility: hosts still calling `libp2p_new_default_config()` get a
-# zero-initialized config with the correct C layout, matching the old behavior.
-# `CLibp2pConfig` is a hand-maintained C-ABI mirror of `Libp2pConfig` — it must
-# be kept in sync by hand because the `{.ffi.}` config crosses the boundary as
-# CBOR, not as a C struct, so it isn't part of the generated bindings.
+# Hand-maintained C-ABI mirror of `Libp2pConfig`: the `{.ffi.}` config crosses as
+# CBOR, not a C struct, so it's absent from the generated bindings. Keep in sync.
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
@@ -290,7 +287,9 @@ type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   autonatV2: cint
   autonatV2Server: cint
 
-proc libp2p_new_default_config(): CLibp2pConfig {.exportc, cdecl, dynlib.} =
+proc libp2pNewDefaultConfig(): CLibp2pConfig {.
+    exportc: "libp2p_new_default_config", cdecl, dynlib
+.} =
   CLibp2pConfig()
 
 proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
