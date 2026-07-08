@@ -18,6 +18,11 @@ proc makeKey(x: byte): Key =
 proc makeServiceId(x: byte): ServiceId =
   return makeKey(x)
 
+# Heap-allocated recorder so a closure capturing it stays GC-safe (mirrors how
+# the production callback captures the disco ref rather than a stack local).
+type HitRecorder = ref object
+  ids: seq[ServiceId]
+
 proc makeMainTable(selfId: Key, peers: seq[Key]): RoutingTable =
   var rt = RoutingTable.new(selfId)
   for p in peers:
@@ -74,6 +79,53 @@ suite "ServiceRoutingTableManager":
     check:
       upgraded == true
       manager.serviceStatus[serviceId] == Both
+
+  test "addService fires onServiceTableCreated only for brand-new tables":
+    let manager = ServiceRoutingTableManager.new()
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    let hits = HitRecorder()
+    manager.onServiceTableCreated = proc(sid: ServiceId) =
+      hits.ids.add(sid)
+
+    let serviceId = makeServiceId(1)
+
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    check:
+      hits.ids.len == 1
+      hits.ids[0] == serviceId
+
+    discard manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    check hits.ids.len == 1
+
+    discard manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
+    )
+    check:
+      hits.ids.len == 1
+      manager.serviceStatus[serviceId] == Both
+
+    let otherId = makeServiceId(2)
+    check manager.addService(
+      otherId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
+    )
+    check:
+      hits.ids.len == 2
+      otherId in hits.ids
+
+  test "addService with no callback set does not crash":
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(1)
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    check manager.hasService(serviceId)
 
   test "addService pre-populates table from main routing table":
     let selfId = makeKey(0)
