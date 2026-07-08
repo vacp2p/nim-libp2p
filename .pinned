@@ -14,7 +14,7 @@ serialization;https://github.com/status-im/nim-serialization@#f80cfd8657f272a2ab
 stew;https://github.com/status-im/nim-stew@#b66168735d6f3841c5239c3169d3fe5fe98b1257
 testutils;https://github.com/status-im/nim-testutils@#e85cb6ff9c328a6e12441e81ff632ef8b3af62b3
 unittest2;https://github.com/status-im/nim-unittest2@#26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189
-unittest3;https://github.com/vladopajic/nim-unittest3@#12108210dfc4ea5a3c917b5c223e2bb88f0ae7e8
+unittest3;https://github.com/vladopajic/nim-unittest3@#e6431b079a3ef961af48c51dd93342f1d96a17cf
 websock;https://github.com/status-im/nim-websock@#387a8eb7e961e8fdd3b1a717d36bc53b55e4dc5d
 zlib;https://github.com/status-im/nim-zlib@#e680f269fb01af2c34a2ba879ff281795a5258fe
 protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#8406e7287196661614ce6a8e8be20f755376af7f
