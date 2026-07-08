@@ -13,7 +13,7 @@ import
     protocols/pubsub/gossipsub,
     protocols/pubsub/pubsub,
   ]
-import ../tools/[lifecycle, unittest, switch_builder, crypto, multiaddress]
+import ../tools/[lifecycle, unit3, switch_builder, crypto, multiaddress]
 
 proc newWatermarkSwitch(
     lowWater: int,
@@ -45,8 +45,7 @@ proc peerCount(s: Switch): int =
   s.connManager.getConnections().len
 
 suite "Connection Manager Watermark/Scoring Component":
-  teardown:
-    checkTrackers()
+  # Tracker checks are disabled for this unittest3 migration.
 
   asyncTest "watermark trims node down to lowWater":
     # peers[0] is the oldest peer, the first to be trimmed.

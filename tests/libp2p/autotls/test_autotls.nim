@@ -4,7 +4,6 @@
 {.used.}
 
 import sequtils, json, uri, chronos, chronos/apps/http/httpclient
-import unittest3 except `await`
 import
   ../../../libp2p/[
     stream/connection,
@@ -16,19 +15,16 @@ import
   ]
 import ../../tools/[unit3, crypto]
 
+template withMockApiAndKey() =
+  let
+    api {.inject.} = await MockACMEApi.new()
+    key {.inject.} = RsaPrivateKey.random(rng()).get()
+  defer:
+    await close(api)
+
 suite "AutoTLS ACME API":
-  var api {.threadvar.}: MockACMEApi
-  var key {.threadvar.}: RsaPrivateKey
-
-  teardown:
-    await api.close()
-    # checkTrackers()
-
-  setup:
-    api = await MockACMEApi.new()
-    key = RsaPrivateKey.random(rng()).get()
-
-  test "register to acme server":
+  asyncTest "register to acme server":
+    withMockApiAndKey()
     api.mockedResponses.add(
       HTTPResponse(
         body: %*{"status": "valid"},
@@ -39,7 +35,8 @@ suite "AutoTLS ACME API":
     let registerResponse = await api.requestRegister(key)
     check registerResponse.kid == "some-expected-kid"
 
-  test "request challenge for a domain":
+  asyncTest "request challenge for a domain":
+    withMockApiAndKey()
     api.mockedResponses.add(
       HTTPResponse(
         body: %*{
@@ -90,7 +87,8 @@ suite "AutoTLS ACME API":
     check dns01.token == ACMEChallengeToken("expected-dns01-token")
     check dns01.status == ACMEChallengeStatus.PENDING
 
-  test "challenge completed successful":
+  asyncTest "challenge completed successful":
+    withMockApiAndKey()
     api.mockedResponses.add(
       HTTPResponse(
         body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
@@ -110,7 +108,8 @@ suite "AutoTLS ACME API":
     )
     check completed == true
 
-  test "challenge completed max retries reached":
+  asyncTest "challenge completed max retries reached":
+    withMockApiAndKey()
     api.mockedResponses.add(
       HTTPResponse(
         body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
@@ -133,7 +132,8 @@ suite "AutoTLS ACME API":
     )
     check completed == false
 
-  test "challenge completed invalid":
+  asyncTest "challenge completed invalid":
+    withMockApiAndKey()
     api.mockedResponses.add(
       HTTPResponse(
         body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
@@ -157,7 +157,8 @@ suite "AutoTLS ACME API":
         parseUri("http://example.com/some-chal-url"), key, "kid"
       )
 
-  test "finalize certificate successful":
+  asyncTest "finalize certificate successful":
+    withMockApiAndKey()
     # first status is processing, then valid
     api.mockedResponses.add(
       HTTPResponse(
@@ -180,7 +181,8 @@ suite "AutoTLS ACME API":
     )
     check finalized == true
 
-  test "finalize certificate max retries reached":
+  asyncTest "finalize certificate max retries reached":
+    withMockApiAndKey()
     # add this mocked response a few times since checkCertFinalized might get more than once
     for _ in 0 .. 5:
       api.mockedResponses.add(
@@ -200,7 +202,8 @@ suite "AutoTLS ACME API":
     )
     check finalized == false
 
-  test "finalize certificate invalid":
+  asyncTest "finalize certificate invalid":
+    withMockApiAndKey()
     # first request is processing, then invalid
     api.mockedResponses.add(
       HTTPResponse(
@@ -223,7 +226,8 @@ suite "AutoTLS ACME API":
     )
     check finalized == false
 
-  test "expect error on invalid JSON response":
+  asyncTest "expect error on invalid JSON response":
+    withMockApiAndKey()
     # add a couple invalid responses as they get popped by every get or post call
     for _ in 0 .. 20:
       api.mockedResponses.add(
@@ -329,7 +333,7 @@ suite "AutoTLS ACME Client":
     await acme.close()
     checkTrackers()
 
-  test "client registers new account when instantiated":
+  asyncTest "client registers new account when instantiated":
     acmeApi.mockedResponses.add(
       HTTPResponse(
         body: %*{"status": "valid"},
@@ -341,7 +345,7 @@ suite "AutoTLS ACME Client":
     let kid = await acme.getOrInitKid()
     check kid == "some-expected-kid"
 
-  test "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
+  asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
     # register successful
     acmeApi.mockedResponses.add(
       HTTPResponse(

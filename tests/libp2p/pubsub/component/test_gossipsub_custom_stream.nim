@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos, stew/byteutils
-import unittest3 except `await`
 import ../../../../libp2p/stream/connection
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
@@ -25,7 +24,7 @@ suite "GossipSub Component - Custom Stream Support":
   # teardown:
   #   checkTrackers()
 
-  test "publish with useCustomStream triggers custom stream and peer selection":
+  asyncTest "publish with useCustomStream triggers custom stream and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
@@ -65,7 +64,7 @@ suite "GossipSub Component - Custom Stream Support":
       peerSelectionCalled
       dummyStream.data.len > 0
 
-  test "publish with useCustomStream triggers assertion if custom callbacks not set":
+  asyncTest "publish with useCustomStream triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)

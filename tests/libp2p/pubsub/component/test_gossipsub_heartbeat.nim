@@ -4,18 +4,17 @@
 {.used.}
 
 import chronos, std/[sequtils], stew/byteutils
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../tools/[unit3, lifecycle, topology]
 import ../utils
 
-unittest3.suite "GossipSub Component - Heartbeat":
+suite "GossipSub Component - Heartbeat":
   const topic = "foobar"
 
   # teardown:
   #   checkTrackers()
 
-  unittest3.test "Mesh is rebalanced during heartbeat - pruning peers":
+  asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
     const numberOfNodes = 10
     let
       nodes = generateNodes(
@@ -52,7 +51,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       node0.mesh[topic].len >= newDLow and node0.mesh[topic].len <= newDHigh
 
-  unittest3.test "Mesh is rebalanced during heartbeat - grafting new peers":
+  asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
     const
       numberOfNodes = 10
       dLow = 3
@@ -95,7 +94,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
       node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
-  unittest3.test "Mesh is rebalanced during heartbeat - opportunistic grafting":
+  asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
     const numberOfNodes = 10
     let
       nodes = generateNodes(
@@ -154,7 +153,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
         actualGrafts.len == MaxOpportunisticGraftPeers and
           actualGrafts.allIt(it in expectedGrafts)
 
-  unittest3.test "Fanout maintenance during heartbeat - expired peers are dropped":
+  asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
       heartbeatInterval = 200.milliseconds
@@ -178,7 +177,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
 
     # Before publishing messages, wait for Node0's next heartbeat so publishing
-    # happens right after a heartbeat and the unittest3.test has a full interval.
+    # happens right after a heartbeat and the asyncTest has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
@@ -193,7 +192,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       not node0.fanout.hasKey(topic)
 
-  unittest3.test "Fanout maintenance during heartbeat - fanout peers are replenished":
+  asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
     const
       numberOfNodes = 10
       heartbeatInterval = 200.milliseconds
@@ -214,7 +213,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
 
     # Before publishing messages, wait for Node0's next heartbeat so publishing
-    # happens right after a heartbeat and the unittest3.test has a full interval.
+    # happens right after a heartbeat and the asyncTest has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
@@ -236,7 +235,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
       node0.fanout[topic].len == expectedLen
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
-  unittest3.test "iDontWants history - last element is pruned during heartbeat":
+  asyncTest "iDontWants history - last element is pruned during heartbeat":
     # When Node0 publish larger messages, it will also publish IDontWants, because 
     # message is larger and sendIDontWantOnPublish is set to true.
     # Then Node1 receives messages and IDontWants control messages.
@@ -295,7 +294,7 @@ unittest3.suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.allIt(it.len == 0)
 
-  unittest3.test "sentIHaves history - last element is pruned during heartbeat":
+  asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const

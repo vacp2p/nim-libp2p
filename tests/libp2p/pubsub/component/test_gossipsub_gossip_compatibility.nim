@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos, std/[sequtils], chronicles
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
@@ -15,7 +14,7 @@ suite "GossipSub Component - Compatibility":
   # teardown:
   #   checkTrackers()
 
-  test "Protocol negotiation selects highest common version":
+  asyncTest "Protocol negotiation selects highest common version":
     let
       node0 = generateNodes(
         1,
@@ -53,7 +52,7 @@ suite "GossipSub Component - Compatibility":
       node2.getPeerByPeerId(topic, node0PeerId).codec == GossipSubCodec_10
       node2.getPeerByPeerId(topic, node1PeerId).codec == GossipSubCodec_10
 
-  test "IDONTWANT is sent only for GossipSubCodec_12":
+  asyncTest "IDONTWANT is sent only for GossipSubCodec_12":
     # 4 nodes: nodeCenter in the center connected to the rest                  
     var nodes = generateNodes(3, gossip = true).toGossipSub()
     let

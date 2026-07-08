@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos, std/[sequtils], stew/byteutils
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, rpc/message]
 import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
@@ -15,7 +14,7 @@ suite "GossipSub Component - Gossip Protocol":
   # teardown:
   #   checkTrackers()
 
-  test "messages sent to peers not in the mesh are propagated via gossip":
+  asyncTest "messages sent to peers not in the mesh are propagated via gossip":
     let
       numberOfNodes = 5
       dValues = DValues(
@@ -44,7 +43,7 @@ suite "GossipSub Component - Gossip Protocol":
     checkUntilTimeout:
       messages[].mapIt(it[].len).anyIt(it > 0)
 
-  test "adaptive gossip dissemination, dLazy and gossipFactor to 0":
+  asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -83,7 +82,7 @@ suite "GossipSub Component - Gossip Protocol":
         let receivedIHaves = messages[].mapIt(it[].len)
         filterIt(receivedIHaves, it > 0).len == 0
 
-  test "adaptive gossip dissemination, with gossipFactor priority":
+  asyncTest "adaptive gossip dissemination, with gossipFactor priority":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -123,7 +122,7 @@ suite "GossipSub Component - Gossip Protocol":
         let receivedIHaves = messages[].mapIt(it[].len)
         filterIt(receivedIHaves, it > 0).len >= 8
 
-  test "adaptive gossip dissemination, with dLazy priority":
+  asyncTest "adaptive gossip dissemination, with dLazy priority":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -163,7 +162,7 @@ suite "GossipSub Component - Gossip Protocol":
         let receivedIHaves = messages[].mapIt(it[].len)
         filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
-  test "iDontWant messages are broadcast immediately after receiving the first message instance":
+  asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -190,7 +189,7 @@ suite "GossipSub Component - Gossip Protocol":
       messages[].mapIt(it[].len)[1] == 0
       messages[].mapIt(it[].len)[0] == 0
 
-  test "GossipSub peer exchange":
+  asyncTest "GossipSub peer exchange":
     # A, B & C are subscribed to something
     # B unsubcribe from it, it should send
     # PX to A & C

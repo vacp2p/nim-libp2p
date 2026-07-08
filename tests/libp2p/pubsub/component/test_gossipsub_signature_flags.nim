@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos, stew/byteutils
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
 import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
@@ -17,7 +16,7 @@ suite "GossipSub Component - Signature Flags":
   # teardown:
   #   checkTrackers()
 
-  test "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
+  asyncTest "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = false
       )
@@ -45,7 +44,7 @@ suite "GossipSub Component - Signature Flags":
       rm.signature.isSome and rm.signature.get().len > 0
       rm.key.isSome and rm.key.get().len > 0
 
-  test "Sign flag - messages are not signed when sign=false":
+  asyncTest "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
         2, gossip = true, sign = false, verifySignature = false, anonymize = false
       )
@@ -71,7 +70,7 @@ suite "GossipSub Component - Signature Flags":
       rm.signature.isNone
       rm.key.isNone
 
-  test "Anonymize flag - messages are anonymous when anonymize=true":
+  asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = true
       )

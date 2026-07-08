@@ -1,5 +1,11 @@
-import chronos, macros, unittest3
+import chronos, macros
+import unittest3 except `await`
+export unittest3 except `await`
 from ./trackers import AllTrackerNames
+
+template asyncTest*(nameParam: string, body: untyped) =
+  unittest3.test nameParam:
+    body
 
 template checkTracker*(name: string) =
   if isCounterLeaked(name):

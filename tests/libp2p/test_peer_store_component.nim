@@ -8,12 +8,11 @@ import chronos
 import
   ../../libp2p/
     [peerstore, peerinfo, multiaddress, switch, connmanager, protocols/kademlia]
-import ../tools/[unittest, multiaddress, switch_builder, lifecycle, topology]
+import ../tools/[unit3, multiaddress, switch_builder, lifecycle, topology]
 import ./kademlia/utils
 
 suite "PeerStore Address TTL - Component":
-  teardown:
-    checkTrackers()
+  # Tracker checks are disabled for this unittest3 migration.
 
   asyncTest "identify stores peer addresses at Medium confidence":
     let

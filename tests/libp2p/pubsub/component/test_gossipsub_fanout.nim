@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos, stew/byteutils
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
 import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
@@ -15,7 +14,7 @@ suite "GossipSub Component - Fanout Management":
   # teardown:
   #   checkTrackers()
 
-  test "GossipSub send over fanout A -> B":
+  asyncTest "GossipSub send over fanout A -> B":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -50,7 +49,7 @@ suite "GossipSub Component - Fanout Management":
 
     check observed == 2
 
-  test "GossipSub send over fanout A -> B for subscribed topic":
+  asyncTest "GossipSub send over fanout A -> B for subscribed topic":
     let nodes =
       generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes).toGossipSub()
 

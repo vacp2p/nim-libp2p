@@ -4,7 +4,6 @@
 {.used.}
 
 import chronos
-import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsubpeer, peertable]
 import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
@@ -63,7 +62,7 @@ suite "GossipSub Component - Priority Queues":
   # teardown:
   #   checkTrackers()
 
-  test "High-priority queue overflow disconnects the peer":
+  asyncTest "High-priority queue overflow disconnects the peer":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     # Small cap so two pending high messages fill the high-priority queue.
     nodes[0].parameters.maxHighPriorityQueueLen = 2
@@ -102,7 +101,7 @@ suite "GossipSub Component - Priority Queues":
       not nodes[0].gossipsub.hasPeerId(topic, peerId)
       not nodes[0].mesh.hasPeerId(topic, peerId)
 
-  test "Medium-priority queue overflow drops the message but keeps the peer":
+  asyncTest "Medium-priority queue overflow drops the message but keeps the peer":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     nodes[0].parameters.maxMediumPriorityQueueLen = 2
 
@@ -137,7 +136,7 @@ suite "GossipSub Component - Priority Queues":
       nodes[0].switch.isConnected(peerId)
       nodes[0].mesh.hasPeerId(topic, peerId)
 
-  test "Low-priority queue overflow drops the message but keeps the peer":
+  asyncTest "Low-priority queue overflow drops the message but keeps the peer":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     nodes[0].parameters.maxLowPriorityQueueLen = 2
 
@@ -172,7 +171,7 @@ suite "GossipSub Component - Priority Queues":
       nodes[0].switch.isConnected(peerId)
       nodes[0].mesh.hasPeerId(topic, peerId)
 
-  test "Messages are sent in priority order: high, then medium, then low":
+  asyncTest "Messages are sent in priority order: high, then medium, then low":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     # Caps high enough that nothing overflows, only ordering is tested.
     nodes[0].parameters.maxMediumPriorityQueueLen = 4
@@ -227,7 +226,7 @@ suite "GossipSub Component - Priority Queues":
     checkUntilTimeout:
       mock.writes == highMsgs & mediumMsgs & lowMsgs
 
-  test "Persistently slow peer is penalized and pruned":
+  asyncTest "Persistently slow peer is penalized and pruned":
     let nodes =
       generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
     # Aggressive slow-peer scoring so any penalty drives the score negative.
@@ -267,7 +266,7 @@ suite "GossipSub Component - Priority Queues":
       nodes[0].getPeerScore(peerId) < 0.0
       not nodes[0].mesh.hasPeerId(topic, peerId)
 
-  test "Transiently slow peer recovers and is not pruned":
+  asyncTest "Transiently slow peer recovers and is not pruned":
     let nodes =
       generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
     for node in nodes:
@@ -304,7 +303,7 @@ suite "GossipSub Component - Priority Queues":
       peer.slowPeerPenalty == 0.0
     check nodes[0].mesh.hasPeerId(topic, peerId)
 
-  test "Slow-peer penalty with zero weight never prunes the peer":
+  asyncTest "Slow-peer penalty with zero weight never prunes the peer":
     let nodes =
       generateNodes(2, gossip = true, decayInterval = 20.milliseconds).toGossipSub()
     # Same as the pruning test, but with zero weight the penalty never affects
