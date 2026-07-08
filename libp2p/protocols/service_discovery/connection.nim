@@ -35,7 +35,7 @@ proc send*(
     writeRes = catch:
       await stream.writeLp(encodedMsg)
     readRes = catch:
-      await stream.readLp(MaxMsgSize)
+      await stream.readLp(ServiceDiscoveryMaxMsgSize)
 
   if writeRes.isErr:
     return err("connection writing failed: " & writeRes.error.msg)
