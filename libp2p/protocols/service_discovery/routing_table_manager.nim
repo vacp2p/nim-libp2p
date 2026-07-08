@@ -61,6 +61,10 @@ proc addService*(
   manager.serviceStatus[serviceId] = status
 
   manager.updateServiceTablesMetrics()
+
+  if not manager.onServiceTableCreated.isNil:
+    manager.onServiceTableCreated(serviceId)
+
   return true
 
 proc removeService*(
