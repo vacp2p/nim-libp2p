@@ -20,7 +20,7 @@ template withMockApiAndKey() =
     api {.inject.} = await MockACMEApi.new()
     key {.inject.} = RsaPrivateKey.random(rng()).get()
   defer:
-    await api.close()
+    await close api
 
 suite "AutoTLS ACME API":
   asyncTest "register to acme server":
