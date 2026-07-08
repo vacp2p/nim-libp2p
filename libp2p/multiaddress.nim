@@ -1362,7 +1362,7 @@ proc readFieldInto*(
 
   if readFieldInto(stream, data, header, pbytes):
     value = MultiAddress.init(data).valueOr:
-      raise newException(ProtobufValueError, "Invalid protobuf MultiAddress")
+      return false
     true
   else:
     false
