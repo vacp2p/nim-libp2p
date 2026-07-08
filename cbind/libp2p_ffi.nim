@@ -198,21 +198,53 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   try:
     return createLibp2pNode(config)
-  except CatchableError as e:
+  except LPError as e:
     return err("could not create libp2p node: " & e.msg)
 
 proc libp2pDestroy*(lib: LibP2P) {.ffiDtor.} =
   discard
 
-proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
   try:
     await lib.switch.start()
   except LPError as e:
     return err(e.msg)
-  ok(true)
+  ok()
 
-proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+proc libp2pStop*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
   await lib.switch.stop()
-  ok(true)
+  ok()
+
+# Legacy compatibility: hosts still calling `libp2p_new_default_config()` get a
+# zero-initialized config with the correct C layout, matching the old behavior.
+# `CLibp2pConfig` is a hand-maintained C-ABI mirror of `Libp2pConfig` — it must
+# be kept in sync by hand because the `{.ffi.}` config crosses the boundary as
+# CBOR, not as a C struct, so it isn't part of the generated bindings.
+type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
+  mountGossipsub: cint
+  gossipsubTriggerSelf: cint
+  mountKad: cint
+  mountServiceDiscovery: cint
+  dnsResolver: cstring
+  addrs: ptr cstring
+  addrsLen: csize_t
+  muxer: cint
+  transport: cint
+  bootstrapNodes: pointer
+  bootstrapNodesLen: csize_t
+  privKey: ptr byte
+  privKeyLen: csize_t
+  maxConnections: cint
+  maxIn: cint
+  maxOut: cint
+  maxConnsPerPeer: cint
+  circuitRelay: cint
+  circuitRelayClient: cint
+  autonat: cint
+  autonatV2: cint
+  autonatV2Server: cint
+
+proc libp2p_new_default_config(): CLibp2pConfig {.exportc, cdecl, dynlib.} =
+  CLibp2pConfig()
 
 genBindings()

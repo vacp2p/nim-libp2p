@@ -69,7 +69,13 @@ jobs:
   # Temporary parallel job: builds the new nim-ffi library (cbind/libp2p_ffi.nim)
   # and generates its C/CDDL bindings. Folded into the main flow at the flip PR,
   # when libp2p_ffi.nim replaces the legacy libp2p.nim.
+  #
+  # Disabled until the final PR of the nim-ffi migration series: libp2p_ffi.nim is
+  # built up incrementally across PRs 2..9 and only compiles end-to-end at the
+  # flip. Re-enable (drop `if: false`) once the library is complete and expected
+  # to pass.
   c-bindings-ffi:
+    if: false
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -81,7 +87,7 @@ jobs:
         shell: bash
 
     name: "Build FFI library (nim-ffi)"
-    runs-on: ubuntu-22.04
+    runs-on: macos-15 # fastest to compile and run; see daily_tests_no_flags.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -92,8 +98,8 @@ jobs:
         uses: "./.github/actions/install_nim"
         with:
           shell: bash
-          os: linux
-          cpu: amd64
+          os: macos-15
+          cpu: arm64
           nim_ref: v2.2.10
 
       - name: Restore deps from cache
@@ -101,7 +107,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned', 'cbind/.pinned') }}
+          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('.pinned', 'cbind/.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
@@ -112,12 +118,13 @@ jobs:
         run: |
           nim --version
           nimble --version
-          gcc --version
+          clang --version
 
           nimble setup
           cd cbind
           nimble install_pinned
           nimble setup
+          make -C .. nat_libs
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl
