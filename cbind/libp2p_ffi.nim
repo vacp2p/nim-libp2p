@@ -186,7 +186,7 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
   let switch =
     try:
       switchBuilder.build()
-    except CatchableError as e:
+    except LPError as e:
       return err("could not create libp2p node: " & e.msg)
 
   let lib = LibP2P(switch: switch, rng: rng, relayClient: relayClientOpt)
