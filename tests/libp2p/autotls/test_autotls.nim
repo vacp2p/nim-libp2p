@@ -323,7 +323,6 @@ suite "AutoTLS ACME API":
       discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
 
 suite "AutoTLS ACME Client":
-
   asyncTest "client registers new account when instantiated":
     let acmeApi = await MockACMEApi.new()
     var acme: ACMEClient
