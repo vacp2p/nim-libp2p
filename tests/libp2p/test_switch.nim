@@ -640,6 +640,58 @@ suite "Switch":
 
     await allFuturesRaising(switches[0].stop())
 
+  asyncTest "e2e drop peer from inside its own stream handler":
+    let disconnected = newWaitGroup(1)
+    let futSwitch1Connected = newWaitGroup(1)
+    var events: set[PeerEventKind]
+
+    let switch1 = makeStandardSwitch(TcpAutoAddress)
+    let switch2 = makeStandardSwitch(TcpAutoAddress)
+
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+      # Wait for the remote's dial to fully complete before disconnecting,
+      # to avoid racing with multistream protocol negotiation completion
+      # (the handler fires before the remote reads the protocol confirmation).
+      await futSwitch1Connected.wait()
+      try:
+        await switch1.disconnect(stream.peerId)
+        disconnected.done()
+      finally:
+        await stream.close()
+
+    let testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+    switch1.mount(testProto)
+
+    proc peerHandler(
+        peerId: PeerId, event: PeerEvent
+    ) {.async: (raises: [CancelledError]).} =
+      events.incl(event.kind)
+
+    switch1.addPeerEventHandler(peerHandler, PeerEventKind.Joined)
+    switch1.addPeerEventHandler(peerHandler, PeerEventKind.Left)
+
+    await switch1.start()
+    await switch2.start()
+
+    let stream =
+      await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+
+    # Signal to the handler that the dial has completed so it can proceed with the disconnect.
+    futSwitch1Connected.done()
+
+    # with the deadlock, the disconnect never completes and this times out
+    await disconnected.wait(5.seconds)
+
+    checkUntilTimeout:
+      not switch1.isConnected(switch2.peerInfo.peerId)
+      not switch2.isConnected(switch1.peerInfo.peerId)
+      PeerEventKind.Left in events
+
+    await stream.closeWithEOF()
+    await allFuturesRaising(switch1.stop(), switch2.stop())
+
   asyncTest "e2e closing remote raw connection should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 

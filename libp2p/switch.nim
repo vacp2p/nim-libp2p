@@ -311,6 +311,10 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         await conn.close()
       return
 
+when defined(libp2p_testing):
+  proc acceptFuts*(s: Switch): seq[Future[void]] =
+    s.acceptFuts
+
 proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections

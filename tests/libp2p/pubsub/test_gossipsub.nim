@@ -313,6 +313,19 @@ suite "GossipSub":
     check:
       not gossipSub.gossipsub.hasPeer(topic, peer)
 
+  asyncTest "getOrCreatePeer removes peer created without a live connection":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let disconnectedPeer = randomPeerId()
+    discard gossipSub.getOrCreatePeer(disconnectedPeer, @[], GossipSubCodec_12)
+
+    check:
+      disconnectedPeer notin gossipSub.peers
+      # peers created by other means are untouched
+      peers[0].peerId in gossipSub.peers
+
   asyncTest "subscribe and unsubscribeAll":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
