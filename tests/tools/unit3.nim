@@ -1,6 +1,5 @@
 import chronos, macros, unittest3
-from ./trackers import AllTrackerNames 
-
+from ./trackers import AllTrackerNames
 
 template checkTracker*(name: string) =
   if isCounterLeaked(name):
@@ -26,7 +25,6 @@ template checkTrackers*() =
     raiseAssert "Unexpected exception during GC collection"
   when defined(nimHasWarnBareExcept):
     {.pop.}
-
 
 const
   timeoutDefault: Duration = 30.seconds
