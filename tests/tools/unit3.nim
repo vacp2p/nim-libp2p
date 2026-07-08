@@ -90,9 +90,9 @@ macro untilTimeout*(args: untyped): untyped =
           if `combinedBoolExpr`:
             return
           else:
-            await sleepAsync(`sleepIntervalDefault`)
+            chronos.await(sleepAsync(`sleepIntervalDefault`))
 
-    await checkExpiringInternal()
+    chronos.await(checkExpiringInternal())
 
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped
@@ -139,9 +139,9 @@ macro checkUntilTimeoutCustom*(
           if `combinedBoolExpr`:
             return
           else:
-            await sleepAsync(`sleepInterval`)
+            chronos.await(sleepAsync(`sleepInterval`))
 
-    await checkExpiringInternal()
+    chronos.await(checkExpiringInternal())
 
 macro checkUntilTimeout*(code: untyped): untyped =
   ## Same as `checkUntilTimeoutCustom` but with a default timeout of 30s with 50ms interval.

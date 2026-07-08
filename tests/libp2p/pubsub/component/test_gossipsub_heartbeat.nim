@@ -3,7 +3,8 @@
 
 {.used.}
 
-import chronos, std/[sequtils], stew/byteutils, unittest3
+import chronos, std/[sequtils], stew/byteutils
+import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../tools/[unit3, lifecycle, topology]
 import ../utils
