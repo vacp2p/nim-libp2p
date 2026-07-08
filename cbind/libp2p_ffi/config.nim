@@ -99,7 +99,7 @@ func parseMuxer(v: int): Result[MuxerType, string] =
   of ord(MuxerType.YAMUX):
     ok(MuxerType.YAMUX)
   else:
-    err("invalid muxer")
+    err("invalid muxer ordinal: " & $v)
 
 proc parseBootstrapNodes(
     nodes: openArray[BootstrapNode]
