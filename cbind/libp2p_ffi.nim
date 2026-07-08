@@ -44,6 +44,7 @@ type LibP2P* = ref object
   topicHandlers: Table[string, TopicHandler]
   customProtocols: Table[string, LPProtocol]
   streams: StreamRegistry
+  stopped: bool ## Guards shutdownSwitch so stop-then-destroy doesn't double-stop.
 
 declareLibrary("libp2p", LibP2P)
 
@@ -201,8 +202,13 @@ proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.
   except LPError as e:
     return err("could not create libp2p node: " & e.msg)
 
-proc libp2pDestroy*(lib: LibP2P) {.ffiDtor.} =
-  discard
+proc shutdownSwitch(lib: LibP2P) {.async.} =
+  ## Single source of truth for graceful shutdown. Idempotent: safe to call from
+  ## both an explicit `libp2pStop` and `libp2pDestroy`'s teardown.
+  if lib.stopped:
+    return
+  lib.stopped = true
+  await lib.switch.stop()
 
 proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
   try:
@@ -212,8 +218,15 @@ proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
   ok()
 
 proc libp2pStop*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
-  await lib.switch.stop()
+  await shutdownSwitch(lib)
   ok()
+
+proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
+  ## Owns the full teardown: the FFI runtime runs this on the worker loop at
+  ## shutdown, so the switch is gracefully stopped before the threads are joined
+  ## and the context is freed. Destroy alone is sufficient; libp2pStop is
+  ## optional and only useful for an explicit, error-reporting shutdown.
+  await shutdownSwitch(lib)
 
 # Legacy compatibility: hosts still calling `libp2p_new_default_config()` get a
 # zero-initialized config with the correct C layout, matching the old behavior.
