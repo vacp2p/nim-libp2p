@@ -81,8 +81,11 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc createSwitch*(privateKey: Opt[PrivateKey] = Opt.none(PrivateKey)): Switch =
-  makeStandardSwitchBuilder(TcpAutoAddress).withPrivateKey(privateKey).build()
+proc createSwitch*(
+    privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
+    addresses: seq[MultiAddress] = @[TcpAutoAddress()],
+): Switch =
+  makeStandardSwitchBuilder(addresses).withPrivateKey(privateKey).build()
 
 proc testKadDHTConfig(): KadDHTConfig =
   KadDHTConfig.new(
@@ -102,8 +105,9 @@ proc setupServiceDiscoveryNode*(
     client: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     kadConfig: KadDHTConfig = testKadDHTConfig(),
+    addresses: seq[MultiAddress] = @[TcpAutoAddress()],
 ): ServiceDiscovery =
-  let switch = createSwitch(privateKey)
+  let switch = createSwitch(privateKey, addresses)
   let node = ServiceDiscovery.new(
     switch,
     bootstrapNodes = bootstrapNodes,

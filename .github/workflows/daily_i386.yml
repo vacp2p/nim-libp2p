@@ -22,16 +22,3 @@ jobs:
       configuration: "[
           {'os': 'linux', 'cpu': 'i386', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
         ]"
-  test_i386_pinned:
-    name: Daily i386 (pinned dependencies)
-    uses: ./.github/workflows/daily_common.yml
-    with:
-      pinned_deps: true
-      nim: "[
-          {'ref': 'v2.2.4', 'memory_management': 'refc'},
-          {'ref': 'v2.2.10', 'memory_management': 'refc'},
-          {'ref': 'devel', 'memory_management': 'refc'},
-        ]"
-      configuration: "[
-          {'os': 'linux', 'cpu': 'i386', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
-        ]"

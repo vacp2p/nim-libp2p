@@ -660,6 +660,25 @@ suite "NATService (setupMappings)":
     check svc.externalIp.isSome
     check svc.externalIp.get() == externalIp
 
+  asyncTest "an external IPv6 from the IGD maps the port but announces nothing":
+    # the port mapping still succeeds, but a v6 external IP has no announced form
+    # on a v4 listen address, so the mapping produces no announced address
+    let
+      externalIp = parseIpAddress("2001:db8::1")
+      mapper = newRecordingOk(externalIp)
+      factory = recordingFactory(mapper)
+      cfg = upnpConfig()
+      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      svc = findNatService(switch)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    let announced = await svc.setupMappings(@[privateAddr(9000)])
+    check announced.len == 0
+    check mapper.mapCalls.len == 1
+
   asyncTest "non-private listen addresses are skipped":
     let
       externalIp = parseIpAddress("203.0.113.1")
