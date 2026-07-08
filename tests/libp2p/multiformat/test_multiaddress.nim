@@ -272,11 +272,12 @@ suite "Protobuf serialization of types containing MultiAddress":
 
   test "decode should treat an empty optional multiaddress as none":
     let
-      base =
-        Serializable(ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(), addrs: @[])
-      # Append field 4 (observedAddr) as an empty length-delimited value.
-      emptyObservedAddr = @[byte 0x22, 0x00]
-      encoded = Protobuf.encode(base) & emptyObservedAddr
+      # An empty multiaddress encodes as a present but zero-length field 4.
+      base = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        observedAddr: Opt.some(MultiAddress()),
+      )
+      encoded = Protobuf.encode(base)
       decoded = Protobuf.decode(encoded, Serializable)
 
     check decoded.observedAddr.isNone
