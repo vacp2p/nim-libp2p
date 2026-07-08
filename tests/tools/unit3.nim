@@ -57,7 +57,7 @@ macro untilTimeout*(args: untyped): untyped =
   ##     check:
   ##       value == 3
   if args.kind != nnkStmtList:
-    error "untilTimeout requires a block with check: and pre:"
+    macros.error "untilTimeout requires a block with check: and pre:"
 
   var checkBlock: NimNode = nil
   var preconditionBlock: NimNode = nil
@@ -69,7 +69,7 @@ macro untilTimeout*(args: untyped): untyped =
       preconditionBlock = stmt[1]
 
   if checkBlock.isNil or preconditionBlock.isNil:
-    error "untilTimeout block must contain both `check:` and `pre:` sections."
+    macros.error "untilTimeout block must contain both `check:` and `pre:` sections."
 
   let combinedBoolExpr = buildAndExpr(checkBlock)
 
