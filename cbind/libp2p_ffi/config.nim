@@ -90,7 +90,7 @@ func parseTransport(v: int): Result[TransportType, string] =
   of ord(TransportType.TCP):
     ok(TransportType.TCP)
   else:
-    err("invalid transport")
+    err("invalid transport ordinal: " & $v)
 
 func parseMuxer(v: int): Result[MuxerType, string] =
   case v
