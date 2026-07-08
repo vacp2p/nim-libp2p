@@ -323,17 +323,13 @@ suite "AutoTLS ACME API":
       discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
 
 suite "AutoTLS ACME Client":
-  var acmeApi {.threadvar.}: MockACMEApi
-  var acme {.threadvar.}: ACMEClient
-
-  setup:
-    acmeApi = await MockACMEApi.new()
-
-  teardown:
-    await acme.close()
-    checkTrackers()
 
   asyncTest "client registers new account when instantiated":
+    let acmeApi = await MockACMEApi.new()
+    var acme: ACMEClient
+    defer:
+      await acme.close()
+
     acmeApi.mockedResponses.add(
       HTTPResponse(
         body: %*{"status": "valid"},
@@ -346,6 +342,11 @@ suite "AutoTLS ACME Client":
     check kid == "some-expected-kid"
 
   asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
+    let acmeApi = await MockACMEApi.new()
+    var acme: ACMEClient
+    defer:
+      await acme.close()
+
     # register successful
     acmeApi.mockedResponses.add(
       HTTPResponse(

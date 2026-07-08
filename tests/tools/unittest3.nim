@@ -1,5 +1,5 @@
 import chronos, macros
-import unittest3 except `await`
+import pkg/unittest3 except `await`
 export unittest3 except `await`
 from ./trackers import AllTrackerNames
 
