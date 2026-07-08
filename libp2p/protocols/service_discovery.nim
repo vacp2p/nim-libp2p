@@ -99,7 +99,7 @@ proc new*(
     while not stream.atEof:
       let buf =
         try:
-          await stream.readLp(MaxMsgSize)
+          await stream.readLp(ServiceDiscoveryMaxMsgSize)
         except LPStreamEOFError:
           return
         except LPStreamError as exc:

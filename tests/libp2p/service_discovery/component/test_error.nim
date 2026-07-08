@@ -10,7 +10,6 @@ import
     stream/connection,
     switch,
   ]
-from ../../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
@@ -27,7 +26,7 @@ proc sendRawMessage(
 
   await conn.writeLp(msgBytes)
 
-  return await conn.readLp(MaxMsgSize)
+  return await conn.readLp(ServiceDiscoveryMaxMsgSize)
 
 proc sendMessage(
     clientNode, registrarNode: ServiceDiscovery, msg: kad_protobuf.Message
@@ -155,7 +154,7 @@ suite "Service Discovery Component - Error Handling":
     defer:
       await clientSwitch.stop()
 
-    let oversizedMsg = newSeq[byte](MaxMsgSize + 1)
+    let oversizedMsg = newSeq[byte](ServiceDiscoveryMaxMsgSize + 1)
 
     expect LPStreamError:
       discard

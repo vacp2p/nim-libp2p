@@ -19,6 +19,7 @@ const
   DefaultSelfSPRRereshTime* = 10.minutes
 
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
+  ServiceDiscoveryMaxMsgSize* = 4096
 
   Default_K_register* = 3
   Default_K_lookup* = 5
