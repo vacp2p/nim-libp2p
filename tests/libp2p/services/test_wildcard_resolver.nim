@@ -79,3 +79,40 @@ suite "WildcardAddressResolverService":
         MultiAddress.init("/ip4/0.0.0.0" & $tcpIp4Wildcard).get,
         MultiAddress.init("/ip6/::" & $tcpIp6).get,
       ]
+
+  test "expandWildcardAddresses expands an IPv4 wildcard to IPv4 interfaces only":
+    # an IPv4 wildcard expands only to the IPv4 interfaces
+    let expanded = expandWildcardAddresses(
+      getAddressesMock, @[MultiAddress.init("/ip4/0.0.0.0/tcp/4001").tryGet()]
+    )
+    check expanded ==
+      @[
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4001").tryGet(),
+        MultiAddress.init("/ip4/192.168.1.22/tcp/4001").tryGet(),
+      ]
+
+  test "expandWildcardAddresses expands an IPv6 wildcard to both IPv6 and IPv4 interfaces":
+    # TODO: vacp2p/nim-libp2p#2757
+    # an IPv6 wildcard expands to the IPv6 interfaces
+    # and additionally to every IPv4 interface the provider offers
+    let expanded = expandWildcardAddresses(
+      getAddressesMock, @[MultiAddress.init("/ip6/::/tcp/4001").tryGet()]
+    )
+    check expanded ==
+      @[
+        MultiAddress.init("/ip6/::1/tcp/4001").tryGet(),
+        MultiAddress.init("/ip6/fe80::1/tcp/4001").tryGet(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4001").tryGet(),
+        MultiAddress.init("/ip4/192.168.1.22/tcp/4001").tryGet(),
+      ]
+
+  test "expandWildcardAddresses passes non-wildcard and non-IP addresses through unchanged":
+    # a concrete IP is not a wildcard, and a DNS or memory address carries no IP
+    # each is returned identical and unduplicated
+    let inputs = @[
+      MultiAddress.init("/ip4/1.2.3.4/tcp/4001").tryGet(),
+      MultiAddress.init("/dns4/example.com/tcp/4001").tryGet(),
+      MultiAddress.init("/memorytransport/addr-1").tryGet(),
+    ]
+    let expanded = expandWildcardAddresses(getAddressesMock, inputs)
+    check expanded == inputs
