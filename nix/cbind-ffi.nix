@@ -59,8 +59,11 @@ pkgs.stdenv.mkDerivation {
     # since the vendored Makefiles default to CC=gcc, absent on the Darwin stdenv.
     make nat_libs NAT_PKG_DIR="$NAT_PKG" NAT_CC="$CC"
 
+    # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
+    # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
     commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
       --threads:on --opt:size --noMain --mm:refc --d:metrics \
+      -d:ffiThreadExitTimeoutMs=5000 \
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
 
     echo "== Building FFI library (dynamic/shared) =="

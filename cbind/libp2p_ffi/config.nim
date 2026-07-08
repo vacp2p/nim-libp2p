@@ -139,7 +139,7 @@ proc parseListenAddrs(raw: openArray[string]): Result[seq[MultiAddress], string]
     addrs.add(address)
   ok(addrs)
 
-proc parseTransportConfig(config: Libp2pConfig): Result[ParsedTransport, string] =
+func parseTransportConfig(config: Libp2pConfig): Result[ParsedTransport, string] =
   # A muxer is only used with TCP; a QUIC config's `muxer` ordinal is left
   # unvalidated, matching the transport it applies to.
   let transport = ?parseTransport(config.transport)

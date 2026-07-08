@@ -106,8 +106,11 @@ proc buildFfiLib() =
   # Name the output `lib<name>` so the file matches the soname nim derives from
   # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
   # nim-ffi's `declareLibrary` imports.
+  # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
+  # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
+    " -d:ffiThreadExitTimeoutMs=5000" &
     " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p_ffi.nim"
 
 task buildffi, "Build the FFI shared library":
