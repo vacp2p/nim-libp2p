@@ -13,7 +13,7 @@ import
     crypto/rsa,
     wire,
   ]
-import ../../tools/[unit3, crypto]
+import ../../tools/[unittest3, crypto]
 
 template withMockApiAndKey() =
   let

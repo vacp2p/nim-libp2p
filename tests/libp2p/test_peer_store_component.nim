@@ -8,7 +8,7 @@ import chronos
 import
   ../../libp2p/
     [peerstore, peerinfo, multiaddress, switch, connmanager, protocols/kademlia]
-import ../tools/[unit3, multiaddress, switch_builder, lifecycle, topology]
+import ../tools/[unittest3, multiaddress, switch_builder, lifecycle, topology]
 import ./kademlia/utils
 
 suite "PeerStore Address TTL - Component":

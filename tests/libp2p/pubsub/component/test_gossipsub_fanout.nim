@@ -5,7 +5,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
-import ../../../tools/[lifecycle, topology, unit3]
+import ../../../tools/[lifecycle, topology, unittest3]
 import ../utils
 
 suite "GossipSub Component - Fanout Management":

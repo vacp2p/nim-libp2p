@@ -7,7 +7,7 @@ import chronos, stew/byteutils
 import ../../../../libp2p/stream/connection
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
-import ../../../tools/[lifecycle, topology, unit3]
+import ../../../tools/[lifecycle, topology, unittest3]
 import ../utils
 
 type DummyStream* = ref object of Connection

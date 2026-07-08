@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils]
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../tools/[lifecycle, topology, unit3, futures]
+import ../../../tools/[lifecycle, topology, unittest3, futures]
 import ../utils
 
 suite "GossipSub Component - Mesh Management":

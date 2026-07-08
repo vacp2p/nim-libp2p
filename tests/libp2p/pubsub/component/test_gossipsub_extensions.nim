@@ -13,7 +13,7 @@ import
     rpc/message,
   ]
 import ../../../../libp2p/utils/future
-import ../../../tools/[lifecycle, unit3]
+import ../../../tools/[lifecycle, unittest3]
 import ../extensions/my_partial_message
 import ../utils
 

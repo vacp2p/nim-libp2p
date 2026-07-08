@@ -8,7 +8,7 @@ import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
 import ../../../../libp2p/utils/future
-import ../../../tools/[lifecycle, topology, unit3, futures]
+import ../../../tools/[lifecycle, topology, unittest3, futures]
 import ../utils
 
 suite "GossipSub Component - Scoring":

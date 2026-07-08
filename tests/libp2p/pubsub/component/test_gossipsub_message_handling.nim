@@ -10,7 +10,7 @@ import
 import ../../../../libp2p/utils/future
 import
   ../../../tools/
-    [lifecycle, topology, unit3, futures, sync, switch_builder, multiaddress]
+    [lifecycle, topology, unittest3, futures, sync, switch_builder, multiaddress]
 import ../utils
 
 const MsgIdSuccess = "msg id gen success"

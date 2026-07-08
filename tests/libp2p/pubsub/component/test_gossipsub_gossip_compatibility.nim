@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], chronicles
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../tools/[lifecycle, topology, unit3]
+import ../../../tools/[lifecycle, topology, unittest3]
 import ../utils
 
 suite "GossipSub Component - Compatibility":

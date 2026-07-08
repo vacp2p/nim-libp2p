@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../tools/[unit3, lifecycle, topology]
+import ../../../tools/[unittest3, lifecycle, topology]
 import ../utils
 
 suite "GossipSub Component - Heartbeat":

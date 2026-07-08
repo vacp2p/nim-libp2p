@@ -5,7 +5,7 @@
 
 import chronos
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsubpeer, peertable]
-import ../../../tools/[lifecycle, topology, unit3]
+import ../../../tools/[lifecycle, topology, unittest3]
 import ../utils
 
 type MockSendStream* = ref object of Connection

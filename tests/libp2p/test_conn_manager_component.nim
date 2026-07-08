@@ -13,7 +13,7 @@ import
     protocols/pubsub/gossipsub,
     protocols/pubsub/pubsub,
   ]
-import ../tools/[lifecycle, unit3, switch_builder, crypto, multiaddress]
+import ../tools/[lifecycle, unittest3, switch_builder, crypto, multiaddress]
 
 proc newWatermarkSwitch(
     lowWater: int,
