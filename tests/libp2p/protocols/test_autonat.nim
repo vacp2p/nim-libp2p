@@ -34,10 +34,10 @@ proc makeAutonatServicePrivate(): Switch =
       discard await stream.readLp(1024)
       await stream.writeLp(
         AutonatMsg(
-          msgType: MsgType.DialResponse,
+          msgType: Opt.some(MsgType.DialResponse),
           response: Opt.some(
             AutonatDialResponse(
-              status: DialError,
+              status: Opt.some(DialError),
               text: Opt.some("dial failed"),
               ma: Opt.none(MultiAddress),
             )
@@ -99,7 +99,7 @@ suite "Autonat":
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
     let buffer = AutonatMsg(
-      msgType: MsgType.Dial,
+      msgType: Opt.some(MsgType.Dial),
       dial: Opt.some(
         AutonatDial(
           peerInfo: Opt.some(
@@ -115,9 +115,40 @@ suite "Autonat":
     await stream.writeLp(buffer)
     let response = AutonatMsg.decode(await stream.readLp(1024)).get().response.get()
     check:
-      response.status == DialError
+      response.status == Opt.some(DialError)
       response.text.get() == "Dial timeout"
       response.ma.isNone()
+    await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
+
+  asyncTest "Message without type is handled as Dial":
+    let
+      src = makeSwitch()
+      dst = makeSwitch()
+      autonat = Autonat.new(dst, dialTimeout = 1.seconds)
+      doesNothingListener = TcpTransport.new(upgrade = Upgrade())
+
+    dst.mount(autonat)
+    await src.start()
+    await dst.start()
+    await doesNothingListener.start(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
+    let buffer = AutonatMsg(
+      dial: Opt.some(
+        AutonatDial(
+          peerInfo: Opt.some(
+            AutonatPeerInfo(
+              id: Opt.some(src.peerInfo.peerId), addrs: doesNothingListener.addrs
+            )
+          )
+        )
+      )
+    ).encode()
+    await stream.writeLp(buffer)
+    # the server replies instead of erroring out on the absent type
+    let response = AutonatMsg.decode(await stream.readLp(1024)).get().response.get()
+    check response.status == Opt.some(DialError)
     await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
 
   asyncTest "dialMe dials dns and returns public address":
