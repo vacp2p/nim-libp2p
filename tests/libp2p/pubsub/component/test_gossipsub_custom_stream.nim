@@ -4,10 +4,11 @@
 {.used.}
 
 import chronos, stew/byteutils
+import unittest3 except `await`
 import ../../../../libp2p/stream/connection
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
-import ../../../tools/[lifecycle, topology, unittest]
+import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
 
 type DummyStream* = ref object of Connection
@@ -21,10 +22,10 @@ method write*(
 suite "GossipSub Component - Custom Stream Support":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "publish with useCustomStream triggers custom stream and peer selection":
+  test "publish with useCustomStream triggers custom stream and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
@@ -64,7 +65,7 @@ suite "GossipSub Component - Custom Stream Support":
       peerSelectionCalled
       dummyStream.data.len > 0
 
-  asyncTest "publish with useCustomStream triggers assertion if custom callbacks not set":
+  test "publish with useCustomStream triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)

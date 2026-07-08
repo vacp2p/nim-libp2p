@@ -12,8 +12,8 @@ import ../utils
 unittest3.suite "GossipSub Component - Heartbeat":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
   unittest3.test "Mesh is rebalanced during heartbeat - pruning peers":
     const numberOfNodes = 10

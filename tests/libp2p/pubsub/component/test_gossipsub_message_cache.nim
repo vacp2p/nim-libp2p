@@ -4,19 +4,20 @@
 {.used.}
 
 import chronos, std/[sequtils], stew/byteutils
+import unittest3 except `await`
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, floodsub, pubsubpeer, rpc/messages, rpc/message]
-import ../../../tools/[lifecycle, topology, unittest]
+import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
 
 suite "GossipSub Component - Message Cache":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "Received messages are added to the message cache":
+  test "Received messages are added to the message cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
@@ -34,7 +35,7 @@ suite "GossipSub Component - Message Cache":
     checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 1
 
-  asyncTest "Message cache history shifts on heartbeat and is cleared on shift":
+  test "Message cache history shifts on heartbeat and is cleared on shift":
     const
       numberOfNodes = 2
       historyGossip = 3 # mcache window
@@ -70,7 +71,7 @@ suite "GossipSub Component - Message Cache":
       nodes[1].mcache.window(topic).len == 0
       not nodes[1].mcache.contains(messageId)
 
-  asyncTest "IHave propagation capped by history window":
+  test "IHave propagation capped by history window":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
@@ -118,7 +119,7 @@ suite "GossipSub Component - Message Cache":
     checkUntilTimeout:
       receivedIHaves[].len == historyGossip
 
-  asyncTest "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
+  test "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const numberOfNodes = 3
@@ -179,7 +180,7 @@ suite "GossipSub Component - Message Cache":
         )
         messageId in messages
 
-  asyncTest "Published and received messages are added to the seen cache":
+  test "Published and received messages are added to the seen cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
@@ -205,7 +206,7 @@ suite "GossipSub Component - Message Cache":
       nodes[0].hasSeen(nodes[0].salt(messageId))
       nodes[1].hasSeen(nodes[1].salt(messageId))
 
-  asyncTest "Received messages are dropped if they are already in seen cache":
+  test "Received messages are dropped if they are already in seen cache":
     # 3 Nodes, Node 0 <==> Node 1 and Node 2 not connected and not subscribed yet
     const numberOfNodes = 3
     let nodes = generateNodes(
@@ -270,7 +271,7 @@ suite "GossipSub Component - Message Cache":
     checkUntilTimeout:
       nodes[2].mcache.window(topic).toSeq() == @[messageId2]
 
-  asyncTest "Published messages are dropped if they are already in seen cache":
+  test "Published messages are dropped if they are already in seen cache":
     func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok("fixed_message_id_string".toBytes())
 

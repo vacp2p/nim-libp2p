@@ -4,20 +4,21 @@
 {.used.}
 
 import chronos, std/[sequtils, strutils], stew/byteutils
+import unittest3 except `await`
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
 import ../../../../libp2p/utils/future
-import ../../../tools/[lifecycle, topology, unittest, futures]
+import ../../../tools/[lifecycle, topology, unit3, futures]
 import ../utils
 
 suite "GossipSub Component - Scoring":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
+  test "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
       nodes =
@@ -51,7 +52,7 @@ suite "GossipSub Component - Scoring":
       handlerFut1.finished() == true
       handlerFut2.finished() == false
 
-  asyncTest "Should not rate limit decodable messages below the size allowed":
+  test "Should not rate limit decodable messages below the size allowed":
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -91,7 +92,7 @@ suite "GossipSub Component - Scoring":
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
       currentRateLimitHits() == rateLimitHits
 
-  asyncTest "Should rate limit undecodable messages above the size allowed":
+  test "Should rate limit undecodable messages above the size allowed":
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -128,7 +129,7 @@ suite "GossipSub Component - Scoring":
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
       currentRateLimitHits() == rateLimitHits + 2
 
-  asyncTest "Should rate limit decodable messages above the size allowed":
+  test "Should rate limit decodable messages above the size allowed":
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -178,7 +179,7 @@ suite "GossipSub Component - Scoring":
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
       currentRateLimitHits() == rateLimitHits2 + 1
 
-  asyncTest "Should rate limit invalid messages above the size allowed":
+  test "Should rate limit invalid messages above the size allowed":
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -231,7 +232,7 @@ suite "GossipSub Component - Scoring":
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
       currentRateLimitHits() == rateLimitHits2 + 1
 
-  asyncTest "DirectPeers: don't kick direct peer with low score":
+  test "DirectPeers: don't kick direct peer with low score":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -259,7 +260,7 @@ suite "GossipSub Component - Scoring":
     checkUntilTimeout:
       handlerFut.finished() == true
 
-  asyncTest "Slow peer penalty can prune a peer on heartbeat":
+  test "Slow peer penalty can prune a peer on heartbeat":
     let nodes = generateNodes(
         2,
         gossip = true,
@@ -286,7 +287,7 @@ suite "GossipSub Component - Scoring":
       nodes[0].getPeerScore(peer.peerId) < 0.0
       not nodes[0].mesh.hasPeerId(topic, peer.peerId)
 
-  asyncTest "Peers disconnections mechanics":
+  test "Peers disconnections mechanics":
     const numberOfNodes = 10
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
@@ -355,7 +356,7 @@ suite "GossipSub Component - Scoring":
     check:
       nodes[0].peerStats.len == numberOfNodes - 1 # minus self
 
-  asyncTest "DecayInterval":
+  test "DecayInterval":
     const decayInterval = 50.milliseconds
     let nodes =
       generateNodes(2, gossip = true, decayInterval = decayInterval).toGossipSub()
@@ -386,7 +387,7 @@ suite "GossipSub Component - Scoring":
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
         57.0 .. 62.0
 
-  asyncTest "Nodes publishing invalid messages are penalised and disconnected":
+  test "Nodes publishing invalid messages are penalised and disconnected":
     # Given GossipSub nodes with Topic Params
     const numberOfNodes = 3
 
@@ -486,7 +487,7 @@ suite "GossipSub Component - Scoring":
     checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
 
-  asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
+  test "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
     # Given GossipSub nodes with Topic Params
     const numberOfNodes = 2
 

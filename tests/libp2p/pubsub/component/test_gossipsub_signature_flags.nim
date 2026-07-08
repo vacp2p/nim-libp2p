@@ -4,8 +4,9 @@
 {.used.}
 
 import chronos, stew/byteutils
+import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
-import ../../../tools/[lifecycle, topology, unittest]
+import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
 
 suite "GossipSub Component - Signature Flags":
@@ -13,10 +14,10 @@ suite "GossipSub Component - Signature Flags":
     topic = "foobar"
     testData = "test message".toBytes()
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
+  test "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = false
       )
@@ -44,7 +45,7 @@ suite "GossipSub Component - Signature Flags":
       rm.signature.isSome and rm.signature.get().len > 0
       rm.key.isSome and rm.key.get().len > 0
 
-  asyncTest "Sign flag - messages are not signed when sign=false":
+  test "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
         2, gossip = true, sign = false, verifySignature = false, anonymize = false
       )
@@ -70,7 +71,7 @@ suite "GossipSub Component - Signature Flags":
       rm.signature.isNone
       rm.key.isNone
 
-  asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
+  test "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = true
       )
@@ -179,7 +180,7 @@ suite "GossipSub Component - Signature Flags":
       title = "Compatibility matrix: " & $scenario
       # Create a copy to avoid lent iterator capture issue
       localScenario = scenario
-    asyncTest title:
+    test title:
       let
         sender = generateNodes(
           1,

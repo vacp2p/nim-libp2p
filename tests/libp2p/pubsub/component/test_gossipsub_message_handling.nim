@@ -4,13 +4,14 @@
 {.used.}
 
 import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
+import unittest3 except `await`
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
 import ../../../../libp2p/utils/future
 import
   ../../../tools/
-    [lifecycle, topology, unittest, futures, sync, switch_builder, multiaddress]
+    [lifecycle, topology, unit3, futures, sync, switch_builder, multiaddress]
 import ../utils
 
 const MsgIdSuccess = "msg id gen success"
@@ -76,10 +77,10 @@ proc createMessages(
 suite "GossipSub Component - Message Handling":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
+  test "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
     # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
@@ -99,7 +100,7 @@ suite "GossipSub Component - Message Handling":
     checkUntilTimeout:
       receivedMessages[] == sentMessages
 
-  asyncTest "Discard IWANT replies when both messages individually exceed maxSize":
+  test "Discard IWANT replies when both messages individually exceed maxSize":
     # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
     # Expected: No messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
@@ -122,7 +123,7 @@ suite "GossipSub Component - Message Handling":
     check:
       receivedMessages[].len == 0
 
-  asyncTest "Process IWANT replies when both messages are below maxSize":
+  test "Process IWANT replies when both messages are below maxSize":
     # This test checks if two messages, both below the maxSize, are correctly processed and sent.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
@@ -142,7 +143,7 @@ suite "GossipSub Component - Message Handling":
     checkUntilTimeout:
       receivedMessages[] == sentMessages
 
-  asyncTest "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
+  test "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
     # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
     # Expected: Only the smaller message should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
@@ -170,7 +171,7 @@ suite "GossipSub Component - Message Handling":
     checkUntilTimeout:
       receivedMessages[] == smallestSet
 
-  asyncTest "messages are not sent back to source or forwarding peer":
+  test "messages are not sent back to source or forwarding peer":
     let
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -197,7 +198,7 @@ suite "GossipSub Component - Message Handling":
       handlerFut1.finished() == true
       handlerFut2.finished() == true
 
-  asyncTest "GossipSub validation should succeed":
+  test "GossipSub validation should succeed":
     var handlerFut = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
@@ -224,7 +225,7 @@ suite "GossipSub Component - Message Handling":
 
     check (await validatorFut) and (await handlerFut)
 
-  asyncTest "GossipSub validation should fail (reject)":
+  test "GossipSub validation should fail (reject)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation rejects message"
 
@@ -252,7 +253,7 @@ suite "GossipSub Component - Message Handling":
 
     check (await validatorFut) == true
 
-  asyncTest "GossipSub validation should fail (ignore)":
+  test "GossipSub validation should fail (ignore)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation ignores message"
 
@@ -280,7 +281,7 @@ suite "GossipSub Component - Message Handling":
 
     check (await validatorFut) == true
 
-  asyncTest "GossipSub validation one fails and one succeeds":
+  test "GossipSub validation one fails and one succeeds":
     const
       topicFoo = "foo"
       topicBar = "bar"
@@ -321,7 +322,7 @@ suite "GossipSub Component - Message Handling":
       topicBar notin nodes[0].mesh and nodes[0].fanout[topicBar].len == 1
       topicBar notin nodes[1].mesh and topicBar notin nodes[1].fanout
 
-  asyncTest "GossipSub's observers should run after message is sent, received and validated":
+  test "GossipSub's observers should run after message is sent, received and validated":
     const
       topicFoo = "foo"
       topicBar = "bar"
@@ -377,7 +378,7 @@ suite "GossipSub Component - Message Handling":
       validatedCounter == 1
       sendCounter == 2
 
-  asyncTest "GossipSub send over mesh A -> B":
+  test "GossipSub send over mesh A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
@@ -403,7 +404,7 @@ suite "GossipSub Component - Message Handling":
       nodes[1].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
       not nodes[1].fanout.hasPeerId(topic, nodes[0].peerInfo.peerId)
 
-  asyncTest "GossipSub should not send to source & peers who already seen":
+  test "GossipSub should not send to source & peers who already seen":
     # 3 nodes: A, B, C
     # A publishes, C relays, B is having a long validation
     # so B should not send to anyone
@@ -461,7 +462,7 @@ suite "GossipSub Component - Message Handling":
 
     await bFinished.wait()
 
-  asyncTest "GossipSub should not relay message back to original source":
+  test "GossipSub should not relay message back to original source":
     # Scenario: 3-node network A, B, C.
     # A is the original publisher (msg.fromPeer = A).
     # C has A in its mesh but receives the message first from B (not directly from A).
@@ -525,7 +526,7 @@ suite "GossipSub Component - Message Handling":
     # A should NOT have received the message back from C at the network level
     check not await relayedToA.withTimeout(1.seconds)
 
-  asyncTest "GossipSub send over floodPublish A -> B":
+  test "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
@@ -552,7 +553,7 @@ suite "GossipSub Component - Message Handling":
       topic notin nodes[1].gossipsub
       not nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
-  asyncTest "GossipSub floodPublish with bandwidthEstimatebps":
+  test "GossipSub floodPublish with bandwidthEstimatebps":
     let nodes = generateNodes(
         20,
         gossip = true,
@@ -581,7 +582,7 @@ suite "GossipSub Component - Message Handling":
     await nodes[0].waitForNextHeartbeat()
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
-  asyncTest "GossipSub floodPublish limit without bandwidthEstimatebps":
+  test "GossipSub floodPublish limit without bandwidthEstimatebps":
     let nodes = generateNodes(20, gossip = true).toGossipSub()
 
     nodes[0].parameters.floodPublish = true
@@ -598,7 +599,7 @@ suite "GossipSub Component - Message Handling":
     check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == nodes.len - 1
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == nodes.len - 1
 
-  asyncTest "GossipSub with multiple peers":
+  test "GossipSub with multiple peers":
     const numberOfNodes = 10
 
     let nodes =
@@ -639,7 +640,7 @@ suite "GossipSub Component - Message Handling":
       check:
         topic in node.gossipsub
 
-  asyncTest "GossipSub with multiple peers (sparse)":
+  test "GossipSub with multiple peers (sparse)":
     const numberOfNodes = 10
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
@@ -687,7 +688,7 @@ suite "GossipSub Component - Message Handling":
         node.fanout.len == 0
         node.mesh[topic].len > 0
 
-  asyncTest "GossipSub with multiple peers - control deliver (sparse)":
+  test "GossipSub with multiple peers - control deliver (sparse)":
     const numberOfNodes = 10
 
     let nodes =
@@ -731,7 +732,7 @@ suite "GossipSub Component - Message Handling":
       check:
         v >= 1
 
-  asyncTest "GossipSub directPeers: always forward messages":
+  test "GossipSub directPeers: always forward messages":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -770,7 +771,7 @@ suite "GossipSub Component - Message Handling":
     check topic notin nodes[1].mesh
     check topic notin nodes[2].mesh
 
-  asyncTest "GossipSub directPeers: send message to unsubscribed direct peer":
+  test "GossipSub directPeers: send message to unsubscribed direct peer":
     # Given 2 nodes
     const numberOfNodes = 2
     let

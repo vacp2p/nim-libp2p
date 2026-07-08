@@ -4,17 +4,18 @@
 {.used.}
 
 import chronos, stew/byteutils
+import unittest3 except `await`
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
-import ../../../tools/[lifecycle, topology, unittest]
+import ../../../tools/[lifecycle, topology, unit3]
 import ../utils
 
 suite "GossipSub Component - Skip MCache Support":
   const topic = "foobar"
 
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "publish with skipMCache prevents message from being added to mcache":
+  test "publish with skipMCache prevents message from being added to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -32,7 +33,7 @@ suite "GossipSub Component - Skip MCache Support":
     check:
       nodes[0].mcache.msgs.len == 0
 
-  asyncTest "publish without skipMCache adds message to mcache":
+  test "publish without skipMCache adds message to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)

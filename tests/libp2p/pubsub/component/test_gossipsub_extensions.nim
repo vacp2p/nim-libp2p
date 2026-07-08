@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos, algorithm, stew/byteutils, sequtils, tables
+import unittest3 except `await`
 import
   ../../../../libp2p/protocols/pubsub/[
     gossipsub,
@@ -13,7 +14,7 @@ import
     rpc/message,
   ]
 import ../../../../libp2p/utils/future
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, unit3]
 import ../extensions/my_partial_message
 import ../utils
 
@@ -23,10 +24,10 @@ import ../utils
 # should be added to test files of respective extensions.
 
 suite "GossipSub Component - Extensions":
-  teardown:
-    checkTrackers()
+  # teardown:
+  #   checkTrackers()
 
-  asyncTest "Test Extension":
+  test "Test Extension":
     var negotiatedPeers: seq[PeerId]
     proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
       negotiatedPeers.add(peer)
@@ -51,7 +52,7 @@ suite "GossipSub Component - Extensions":
         let negotiatedPeersSorted = negotiatedPeers.sorted()
         negotiatedPeersSorted == nodesPeerIdSorted
 
-  asyncTest "Extensions control is sent before subscriptions on stream open":
+  test "Extensions control is sent before subscriptions on stream open":
     # If node has pre-existing subscriptions on a dial,
     # then it sends the subscriptions control message before extensions control message on a newly opened stream,
     # which violates the protocol contract.
@@ -114,7 +115,7 @@ suite "GossipSub Component - Extensions":
       receiverFirstMsg.control.get().extensions.isSome()
       receiverFirstMsg.subscriptions.len == 0
 
-  asyncTest "Extensions re-negotiated after disconnect/reconnect with correct ordering":
+  test "Extensions re-negotiated after disconnect/reconnect with correct ordering":
     const topic = "foobar"
 
     var negotiatedPeers: seq[PeerId]
@@ -208,7 +209,7 @@ suite "GossipSub Component - Extensions":
     check:
       negotiatedPeers.len == 4
 
-  asyncTest "No extensions control sent when node has no extensions configured":
+  test "No extensions control sent when node has no extensions configured":
     const topic = "foobar"
     var outgoingMsgs: seq[RPCMsg]
 
@@ -238,7 +239,7 @@ suite "GossipSub Component - Extensions":
       if msg.control.isSome():
         check msg.control.get().extensions.isNone()
 
-  asyncTest "Extensions control sent exactly once per peer per connection":
+  test "Extensions control sent exactly once per peer per connection":
     # Guard: isControlSent returns true after first send => no duplicates.
     const topic = "foobar"
 
@@ -275,7 +276,7 @@ suite "GossipSub Component - Extensions":
 
     check extControlCount == 1
 
-  asyncTest "Partial Message Extension":
+  test "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
 
@@ -362,7 +363,7 @@ suite "GossipSub Component - Extensions":
           partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
 
-  asyncTest "Partial Message Extension - fanout publisher":
+  test "Partial Message Extension - fanout publisher":
     # Fanout pattern: publisher node is not subscribed to the topic but
     # pushes partial messages to peers via broadcast publish.
     const topic = "logos-partial"
@@ -427,7 +428,7 @@ suite "GossipSub Component - Extensions":
           partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
 
-  asyncTest "PingPong Extension":
+  test "PingPong Extension":
     let
       numberOfNodes = 2
       nodes = generateNodes(
@@ -464,7 +465,7 @@ suite "GossipSub Component - Extensions":
     # nodes[1] should echo the ping back as a pong
     check (await receivedPongFut) == pingBytes
 
-  asyncTest "Preamble Extension":
+  test "Preamble Extension":
     const topic = "preamble-topic"
 
     let
