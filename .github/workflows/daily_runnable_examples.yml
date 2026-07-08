@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 8 * * *"
   workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,6 +17,7 @@ permissions:
 jobs:
   runnable-examples:
     timeout-minutes: 30
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     defaults:
       run:
         shell: bash
