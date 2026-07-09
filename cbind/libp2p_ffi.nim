@@ -217,6 +217,7 @@ proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
     await lib.switch.start()
   except LPError as e:
     return err(e.msg)
+  lib.stopped = false
   ok()
 
 proc libp2pStop*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
