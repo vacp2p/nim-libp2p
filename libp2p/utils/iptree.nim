@@ -24,10 +24,8 @@ proc ipBytes(ip: IpAddress): seq[uint8] {.raises: [].} =
 
 proc treeRoot(ipTree: IpTree, ip: IpAddress): IpTreeNode =
   case ip.family
-  of IpAddressFamily.IPv4:
-    ipTree.root
-  of IpAddressFamily.IPv6:
-    ipTree.root6
+  of IpAddressFamily.IPv4: ipTree.root
+  of IpAddressFamily.IPv6: ipTree.root6
 
 proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Inserts an IP address into the IP tree, following its binary
