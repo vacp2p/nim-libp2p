@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, chronicles
+import chronos, chronicles, protobuf_serialization, sets
 import
   ../../../libp2p/[
     protocols/identify,
@@ -21,6 +21,9 @@ import
     upgrademngrs/upgrade,
   ]
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
+
+type IdentifyMsgNoPubKey {.proto2.} = object
+  protocols {.fieldNumber: 3.}: seq[string]
 
 suite "Identify":
   teardown:
@@ -110,6 +113,38 @@ suite "Identify":
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
       check id.signedPeerRecord.isNone()
 
+    asyncTest "identify without publicKey falls back to remotePeerId":
+      # A minimal peer (e.g. eth-p2p-z over QUIC) may omit the optional publicKey field.
+      # The security handshake already authenticated the remote, so identify
+      # must accept the message and fall back to remotePeerId instead of rejecting.
+      const testProtos = @["/test/proto1/1.0.0"]
+      proc noPubKeyHandler(
+          stream: Stream, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          await stream.writeLp(
+            Protobuf.encode(IdentifyMsgNoPubKey(protocols: testProtos))
+          )
+        except LPError as e:
+          raiseAssert "failed to write pubkey-less identify: " & e.msg
+        finally:
+          await stream.closeWithEOF()
+
+      msListen.addHandler(LPProtocol.new(@[IdentifyCodec], noPubKeyHandler))
+      proc acceptHandler(): Future[void] {.async.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.addrs[0])
+
+      discard await msDial.select(conn, IdentifyCodec)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
+
+      check id.pubkey.isNone()
+      check id.peerId == remotePeerInfo.peerId
+      check id.protos == testProtos
+
     asyncTest "handle failed identify":
       msListen.addHandler(identifyProto1)
 
@@ -194,9 +229,11 @@ suite "Identify":
         countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP6) > 1
 
         # ensure all addresses are advertized.
-        # that is, peer store will have all address of other peer
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
-        switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
+        # that is, peer store will have all address of other peer.
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) ==
+          toHashSet(switch2.peerInfo.addrs)
+        toHashSet(switch2.peerStore[AddressBook][switch1.peerInfo.peerId]) ==
+          toHashSet(switch1.peerInfo.addrs)
 
         switch1.peerStore[KeyBook][switch2.peerInfo.peerId] == switch2.peerInfo.publicKey
         switch2.peerStore[KeyBook][switch1.peerInfo.peerId] == switch1.peerInfo.publicKey
@@ -232,7 +269,8 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=
+          toHashSet(switch2.peerInfo.addrs)
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
@@ -242,7 +280,8 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
           switch2.peerInfo.protocols
       checkUntilTimeout:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) ==
+          toHashSet(switch2.peerInfo.addrs)
 
       await closeAll()
 
@@ -251,7 +290,8 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=
+          toHashSet(switch2.peerInfo.addrs)
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
