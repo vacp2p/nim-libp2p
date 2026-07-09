@@ -343,6 +343,7 @@ suite "Identify":
     check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1
 
   asyncTest "outgoing identify hangs when the peer answers `na`":
+    # TODO: #2800 identify: outgoing identify hangs against peers that don't serve identify
     let (connDialer, connListener) = bridgedConnections(
       closeTogether = false, dirA = Direction.Out, dirB = Direction.In
     )
