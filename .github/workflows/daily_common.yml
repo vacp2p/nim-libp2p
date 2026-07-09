@@ -38,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deps: ${{ steps.resolve.outputs.deps }}
+      test_deps: ${{ steps.resolve.outputs.test_deps }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -51,12 +52,22 @@ jobs:
             cat "$RUNNER_TEMP/resolve_deps.log"
             exit 1
           fi
+          if ! TEST_DEPS=$(python3 tools/resolve_newest_deps.py tests/.pinned 2>"$RUNNER_TEMP/resolve_test_deps.log"); then
+            cat "$RUNNER_TEMP/resolve_test_deps.log"
+            exit 1
+          fi
           cat "$RUNNER_TEMP/resolve_deps.log"
+          cat "$RUNNER_TEMP/resolve_test_deps.log"
           if [ -z "$DEPS" ]; then
             echo "ERROR: dependency resolver produced no output" >&2
             exit 1
           fi
+          if [ -z "$TEST_DEPS" ]; then
+            echo "ERROR: test dependency resolver produced no output" >&2
+            exit 1
+          fi
           printf 'deps=%s\n' "$DEPS" >> "$GITHUB_OUTPUT"
+          printf 'test_deps=%s\n' "$TEST_DEPS" >> "$GITHUB_OUTPUT"
 
   test:
     needs: [delete_cache, resolve_deps]
@@ -134,21 +145,29 @@ jobs:
       - name: Install dependencies (newest used across projects)
         env:
           DEPS: ${{ needs.resolve_deps.outputs.deps }}
+          TEST_DEPS: ${{ needs.resolve_deps.outputs.test_deps }}
         run: |
           if [ -z "$DEPS" ]; then
             echo "ERROR: dependency resolver produced no output for this workflow run" >&2
             exit 1
           fi
+          if [ -z "$TEST_DEPS" ]; then
+            echo "ERROR: test dependency resolver produced no output for this workflow run" >&2
+            exit 1
+          fi
           echo "=== Installing resolved newest dependencies ==="
           # nimbledeps/ switches nimble to local-dep mode so the Makefile's
           # nat_libs step finds nimbledeps/pkgs2/nat_traversal-*.
-          rm -rf nimbledeps
+          rm -rf nimbledeps tests/nimbledeps
           mkdir nimbledeps
           echo "nimble install -y $DEPS"
           nimble install -y $DEPS
+          mkdir tests/nimbledeps
+          echo "cd tests && nimble install -y $TEST_DEPS"
+          (cd tests && nimble install -y $TEST_DEPS)
 
       - name: Build prerequisites
-        run: make nimble.paths nat_libs
+        run: make nimble.paths tests/nimble.paths nat_libs
 
       - name: Build test_all
         run: |
