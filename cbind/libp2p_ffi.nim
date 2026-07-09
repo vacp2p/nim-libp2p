@@ -45,9 +45,6 @@ type LibP2P* = ref object
   customProtocols: Table[string, LPProtocol]
   streams: StreamRegistry
   stopped: bool
-    ## True whenever the switch is not running — a fresh node or one that has
-    ## been stopped. Gates `libp2pStart` (idempotent start) and `shutdownSwitch`
-    ## (no double-stop). A fresh node starts `stopped`, so `libp2pStart` runs.
 
 declareLibrary("libp2p", LibP2P)
 
