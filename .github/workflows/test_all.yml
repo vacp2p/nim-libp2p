@@ -191,13 +191,13 @@ jobs:
 
       - name: Save build cache
         uses: actions/cache/save@v5
-        if: github.ref_name == 'master'
+        if: github.event_name == 'merge_group'
         with:
           path: nimcache
           key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
 
       - name: Prune old nimcache entries
-        if: github.ref_name == 'master'
+        if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
