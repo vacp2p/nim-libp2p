@@ -1,4 +1,4 @@
-name: Daily test all
+name: Daily test all (latest dependencies)
 
 on:
   schedule:
