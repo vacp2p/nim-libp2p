@@ -7,6 +7,7 @@ import chronos, chronicles, protobuf_serialization, sets
 import
   ../../../libp2p/[
     protocols/identify,
+    protocols/ping,
     multiaddress,
     peerinfo,
     peerid,
@@ -19,6 +20,9 @@ import
     transports/quictransport,
     crypto/crypto,
     upgrademngrs/upgrade,
+    peerstore,
+    muxers/mplex/mplex,
+    stream/bridgestream,
   ]
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
@@ -337,3 +341,50 @@ suite "Identify":
     # The client's peerStore should now have the server's info including addresses via identify
     let storedAddrs = client.peerStore[AddressBook][server.peerInfo.peerId]
     check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1
+
+  asyncTest "outgoing identify hangs when the peer answers `na`":
+    let (connDialer, connListener) = bridgedConnections(
+      closeTogether = false, dirA = Direction.Out, dirB = Direction.In
+    )
+    let
+      muxDialer = Mplex.new(connDialer)
+      muxListener = Mplex.new(connListener)
+      handleDialer = muxDialer.handle()
+      handleListener = muxListener.handle()
+    defer:
+      await allFutures(
+        connDialer.close(),
+        connListener.close(),
+        muxDialer.close(),
+        muxListener.close(),
+        handleDialer,
+        handleListener,
+      )
+
+    # Listener serves ping only, so identify is answered with `na`. It blocks
+    # before closing to model a peer that leaves the stream open after `na`.
+    let blocker = newFuture[void]()
+    muxListener.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+      try:
+        discard await MultistreamSelect.handle(stream, @[PingCodec])
+      except CancelledError, LPStreamError, MultiStreamError:
+        discard
+      try:
+        await blocker
+      except CatchableError:
+        discard
+      await noCancel stream.close()
+
+    let
+      remoteInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
+      peerStore = PeerStore.new(Identify.new(remoteInfo))
+    let identifyFut = peerStore.identify(muxDialer, Direction.Out)
+
+    await sleepAsync(200.milliseconds)
+    let hung = not identifyFut.finished()
+
+    # Let the listener close so a hung identify gets its EOF and finishes.
+    blocker.complete()
+    await identifyFut
+
+    check hung
