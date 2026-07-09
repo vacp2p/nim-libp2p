@@ -21,7 +21,11 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
+import protobuf_serialization
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
+
+type IdentifyMsgNoPubKey {.proto2.} = object
+  protocols {.fieldNumber: 3.}: seq[string]
 
 suite "Identify":
   teardown:
@@ -110,6 +114,38 @@ suite "Identify":
       check id.agentVersion.get() == customAgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
       check id.signedPeerRecord.isNone()
+
+    asyncTest "identify without publicKey falls back to remotePeerId":
+      # A minimal peer (e.g. eth-p2p-z over QUIC) may omit the optional publicKey field.
+      # The security handshake already authenticated the remote, so identify
+      # must accept the message and fall back to remotePeerId instead of rejecting.
+      const testProtos = @["/test/proto1/1.0.0"]
+      proc noPubKeyHandler(
+          stream: Stream, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          await stream.writeLp(
+            Protobuf.encode(IdentifyMsgNoPubKey(protocols: testProtos))
+          )
+        except LPError as e:
+          trace "failed to write pubkey-less identify", description = e.msg
+        finally:
+          await stream.closeWithEOF()
+
+      msListen.addHandler(LPProtocol.new(@[IdentifyCodec], noPubKeyHandler))
+      proc acceptHandler(): Future[void] {.async.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.addrs[0])
+
+      discard await msDial.select(conn, IdentifyCodec)
+      let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
+
+      check id.pubkey.isNone()
+      check id.peerId == remotePeerInfo.peerId
+      check id.protos == testProtos
 
     asyncTest "handle failed identify":
       msListen.addHandler(identifyProto1)
