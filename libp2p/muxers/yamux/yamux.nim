@@ -16,8 +16,8 @@ logScope:
 const
   YamuxCodec* = "/yamux/1.0.0"
   YamuxVersion = 0.uint8
-  YamuxDefaultWindowSize* = 256000
-  MaxSendQueueSize = 256000
+  YamuxDefaultWindowSize* = 256 * 1024
+  MaxSendQueueSize = YamuxDefaultWindowSize
   MaxChannelCount* = 256
   MaxSendWindow = int64(high(uint32))
 
@@ -25,10 +25,10 @@ when defined(libp2p_yamux_metrics):
   declareGauge libp2p_yamux_channels, "yamux channels", labels = ["initiator", "peer"]
   declareHistogram libp2p_yamux_send_queue,
     "message send queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 262144.0]
   declareHistogram libp2p_yamux_recv_queue,
     "message recv queue length (in byte)",
-    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
+    buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 262144.0]
 
 type
   YamuxError* = object of MuxerError
@@ -66,7 +66,8 @@ proc readHeader(
   var hdr: YamuxHeader
   hdr.version = buffer[0]
   let flags = fromBytesBE(uint16, buffer[2 .. 3])
-  if not hdr.msgType.checkedEnumAssign(buffer[1]) or flags notin 0'u16 .. 15'u16:
+  if hdr.version != YamuxVersion or not hdr.msgType.checkedEnumAssign(buffer[1]) or
+      flags notin 0'u16 .. 15'u16:
     raise newException(YamuxError, "Wrong header")
   hdr.flags = cast[set[MsgFlags]](flags)
   hdr.streamId = fromBytesBE(uint32, buffer[4 .. 7])
