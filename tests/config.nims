@@ -1,6 +1,13 @@
 import ../config.nims
 import strutils, os
 
+const testsDir = thisDir()
+
+if dirExists(testsDir / "nimbledeps/pkgs2"):
+  switch("NimblePath", testsDir / "nimbledeps/pkgs2")
+elif dirExists(testsDir / "nimbledeps/pkgs"):
+  switch("NimblePath", testsDir / "nimbledeps/pkgs")
+
 --threads:
   on
 --d:
@@ -35,3 +42,12 @@ else:
   switch("define", "chronicles_sinks=textlines[stdout],json[dynamic]")
   switch("define", "chronicles_log_level=TRACE")
   switch("define", "chronicles_runtime_filtering=TRUE")
+
+# begin tests Nimble config (version 2)
+when withDir(testsDir, system.fileExists("nimble.paths")):
+  include "nimble.paths"
+# end tests Nimble config
+# begin Nimble config (version 2)
+when withDir(thisDir(), system.fileExists("nimble.paths")):
+  include "nimble.paths"
+# end Nimble config
