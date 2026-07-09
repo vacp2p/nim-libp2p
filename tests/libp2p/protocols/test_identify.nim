@@ -3,6 +3,7 @@
 
 {.used.}
 
+import std/sets
 import chronos, chronicles
 import
   ../../../libp2p/[
@@ -194,9 +195,11 @@ suite "Identify":
         countAddressesWithPattern(switch2.peerInfo.addrs, TCP_IP6) > 1
 
         # ensure all addresses are advertized.
-        # that is, peer store will have all address of other peer
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
-        switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
+        # that is, peer store will have all address of other peer.
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) ==
+          toHashSet(switch2.peerInfo.addrs)
+        toHashSet(switch2.peerStore[AddressBook][switch1.peerInfo.peerId]) ==
+          toHashSet(switch1.peerInfo.addrs)
 
         switch1.peerStore[KeyBook][switch2.peerInfo.peerId] == switch2.peerInfo.publicKey
         switch2.peerStore[KeyBook][switch1.peerInfo.peerId] == switch1.peerInfo.publicKey
@@ -232,7 +235,8 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=
+          toHashSet(switch2.peerInfo.addrs)
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
@@ -242,7 +246,8 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
           switch2.peerInfo.protocols
       checkUntilTimeout:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) ==
+          toHashSet(switch2.peerInfo.addrs)
 
       await closeAll()
 
@@ -251,7 +256,8 @@ suite "Identify":
       switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
 
       check:
-        switch1.peerStore[AddressBook][switch2.peerInfo.peerId] != switch2.peerInfo.addrs
+        toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=
+          toHashSet(switch2.peerInfo.addrs)
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
