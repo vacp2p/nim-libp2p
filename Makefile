@@ -47,7 +47,13 @@ nimble.lock:
 nix/deps.nix: nimble.lock
 	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
-deps: nix/deps.nix
+tests/nimble.lock: tests/tests.nimble
+	cd tests && nimble lock
+
+nix/tests-deps.nix: tests/nimble.lock
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix
+
+deps: nix/deps.nix nix/tests-deps.nix
 
 build: deps
 	nix build
@@ -56,7 +62,7 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock nix/deps.nix nimble.paths
+	$(RM) nimble.lock tests/nimble.lock nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
 # Generate nimble.paths so config.nims can include it.
@@ -65,6 +71,23 @@ clean:
 nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
 	@rm -f $@
 	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
+	  [ -d "$$pkgdir" ] || continue; \
+	  for f in "$$pkgdir"/*/*.nimble; do \
+	    [ -f "$$f" ] || continue; \
+	    pkg=$$(dirname "$$f"); \
+	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
+	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
+	      path="$$pkg/$$src"; \
+	    else \
+	      path="$$pkg"; \
+	    fi; \
+	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
+	  done; \
+	done
+
+tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tests/nimbledeps/pkgs/*/*.nimble)
+	@rm -f $@
+	@for pkgdir in tests/nimbledeps/pkgs2 tests/nimbledeps/pkgs; do \
 	  [ -d "$$pkgdir" ] || continue; \
 	  for f in "$$pkgdir"/*/*.nimble; do \
 	    [ -f "$$f" ] || continue; \
@@ -128,7 +151,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
 	touch "$@"
 
-test: nimble.paths nat_libs
+test: nimble.paths tests/nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -143,7 +166,7 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-test_multiformat_exts: nimble.paths nat_libs
+test_multiformat_exts: nimble.paths tests/nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  --nimcache:nimcache/test_all_multiformat \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
@@ -155,7 +178,7 @@ test_multiformat_exts: nimble.paths nat_libs
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
 
-test_integration: nimble.paths nat_libs
+test_integration: nimble.paths tests/nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/integration,) \
 	  tests/integration/test_all.nim
@@ -163,6 +186,7 @@ test_integration: nimble.paths nat_libs
 
 install_pinned:
 	nimble install_pinned
+	cd tests && nimble install_pinned
 
 pin:
 	nimble pin
@@ -174,8 +198,9 @@ gen_multicodec:
 	nimble gen_multicodec
 
 format:
-	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
+	find . -name '*.nim' -not -path './nimbledeps/*' -not -path './tests/nimbledeps/*' | xargs nph
 
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
-	rm nimble.locks nimble.paths 2>/dev/null || true
+	[ ! -d tests/nimbledeps ] || rm -rf tests/nimbledeps
+	rm nimble.locks nimble.paths tests/nimble.paths 2>/dev/null || true
