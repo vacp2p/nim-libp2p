@@ -1,21 +1,24 @@
-name: Daily Common
-# Serves as base workflow for daily tasks, it's not run by itself.
+name: Daily test all
 
 on:
-  workflow_call:
-    inputs:
-      nim:
-        description: "Nim Configuration"
-        required: true
-        type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
-      configuration:
-        description: "Platform/compiler matrix"
-        required: true
-        type: string # Following this format: [{"os": ..., "cpu": ..., "cc": ..., "builder": ..., "shell": ...}, ...]
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
 
 jobs:
   delete_cache:
     name: Delete github action cache
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -35,6 +38,7 @@ jobs:
 
   resolve_deps:
     name: Resolve newest dependencies
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     runs-on: ubuntu-latest
     outputs:
       deps: ${{ steps.resolve.outputs.deps }}
@@ -71,14 +75,46 @@ jobs:
 
   test:
     needs: [delete_cache, resolve_deps]
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:
-        config: ${{ fromJSON(inputs.configuration) }}
-        nim: ${{ fromJSON(inputs.nim) }}
+        config:
+          - os: linux
+            cpu: amd64
+            cc: gcc
+            builder: ubuntu-22.04
+            shell: bash
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
+            builder: ubuntu-24.04
+            shell: bash
+          - os: windows
+            cpu: amd64
+            cc: clang
+            builder: windows-2022
+            shell: bash
+          - os: windows
+            cpu: amd64
+            cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
+          - os: linux
+            cpu: i386
+            cc: gcc
+            builder: ubuntu-22.04
+            shell: bash
+        nim:
+          - ref: v2.2.4
+            memory_management: refc
+          - ref: v2.2.10
+            memory_management: refc
+          - ref: devel
+            memory_management: refc
 
     defaults:
       run:

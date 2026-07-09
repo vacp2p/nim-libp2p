@@ -39,8 +39,7 @@ jobs:
           # Daily workflows to monitor
           WORKFLOWS = [
               ("Daily Nimbus", "daily_nimbus.yml"),
-              ("Daily amd64", "daily_amd64.yml"),
-              ("Daily i386", "daily_i386.yml"),
+              ("Daily test all", "daily_test_all.yml"),
               ("Daily without feature flags", "daily_tests_no_flags.yml"),
               ("Daily runnable examples", "daily_runnable_examples.yml"),
           ]
