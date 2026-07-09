@@ -211,6 +211,8 @@ proc shutdownSwitch(lib: LibP2P) {.async.} =
   await lib.switch.stop()
 
 proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
+  if not lib.stopped:
+    return
   try:
     await lib.switch.start()
   except LPError as e:
