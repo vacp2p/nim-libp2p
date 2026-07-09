@@ -186,6 +186,7 @@ test_integration: nimble.paths tests/nimble.paths nat_libs
 
 install_pinned:
 	nimble install_pinned
+	cd tests && nimble install_pinned
 
 pin:
 	nimble pin
@@ -197,7 +198,7 @@ gen_multicodec:
 	nimble gen_multicodec
 
 format:
-	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
+	find . -name '*.nim' -not -path './nimbledeps/*' -not -path './tests/nimbledeps/*' | xargs nph
 
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
