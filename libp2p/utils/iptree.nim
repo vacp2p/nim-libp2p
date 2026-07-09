@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/net
+import std/[net, math]
 
 type
   IpTreeNode* = ref object
@@ -9,21 +9,37 @@ type
     left*, right*: IpTreeNode
 
   IpTree* = ref object
-    root*: IpTreeNode
+    root*: IpTreeNode ## IPv4 tree root: a 32-level binary tree.
+    root6*: IpTreeNode ## IPv6 tree root: a 128-level binary tree.
 
 proc new*(T: typedesc[IpTree]): T =
-  T(root: IpTreeNode(counter: 0))
+  T(root: IpTreeNode(counter: 0), root6: IpTreeNode(counter: 0))
+
+proc ipBytes(ip: IpAddress): seq[uint8] {.raises: [].} =
+  case ip.family
+  of IpAddressFamily.IPv4:
+    @(ip.address_v4)
+  of IpAddressFamily.IPv6:
+    @(ip.address_v6)
+
+proc treeRoot(ipTree: IpTree, ip: IpAddress): IpTreeNode =
+  case ip.family
+  of IpAddressFamily.IPv4:
+    ipTree.root
+  of IpAddressFamily.IPv6:
+    ipTree.root6
 
 proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
-  doAssert ip.family == IpAddressFamily.IPv4
-
-  var v = ipTree.root
+  ## Inserts an IP address into the IP tree, following its binary
+  ## representation and incrementing counters at each visited node.
+  ## IPv4 addresses walk the 32-level tree,
+  ## IPv6 addresses walk the 128-level tree.
+  var v = ipTree.treeRoot(ip)
   v.counter += 1
 
-  let bytes = ip.address_v4
+  let bytes = ip.ipBytes()
 
-  for i in 0 ..< 4:
-    let b = bytes[i]
+  for b in bytes:
     for bit in countdown(7, 0):
       let goRight = (b and (1'u8 shl bit)) != 0
 
@@ -39,21 +55,19 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
       v.counter += 1
 
 proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
-  ## Removes an IPv4 address from the IP tree by decrementing counters along
-  ## the 32-bit path. Counters never go below zero. Only IPv4 is supported.
-  doAssert ip.family == IpAddressFamily.IPv4
-
-  if ipTree.root.counter == 0:
+  ## Removes an IP address from the IP tree by decrementing counters along
+  ## its binary-representation path. Counters never go below zero.
+  let root = ipTree.treeRoot(ip)
+  if root.counter == 0:
     return
 
-  var v = ipTree.root
-  let bytes = ip.address_v4
+  var v = root
+  let bytes = ip.ipBytes()
 
-  var path: array[32, IpTreeNode]
+  var path: array[128, IpTreeNode]
   var pathLen = 0
 
-  for i in 0 ..< 4:
-    let b = bytes[i]
+  for b in bytes:
     for bit in countdown(7, 0):
       if v.isNil or v.counter == 0:
         return
@@ -73,36 +87,37 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
       dec n.counter
 
 proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
-  ## Returns an IP similarity score in [0.0, 1.0] for the given IPv4 address.
-  ## Asserts that `ip` is an IPv4 address.
+  ## Returns an IP similarity score in [0.0, 1.0] for the given IP address.
+  ## Supports both IPv4 (32-level tree) and IPv6 (128-level tree).
   ##
-  ## The score counts how many of the 32 prefix nodes along the IP's path have
+  ## The score counts how many of the prefix nodes along the IP's path have
   ## a counter exceeding the expected threshold (root.counter / 2^(depth+1)),
   ## where depth+1 is the tree level of the child node being evaluated.
   ## A high score means many existing IPs share the same subnet — a signal of
   ## Sybil-style clustering.
-  doAssert ip.family == IpAddressFamily.IPv4
-
-  if ipTree.root.counter == 0:
+  let root = ipTree.treeRoot(ip)
+  if root.counter == 0:
     return 0.0
 
-  var v = ipTree.root
+  var v = root
   var score = 0
-  let total = float64(ipTree.root.counter)
-  let bytes = ip.address_v4
+  let total = float64(root.counter)
+  let bytes = ip.ipBytes()
+  let nBits = bytes.len * 8
 
-  for i in 0 ..< 4:
-    let b = bytes[i]
+  var depth = 0
+  for b in bytes:
     for bit in countdown(7, 0):
-      let depth = i * 8 + (7 - bit) # 0 .. 31; child node sits at tree level depth+1
-      let threshold = total / float64(1'u64 shl (depth + 1))
+      let threshold = total / pow(2.0, float64(depth + 1))
 
       v = if (b and (1'u8 shl bit)) == 0: v.left else: v.right
 
       if v.isNil:
-        return (float64(score) / 32.0)
+        return (float64(score) / float64(nBits))
 
       if float64(v.counter) > threshold:
         score += 1
 
-  (float64(score) / 32.0)
+      inc depth
+
+  (float64(score) / float64(nBits))

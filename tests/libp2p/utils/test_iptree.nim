@@ -9,11 +9,12 @@ import ../../tools/unittest
 func ip4(a, b, c, d: uint8): IpAddress =
   IpAddress(family: IpAddressFamily.IPv4, address_v4: [a, b, c, d])
 
-func ip6(): IpAddress =
-  IpAddress(
-    family: IpAddressFamily.IPv6,
-    address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-  )
+func ip6(a, b: uint8, rest: uint8 = 0): IpAddress =
+  var addr_v6 = [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  addr_v6[0] = a
+  addr_v6[1] = b
+  addr_v6[15] = rest
+  IpAddress(family: IpAddressFamily.IPv6, address_v6: addr_v6)
 
 # IP Similarity Score Semantics:
 # - Score range: 0.0 to 1.0
@@ -29,6 +30,9 @@ suite "IpTree":
     check tree.root.counter == 0
     check tree.root.left.isNil
     check tree.root.right.isNil
+    check tree.root6.counter == 0
+    check tree.root6.left.isNil
+    check tree.root6.right.isNil
 
   test "insertIp creates correct tree structure":
     let tree = IpTree.new()
@@ -111,20 +115,83 @@ suite "IpTree":
     tree.removeIp(ip)
     check tree.root.counter == 0
 
-  test "insertIp asserts on IPv6":
+  test "insertIp on IPv6 grows the IPv6 tree, not the IPv4 tree":
     let tree = IpTree.new()
-    expect AssertionDefect:
-      tree.insertIp(ip6())
 
-  test "removeIp asserts on IPv6":
-    let tree = IpTree.new()
-    expect AssertionDefect:
-      tree.removeIp(ip6())
+    # 2001:... = 0010000000000001... → first bit 0 → goes LEFT
+    tree.insertIp(ip6(0x20, 0x01))
+    check tree.root6.counter == 1
+    check not tree.root6.left.isNil
+    check tree.root6.right.isNil
 
-  test "ipScore asserts on IPv6":
+    check tree.root.counter == 0
+    check tree.root.left.isNil
+    check tree.root.right.isNil
+
+  test "removeIp on IPv6 decrements counters correctly":
     let tree = IpTree.new()
-    expect AssertionDefect:
-      discard tree.ipScore(ip6())
+    let ipA = ip6(0x20, 0x01, 1)
+    let ipB = ip6(0xfe, 0x80, 1)
+
+    tree.insertIp(ipA)
+    tree.insertIp(ipA)
+    tree.insertIp(ipB)
+    check tree.root6.counter == 3
+
+    tree.removeIp(ipA)
+    check tree.root6.counter == 2
+
+    tree.removeIp(ipA)
+    tree.removeIp(ipB)
+    check tree.root6.counter == 0
+
+  test "removeIp on IPv6 should not allow counters to go below zero":
+    let tree = IpTree.new()
+    let ip = ip6(0x20, 0x01)
+
+    tree.insertIp(ip)
+    check tree.root6.counter == 1
+
+    tree.removeIp(ip)
+    check tree.root6.counter == 0
+
+    tree.removeIp(ip)
+    check tree.root6.counter == 0
+
+  test "ipScore returns 0.0 for empty IPv6 tree":
+    let tree = IpTree.new()
+    check tree.ipScore(ip6(0x20, 0x01)) == 0.0
+
+  test "ipScore returns high score for exact same IPv6 address":
+    let tree = IpTree.new()
+    let ip = ip6(0x20, 0x01, 1)
+    tree.insertIp(ip)
+    check tree.ipScore(ip) > 0.9
+
+  test "ipScore detects IPv6 prefix similarity":
+    let tree = IpTree.new()
+    tree.insertIp(ip6(0x20, 0x01, 10))
+    check tree.ipScore(ip6(0x20, 0x01, 20)) > 0.7
+
+  test "ipScore returns low score for completely different IPv6 addresses":
+    let tree = IpTree.new()
+    # 0x20 = 00100000, 0xf0 = 11110000 — first bits differ
+    tree.insertIp(ip6(0x20, 0x01, 1))
+    check tree.ipScore(ip6(0xf0, 0x00, 1)) < 0.2
+
+  test "IPv4 and IPv6 trees are tracked independently":
+    let tree = IpTree.new()
+    tree.insertIp(ip4(192, 168, 1, 1))
+    tree.insertIp(ip6(0x20, 0x01, 1))
+
+    check tree.root.counter == 1
+    check tree.root6.counter == 1
+
+    # A never-seen IPv6 address scores 0 even though the (unrelated) IPv4
+    # tree is populated.
+    check tree.ipScore(ip6(0xf0, 0x00, 1)) == 0.0
+    # An IPv6 address matching the one inserted still scores high.
+    check tree.ipScore(ip6(0x20, 0x01, 1)) > 0.9
 
   test "ipScore returns 0.0 for empty tree":
     let tree = IpTree.new()
