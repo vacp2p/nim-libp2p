@@ -128,7 +128,7 @@ suite "Identify":
             Protobuf.encode(IdentifyMsgNoPubKey(protocols: testProtos))
           )
         except LPError as e:
-          trace "failed to write pubkey-less identify", description = e.msg
+          raiseAssert "failed to write pubkey-less identify: " & e.msg
         finally:
           await stream.closeWithEOF()
 
