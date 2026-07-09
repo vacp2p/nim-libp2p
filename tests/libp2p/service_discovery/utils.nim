@@ -95,13 +95,7 @@ proc testKadDHTConfig(): KadDHTConfig =
     cleanupProvidersInterval = 100.millis,
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,
-    # Component tests wire up their own topology explicitly. Without this,
-    # every addService() call (lookup, addProvidedService, accepting an ad)
-    # fires a real, unawaited background FIND_NODE bootstrap (see
-    # onServiceTableCreated in service_discovery.nim) that dials the same
-    # handful of test peers concurrently with the test's own RPCs, which is
-    # a source of flakiness (races on concurrent dials to the same peer).
-    disableBootstrapping = true,
+    disableBootstrapping = true, # component tests wire up their own topology explicitly
   )
 
 proc setupServiceDiscoveryNode*(
