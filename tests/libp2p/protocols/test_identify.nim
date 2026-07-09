@@ -3,8 +3,7 @@
 
 {.used.}
 
-import std/sets
-import chronos, chronicles
+import chronos, chronicles, protobuf_serialization, sets
 import
   ../../../libp2p/[
     protocols/identify,
@@ -21,7 +20,6 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import protobuf_serialization
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 type IdentifyMsgNoPubKey {.proto2.} = object
