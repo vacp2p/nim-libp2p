@@ -177,26 +177,11 @@ jobs:
           if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          if [[ '${{ matrix.config.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
-            # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
-            # space and cannot compile the full test_all in one go. Split the
-            # test corpus into `sliceTotal` translation units; each slice
-            # compiles a deterministic subset of the test files.
-            NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
-            nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
-            nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
-          else
-            nim c $NIMFLAGS ./tests/test_all
-          fi
+          nim c $NIMFLAGS ./tests/test_all
 
       - name: Run tests
         run: |
-          if [[ -f ./tests/test_all_0 && -f ./tests/test_all_1 ]]; then
-            ./tests/test_all_0 --output-level=VERBOSE --console --xml:tests/results_test_all_0.xml
-            ./tests/test_all_1 --output-level=VERBOSE --console --xml:tests/results_test_all_1.xml
-          else
-            ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
-          fi
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
 
       - name: Run integration tests
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}

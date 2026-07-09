@@ -47,6 +47,14 @@ jobs:
             memory_management: refc
           - ref: v2.2.10
             memory_management: orc
+        exclude:
+          - platform:
+              os: linux
+              cpu: i386
+              cc: gcc
+            nim:
+              ref: v2.2.10
+              memory_management: orc
         include:
           - platform:
               os: linux
@@ -180,27 +188,17 @@ jobs:
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi
-          if [[ '${{ matrix.platform.cpu }}' == 'i386' && '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
-            # On i386 (32-bit), the Nim compiler is limited to ~3 GB of address
-            # space and cannot compile the full test_all in one go. Split the
-            # test corpus into `sliceTotal` translation units; each slice
-            # compiles a deterministic subset of the test files.
-            NIMFLAGS="$NIMFLAGS -d:sliceTotal=2"
-            nim c $NIMFLAGS -d:sliceIdx=0 -o:tests/test_all_0 ./tests/test_all
-            nim c $NIMFLAGS -d:sliceIdx=1 -o:tests/test_all_1 ./tests/test_all
-          else
-            nim c $NIMFLAGS ./tests/test_all
-          fi
+          nim c $NIMFLAGS ./tests/test_all
 
       - name: Save build cache
         uses: actions/cache/save@v5
-        if: github.ref_name == 'master'
+        if: github.event_name == 'merge_group'
         with:
           path: nimcache
           key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
 
       - name: Prune old nimcache entries
-        if: github.ref_name == 'master'
+        if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -213,12 +211,7 @@ jobs:
       - name: Run tests
         id: run-tests
         run: |
-          if [[ -f ./tests/test_all_0 && -f ./tests/test_all_1 ]]; then
-            ./tests/test_all_0 --output-level=VERBOSE --console --xml:tests/results_test_all_0.xml
-            ./tests/test_all_1 --output-level=VERBOSE --console --xml:tests/results_test_all_1.xml
-          else
-            ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
-          fi
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
