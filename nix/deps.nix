@@ -10,31 +10,10 @@
     fetchSubmodules = true;
   };
   
-  libbacktrace = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-libbacktrace";
-    rev = "af60500cb0383231065f1d6624beeeefa308d085";
-    sha256 = "0gmdjb04qqj1hpm79apnbdlk150ns2w59ky5g511wzkacyv81ki3";
-    fetchSubmodules = true;
-  };
-
-  unittest2 = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-unittest2.git";
-    rev = "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189";
-    sha256 = "1n8n36kad50m97b64y7bzzknz9n7szffxhp0bqpk3g2v7zpda8sw";
-    fetchSubmodules = true;
-  };
-
   bearssl = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-bearssl";
     rev = "22c6a76ce015bc07e011562bdcfc51d9446c1e82";
     sha256 = "1cvdd7lfrpa6asmc39al3g4py5nqhpqmvypc36r5qyv7p5arc8a3";
-    fetchSubmodules = true;
-  };
-
-  testutils = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-testutils";
-    rev = "6ce5e5e2301ccbc04b09d27ff78741ff4d352b4d";
-    sha256 = "1vbkr6i5yxhc2ai3b7rbglhmyc98f99x874fqdp6a152a6kqgwxy";
     fetchSubmodules = true;
   };
 
