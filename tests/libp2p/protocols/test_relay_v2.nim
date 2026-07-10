@@ -34,6 +34,11 @@ proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   return builder.build()
 
 suite "Circuit Relay V2":
+  test "Relay v1 hop is opt-in":
+    check:
+      Relay.new().codecs == @[RelayV2HopCodec]
+      Relay.new(circuitRelayV1 = true).codecs == @[RelayV1Codec]
+
   suite "Voucher":
     test "Reject signed vouchers with missing required fields":
       let
