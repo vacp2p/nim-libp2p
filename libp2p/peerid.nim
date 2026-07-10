@@ -311,6 +311,9 @@ proc readFieldInto*(
 ): bool {.raises: [SerializationError, IOError].} =
   var data = default(seq[byte])
   if readFieldInto(stream, data, header, pbytes):
+    if data.len == 0:
+      return false
+
     if value.init(data):
       true
     else:

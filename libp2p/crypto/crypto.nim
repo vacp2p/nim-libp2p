@@ -1016,6 +1016,9 @@ proc readFieldInto*(
   var data = default(seq[byte])
 
   if readFieldInto(stream, data, header, pbytes):
+    if data.len == 0:
+      return false
+
     var key = PublicKey()
     if key.init(data):
       value = key
@@ -1051,6 +1054,9 @@ proc readFieldInto*(
   var data = default(seq[byte])
 
   if readFieldInto(stream, data, header, pbytes):
+    if data.len == 0:
+      return false
+
     var sig = Signature()
     if sig.init(data):
       value = sig
