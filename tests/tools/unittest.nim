@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, unittest2, macros
-import ./trackers
+import chronos, unittest2
+import ./unittest_common
 
-export checkTrackers # TODO: maybe consider importing it on demand?
 export unittest2 except suite
+export unittest_common
 
 ## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
 ## See https://github.com/nim-lang/Nim/issues/8500
@@ -43,95 +43,6 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
-
-proc buildAndExpr(n: NimNode): NimNode =
-  # Helper proc to recursively build a combined boolean expression
-
-  if n.kind == nnkStmtList and n.len > 0:
-    var combinedExpr = n[0] # Start with the first expression
-    for i in 1 ..< n.len:
-      # Combine the current expression with the next using 'and'
-      combinedExpr = newCall("and", combinedExpr, n[i])
-    return combinedExpr
-  else:
-    return n
-
-const
-  timeoutDefault: Duration = 30.seconds
-  sleepIntervalDefault: Duration = 50.milliseconds
-
-macro checkUntilTimeoutCustom*(
-    timeout: Duration, sleepInterval: Duration, code: untyped
-): untyped =
-  ## Periodically checks a given condition until it is true or a timeout occurs.
-  ##
-  ## `code`: untyped - A condition expression that should eventually evaluate to true.
-  ## `timeout`: Duration - The maximum duration to wait for the condition to be true.
-  ##
-  ## Examples:
-  ##   ```nim
-  ##   # Example 1:
-  ##   asyncTest "checkUntilTimeoutCustom should pass if the condition is true":
-  ##     let a = 2
-  ##     let b = 2
-  ##     checkUntilTimeoutCustom(2.seconds):
-  ##       a == b
-  ##
-  ##   # Example 2: Multiple conditions
-  ##   asyncTest "checkUntilTimeoutCustom should pass if the conditions are true":
-  ##     let a = 2
-  ##     let b = 2
-  ##     checkUntilTimeoutCustom(5.seconds)::
-  ##       a == b
-  ##       a == 2
-  ##       b == 1
-  ##   ```
-
-  # Build the combined expression
-  let combinedBoolExpr = buildAndExpr(code)
-
-  quote:
-    proc checkExpiringInternal(): Future[void] {.gensym, async.} =
-      let start = Moment.now()
-      while true:
-        if Moment.now() > (start + `timeout`):
-          checkpoint(
-            "[TIMEOUT] Timeout was reached and the conditions were not true. Check if the code is working as " &
-              "expected or consider increasing the timeout param."
-          )
-          check `code`
-          return
-        else:
-          if `combinedBoolExpr`:
-            return
-          else:
-            await sleepAsync(`sleepInterval`)
-
-    await checkExpiringInternal()
-
-macro checkUntilTimeout*(code: untyped): untyped =
-  ## Same as `checkUntilTimeoutCustom` but with a default timeout of 30s with 50ms interval.
-  ##
-  ## Examples:
-  ##   ```nim
-  ##   # Example 1:
-  ##   asyncTest "checkUntilTimeout should pass if the condition is true":
-  ##     let a = 2
-  ##     let b = 2
-  ##     checkUntilTimeout:
-  ##       a == b
-  ##
-  ##   # Example 2: Multiple conditions
-  ##   asyncTest "checkUntilTimeout should pass if the conditions are true":
-  ##     let a = 2
-  ##     let b = 2
-  ##     checkUntilTimeout:
-  ##       a == b
-  ##       a == 2
-  ##       b == 1
-  ##   ```
-  quote:
-    checkUntilTimeoutCustom(timeoutDefault, sleepIntervalDefault, `code`)
 
 template finalCheckTrackers*(): untyped =
   # finalCheckTrackers is a utility used for performing a final tracker check 
