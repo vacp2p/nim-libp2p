@@ -8,7 +8,7 @@
 import std/[sequtils, times, hashes]
 import pkg/results
 import protobuf_serialization, protobuf_serialization/pkg/results
-import multiaddress, multicodec, peerid, signed_envelope, routing_record
+import multiaddress, multicodec, peerid, signed_envelope, routing_record, utils/protobuf
 
 export peerid, multiaddress, signed_envelope, routing_record
 
@@ -32,25 +32,15 @@ type
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
     services* {.fieldNumber: 4.}: seq[ServiceInfo]
 
-proc encode*(xpr: ExtendedPeerRecord): seq[byte] =
-  Protobuf.encode(xpr)
-
-proc decode*(
-    T: typedesc[ExtendedPeerRecord], buf: seq[byte]
-): Result[ExtendedPeerRecord, string] =
-  let xpr =
-    try:
-      Protobuf.decode(buf, ExtendedPeerRecord)
-    except SerializationError as e:
-      return err("failed to decode ExtendedPeerRecord. " & e.msg)
-
+proc validateDecoded(
+    T: typedesc[ExtendedPeerRecord], xpr: ExtendedPeerRecord
+): Result[void, string] =
   if xpr.peerId.len == 0:
-    return err("failed to decode ExtendedPeerRecord. missing peer id")
+    return err("missing peer id")
 
-  xpr.addresses.checkAddresses().isOkOr:
-    return err("failed to decode ExtendedPeerRecord. " & error)
+  xpr.addresses.checkAddresses()
 
-  ok(xpr)
+Protobuf.serializerFor([ExtendedPeerRecord])
 
 proc init*(
     T: typedesc[ExtendedPeerRecord],

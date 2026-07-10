@@ -55,7 +55,8 @@ macro decodeFor*(
 macro serializerFor*(
     _: type Protobuf, Types: untyped, withMetrics: bool = false, domain: string = ""
 ): untyped =
-  ## This generates encode/decode protobuf procs for `Types`
+  ## Generates public protobuf `encode` and `T.decode` helpers.
+  ## Define local `validateDecoded` for checks protobuf cannot express.
   let doMetrics = newLit(withMetrics.eqIdent("true"))
   var stmts = newStmtList()
   for T in Types:
@@ -79,9 +80,23 @@ macro serializerFor*(
         decode(Protobuf, buf2, `T`)
 
       proc decode*(_: type `T`, buf: seq[byte]): Result[`T`, string] =
-        try:
-          ok(`decodeName`(buf))
-        except SerializationError as e:
-          err("failed to decode " & $(`T`) & " from protobuf bytes. " & e.msg)
+        let decoded =
+          try:
+            `decodeName`(buf)
+          except SerializationError as e:
+            return err(
+              "failed to decode " & $(`T`) & " from protobuf bytes. " & e.msg
+            )
+
+        when compiles(`T`.validateDecoded(decoded)):
+          # Let types reject proto3 defaults or other invalid decoded values.
+          let validation = `T`.validateDecoded(decoded)
+          if validation.isErr:
+            return err(
+              "failed to decode " & $(`T`) & " from protobuf bytes. " &
+                validation.error
+            )
+
+        ok(decoded)
 
   stmts
