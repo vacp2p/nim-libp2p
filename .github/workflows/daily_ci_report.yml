@@ -40,7 +40,7 @@ jobs:
           WORKFLOWS = [
               ("Daily Nimbus", "daily_nimbus.yml"),
               ("Daily test all", "daily_test_all.yml"),
-              ("Daily without feature flags", "daily_tests_no_flags.yml"),
+              ("Daily without feature flags", "daily_test_all_no_flags.yml"),
               ("Daily runnable examples", "daily_runnable_examples.yml"),
           ]
 
