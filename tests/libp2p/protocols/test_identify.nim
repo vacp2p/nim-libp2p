@@ -381,11 +381,12 @@ suite "Identify":
       peerStore = PeerStore.new(Identify.new(remoteInfo))
     let identifyFut = peerStore.identify(muxDialer, Direction.Out)
 
+    # Short sleep so a real hang is distinguished from identify still mid-negotiation.
     await sleepAsync(200.milliseconds)
-    let hung = not identifyFut.finished()
+    let isHanging = not identifyFut.finished()
 
-    # Let the listener close so a hung identify gets its EOF and finishes.
+    # Let the listener close so the test finishes cleanly.
     blocker.complete()
     await identifyFut
 
-    check hung
+    check isHanging
