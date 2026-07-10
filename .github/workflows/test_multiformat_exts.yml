@@ -73,8 +73,10 @@ jobs:
         id: deps-cache
         uses: actions/cache@v5
         with:
-          path: nimbledeps
-          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned') }}
+          path: |
+            nimbledeps
+            tests/nimbledeps
+          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
@@ -122,9 +124,10 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
+          cd tests && nimble install_pinned
 
       - name: Build prerequisites
-        run: make nimble.paths nat_libs
+        run: make nimble.paths tests/nimble.paths nat_libs
 
       - name: Build test_multiformat_exts
         id: build-test
