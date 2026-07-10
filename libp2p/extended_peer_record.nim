@@ -10,7 +10,7 @@ import pkg/results
 import protobuf_serialization, protobuf_serialization/pkg/results
 import multiaddress, multicodec, peerid, signed_envelope, routing_record, utils/protobuf
 
-export peerid, multiaddress, signed_envelope
+export peerid, multiaddress, signed_envelope, routing_record
 
 const
   ## Maximum allowed size (in bytes) for the `data` field inside a `ServiceInfo`.
@@ -26,11 +26,19 @@ type
     id* {.fieldNumber: 1, required.}: string
     data* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-  ExtendedPeerRecord* {.proto2.} = object
-    peerId* {.fieldNumber: 1, required, ext.}: PeerId
-    seqNo* {.fieldNumber: 2, required, pint.}: uint64
+  ExtendedPeerRecord* {.proto3.} = object
+    peerId* {.fieldNumber: 1, ext.}: PeerId
+    seqNo* {.fieldNumber: 2, pint.}: uint64
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
     services* {.fieldNumber: 4.}: seq[ServiceInfo]
+
+proc validateDecoded(
+    T: typedesc[ExtendedPeerRecord], xpr: ExtendedPeerRecord
+): Result[void, string] =
+  if xpr.peerId.len == 0:
+    return err("missing peer id")
+
+  xpr.addresses.checkAddresses()
 
 Protobuf.serializerFor([ExtendedPeerRecord])
 
