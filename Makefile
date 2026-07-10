@@ -98,6 +98,7 @@ tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tes
 	    else \
 	      path="$$pkg"; \
 	    fi; \
+	    path="$${path#tests/}"; \
 	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
 	  done; \
 	done

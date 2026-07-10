@@ -52,6 +52,12 @@ template finalCheckTrackers*(): untyped =
 
   unittest2.suite "Final checkTrackers":
     test "test":
+      template checkpoint(msg: string) =
+        unittest2.checkpoint(msg)
+
+      template fail() =
+        unittest2.fail()
+
       # checkTrackers must be executed within a suite or test. otherwise, 
       # its output won't appear on stdout.
       checkTrackers()
