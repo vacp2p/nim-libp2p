@@ -43,12 +43,12 @@ type
     peerInfo* {.fieldNumber: 1.}: Opt[AutonatPeerInfo]
 
   AutonatDialResponse* {.proto2.} = object
-    status* {.fieldNumber: 1, required, ext.}: ResponseStatus
+    status* {.fieldNumber: 1, ext.}: Opt[ResponseStatus]
     text* {.fieldNumber: 2.}: Opt[string]
     ma* {.fieldNumber: 3, ext.}: Opt[MultiAddress]
 
   AutonatMsg* {.proto2.} = object
-    msgType* {.fieldNumber: 1, required, ext.}: MsgType
+    msgType* {.fieldNumber: 1, ext.}: Opt[MsgType]
     dial* {.fieldNumber: 2.}: Opt[AutonatDial]
     response* {.fieldNumber: 3.}: Opt[AutonatDialResponse]
 
