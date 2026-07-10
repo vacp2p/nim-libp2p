@@ -14,7 +14,7 @@
 
 import ffi
 
-import std/tables
+import std/[tables, sequtils]
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
@@ -44,11 +44,37 @@ type LibP2P* = ref object
   topicHandlers: Table[string, TopicHandler]
   customProtocols: Table[string, LPProtocol]
   streams: StreamRegistry
-  stopped: bool ## Guards shutdownSwitch so stop-then-destroy doesn't double-stop.
+  stopped: bool
 
 declareLibrary("libp2p", LibP2P)
 
 include "libp2p_ffi/config"
+
+type PeerInfoResponse {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type PeersResponse {.ffi.} = object
+  peerIds: seq[string]
+
+type ConnectRequest {.ffi.} = object
+  peerId: string
+  multiaddrs: seq[string]
+  timeoutMs: int64
+
+type DialRequest {.ffi.} = object
+  peerId: string
+  proto: string
+  timeoutMs: int64
+
+type DialResponse {.ffi.} = object
+  streamId: uint64
+
+type DialCircuitRelayRequest {.ffi.} = object
+  peerId: string
+  multiaddr: string
+  proto: string
+  timeoutMs: int64
 
 proc register(reg: var StreamRegistry, stream: Stream): uint64 =
   reg.nextStreamId.inc()
@@ -190,7 +216,7 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
     except LPError as e:
       return err("could not create libp2p node: " & e.msg)
 
-  let lib = LibP2P(switch: switch, rng: rng, relayClient: relayClientOpt)
+  let lib = LibP2P(switch: switch, rng: rng, relayClient: relayClientOpt, stopped: true)
 
   ?mountProtocols(lib, cfg)
 
@@ -212,7 +238,7 @@ proc shutdownSwitch(lib: LibP2P) {.async.} =
 
 proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
   if not lib.stopped:
-    return
+    return ok()
   try:
     await lib.switch.start()
   except LPError as e:
@@ -261,5 +287,114 @@ proc libp2pNewDefaultConfig(): CLibp2pConfig {.
     exportc: "libp2p_new_default_config", cdecl, dynlib
 .} =
   CLibp2pConfig()
+
+proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  # Scheme-native serialization, so whatever key the switch was built with
+  # round-trips — not just secp256k1. The default builder uses Ed25519.
+  let rawBytes = peerInfo.publicKey.getRawBytes().valueOr:
+    return err("could not serialize public key: " & $error)
+  ok(rawBytes)
+
+func dialTimeout(timeoutMs: int64): Duration =
+  ## The caller-supplied bound on a single dial. `<= 0` opts out
+  ## (`InfiniteDuration`), deferring to libp2p's own dial timeout — which is
+  ## still capped by the FFI handler backstop (see libp2pConnect).
+  if timeoutMs <= 0:
+    InfiniteDuration
+  else:
+    chronos.milliseconds(timeoutMs)
+
+proc libp2pConnect*(
+    lib: LibP2P, req: ConnectRequest
+): Future[Result[void, string]] {.ffi: "timeout = 30000".} =
+  # The FFI runtime caps every handler at a 5s default; a dial+upgrade can take
+  # up to libp2p's 30s UpgradeTimeout, so raise the backstop to match. The
+  # per-call `req.timeoutMs` bounds the dial itself whenever it is shorter.
+  let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
+    return err(error)
+
+  let peerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+
+  try:
+    await lib.switch.connect(peerId, multiaddresses).wait(dialTimeout(req.timeoutMs))
+  except AsyncTimeoutError:
+    return err("dial timeout")
+  except DialFailedError as e:
+    return err(e.msg)
+
+  ok()
+
+proc libp2pDisconnect*(
+    lib: LibP2P, peerId: string
+): Future[Result[void, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  await lib.switch.disconnect(pid)
+  ok()
+
+proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+  try:
+    ok(PeerInfoResponse(peerId: $peerInfo.peerId, addrs: peerInfo.addrs.mapIt($it)))
+  except LPError as e:
+    err(e.msg)
+
+proc libp2pConnectedPeers*(
+    lib: LibP2P, direction: int
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  let dir =
+    case direction
+    of ord(Direction.In):
+      Direction.In
+    of ord(Direction.Out):
+      Direction.Out
+    else:
+      return err("invalid direction: " & $direction)
+
+  let peers = lib.switch.connectedPeers(dir)
+  ok(PeersResponse(peerIds: peers.mapIt($it)))
+
+proc libp2pDial*(
+    lib: LibP2P, req: DialRequest
+): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
+  # See libp2pConnect: a dial can run to the 30s UpgradeTimeout, so the handler
+  # needs more than the FFI runtime's 5s default or the caller is unblocked with
+  # a spurious timeout while this handler keeps running and leaks the streamId.
+  # `req.timeoutMs` bounds the dial itself.
+  let peerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  let stream =
+    try:
+      await lib.switch.dial(peerId, req.proto).wait(dialTimeout(req.timeoutMs))
+    except AsyncTimeoutError:
+      return err("dial timeout")
+    except DialFailedError as e:
+      return err(e.msg)
+  ok(DialResponse(streamId: lib.streams.register(stream)))
+
+proc libp2pDialCircuitRelay*(
+    lib: LibP2P, req: DialCircuitRelayRequest
+): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
+  let dstPeerId = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  let relayCircuitAddr = MultiAddress.init(req.multiaddr).valueOr:
+    return err($error)
+  let stream =
+    try:
+      await lib.switch.dial(dstPeerId, @[relayCircuitAddr], req.proto).wait(
+        dialTimeout(req.timeoutMs)
+      )
+    except AsyncTimeoutError:
+      return err("dial timeout")
+    except DialFailedError as e:
+      return err(e.msg)
+  ok(DialResponse(streamId: lib.streams.register(stream)))
 
 genBindings()
