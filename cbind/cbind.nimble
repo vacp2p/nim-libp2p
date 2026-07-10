@@ -6,10 +6,20 @@ author = "Status Research & Development GmbH"
 description = "C bindings for LibP2P implementation"
 license = "MIT"
 
-import os, strutils
+import os, strutils, sequtils
 
 # The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
 requires "taskpools >= 0.1.0"
+# ffi/cbor_serialization aren't in the nimble registry, so nimble can't resolve
+# them as `requires`; install_pinned fetches them from .pinned instead.
+
+task install_pinned,
+  "Install cbind's pinned deps (taskpools, cbor_serialization, nim-ffi)":
+  # cbind-scoped lock; kept out of the root .pinned so the Nim 2.2.4 CI job stays green.
+  if not dirExists("nimbledeps"):
+    mkDir("nimbledeps")
+  let deps = readFile(".pinned").splitWhitespace().mapIt(it.split(";", 1)[1])
+  exec "nimble install -y " & deps.join(" ")
 
 proc getLibExt(libType: string): string =
   if libType == "static":
@@ -77,3 +87,43 @@ task examples, "Build and run C bindings examples":
     " -pthread"
   exec "../build/cbindings"
   exec "../build/echo"
+
+# nim-ffi library, built in parallel to the legacy cbind above (see libp2p_ffi.nim).
+# Renamed over libp2p.nim at the flip PR, which drops everything above this line.
+
+proc ffiLibExt(): string =
+  when defined(windows):
+    "dll"
+  elif defined(macosx):
+    "dylib"
+  else:
+    "so"
+
+proc buildFfiLib() =
+  let buildDir = "../build"
+  if not dirExists(buildDir):
+    mkDir(buildDir)
+  # Name the output `lib<name>` so the file matches the soname nim derives from
+  # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
+  # nim-ffi's `declareLibrary` imports.
+  # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
+  # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
+  exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
+    " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
+    " -d:ffiThreadExitTimeoutMs=5000" &
+    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p_ffi.nim"
+
+task buildffi, "Build the FFI shared library":
+  buildFfiLib()
+
+proc genBindingsFor(lang, outDir: string) =
+  exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
+    " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
+    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p_ffi.nim" &
+    " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p_ffi.nim"
+
+task genbindings_c, "Generate C bindings (cbind/c_bindings)":
+  genBindingsFor("c", "c_bindings")
+
+task genbindings_cddl, "Generate CDDL schema (cbind/cddl_bindings)":
+  genBindingsFor("cddl", "cddl_bindings")

@@ -8,7 +8,7 @@ runnableExamples:
   # Passing `nil` for `identify` is only safe for simple peer-book usage like
   # this example. APIs that rely on identify metadata require a real
   # `Identify` instance when constructing the `PeerStore`.
-  import libp2p/peerid
+  import libp2p/[peerid, crypto/crypto]
 
   let ps = PeerStore.new(nil, capacity = 50)
 
