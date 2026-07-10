@@ -7,24 +7,11 @@ import std/os
 import std/strutils
 import std/sequtils
 
-# Split the test corpus across `sliceTotal` translation units; each invocation
-# of test_all.nim compiles only the files whose sorted index is `sliceIdx` mod
-# `sliceTotal`. On 32-bit targets the Nim compiler is itself a 32-bit process
-# and is capped at ~3 GB of address space, which the unsharded TU overran on
-# orc. Slicing keeps each compile under that ceiling and is a no-op when
-# sliceTotal == 1.
-const sliceTotal* {.intdefine.}: int = 1
-const sliceIdx* {.intdefine.}: int = 0
-static:
-  doAssert sliceTotal >= 1, "sliceTotal must be >= 1"
-  doAssert sliceIdx >= 0 and sliceIdx < sliceTotal,
-    "sliceIdx must be in [0, sliceTotal)"
-
 proc printImportSummary(importedFiles: seq[string], baseDir: string) =
   ## Prints a summary of imported test files at compile time
   echo "\n"
   echo "=================================="
-  echo "Dynamic test import (slice ", sliceIdx, "/", sliceTotal, ")"
+  echo "Dynamic test import"
   echo "Imported ", importedFiles.len, " files."
   echo ""
   for file in importedFiles:
@@ -65,8 +52,7 @@ macro importTests*(
     if isTestFile and not isIgnored and isMatched:
       matchingFiles.add(file)
 
-  # Deterministic order so a given (sliceIdx, sliceTotal) always selects the
-  # same set across runs and platforms.
+  # Deterministic order keeps the generated imports stable across runs and platforms.
   sort(
     matchingFiles,
     proc(a, b: string): int =
@@ -74,10 +60,9 @@ macro importTests*(
   )
 
   var importedFiles: seq[string] = @[]
-  for i, file in matchingFiles:
-    if i mod sliceTotal == sliceIdx:
-      imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
-      importedFiles.add(file)
+  for file in matchingFiles:
+    imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
+    importedFiles.add(file)
 
   printImportSummary(importedFiles, dir)
 
