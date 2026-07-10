@@ -174,15 +174,15 @@ proc identify*(
 
   debug "identify: info received", stream, identifyMsg
 
-  let
-    pubkey = identifyMsg.publicKey.valueOr:
-      raise newException(IdentityInvalidMsgError, "No pubkey in identify")
+  var peer: PeerId
+  identifyMsg.publicKey.withValue(pubkey):
     peer = PeerId.init(pubkey).valueOr:
       raise newException(IdentityInvalidMsgError, $error)
-
-  if peer != remotePeerId:
-    trace "Peer ids don't match", remote = peer, local = remotePeerId
-    raise newException(IdentityNoMatchError, "Peer ids don't match")
+    if peer != remotePeerId:
+      trace "Peer ids don't match", remote = peer, local = remotePeerId
+      raise newException(IdentityNoMatchError, "Peer ids don't match")
+  else:
+    peer = remotePeerId
 
   identifyMsg.observedAddr.withValue(observed):
     # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
