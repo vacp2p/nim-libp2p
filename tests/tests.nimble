@@ -8,7 +8,7 @@ license = "MIT"
 
 import os, sequtils, strutils
 
-requires "libbacktrace", "unittest2",
+requires "libbacktrace", "unittest2", "chronicles",
   "chronos#ebc2d239ba49d175726db5d06b1555ae25b213a1",
   "https://github.com/vladopajic/nim-unittest3#dea5bdb8cef80846726b80348e86249c385b8786"
 
