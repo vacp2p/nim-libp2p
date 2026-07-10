@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[sequtils, net], stew/byteutils
-import protobuf_serialization
+import protobuf_serialization, protobuf_serialization/pkg/results
 import ../../../libp2p/[multicodec, multiaddress, peerid, protobuf/minprotobuf]
 import ../../tools/[unittest, multiaddress]
 
@@ -19,6 +19,7 @@ type
   Serializable {.proto2.} = object
     ma {.fieldNumber: 1, required, ext.}: MultiAddress
     addrs {.fieldNumber: 2, ext.}: seq[MultiAddress]
+    observedAddr {.fieldNumber: 4, ext.}: Opt[MultiAddress]
 
 const
   SuccessVectors = [
@@ -254,7 +255,7 @@ suite "Protobuf serialization of types containing MultiAddress":
       serializable = Serializable(ma: MultiAddress(), addrs: @[])
       encoded = Protobuf.encode(serializable)
 
-    expect ProtobufValueError:
+    expect ProtobufReadError:
       discard Protobuf.decode(encoded, Serializable)
 
   test "decode should skip invalid multiaddresses":
@@ -268,6 +269,19 @@ suite "Protobuf serialization of types containing MultiAddress":
 
     check decoded.ma == serializable.ma
     check decoded.addrs[0] == serializable.addrs[1]
+
+  test "decode should treat an empty optional multiaddress as none":
+    let
+      # An empty multiaddress encodes as a present but zero-length field 4.
+      base = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        observedAddr: Opt.some(MultiAddress()),
+      )
+      encoded = Protobuf.encode(base)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded.observedAddr.isNone
+    check decoded.ma == base.ma
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":

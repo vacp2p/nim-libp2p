@@ -121,7 +121,8 @@ suite "Yamux":
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
 
-      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await wait(streamA.write(newSeq[byte](YamuxDefaultWindowSize)), 1.seconds)
+        # shouldn't block
 
       let secondWriter = streamA.write(newSeq[byte](20))
       await sleepAsync(10.milliseconds)
@@ -149,7 +150,8 @@ suite "Yamux":
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
 
-      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await wait(streamA.write(newSeq[byte](YamuxDefaultWindowSize)), 1.seconds)
+        # shouldn't block
 
       let secondWriter = streamA.write(newSeq[byte](20))
       await sleepAsync(10.milliseconds)
@@ -185,8 +187,8 @@ suite "Yamux":
       yamuxb.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
         YamuxChannel(stream).setMaxRecvWindow(newWindow)
         try:
-          var buffer: array[256000, byte]
-          while (await stream.readOnce(addr buffer[0], 256000)) > 0:
+          var buffer: array[YamuxDefaultWindowSize, byte]
+          while (await stream.readOnce(addr buffer[0], YamuxDefaultWindowSize)) > 0:
             numberOfRead.inc()
           writerBlocker.complete()
         except CancelledError, LPStreamError:
@@ -198,7 +200,8 @@ suite "Yamux":
       check streamA == yamuxa.getStreams()[0]
 
       # Need to exhaust initial window first
-      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await wait(streamA.write(newSeq[byte](YamuxDefaultWindowSize)), 1.seconds)
+        # shouldn't block
       const extraBytes = 160
       await streamA.write(newSeq[byte](extraBytes))
       await streamA.close()
@@ -225,7 +228,7 @@ suite "Yamux":
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
 
-      await streamA.write(newSeq[byte](256000))
+      await streamA.write(newSeq[byte](YamuxDefaultWindowSize))
       let wrFut = collect(newSeq):
         for _ in 0 .. 3:
           streamA.write(newSeq[byte](100000))
@@ -270,9 +273,9 @@ suite "Yamux":
       yamuxb.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
         try:
           await readerBlocker1
-          var buffer: array[256000, byte]
-          # For the first roundtrip, the send window size is assumed to be 256k
-          discard await stream.readOnce(addr buffer[0], 256000)
+          var buffer: array[YamuxDefaultWindowSize, byte]
+          # For the first roundtrip, the default send window size is assumed.
+          discard await stream.readOnce(addr buffer[0], YamuxDefaultWindowSize)
           await readerBlocker2
           discard await stream.readOnce(addr buffer[0], 40000)
         except CancelledError, LPStreamError:
@@ -283,7 +286,8 @@ suite "Yamux":
       let streamA = await yamuxa.newStream()
       check streamA == yamuxa.getStreams()[0]
 
-      await wait(streamA.write(newSeq[byte](256000)), 1.seconds) # shouldn't block
+      await wait(streamA.write(newSeq[byte](YamuxDefaultWindowSize)), 1.seconds)
+        # shouldn't block
 
       let secondWriter = streamA.write(newSeq[byte](64000))
       await sleepAsync(10.milliseconds)

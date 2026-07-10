@@ -1,17 +1,4 @@
-# test_all is compiled in `TEST_ALL_SLICES` translation units. Each slice
-# imports a deterministic 1/N subset of the test files (see tests/imports.nim).
-# On 32-bit targets the Nim compiler is itself a 32-bit process capped at ~3 GB
-# of address space; the unsharded TU overran that on orc. Two slices halve the
-# memory footprint enough to fit, and the overhead is small on 64-bit targets.
-# Number of test binaries to compile and run concurrently; 1 keeps `make test`
-# serial. CI raises it, using fewer lanes on 32-bit to stay under the ~3 GB cap.
-TEST_JOBS ?= 1
-
-TEST_ALL_SLICES ?= 2
-TEST_ALL_SLICE_IDS := $(shell seq 0 $$(( $(TEST_ALL_SLICES) - 1 )))
-TEST_ALL_SLICE_TARGETS := $(addprefix _test_all_slice_,$(TEST_ALL_SLICE_IDS))
-
-.PHONY: all build deps cbind clean test _run_all_tests $(TEST_ALL_SLICE_TARGETS) \
+.PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
         install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
 
@@ -60,7 +47,13 @@ nimble.lock:
 nix/deps.nix: nimble.lock
 	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
-deps: nix/deps.nix
+tests/nimble.lock: tests/tests.nimble
+	cd tests && nimble lock
+
+nix/tests-deps.nix: tests/nimble.lock
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix
+
+deps: nix/deps.nix nix/tests-deps.nix
 
 build: deps
 	nix build
@@ -69,7 +62,7 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock nix/deps.nix nimble.paths
+	$(RM) nimble.lock tests/nimble.lock nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
 # Generate nimble.paths so config.nims can include it.
@@ -78,6 +71,23 @@ clean:
 nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
 	@rm -f $@
 	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
+	  [ -d "$$pkgdir" ] || continue; \
+	  for f in "$$pkgdir"/*/*.nimble; do \
+	    [ -f "$$f" ] || continue; \
+	    pkg=$$(dirname "$$f"); \
+	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
+	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
+	      path="$$pkg/$$src"; \
+	    else \
+	      path="$$pkg"; \
+	    fi; \
+	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
+	  done; \
+	done
+
+tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tests/nimbledeps/pkgs/*/*.nimble)
+	@rm -f $@
+	@for pkgdir in tests/nimbledeps/pkgs2 tests/nimbledeps/pkgs; do \
 	  [ -d "$$pkgdir" ] || continue; \
 	  for f in "$$pkgdir"/*/*.nimble; do \
 	    [ -f "$$f" ] || continue; \
@@ -141,9 +151,13 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
 	touch "$@"
 
-test: nimble.paths nat_libs
+test: nimble.paths tests/nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
-	$(MAKE) -j$(TEST_JOBS) _run_all_tests
+	$(NIMC) c $(NIM_FLAGS) \
+	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+	$(MAKE) test_multiformat_exts
 else
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -152,19 +166,7 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-_run_all_tests: $(TEST_ALL_SLICE_TARGETS) test_multiformat_exts
-
-# Per-target nimcache, always: concurrent compiles must not share one.
-$(TEST_ALL_SLICE_TARGETS): _test_all_slice_%: nimble.paths nat_libs
-	$(NIMC) c $(NIM_FLAGS) \
-	  --nimcache:nimcache/test_all_$* \
-	  -d:sliceTotal=$(TEST_ALL_SLICES) \
-	  -d:sliceIdx=$* \
-	  -o:tests/test_all_$* \
-	  tests/test_all.nim
-	./tests/test_all_$* $(RUNNER_FLAGS) --xml:tests/results_test_all_$*.xml
-
-test_multiformat_exts: nimble.paths nat_libs
+test_multiformat_exts: nimble.paths tests/nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  --nimcache:nimcache/test_all_multiformat \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
@@ -176,7 +178,7 @@ test_multiformat_exts: nimble.paths nat_libs
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
 
-test_integration: nimble.paths nat_libs
+test_integration: nimble.paths tests/nimble.paths nat_libs
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/integration,) \
 	  tests/integration/test_all.nim
@@ -184,6 +186,7 @@ test_integration: nimble.paths nat_libs
 
 install_pinned:
 	nimble install_pinned
+	cd tests && nimble install_pinned
 
 pin:
 	nimble pin
@@ -195,8 +198,9 @@ gen_multicodec:
 	nimble gen_multicodec
 
 format:
-	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
+	find . -name '*.nim' -not -path './nimbledeps/*' -not -path './tests/nimbledeps/*' | xargs nph
 
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
-	rm nimble.locks nimble.paths 2>/dev/null || true
+	[ ! -d tests/nimbledeps ] || rm -rf tests/nimbledeps
+	rm nimble.locks nimble.paths tests/nimble.paths 2>/dev/null || true
