@@ -93,8 +93,7 @@ macro serializerFor*(
           let validation = `T`.validateDecoded(decoded)
           if validation.isErr:
             return err(
-              "failed to decode " & $(`T`) & " from protobuf bytes. " &
-                validation.error
+              "failed to decode " & $(`T`) & " from protobuf bytes. " & validation.error
             )
 
         ok(decoded)
