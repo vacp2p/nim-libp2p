@@ -8,10 +8,10 @@ license = "MIT"
 skipDirs = @["cbind", "examples", "interop", "simulation", "tests", "tools"]
 
 requires "nim >= 2.2.4",
-  "libbacktrace", "nimcrypto >= 0.6.0", "bearssl >= 0.2.7",
+  "nimcrypto >= 0.6.0", "bearssl >= 0.2.7",
   "https://github.com/vacp2p/nim-boringssl >= 0.0.8", "chronicles >= 0.11.0",
-  "chronos >= 4.2.2", "metrics >= 0.2.2", "secp256k1", "stew >= 0.4.2", "unittest2",
-  "results", "serialization", "lsquic >= 0.5.4", "protobuf_serialization >= 0.5.3",
+  "chronos >= 4.2.2", "metrics >= 0.2.2", "secp256k1", "stew >= 0.4.2", "results",
+  "serialization", "lsquic >= 0.5.4", "protobuf_serialization >= 0.5.3",
   "https://github.com/status-im/nim-websock >= 0.4.0",
   "https://github.com/status-im/nim-nat-traversal >= 0.0.1"
 

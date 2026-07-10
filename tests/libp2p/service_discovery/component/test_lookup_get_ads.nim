@@ -97,7 +97,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     check found.get().len == 0
 
   asyncTest "lookup stops querying once F_lookup ads are found":
-    # fLookup small so one GET_ADS response fits under MaxMsgSize=4096.
+    # fLookup small so one GET_ADS response fits under ServiceDiscoveryMaxMsgSize.
     const fLookup = 8
     let conf = ServiceDiscoveryConfig.new(
       safetyParam = 0.0, fLookup = fLookup, fReturn = fLookup

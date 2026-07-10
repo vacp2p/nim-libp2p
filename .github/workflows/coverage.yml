@@ -38,15 +38,24 @@ jobs:
         id: deps-cache
         uses: actions/cache@v5
         with:
-          path: nimbledeps
+          path: |
+            nimbledeps
+            tests/nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
+          cd tests && nimble install_pinned
+
+      - name: Build prerequisites
+        run: make nimble.paths tests/nimble.paths nat_libs
+
+      - name: Build prerequisites
+        run: make nimble.paths nat_libs
 
       - name: Restore build cache
         uses: actions/cache@v5
