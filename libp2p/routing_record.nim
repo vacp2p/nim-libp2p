@@ -8,19 +8,32 @@
 import std/[sequtils, times]
 import pkg/results
 import multiaddress, multicodec, peerid, signed_envelope
-import protobuf_serialization
-import utils/protobuf
+import protobuf_serialization, utils/protobuf
 
 export peerid, multiaddress, signed_envelope
 
 type
-  AddressInfo* {.proto2.} = object
-    address* {.fieldNumber: 1, required, ext.}: MultiAddress
+  AddressInfo* {.proto3.} = object
+    address* {.fieldNumber: 1, ext.}: MultiAddress
 
-  PeerRecord* {.proto2.} = object
-    peerId* {.fieldNumber: 1, required, ext.}: PeerId
-    seqNo* {.fieldNumber: 2, required, pint.}: uint64
+  PeerRecord* {.proto3.} = object
+    peerId* {.fieldNumber: 1, ext.}: PeerId
+    seqNo* {.fieldNumber: 2, pint.}: uint64
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
+
+proc checkAddresses*(addresses: seq[AddressInfo]): Result[void, string] =
+  for ai in addresses:
+    if ai.address.data.buffer.len == 0 or not ai.address.validate():
+      return err("invalid address")
+  ok()
+
+proc validateDecoded(
+    T: typedesc[PeerRecord], record: PeerRecord
+): Result[void, string] =
+  if record.peerId.len == 0:
+    return err("missing peer id")
+
+  record.addresses.checkAddresses()
 
 Protobuf.serializerFor([PeerRecord])
 

@@ -30,10 +30,10 @@ proc sendResponseError(
     stream: Stream, status: ResponseStatus, text: string = ""
 ) {.async: (raises: [CancelledError]).} =
   let pb = AutonatMsg(
-    msgType: MsgType.DialResponse,
+    msgType: Opt.some(MsgType.DialResponse),
     response: Opt.some(
       AutonatDialResponse(
-        status: status,
+        status: Opt.some(status),
         text:
           if text == "":
             Opt.none(string)
@@ -52,10 +52,10 @@ proc sendResponseOk(
     stream: Stream, ma: MultiAddress
 ) {.async: (raises: [CancelledError]).} =
   let pb = AutonatMsg(
-    msgType: MsgType.DialResponse,
+    msgType: Opt.some(MsgType.DialResponse),
     response: Opt.some(
       AutonatDialResponse(
-        status: ResponseStatus.Ok, text: Opt.some("Ok"), ma: Opt.some(ma)
+        status: Opt.some(ResponseStatus.Ok), text: Opt.some("Ok"), ma: Opt.some(ma)
       )
     ),
   ).encode()
@@ -168,7 +168,7 @@ proc new*(
     try:
       let msg = AutonatMsg.decode(await stream.readLp(1024)).valueOr:
         raise newException(AutonatError, error)
-      if msg.msgType != MsgType.Dial:
+      if msg.msgType.get(MsgType.Dial) != MsgType.Dial:
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(stream, msg)
     except CancelledError as exc:
