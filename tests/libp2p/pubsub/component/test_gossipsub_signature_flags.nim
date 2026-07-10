@@ -13,7 +13,7 @@ suite "GossipSub Component - Signature Flags":
     topic = "foobar"
     testData = "test message".toBytes()
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":

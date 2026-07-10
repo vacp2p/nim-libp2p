@@ -12,7 +12,8 @@ import ../tools/[unittest3, multiaddress, switch_builder, lifecycle, topology]
 import ./kademlia/utils
 
 suite "PeerStore Address TTL - Component":
-  # Tracker checks are disabled for this unittest3 migration.
+  # teardown: # disabled as it can be flaky with concurrent tests
+  #   checkTrackers()
 
   asyncTest "identify stores peer addresses at Medium confidence":
     let

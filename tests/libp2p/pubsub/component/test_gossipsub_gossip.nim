@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Gossip Protocol":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":

@@ -59,7 +59,7 @@ proc message(n: byte): seq[byte] =
 suite "GossipSub Component - Priority Queues":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "High-priority queue overflow disconnects the peer":

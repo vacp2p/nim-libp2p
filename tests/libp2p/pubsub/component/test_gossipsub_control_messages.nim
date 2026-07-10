@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Control Messages":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "GRAFT messages correctly add peers to mesh":

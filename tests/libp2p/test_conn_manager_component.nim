@@ -45,7 +45,8 @@ proc peerCount(s: Switch): int =
   s.connManager.getConnections().len
 
 suite "Connection Manager Watermark/Scoring Component":
-  # Tracker checks are disabled for this unittest3 migration.
+  # teardown: # disabled as it can be flaky with concurrent tests
+  #   checkTrackers()
 
   asyncTest "watermark trims node down to lowWater":
     # peers[0] is the oldest peer, the first to be trimmed.

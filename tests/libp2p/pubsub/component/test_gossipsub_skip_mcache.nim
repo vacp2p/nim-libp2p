@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Skip MCache Support":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "publish with skipMCache prevents message from being added to mcache":

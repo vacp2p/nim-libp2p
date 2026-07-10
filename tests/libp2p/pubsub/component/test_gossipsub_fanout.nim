@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Fanout Management":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "GossipSub send over fanout A -> B":

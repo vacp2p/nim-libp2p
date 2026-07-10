@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Compatibility":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Protocol negotiation selects highest common version":

@@ -13,7 +13,7 @@ import ../utils
 suite "GossipSub Component - Message Cache":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Received messages are added to the message cache":

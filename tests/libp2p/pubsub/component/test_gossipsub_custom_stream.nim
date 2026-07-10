@@ -21,7 +21,7 @@ method write*(
 suite "GossipSub Component - Custom Stream Support":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "publish with useCustomStream triggers custom stream and peer selection":

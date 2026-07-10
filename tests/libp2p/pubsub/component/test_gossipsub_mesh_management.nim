@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Mesh Management":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":

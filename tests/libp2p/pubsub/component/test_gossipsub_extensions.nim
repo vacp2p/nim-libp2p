@@ -23,7 +23,7 @@ import ../utils
 # should be added to test files of respective extensions.
 
 suite "GossipSub Component - Extensions":
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Test Extension":

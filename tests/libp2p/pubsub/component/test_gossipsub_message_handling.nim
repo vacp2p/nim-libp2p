@@ -76,7 +76,7 @@ proc createMessages(
 suite "GossipSub Component - Message Handling":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":

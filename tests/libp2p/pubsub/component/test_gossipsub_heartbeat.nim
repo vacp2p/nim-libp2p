@@ -11,7 +11,7 @@ import ../utils
 suite "GossipSub Component - Heartbeat":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":

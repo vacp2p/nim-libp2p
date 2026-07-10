@@ -14,7 +14,7 @@ import ../utils
 suite "GossipSub Component - Scoring":
   const topic = "foobar"
 
-  # teardown:
+  # teardown: disabled as it can be flaky with concurrent tests
   #   checkTrackers()
 
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
