@@ -20,10 +20,14 @@ type RegistrationResponse* = object
   ticket*: Opt[Ticket]
   closerPeers*: seq[PeerInfo]
 
-proc clear*(a: Advertiser) =
-  for task in a.running:
-    task.fut.cancelSoon()
-  a.running.clear()
+proc clear*(a: Advertiser) {.async: (raises: []).} =
+  var running = move a.running
+  var runningFuts: seq[Future[void]]
+  for task in running:
+    runningFuts.add(task.fut)
+
+  await runningFuts.cancelAndWait()
+
   a.providedAdverts = initTable[ServiceId, seq[byte]]()
   cd_advertiser_pending_actions.set(0)
 
