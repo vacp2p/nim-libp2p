@@ -18,14 +18,16 @@ jobs:
     name: 'Compile Nimbus (linux-amd64)'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
       - name: Compile nimbus using nim-libp2p
+        env:
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           git clone --branch unstable --single-branch https://github.com/status-im/nimbus-eth2.git
           cd nimbus-eth2
-          git submodule set-branch --branch ${{ github.sha }} vendor/nim-libp2p
+          git submodule update --init --recursive
+          cd vendor/nim-libp2p
+          git fetch https://github.com/vacp2p/nim-libp2p.git "$GITHUB_SHA"
+          git checkout FETCH_HEAD
+          cd ../..
 
-          make -j"$(nproc)"
           make -j"$(nproc)" nimbus_beacon_node
