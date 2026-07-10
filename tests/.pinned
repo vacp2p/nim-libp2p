@@ -1,2 +1,4 @@
 unittest2;https://github.com/status-im/nim-unittest2@#26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189
 libbacktrace;https://github.com/status-im/nim-libbacktrace@#af60500cb0383231065f1d6624beeeefa308d085
+chronos;https://github.com/status-im/nim-chronos@#ebc2d239ba49d175726db5d06b1555ae25b213a1
+unittest3;https://github.com/vladopajic/nim-unittest3@#dea5bdb8cef80846726b80348e86249c385b8786
