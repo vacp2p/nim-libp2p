@@ -87,7 +87,7 @@ jobs:
         shell: bash
 
     name: "Build FFI library (nim-ffi)"
-    runs-on: macos-15 # fastest to compile and run; see daily_tests_no_flags.yml
+    runs-on: macos-15 # fastest to compile and run; see daily_test_all_no_flags.yml
     steps:
       - name: Checkout
         uses: actions/checkout@v6
