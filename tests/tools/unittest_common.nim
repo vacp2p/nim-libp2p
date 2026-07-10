@@ -18,8 +18,17 @@ template checkTracker*(name: string) =
     fail()
 
 template checkTrackers*() =
+  mixin checkpoint, fail
+
   for name in AllTrackerNames:
-    checkTracker(name)
+    if isCounterLeaked(name):
+      let
+        tracker = getTrackerCounter(name)
+        trackerDescription =
+          "Opened " & name & ": " & $tracker.opened & "\n" & "Closed " & name & ": " &
+          $tracker.closed
+      checkpoint trackerDescription
+      fail()
   # Also test the GC is not fooling with us
   when defined(nimHasWarnBareExcept):
     {.push warning[BareExcept]: off.}
