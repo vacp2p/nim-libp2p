@@ -9,7 +9,7 @@ assignees: ''
 ---
 
 ### Problem
-A clear and concise description of what the bug is.
+A clear and concise description of what the bug is. Include any relevant context, screenshots, logs, or links that help explain the problem.
 
 ### Impact
 Indicate how significant you believe the impact of the bug is.
@@ -23,9 +23,3 @@ If you can reproduce the behavior, steps to reproduce:
 
 ### Expected behavior
 A clear and concise description of what you expected to happen.
-
-### Screenshots/logs
-If applicable, add screenshots or logs to help explain your problem.
-
-### Additional context
-Add any other context about the problem here.
