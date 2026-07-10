@@ -171,6 +171,8 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
 
+  # stops the advertiser maintenance loop before draining advertiser tasks, 
+  # so shutdown cannot spawn new registration work while cleanup is running
   if not disco.advertiserMaintenanceLoop.isNil():
     await disco.advertiserMaintenanceLoop.cancelAndWait()
     disco.advertiserMaintenanceLoop = nil
