@@ -38,8 +38,9 @@ proc accept*(self: MemoryListener): Future[RawConn] {.gcsafe, raises: [].} =
   return self.accept
 
 proc dial*(self: MemoryListener): Future[RawConn] {.gcsafe, raises: [].} =
-  let (connA, connB) =
-    bridgedConnections(dirA = Direction.In, dirB = Direction.Out, serializeWrites = true)
+  let (connA, connB) = bridgedConnections(
+    dirA = Direction.In, dirB = Direction.Out, serializeWrites = true
+  )
 
   self.onListenerEnd(self.address)
   self.accept.complete(connA)
