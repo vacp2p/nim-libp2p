@@ -84,9 +84,7 @@ macro serializerFor*(
           try:
             `decodeName`(buf)
           except SerializationError as e:
-            return err(
-              "failed to decode " & $(`T`) & " from protobuf bytes. " & e.msg
-            )
+            return err("failed to decode " & $(`T`) & " from protobuf bytes. " & e.msg)
 
         when compiles(`T`.validateDecoded(decoded)):
           # Let types reject proto3 defaults or other invalid decoded values.
