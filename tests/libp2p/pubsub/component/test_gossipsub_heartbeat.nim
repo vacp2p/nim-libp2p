@@ -177,7 +177,7 @@ suite "GossipSub Component - Heartbeat":
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
 
     # Before publishing messages, wait for Node0's next heartbeat so publishing
-    # happens right after a heartbeat and the asyncTest has a full interval.
+    # happens right after a heartbeat and the test has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
@@ -213,7 +213,7 @@ suite "GossipSub Component - Heartbeat":
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
 
     # Before publishing messages, wait for Node0's next heartbeat so publishing
-    # happens right after a heartbeat and the asyncTest has a full interval.
+    # happens right after a heartbeat and the test has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
