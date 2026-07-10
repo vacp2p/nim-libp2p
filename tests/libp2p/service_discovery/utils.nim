@@ -95,6 +95,7 @@ proc testKadDHTConfig(): KadDHTConfig =
     cleanupProvidersInterval = 100.millis,
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,
+    disableBootstrapping = true, # component tests wire up their own topology explicitly
   )
 
 proc setupServiceDiscoveryNode*(
