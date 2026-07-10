@@ -1,6 +1,6 @@
 import chronos, macros
-import pkg/unittest3 except `await`
-export unittest3 except `await`
+import pkg/unittest3
+export unittest3
 from ./trackers import AllTrackerNames
 
 template checkTracker*(name: string) =
@@ -92,9 +92,9 @@ macro untilTimeout*(args: untyped): untyped =
           if `combinedBoolExpr`:
             return
           else:
-            chronos.await(sleepAsync(`sleepIntervalDefault`))
+            await sleepAsync(`sleepIntervalDefault`)
 
-    chronos.await(checkExpiringInternal())
+    await checkExpiringInternal()
 
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped
@@ -141,9 +141,9 @@ macro checkUntilTimeoutCustom*(
           if `combinedBoolExpr`:
             return
           else:
-            chronos.await(sleepAsync(`sleepInterval`))
+            await sleepAsync(`sleepInterval`)
 
-    chronos.await(checkExpiringInternal())
+    await checkExpiringInternal()
 
 macro checkUntilTimeout*(code: untyped): untyped =
   ## Same as `checkUntilTimeoutCustom` but with a default timeout of 30s with 50ms interval.
