@@ -484,11 +484,11 @@ nimble examples      # Build and run C examples
 | Workflow | Description |
 |----------|-------------|
 | `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.2.4 & v2.2.10 |
-| `daily_test_all.yml` | Extended daily tests |
+| `daily_test_all_latest_deps.yml` | Daily tests that run using latests dependencies |
+| `daily_test_all_no_flags.yml` | Tests without experimental flags |
 | `daily_ci_report.yml` | Daily CI failure reporting: opens/updates GitHub issues for failed daily CI runs |
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
 | `daily_runnable_examples.yml` | Daily runnable examples checks |
-| `daily_tests_no_flags.yml` | Tests without experimental flags |
 | `cbindings.yml` | C bindings compilation and tests |
 | `coverage.yml` | Code coverage (uploads to codecov) |
 | `linters.yml` | nph formatting checks |
