@@ -145,13 +145,15 @@ reports a 3-way interop test between TypeScript (ChainSafe/js-libp2p-noise PR
 
 This nim-libp2p implementation has been verified standalone (KEM round-trip,
 implicit-rejection behavior, and a full two-node TCP handshake with peer
-authentication - see `tests/libp2p/protocols/test_noisehfs.nim`), but has
-**not yet** been live-tested against those other implementations. While
-preparing this, the locally available `py-libp2p` PQC branch
-(`feat/pqc-noise-xxhfs`) turned out to still implement the earlier X-Wing
-composite KEM design (`Noise_XXhfs_25519+XWing_ChaChaPoly_SHA256`, protocol
-id `/noise-pq/1.0.0`) rather than the raw-ML-KEM-768 profile the published
-paper describes, so a live run against it would not be a meaningful
-wire-compatibility check. Live interop against implementations confirmed to
-be on the raw-ML-KEM-768 revision is the recommended next step before this
-protocol identifier is considered stable.
+authentication - see `tests/libp2p/protocols/test_noisehfs.nim`), and, as of
+2026-07-11, **live cross-language interop against py-libp2p is confirmed**:
+`interop/noise-pq/interop_dial.nim` against py-libp2p's
+`scripts/interop_listen_mlkem768.py` (`feat/pqc-noise-xxhfs` branch, updated
+to the raw ML-KEM-768 revision) completed the full three-message handshake
+and mutual peer authentication with no changes needed to either
+implementation's wire format. Details and the exact run output are in
+`interop/noise-pq/README.md`.
+
+Rust (royzah/rust-libp2p PR #1) and JavaScript (ChainSafe/js-libp2p-noise PR
+#665) interop have not been run yet - the same `interop/noise-pq/` scripts
+should work against them once those toolchains are available.
