@@ -159,11 +159,11 @@ window.addEventListener("DOMContentLoaded", main2);
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#AddressInfo" title="AddressInfo {.proto2.} = object
-  address* {.fieldNumber: 1, required, ext.}: MultiAddress">AddressInfo</a></li>
-<li><a class="reference" href="#PeerRecord" title="PeerRecord {.proto2.} = object
-  peerId* {.fieldNumber: 1, required, ext.}: PeerId
-  seqNo* {.fieldNumber: 2, required, pint.}: uint64
+      <li><a class="reference" href="#AddressInfo" title="AddressInfo {.proto3.} = object
+  address* {.fieldNumber: 1, ext.}: MultiAddress">AddressInfo</a></li>
+<li><a class="reference" href="#PeerRecord" title="PeerRecord {.proto3.} = object
+  peerId* {.fieldNumber: 1, ext.}: PeerId
+  seqNo* {.fieldNumber: 2, pint.}: uint64
   addresses* {.fieldNumber: 3.}: seq[AddressInfo]">PeerRecord</a></li>
 <li><a class="reference" href="#SignedPeerRecord" title="SignedPeerRecord = SignedPayload[PeerRecord]">SignedPeerRecord</a></li>
 
@@ -174,16 +174,20 @@ window.addEventListener("DOMContentLoaded", main2);
   <details open>
     <summary><a class="reference reference-toplevel" href="#12" id="62">Procs</a></summary>
     <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">checkValid
+      <ul class="simple nested-toc-section">checkAddresses
+  <li><a class="reference" href="#checkAddresses%2Cseq%5BAddressInfo%5D" title="checkAddresses(addresses: seq[AddressInfo]): Result[void, string]">checkAddresses(addresses: seq[AddressInfo]): Result[void, string]</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">checkValid
   <li><a class="reference" href="#checkValid%2CSignedPeerRecord" title="checkValid(spr: SignedPeerRecord): Result[void, EnvelopeError]">checkValid(spr: SignedPeerRecord): Result[void, EnvelopeError]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">decode
-  <li><a class="reference" href="#decode%2CtypePeerRecord%2C" title="decode(_: type PeerRecord; buf`gensym0: seq[byte]): Result[PeerRecord, string]">decode(_: type PeerRecord; buf`gensym0: seq[byte]): Result[PeerRecord, string]</a></li>
+  <li><a class="reference" href="#decode%2CtypePeerRecord%2C" title="decode(_: type PeerRecord; buf`gensym6: seq[byte]): Result[PeerRecord, string]">decode(_: type PeerRecord; buf`gensym6: seq[byte]): Result[PeerRecord, string]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">encode
-  <li><a class="reference" href="#encode%2CPeerRecord" title="encode(c`gensym0: PeerRecord): seq[byte]">encode(c`gensym0: PeerRecord): seq[byte]</a></li>
+  <li><a class="reference" href="#encode%2CPeerRecord" title="encode(c`gensym6: PeerRecord): seq[byte]">encode(c`gensym6: PeerRecord): seq[byte]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">init
@@ -228,26 +232,26 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="AddressInfo" class="tohide">
-<dt><pre><a href="#AddressInfo"><span class="Identifier">AddressInfo</span></a> {.<span class="Identifier">proto2</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">address</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="Identifier">required</span><span class="Other">,</span> <span class="Identifier">ext</span>.}<span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a></pre></dt>
+<dt><pre><a href="#AddressInfo"><span class="Identifier">AddressInfo</span></a> {.<span class="Identifier">proto3</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">address</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="Identifier">ext</span>.}<span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L17" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L17" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L16" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L16" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 <div id="PeerRecord" class="tohide">
-<dt><pre><a href="#PeerRecord"><span class="Identifier">PeerRecord</span></a> {.<span class="Identifier">proto2</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">peerId</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="Identifier">required</span><span class="Other">,</span> <span class="Identifier">ext</span>.}<span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
-  <span class="Identifier">seqNo</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">2</span><span class="Other">,</span> <span class="Identifier">required</span><span class="Other">,</span> <span class="Identifier">pint</span>.}<span class="Other">:</span> <span class="Identifier">uint64</span>
+<dt><pre><a href="#PeerRecord"><span class="Identifier">PeerRecord</span></a> {.<span class="Identifier">proto3</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">peerId</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="Identifier">ext</span>.}<span class="Other">:</span> <a href="peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
+  <span class="Identifier">seqNo</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">2</span><span class="Other">,</span> <span class="Identifier">pint</span>.}<span class="Other">:</span> <span class="Identifier">uint64</span>
   <span class="Identifier">addresses</span><span class="Operator">*</span> {.<span class="Identifier">fieldNumber</span><span class="Other">:</span> <span class="DecNumber">3</span>.}<span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="#AddressInfo"><span class="Identifier">AddressInfo</span></a><span class="Other">]</span></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L20" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L20" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L19" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L19" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -256,8 +260,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L39" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L39" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L52" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L52" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -267,15 +271,29 @@ window.addEventListener("DOMContentLoaded", main2);
 <div class="section" id="12">
   <h1><a class="toc-backref" href="#12">Procs</a></h1>
   <dl class="item">
-    <div id="checkValid-procs-all">
+    <div id="checkAddresses-procs-all">
+  <div id="checkAddresses,seq[AddressInfo]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#checkAddresses%2Cseq%5BAddressInfo%5D"><span class="Identifier">checkAddresses</span></a><span class="Other">(</span><span class="Identifier">addresses</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="#AddressInfo"><span class="Identifier">AddressInfo</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">string</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L24" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L24" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="checkValid-procs-all">
   <div id="checkValid,SignedPeerRecord" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#checkValid%2CSignedPeerRecord"><span class="Identifier">checkValid</span></a><span class="Other">(</span><span class="Identifier">spr</span><span class="Other">:</span> <a href="#SignedPeerRecord"><span class="Identifier">SignedPeerRecord</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="signed_envelope.html#EnvelopeError"><span class="Identifier">EnvelopeError</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L47" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L47" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L60" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L60" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -283,13 +301,13 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="decode-procs-all">
   <div id="decode,typePeerRecord," class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decode%2CtypePeerRecord%2C"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span> <span class="Identifier">PeerRecord</span><span class="Other">;</span> <span class="Identifier">buf`gensym0</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">PeerRecord</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#decode%2CtypePeerRecord%2C"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span> <span class="Identifier">PeerRecord</span><span class="Other">;</span> <span class="Identifier">buf`gensym6</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">PeerRecord</span><span class="Other">,</span>
     <span class="Identifier">string</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L25" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L25" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L38" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L38" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -297,13 +315,13 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="encode-procs-all">
   <div id="encode,PeerRecord" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encode%2CPeerRecord"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">c`gensym0</span><span class="Other">:</span> <a href="#PeerRecord"><span class="Identifier">PeerRecord</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#encode%2CPeerRecord"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">c`gensym6</span><span class="Other">:</span> <a href="#PeerRecord"><span class="Identifier">PeerRecord</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/protobuf.nim#L65" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/protobuf.nim#L65" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utils/protobuf.nim#L66" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utils/protobuf.nim#L66" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -316,8 +334,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L27" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L27" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L40" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L40" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -329,8 +347,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L41" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L41" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L54" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L54" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -342,8 +360,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L44" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L44" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/routing_record.nim#L57" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/routing_record.nim#L57" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -365,7 +383,7 @@ window.addEventListener("DOMContentLoaded", main2);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-10 06:21:10 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-11 05:54:09 UTC</small>
       </div>
     </div>
   </div>
