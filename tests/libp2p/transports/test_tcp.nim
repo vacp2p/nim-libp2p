@@ -11,6 +11,7 @@ import
     upgrademngrs/upgrade,
     muxers/muxer,
     muxers/mplex/mplex,
+    muxers/yamux/yamux,
   ]
 import ../../tools/[unittest]
 import ./basic_tests
@@ -21,8 +22,14 @@ import ./tcp_tests
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-proc streamProvider(conn: RawConn, handle: bool = true): Muxer =
+proc mplexStreamProvider(conn: RawConn, handle: bool = true): Muxer =
   let muxer = Mplex.new(conn)
+  if handle:
+    asyncSpawn muxer.handle()
+  muxer
+
+proc yamuxStreamProvider(conn: RawConn, handle: bool = true): Muxer =
+  let muxer = Yamux.new(conn)
   if handle:
     asyncSpawn muxer.handle()
   muxer
@@ -51,14 +58,40 @@ suite "TCP transport":
     tcpTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
     invalidAddresses,
   )
+  
+  # tcp specific tests
+  tcpTests()
+
+suite "TCP transport: ipv4":
+  teardown:
+    checkTrackers()
+
   connectionTransportTest(tcpTransProvider, addressIP4)
+
+suite "TCP transport: ipv6":
+  teardown:
+    checkTrackers()
+
   connectionTransportTest(tcpTransProvider, addressIP6)
+
+suite "TCP transport: mplex":
+  teardown:
+    checkTrackers()
+
   streamTransportTest(
     tcpTransProvider,
     MultiAddress.init(addressIP4).get(),
     Opt.some(MultiAddress.init(addressIP6).get()),
-    streamProvider,
+    mplexStreamProvider,
   )
 
-  # tcp specific tests
-  tcpTests()
+suite "TCP transport: yamux":
+  teardown:
+    checkTrackers()
+
+  streamTransportTest(
+    tcpTransProvider,
+    MultiAddress.init(addressIP4).get(),
+    Opt.some(MultiAddress.init(addressIP6).get()),
+    yamuxStreamProvider,
+  )

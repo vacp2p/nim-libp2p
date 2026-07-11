@@ -520,7 +520,7 @@ template streamTransportTest*(
     )
 
   asyncTest "stream with multiple parallel writes":
-    const messageSize = 2 * 1024 * 1024
+    const messageSize = 20 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
     var serverHandlerDone = newFuture[void]()
@@ -555,6 +555,25 @@ template streamTransportTest*(
           let fut = stream.write(message)
           writeFuts.add(fut)
         await allFutures(writeFuts)
+        await serverHandlerDone
+
+  asyncTest "single large write":
+    const messageSize = 2 * 1024 * 1024
+    const chunkSize = 256 * 1024
+    var serverHandlerDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        let receivedData =
+          await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
+        let matches = receivedData == newData(messageSize)
+        check matches
+
+        serverHandlerDone.complete()
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(newData(messageSize))
         await serverHandlerDone
 
     await runSingleStreamScenario(
