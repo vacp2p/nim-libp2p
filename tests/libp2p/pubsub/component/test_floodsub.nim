@@ -164,7 +164,10 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    # A full star of numberOfNodes needs numberOfNodes * (numberOfNodes - 1)
+    # pubsub streams to be dialed and negotiated; give this more headroom
+    # than the 30s default on loaded CI runners (see #2798).
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -200,7 +203,8 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    # See the equivalent comment in "FloodSub multiple peers, no self trigger".
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -211,12 +215,22 @@ suite "FloodSub Component":
     await allFuturesRaising(futs.mapIt(it[0]))
 
     # test calling unsubscribeAll for coverage
+    #
+    # This assertion must run synchronously, immediately after unsubscribeAll
+    # and without any intervening `await`. `unsubscribeAll` broadcasts a real
+    # "unsubscribe" RPC to every connected peer, and `PeerTable.removePeer`
+    # deletes a topic's table entry entirely once its peer set becomes empty.
+    # If we polled/awaited here (e.g. via checkUntilTimeout), earlier nodes'
+    # broadcasts could reach later nodes in this loop before they're checked,
+    # draining - and eventually removing - their `floodsub[topic]` entry and
+    # crashing with an unhandled KeyError instead of a normal check failure.
+    # `getOrDefault` is used defensively so any regression here surfaces as a
+    # failed check rather than an unhandled exception that aborts the suite.
     for node in nodes:
       node.unsubscribeAll(topic)
-      let n = node
-      checkUntilTimeout:
-        n.floodsub[topic].len == numberOfNodes - 1 # we keep the peers in table
-        n.topics.len == 0 # remove the topic tho
+      check:
+        node.floodsub.getOrDefault(topic).len == numberOfNodes - 1 # we keep the peers in table
+        node.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
