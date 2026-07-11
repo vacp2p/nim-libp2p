@@ -58,7 +58,6 @@ suite "TCP transport":
     tcpTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
     invalidAddresses,
   )
-  
   # tcp specific tests
   tcpTests()
 
