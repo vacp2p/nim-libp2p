@@ -205,5 +205,4 @@ int main(void) {
 
 cleanup:
   libp2p_ctx_destroy(ctx);
-  return rc;
-}
+  return rc;}
