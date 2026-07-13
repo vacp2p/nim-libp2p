@@ -31,10 +31,10 @@
     fetchSubmodules = true;
   };
 
-  nat_traversal = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-nat-traversal";
-    rev = "860e18c37667b5dd005b94c63264560c35d88004";
-    sha256 = "0319k5bbl468phwfnvlrh7725sc80rnf7m9gyj0i3cb5hb9q78bs";
+  libplum = pkgs.fetchgit {
+    url = "https://github.com/logos-storage/nim-libplum";
+    rev = "e6688ea79ec34ec17012c155fd544f482fe71f44";
+    sha256 = "18h6hnfala1vbvi4f70cqb5psagbcg3h4ig9jzw1pqg17nv02k6k";
     fetchSubmodules = true;
   };
 

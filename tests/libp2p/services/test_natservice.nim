@@ -13,7 +13,6 @@ import ../../tools/[unittest, crypto, multiaddress]
 
 type
   MockCallKind = enum
-    mckDiscover
     mckMap
     mckUnmap
     mckClose
@@ -23,11 +22,9 @@ type
     internalPort: Port
     externalPort: Port
     proto: MapProto
-    lease: uint32
 
   MockPortMapper = ref object of PortMapper
     extIp: IpAddress
-    discoverErr: Opt[string]
     extPortQueue: seq[Port]
     extPortIdx: int
     mapErr: Opt[string]
@@ -36,28 +33,13 @@ type
 proc newMock(
     extIp = parseIpAddress("203.0.113.7"),
     extPorts: seq[Port] = @[],
-    discoverErr = Opt.none(string),
     mapErr = Opt.none(string),
 ): MockPortMapper =
-  MockPortMapper(
-    extIp: extIp, discoverErr: discoverErr, mapErr: mapErr, extPortQueue: extPorts
-  )
-
-method discover*(
-    self: MockPortMapper, timeout: Duration
-): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  self.calls.add(MockCall(kind: mckDiscover))
-  if self.discoverErr.isSome:
-    return err(self.discoverErr.get())
-  ok(self.extIp)
+  MockPortMapper(extIp: extIp, mapErr: mapErr, extPortQueue: extPorts)
 
 method map*(
-    self: MockPortMapper,
-    internalPort: Port,
-    externalPort: Port,
-    proto: MapProto,
-    lease: uint32,
-): Future[Result[Port, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+    self: MockPortMapper, internalPort: Port, externalPort: Port, proto: MapProto
+): Future[Result[MappedPort, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let assigned =
     if self.extPortIdx < self.extPortQueue.len:
       let p = self.extPortQueue[self.extPortIdx]
@@ -67,16 +49,12 @@ method map*(
       externalPort
   self.calls.add(
     MockCall(
-      kind: mckMap,
-      internalPort: internalPort,
-      externalPort: assigned,
-      proto: proto,
-      lease: lease,
+      kind: mckMap, internalPort: internalPort, externalPort: assigned, proto: proto
     )
   )
   if self.mapErr.isSome:
     return err(self.mapErr.get())
-  ok(assigned)
+  ok(MappedPort(externalIp: self.extIp, externalPort: assigned))
 
 method unmap*(
     self: MockPortMapper, externalPort: Port, proto: MapProto
@@ -195,14 +173,13 @@ suite "NATService":
       await switch.stop()
 
     # Start ran addressMapper against loopback listenAddrs which findMappable
-    # filters out, so no map/discover yet.
+    # filters out, so no map yet.
     check mock.calls.len == 0
     check switch.peerInfo.addressMappers.len == 1
 
     let announced =
       await switch.peerInfo.addressMappers[0](@[ma("/ip4/192.168.1.10/tcp/4242")])
     check announced == @[ma("/ip4/203.0.113.7/tcp/4242")]
-    check mock.countCalls(mckDiscover) == 1
     check mock.countCalls(mckMap) == 1
 
   asyncTest "Upnp preserves already-public listenAddrs alongside mapped ones":
@@ -264,23 +241,6 @@ suite "NATService":
 
     check Port(7000) in mock.unmappedPorts()
 
-  asyncTest "Upnp falls back to listenAddrs when discovery fails":
-    let mock = newMock(discoverErr = Opt.some("no IGD"))
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
-
-    let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
-    await switch.start()
-    defer:
-      await switch.stop()
-
-    let priv = @[ma("/ip4/192.168.1.10/tcp/4242")]
-    let res = await switch.peerInfo.addressMappers[0](priv)
-    check res == priv # fall-through preserves the next mapper's input
-    check mock.countCalls(mckMap) == 0
-
   asyncTest "Upnp inactive when factory returns none":
     let factory: PortMapperFactory = proc(
         mode: PortMappingMode
@@ -311,23 +271,13 @@ suite "NATService":
     check Port(5555) in mock.unmappedPorts()
     check mock.countCalls(mckClose) == 1
 
-  asyncTest "setup raises when Upnp config has zero refreshInterval":
-    let cfg = upnpConfig(refreshInterval = 0.seconds)
-    expect ServiceSetupError:
-      discard makeSwitch(cfg, @[TcpAutoAddress])
-
-  asyncTest "setup raises when NatPmp config has zero discoveryTimeout":
+  asyncTest "setup raises when config has zero discoveryTimeout":
     let cfg = natPmpConfig(discoveryTimeout = 0.seconds)
     expect ServiceSetupError:
       discard makeSwitch(cfg, @[TcpAutoAddress])
 
-  asyncTest "setup raises when leaseDuration is sub-second":
-    let cfg = upnpConfig(leaseDuration = 500.milliseconds)
-    expect ServiceSetupError:
-      discard makeSwitch(cfg, @[TcpAutoAddress])
-
-  asyncTest "setup raises when refreshInterval >= leaseDuration":
-    let cfg = upnpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
+  asyncTest "setup raises when config has zero mappingTimeout":
+    let cfg = upnpConfig(mappingTimeout = 0.seconds)
     expect ServiceSetupError:
       discard makeSwitch(cfg, @[TcpAutoAddress])
 
@@ -367,8 +317,8 @@ suite "NATService":
     check mock.unmappedPorts().len == 0
 
   asyncTest "non-IPv4 private addrs are skipped":
-    # nim-nat-traversal's UPnP backend doesn't support IPv6 mappings, so any
-    # IPv6 listenAddr (even ULA fc00::/7) must be filtered out before map().
+    # libplum maps IPv4 only, so any IPv6 listenAddr (even ULA fc00::/7) must be
+    # filtered out before map().
     let mock = newMock()
     let factory: PortMapperFactory = proc(
         mode: PortMappingMode
@@ -534,40 +484,24 @@ suite "NATService":
 
 type RecordingPortMapper = ref object of PortMapper
   externalIp: IpAddress
-  discoverResult: Result[IpAddress, string]
-  mapResult: Result[Port, string]
+  mapErr: Opt[string]
   mapPortOverride: Opt[Port]
     ## When set, `map` returns this port instead of echoing the requested
     ## `externalPort`. Models an IGD that re-maps to a different external port
     ## (e.g. when the requested one is busy).
   unmapResult: Result[void, string]
-  discoverCalls: int
-  mapCalls: seq[tuple[internal, external: Port, proto: MapProto, lease: uint32]]
+  mapCalls: seq[tuple[internal, external: Port, proto: MapProto]]
   unmapCalls: seq[tuple[external: Port, proto: MapProto]]
   closed: bool
-  mapEvent: AsyncEvent
-
-method discover*(
-    self: RecordingPortMapper, timeout: Duration
-): Future[Result[IpAddress, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  inc self.discoverCalls
-  self.discoverResult
 
 method map*(
-    self: RecordingPortMapper,
-    internalPort: Port,
-    externalPort: Port,
-    proto: MapProto,
-    lease: uint32,
-): Future[Result[Port, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  self.mapCalls.add((internalPort, externalPort, proto, lease))
-  if self.mapEvent != nil:
-    self.mapEvent.fire()
-  if self.mapResult.isErr:
-    return self.mapResult
-  self.mapPortOverride.withValue(p):
-    return Result[Port, string].ok(p)
-  Result[Port, string].ok(externalPort)
+    self: RecordingPortMapper, internalPort: Port, externalPort: Port, proto: MapProto
+): Future[Result[MappedPort, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  self.mapCalls.add((internalPort, externalPort, proto))
+  self.mapErr.withValue(e):
+    return err(e)
+  let ext = self.mapPortOverride.get(externalPort)
+  ok(MappedPort(externalIp: self.externalIp, externalPort: ext))
 
 method unmap*(
     self: RecordingPortMapper, externalPort: Port, proto: MapProto
@@ -579,24 +513,18 @@ method close*(self: RecordingPortMapper) {.async: (raises: []), gcsafe.} =
   self.closed = true
 
 proc newRecordingOk(externalIp: IpAddress): RecordingPortMapper =
-  RecordingPortMapper(
-    externalIp: externalIp,
-    discoverResult: Result[IpAddress, string].ok(externalIp),
-    mapResult: Result[Port, string].ok(Port(0)), # actual port set per call
-    unmapResult: Result[void, string].ok(),
-  )
+  RecordingPortMapper(externalIp: externalIp, unmapResult: Result[void, string].ok())
 
 proc recordingFactory(m: RecordingPortMapper): PortMapperFactory =
   return proc(mode: PortMappingMode): Opt[PortMapper] {.gcsafe, raises: [].} =
     Opt.some(PortMapper(m))
 
 proc recordingFactoryFail(): PortMapperFactory =
-  let mapper = RecordingPortMapper(
-    discoverResult: Result[IpAddress, string].err("mock no IGD"),
-    mapResult: Result[Port, string].err("not discovered"),
-    unmapResult: Result[void, string].ok(),
+  recordingFactory(
+    RecordingPortMapper(
+      mapErr: Opt.some("mock no IGD"), unmapResult: Result[void, string].ok()
+    )
   )
-  recordingFactory(mapper)
 
 proc loopbackAddr(): MultiAddress =
   MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()
@@ -607,40 +535,6 @@ proc privateAddr(port: int = 9000): MultiAddress =
 suite "NATService (setupMappings)":
   teardown:
     checkTrackers()
-
-  asyncTest "Upnp refresh loop reissues map calls":
-    let
-      externalIp = parseIpAddress("203.0.113.55")
-      mapper = newRecordingOk(externalIp)
-    mapper.mapEvent = newAsyncEvent()
-
-    let
-      factory = recordingFactory(mapper)
-      cfg = upnpConfig(refreshInterval = 50.milliseconds)
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
-
-    await switch.start()
-    defer:
-      await switch.stop()
-
-    # Override the bound listenAddrs with a private one so the addressMapper
-    # actually runs the mapper. The refresh loop calls peerInfo.update(), which
-    # re-invokes the addressMapper.
-    switch.peerInfo.listenAddrs = @[privateAddr(9000)]
-    await switch.peerInfo.update()
-    let
-      firstCalls = mapper.mapCalls.len
-      discoverBefore = mapper.discoverCalls
-    check firstCalls >= 1
-    check discoverBefore >= 1
-
-    mapper.mapEvent.clear()
-    await mapper.mapEvent.wait()
-    check mapper.mapCalls.len > firstCalls
-    # The refresh loop invalidates externalIp before triggering
-    # peerInfo.update, so the next setupMappings has to rediscover —
-    # not just re-map.
-    check mapper.discoverCalls > discoverBefore
 
   asyncTest "NatPmp announces external IP after successful mapping":
     let
@@ -692,7 +586,7 @@ suite "NATService (setupMappings)":
     defer:
       await switch.stop()
 
-    # Public + loopback addresses only → discover never runs, no mappings made.
+    # Public + loopback addresses only → no mappable ports, no mappings made.
     let announced = await svc.setupMappings(
       @[
         MultiAddress.init("/ip4/8.8.8.8/tcp/9000").tryGet(),
@@ -700,7 +594,6 @@ suite "NATService (setupMappings)":
       ]
     )
 
-    check mapper.discoverCalls == 0
     check mapper.mapCalls.len == 0
     check announced.len == 0
 
@@ -722,7 +615,7 @@ suite "NATService (setupMappings)":
     check switch.peerInfo.announcedAddrs == @[userAddr]
     # expandAddrs uses announcedAddrs directly when set, bypassing the
     # addressMapper chain — so the mapper should never have been consulted.
-    check mapper.discoverCalls == 0
+    check mapper.mapCalls.len == 0
 
   asyncTest "multiple private listen addresses are each mapped once":
     let
@@ -743,8 +636,7 @@ suite "NATService (setupMappings)":
       otherTcp = privateAddr(9001)
       announced = await svc.setupMappings(@[tcpAddr, udpAddr, otherTcp])
 
-    # Discovery happens once; one map call per listen address.
-    check mapper.discoverCalls == 1
+    # One map call per listen address.
     check mapper.mapCalls.len == 3
     check announced.len == 3
     # TCP+UDP on the same port are two distinct (port, proto) mappings.
@@ -799,7 +691,7 @@ suite "NATService (setupMappings)":
     check annTa.address_v4 == externalIp.address_v4
     check annTa.port == Port(54321)
 
-  asyncTest "NatPmp discovery failure leaves announced empty":
+  asyncTest "NatPmp mapping failure leaves announced empty":
     let
       cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], recordingFactoryFail())

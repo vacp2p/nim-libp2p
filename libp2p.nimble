@@ -13,7 +13,7 @@ requires "nim >= 2.2.4",
   "chronos >= 4.2.2", "metrics >= 0.2.2", "secp256k1", "stew >= 0.4.2", "results",
   "serialization", "lsquic >= 0.5.4", "protobuf_serialization >= 0.5.3",
   "https://github.com/status-im/nim-websock >= 0.4.0",
-  "https://github.com/status-im/nim-nat-traversal >= 0.0.1"
+  "https://github.com/logos-storage/nim-libplum >= 0.6.0"
 
 import os, sequtils, strutils
 
