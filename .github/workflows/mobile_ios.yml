@@ -1,0 +1,87 @@
+name: Mobile iOS
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cbind-ffi-ios:
+    timeout-minutes: 90
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: arm64
+            attr: cbind-ffi-ios-arm64
+            sdk: iphoneos
+            platform: IOS
+          - target: simulator-arm64
+            attr: cbind-ffi-ios-simulator-arm64
+            sdk: iphonesimulator
+            platform: IOSSIMULATOR
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "iOS ${{ matrix.target }} FFI check build"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            sandbox = false
+
+      - name: Show Xcode SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk "${{ matrix.sdk }}" --show-sdk-path
+          xcrun --sdk "${{ matrix.sdk }}" --find clang
+
+      - name: Build iOS C ABI package
+        run: |
+          nix --extra-experimental-features "nix-command flakes" \
+            build ".#${{ matrix.attr }}" \
+            -o "result-${{ matrix.target }}"
+
+      - name: Verify iOS artifacts
+        run: |
+          out="result-${{ matrix.target }}"
+
+          test -f "$out/lib/liblibp2p.dylib"
+          test -f "$out/lib/liblibp2p.a"
+          test -f "$out/lib/libminiupnpc.a"
+          test -f "$out/lib/libnatpmp.a"
+          test -f "$out/include/libp2p.h"
+          test -f "$out/include/nim_ffi_cbor.h"
+          test -f "$out/include/nim_ffi_prelude.h"
+          test -f "$out/include/tinycbor/cbor.h"
+          test -f "$out/include/cddl_bindings/libp2p.cddl"
+          test -x "$out/bin/libp2p_ffi_ios_check"
+
+          otool -l "$out/lib/liblibp2p.dylib" | tee liblibp2p.otool
+          otool -l "$out/bin/libp2p_ffi_ios_check" | tee check.otool
+          lipo -info "$out/lib/liblibp2p.dylib" | tee liblibp2p.lipo
+          lipo -info "$out/lib/liblibp2p.a" | tee liblibp2p_static.lipo
+
+          grep -q "platform ${{ matrix.platform }}" liblibp2p.otool
+          grep -q "platform ${{ matrix.platform }}" check.otool
+          grep -q "arm64" liblibp2p.lipo
+          grep -q "arm64" liblibp2p_static.lipo
+
+          file "$out/lib/liblibp2p.dylib"
+          file "$out/bin/libp2p_ffi_ios_check"

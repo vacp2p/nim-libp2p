@@ -42,6 +42,7 @@
         let
           pkgs = pkgsFor system;
           androidSupported = pkgs.stdenv.hostPlatform.isLinux || pkgs.stdenv.hostPlatform.isDarwin;
+          iosSupported = pkgs.stdenv.hostPlatform.isDarwin;
           androidArm64 = import ./nix/cbind-ffi-android.nix {
             inherit pkgs;
             src = ./.;
@@ -55,6 +56,22 @@
             abi = "x86_64";
             androidTriple = "x86_64-linux-android";
             nimCpu = "amd64";
+          };
+          iosArm64 = import ./nix/cbind-ffi-ios.nix {
+            inherit pkgs;
+            src = ./.;
+            targetName = "arm64";
+            sdk = "iphoneos";
+            platformName = "IOS";
+            targetTriple = "arm64-apple-ios13.0";
+          };
+          iosSimulatorArm64 = import ./nix/cbind-ffi-ios.nix {
+            inherit pkgs;
+            src = ./.;
+            targetName = "simulator-arm64";
+            sdk = "iphonesimulator";
+            platformName = "IOSSIMULATOR";
+            targetTriple = "arm64-apple-ios13.0-simulator";
           };
         in {
           default = import ./nix/default.nix {
@@ -83,6 +100,16 @@
             mkdir -p $out/android/arm64-v8a $out/android/x86_64
             cp -R ${androidArm64}/. $out/android/arm64-v8a/
             cp -R ${androidX86}/.   $out/android/x86_64/
+          '';
+        } // pkgs.lib.optionalAttrs iosSupported {
+          cbind-ffi-ios-arm64 = iosArm64;
+
+          cbind-ffi-ios-simulator-arm64 = iosSimulatorArm64;
+
+          cbind-ffi-ios = pkgs.runCommand "nim-libp2p-cbind-ffi-ios" { } ''
+            mkdir -p $out/ios/arm64 $out/ios/simulator-arm64
+            cp -R ${iosArm64}/.          $out/ios/arm64/
+            cp -R ${iosSimulatorArm64}/. $out/ios/simulator-arm64/
           '';
         }
       );
