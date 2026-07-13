@@ -98,6 +98,9 @@ proc buildFfiLib() =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
+  # liblibp2p.so transitively references miniupnpc and libnatpmp via
+  # nat_traversal's {.passL.} of their vendored .a's; build them first.
+  exec "make -C .. nat_libs"
   # Name the output `lib<name>` so the file matches the soname nim derives from
   # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
   # nim-ffi's `declareLibrary` imports.
