@@ -127,6 +127,35 @@ suite "GossipSub":
     check:
       true
 
+  asyncTest "unsubscribeAll does not crash when peers table is mutated during iteration":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    # An onSend hook fires synchronously from within the peers-table iteration
+    # in onTopicSubscription (via sendSubs -> send -> sendObservers). We use it
+    # to mutate `gossipSub.peers` mid-iteration, standing in for an incoming
+    # subscription arriving on the network path.
+    let extraPeerId = randomPeerId()
+    let extraPeer = peers[0]
+
+    var injected = false
+    proc onSend(p: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+      # Only inject during the unsubscribe subscription message (which carries
+      # `subscriptions`), not during unrelated control-message broadcasts.
+      if not injected and msg.subscriptions.len > 0:
+        injected = true
+        gossipSub.peers[extraPeerId] = extraPeer
+
+    let observers = new(seq[PubSubObserver])
+    observers[].add(PubSubObserver(onSend: onSend))
+    for peer in peers:
+      peer.observers = observers
+
+    gossipSub.unsubscribeAll(topic)
+
+    check injected
+
   asyncTest "unsubscribePeer - removes peer from mesh, gossipsub, fanout and subscribedDirectPeers":
     # Given a GossipSub instance with one peer in mesh
     let
