@@ -303,6 +303,37 @@ suite "GossipSub":
       topic notin gossipSub.mesh # not in mesh
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
 
+  asyncTest "unsubscribeAll - peer dropped while broadcasting unsubscribe":
+    # A send can drop a peer on the same stack it was issued from: a dead send
+    # stream raises DisconnectionRequested, which unsubscribes the peer and
+    # removes it from `peers`. onTopicSubscription must survive that happening
+    # while it is broadcasting the unsubscribe to every peer.
+    let (gossipSub, conns, peers) =
+      setupGossipSubWithPeers(5, topic, populateGossipsub = true, populateMesh = true)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let victim = peers[^1].peerId
+    var dropped = false
+
+    proc onSend(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+      # only react to the subscription broadcast, not to the prune that precedes it
+      if msg.subscriptions.len > 0 and not dropped:
+        dropped = true
+        gossipSub.unsubscribePeer(victim)
+
+    let observers = new(seq[PubSubObserver])
+    observers[] = @[PubSubObserver(onSend: onSend)]
+    for peer in peers:
+      peer.observers = observers
+
+    gossipSub.PubSub.unsubscribeAll(topic)
+
+    check:
+      dropped
+      victim notin gossipSub.peers
+      topic notin gossipSub.topics
+
   asyncTest "rpcHandler - drop messages of topics without subscription":
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:

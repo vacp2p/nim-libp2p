@@ -531,7 +531,7 @@ method onTopicSubscription*(
   # removes the last handler
 
   # Notify others that we are no longer interested in the topic
-  for _, peer in p.peers:
+  for peer in toSeq(p.peers.values):
     # If we don't have a sendStream yet, we will
     # send the full sub list when we get the sendStream,
     # so no need to send it here
