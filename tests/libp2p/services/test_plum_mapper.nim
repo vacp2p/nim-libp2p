@@ -30,8 +30,7 @@ suite "PlumMapper":
     check r.error() == "PlumMapper closed"
 
   asyncTest "unmap without a prior map returns 'no known mapping' error":
-    # libplum identifies a mapping by an opaque id recorded on a successful
-    # map(); without that record there is nothing to destroy.
+    # no recorded mapping id, so there is nothing to destroy.
     let m = PlumMapper.new().get()
     defer:
       await m.close()
@@ -41,8 +40,7 @@ suite "PlumMapper":
     check r.error() == "plum unmap: no known mapping for external port 9000"
 
   asyncTest "a second mapper shares the ref-counted libplum instance":
-    # plum_init is a global singleton; overlapping mappers must not double-init
-    # or tear libplum down while the other is still live.
+    # overlapping mappers must not double-init or tear down the shared singleton.
     let a = PlumMapper.new().get()
     let b = PlumMapper.new().get()
     await a.close()

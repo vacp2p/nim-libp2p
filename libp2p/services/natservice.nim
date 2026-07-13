@@ -249,8 +249,7 @@ proc replaceTransportPort(ma: MultiAddress, port: Port): Opt[MultiAddress] =
   Opt.some(res)
 
 proc extractListenPort(ma: MultiAddress): Opt[ListenPort] =
-  # libplum maps IPv4 only (NAT-PMP/PCP/UPnP-IGD over IPv4), so drop non-IPv4
-  # listen addresses early.
+  # libplum maps IPv4 only, so drop non-IPv4 listen addresses early.
   let ta = initTAddress(ma).valueOr:
     return Opt.none(ListenPort)
   if ta.family != AddressFamily.IPv4:
@@ -285,8 +284,7 @@ type MappedEntry =
 proc mapOnePort(
     self: NATService, lp: ListenPort
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
-  # libplum hands back the external address together with the mapping, so the
-  # external IP is derived here rather than in a separate discovery step.
+  # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
     warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
     return Opt.none(MappedEntry)
@@ -356,8 +354,7 @@ proc setupMappings*(
   announced
 
 proc validatePortMapperConfig(cfg: PortMappingConfig) {.raises: [ServiceSetupError].} =
-  # libplum keeps mappings refreshed on its own internal thread, so there is no
-  # lease or refresh interval to validate — only the discovery/mapping waits.
+  # libplum refreshes mappings itself; only the discovery/mapping waits need checking.
   if cfg.discoveryTimeout <= 0.seconds:
     raise newException(
       ServiceSetupError,

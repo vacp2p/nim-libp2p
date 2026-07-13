@@ -11,18 +11,11 @@ type
     mpTcp
     mpUdp
 
-  MappedPort* = object
-    ## Outcome of a successful mapping: the external address the NAT device
-    ## assigned. libplum returns the external host and port together with the
-    ## mapping, so there is a single `map` call rather than the old
-    ## discover-external-IP-then-map split.
+  MappedPort* = object ## External address the NAT device assigned.
     externalIp*: IpAddress
     externalPort*: Port
 
-  PortMapper* = ref object of RootObj
-    ## Abstract base for a NAT port-mapping client (libplum-backed / mock).
-    ## All operations are async: the libplum backend hands the request to the
-    ## library's internal thread and awaits its completion.
+  PortMapper* = ref object of RootObj ## Abstract async NAT port-mapping client.
 
 method map*(
     self: PortMapper, internalPort: Port, externalPort: Port, proto: MapProto

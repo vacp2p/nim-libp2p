@@ -25,10 +25,7 @@ type
 
   MockPortMapper = ref object of PortMapper
     extIp: IpAddress
-    extPortQueue: seq[Port]
-      ## external ports handed out in order across successive map() calls; once
-      ## exhausted, map() echoes the requested port. Models an IGD assigning (or
-      ## reassigning) a different external port than requested.
+    extPortQueue: seq[Port] ## ports handed out in order; once empty, echo request
     extPortIdx: int
     mapErr: Opt[string]
     calls: seq[MockCall]
@@ -314,8 +311,7 @@ suite "NATService":
     check mock.unmappedPorts().len == 0
 
   asyncTest "non-IPv4 private addrs are skipped":
-    # libplum maps IPv4 only, so any IPv6 listenAddr (even ULA fc00::/7) must be
-    # filtered out before map().
+    # libplum maps IPv4 only, so any IPv6 listenAddr must be filtered before map().
     let mock = newMock()
     let factory = mapperFactory(mock)
 
@@ -615,8 +611,7 @@ suite "NATService (setupMappings)":
   asyncTest "IGD returning a different external port surfaces in announced":
     let
       externalIp = parseIpAddress("203.0.113.30")
-      # queued external port simulates the IGD remapping the request to a
-      # different port (e.g. because the requested one is already busy).
+      # queued external port simulates the IGD remapping to a different port.
       mapper = newMock(extIp = externalIp, extPorts = @[Port(54321)])
       factory = mapperFactory(mapper)
       cfg = upnpConfig()

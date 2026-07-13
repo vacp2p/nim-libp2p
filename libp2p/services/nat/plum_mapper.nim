@@ -3,18 +3,10 @@
 
 ## NAT port mapper backed by libplum (PCP / NAT-PMP / UPnP-IGD).
 ##
-## libplum owns a single process-wide client with its own internal thread that
-## discovers the gateway, selects a working protocol, and keeps mappings
-## refreshed on its own — so there is no per-mapping lease and no refresh loop
-## on our side. The C `plum_init`/`plum_cleanup` pair is a global singleton
-## (a second `plum_init` fails while a client is live), so this module
-## ref-counts init across every live `PlumMapper` and keeps the protocol filter
-## of the first mapper that initialized it.
-##
-## Precondition: every `PlumMapper` is created and closed from the same chronos
-## event-loop thread. The ref-count and active-filter globals below are plain
-## (unsynchronized) vars, so driving mappers from multiple threads would race
-## them and double-init libplum.
+## `plum_init`/`plum_cleanup` is a process-global singleton, so this module
+## ref-counts init across every live `PlumMapper` and keeps the first mapper's
+## protocol filter. The ref-count/filter globals are unsynchronized: create and
+## close every `PlumMapper` from the same chronos event-loop thread.
 
 {.push raises: [].}
 
@@ -29,8 +21,7 @@ logScope:
   topics = "libp2p natservice plum"
 
 const
-  # Module-private fallbacks for PlumMapper.new()'s own default args; the public
-  # NAT timeout knobs live in natservice (DefaultDiscoveryTimeout/MappingTimeout).
+  # Private defaults for new(); the public NAT knobs live in natservice.
   DefaultDiscoverTimeout = 10.seconds
   DefaultMappingTimeout = 10.seconds
 
@@ -40,9 +31,7 @@ type
   PlumMapper* = ref object of PortMapper
     filter: ProtocolFilter
     closed: bool
-    mappings: Table[MappingKey, cint]
-      ## (externalPort, proto) -> libplum mapping id, recorded on a successful
-      ## map() so unmap()/close() can find the opaque handle to destroy.
+    mappings: Table[MappingKey, cint] ## -> libplum mapping id, to destroy later
 
 var
   plumRefCount = 0
@@ -103,8 +92,7 @@ method map*(
     externalPort = externalPort.uint16,
   )
 
-  # close() may have run during the await above and torn libplum down; drop the
-  # mapping we just created rather than recording an id for a dead handle.
+  # close() may have torn libplum down during the await; drop the new mapping.
   if self.closed:
     destroyMapping(res.id)
     return err("PlumMapper closed")
