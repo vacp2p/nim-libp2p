@@ -179,7 +179,10 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
 
   await disco.advertiser.clear()
 
-  disco.serviceBootstrapFuts.cancelSoon()
+  var bootstrapStops: seq[Future[void]]
+  for fut in disco.serviceBootstrapFuts:
+    bootstrapStops.add(fut.cancelAndWait())
+  await noCancel allFutures(bootstrapStops)
   disco.serviceBootstrapFuts = @[]
 
   if not disco.selfSignedPeerRecordLoop.isNil():
