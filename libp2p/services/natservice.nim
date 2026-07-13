@@ -107,13 +107,17 @@ proc natService*(switch: Switch): Opt[NATService] =
 proc portMappingConfig(
     mode: PortMappingMode, discoveryTimeout, mappingTimeout: Duration
 ): NATConfig =
-  NATConfig(
-    portMapping: Opt.some(
-      PortMappingConfig(
-        mode: mode, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
+  case mode
+  of ExplicitIp:
+    raiseAssert "portMappingConfig requires a port-mapping mode, not ExplicitIp"
+  of Upnp, NatPmp, Auto:
+    NATConfig(
+      portMapping: Opt.some(
+        PortMappingConfig(
+          mode: mode, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
+        )
       )
     )
-  )
 
 proc natConfig*(
     discoveryTimeout = DefaultDiscoveryTimeout, mappingTimeout = DefaultMappingTimeout
