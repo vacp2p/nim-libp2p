@@ -538,8 +538,11 @@ method onTopicSubscription*(
   # Called when subscribe is called the first time for a topic or unsubscribe
   # removes the last handler
 
-  # Notify others that we are no longer interested in the topic
-  for _, peer in p.peers:
+  # Notify others that we are no longer interested in the topic.
+  # Iterate over a snapshot: sending may synchronously re-enter and mutate
+  # `p.peers` (e.g. via send hooks or peer add/remove from the network path),
+  # which would otherwise corrupt a live table iteration.
+  for peer in toSeq(p.peers.values):
     # If we don't have a sendStream yet, we will
     # send the full sub list when we get the sendStream,
     # so no need to send it here
