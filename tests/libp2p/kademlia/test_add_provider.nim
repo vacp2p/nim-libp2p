@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, sequtils, tables
+import chronos, results, sets, sequtils, tables, stew/byteutils
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
 import ../../tools/[lifecycle, topology, unittest]
@@ -221,12 +221,10 @@ suite "KadDHT - Add Provider":
       receiverKad.providerManager.providerRecords[0].provider.id.get() ==
         senderKad.switch.peerInfo.peerId.getBytes()
 
-  asyncTest "Add provider rejects invalid multihash key":
+  asyncTest "Add provider accepts a non-multihash key within length bound":
+    # Interop parity: go/js/py/dotnet advertise raw, non-multihash provider keys
     let kads = setupKadSwitches(1)
-
     let senderKad = kads[0]
-
-    # Setup receiver with mock that injects invalid multihash key
     var receiverKad = setupMockKad()
 
     startAndDeferStop(kads & receiverKad)
@@ -235,17 +233,63 @@ suite "KadDHT - Add Provider":
 
     check receiverKad.providerManager.providerRecords.len == 0
 
-    # Inject message with invalid multihash key
+    let rawKey = "interop-test-key-0123".toBytes()
+    check not MultiHash.validate(rawKey) # sanity: not a valid multihash
+
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: @[1.byte, 1, 1],
+        key: rawKey,
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
     await senderKad.addProvider(senderKad.rtable.selfId.toCid())
 
-    # Provider should NOT be stored due to invalid multihash validation
+    checkUntilTimeout:
+      receiverKad.providerManager.providerRecords.len == 1
+      receiverKad.providerManager.knownKeys.hasKey(rawKey)
+
+  asyncTest "Add provider rejects an empty key":
+    let kads = setupKadSwitches(1)
+    let senderKad = kads[0]
+    var receiverKad = setupMockKad()
+
+    startAndDeferStop(kads & receiverKad)
+
+    await connect(senderKad, receiverKad)
+
+    receiverKad.handleAddProviderMessage = Opt.some(
+      Message(
+        msgType: MessageType.addProvider,
+        key: newSeq[byte](0),
+        providerPeers: @[senderKad.switch.peerInfo.toPeer()],
+      )
+    )
+    await senderKad.addProvider(senderKad.rtable.selfId.toCid())
+
+    # Empty key is out of bounds, record must not be stored
+    await sleepAsync(200.milliseconds)
+    check receiverKad.providerManager.providerRecords.len == 0
+
+  asyncTest "Add provider rejects a key exceeding the length bound":
+    let kads = setupKadSwitches(1)
+    let senderKad = kads[0]
+    var receiverKad = setupMockKad()
+
+    startAndDeferStop(kads & receiverKad)
+
+    await connect(senderKad, receiverKad)
+
+    receiverKad.handleAddProviderMessage = Opt.some(
+      Message(
+        msgType: MessageType.addProvider,
+        key: newSeq[byte](MaxProviderKeyLen + 1),
+        providerPeers: @[senderKad.switch.peerInfo.toPeer()],
+      )
+    )
+    await senderKad.addProvider(senderKad.rtable.selfId.toCid())
+
+    # Over-length key is out of bounds → record must not be stored
     await sleepAsync(200.milliseconds)
     check receiverKad.providerManager.providerRecords.len == 0
 
@@ -626,3 +670,26 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # Receiver rejects (limit already full); record count stays at 1
     await sleepAsync(200.milliseconds)
     check receiverKad.providerManager.providerRecords.len == 1
+
+  asyncTest "Out-of-bounds key is rejected when providerRejection enabled":
+    let senderKad = setupKad(testKadConfig(providerRejection = true))
+    # Mock receiver injects an over-length key regardless of what is sent.
+    let receiverKad = setupMockKad(
+      testKadConfig(providerRejection = true),
+      handleAddProviderMessage = Opt.some(
+        Message(
+          msgType: MessageType.addProvider, key: newSeq[byte](MaxProviderKeyLen + 1)
+        )
+      ),
+    )
+
+    startAndDeferStop(@[senderKad] & receiverKad)
+    await connect(senderKad, receiverKad)
+
+    let status = await senderKad.sendAddProviderAndGetStatus(
+      receiverKad, senderKad.rtable.selfId.toCid().toKey()
+    )
+    check:
+      status.isOk()
+      status.value() == AddProviderStatus.rejected
+      receiverKad.providerManager.providerRecords.len == 0
