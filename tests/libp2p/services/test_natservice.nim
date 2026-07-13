@@ -26,6 +26,9 @@ type
   MockPortMapper = ref object of PortMapper
     extIp: IpAddress
     extPortQueue: seq[Port]
+      ## external ports handed out in order across successive map() calls; once
+      ## exhausted, map() echoes the requested port. Models an IGD assigning (or
+      ## reassigning) a different external port than requested.
     extPortIdx: int
     mapErr: Opt[string]
     calls: seq[MockCall]
@@ -36,6 +39,10 @@ proc newMock(
     mapErr = Opt.none(string),
 ): MockPortMapper =
   MockPortMapper(extIp: extIp, mapErr: mapErr, extPortQueue: extPorts)
+
+proc mapperFactory(m: MockPortMapper): PortMapperFactory =
+  proc(mode: PortMappingMode): Opt[PortMapper] {.gcsafe, raises: [].} =
+    Opt.some(PortMapper(m))
 
 method map*(
     self: MockPortMapper, internalPort: Port, externalPort: Port, proto: MapProto
@@ -65,15 +72,23 @@ method unmap*(
 method close*(self: MockPortMapper) {.async: (raises: []), gcsafe.} =
   self.calls.add(MockCall(kind: mckClose))
 
+proc callsOfKind(m: MockPortMapper, kind: MockCallKind): seq[MockCall] =
+  m.calls.filterIt(it.kind == kind)
+
 proc countCalls(m: MockPortMapper, kind: MockCallKind): int =
-  for c in m.calls:
-    if c.kind == kind:
-      result.inc
+  m.callsOfKind(kind).len
+
+proc mapCalls(m: MockPortMapper): seq[MockCall] =
+  m.callsOfKind(mckMap)
+
+proc unmapCalls(m: MockPortMapper): seq[MockCall] =
+  m.callsOfKind(mckUnmap)
 
 proc unmappedPorts(m: MockPortMapper): seq[Port] =
-  for c in m.calls:
-    if c.kind == mckUnmap:
-      result.add(c.externalPort)
+  m.unmapCalls.mapIt(it.externalPort)
+
+proc closed(m: MockPortMapper): bool =
+  m.countCalls(mckClose) > 0
 
 proc standardBuilder(listenAddrs: seq[MultiAddress]): SwitchBuilder =
   SwitchBuilder
@@ -162,10 +177,7 @@ suite "NATService":
 
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
     let mock = newMock()
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -184,10 +196,7 @@ suite "NATService":
 
   asyncTest "Upnp preserves already-public listenAddrs alongside mapped ones":
     let mock = newMock(extPorts = @[Port(9000)])
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -204,10 +213,7 @@ suite "NATService":
 
   asyncTest "Upnp unmaps stale extPort when IGD reassigns on refresh":
     let mock = newMock(extPorts = @[Port(9000), Port(9001)])
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -226,10 +232,7 @@ suite "NATService":
 
   asyncTest "Upnp unmaps everything when private listenAddrs disappear":
     let mock = newMock(extPorts = @[Port(7000)])
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -258,10 +261,7 @@ suite "NATService":
 
   asyncTest "stop unmaps active mappings and closes the mapper":
     let mock = newMock(extPorts = @[Port(5555)])
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -299,10 +299,7 @@ suite "NATService":
 
   asyncTest "map failure leaves no stale entry; announced falls through":
     let mock = newMock(extPorts = @[Port(8000)], mapErr = Opt.some("mapping refused"))
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -320,10 +317,7 @@ suite "NATService":
     # libplum maps IPv4 only, so any IPv6 listenAddr (even ULA fc00::/7) must be
     # filtered out before map().
     let mock = newMock()
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = makeSwitch(upnpConfig(), @[TcpAutoAddress], factory)
     await switch.start()
@@ -385,10 +379,7 @@ suite "NATService":
     # NATConfig keeps mode (port-mapping) and autonat orthogonal: enabling
     # both must spin up the UPnP addressMapper *and* the AutonatService.
     let mock = newMock()
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     var cfg = upnpConfig()
     cfg.reachability = autonatConfig(AutonatV1).reachability
@@ -457,10 +448,7 @@ suite "NATService":
 
   asyncTest "withNAT can be called once per distinct concern":
     let mock = newMock()
-    let factory: PortMapperFactory = proc(
-        mode: PortMappingMode
-    ): Opt[PortMapper] {.gcsafe, raises: [].} =
-      Opt.some(PortMapper(mock))
+    let factory = mapperFactory(mock)
 
     let switch = standardBuilder(@[TcpAutoAddress])
       .withNAT(upnpConfig(), factory)
@@ -482,50 +470,6 @@ suite "NATService":
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
 
-type RecordingPortMapper = ref object of PortMapper
-  externalIp: IpAddress
-  mapErr: Opt[string]
-  mapPortOverride: Opt[Port]
-    ## When set, `map` returns this port instead of echoing the requested
-    ## `externalPort`. Models an IGD that re-maps to a different external port
-    ## (e.g. when the requested one is busy).
-  unmapResult: Result[void, string]
-  mapCalls: seq[tuple[internal, external: Port, proto: MapProto]]
-  unmapCalls: seq[tuple[external: Port, proto: MapProto]]
-  closed: bool
-
-method map*(
-    self: RecordingPortMapper, internalPort: Port, externalPort: Port, proto: MapProto
-): Future[Result[MappedPort, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  self.mapCalls.add((internalPort, externalPort, proto))
-  self.mapErr.withValue(e):
-    return err(e)
-  let ext = self.mapPortOverride.get(externalPort)
-  ok(MappedPort(externalIp: self.externalIp, externalPort: ext))
-
-method unmap*(
-    self: RecordingPortMapper, externalPort: Port, proto: MapProto
-): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  self.unmapCalls.add((externalPort, proto))
-  self.unmapResult
-
-method close*(self: RecordingPortMapper) {.async: (raises: []), gcsafe.} =
-  self.closed = true
-
-proc newRecordingOk(externalIp: IpAddress): RecordingPortMapper =
-  RecordingPortMapper(externalIp: externalIp, unmapResult: Result[void, string].ok())
-
-proc recordingFactory(m: RecordingPortMapper): PortMapperFactory =
-  return proc(mode: PortMappingMode): Opt[PortMapper] {.gcsafe, raises: [].} =
-    Opt.some(PortMapper(m))
-
-proc recordingFactoryFail(): PortMapperFactory =
-  recordingFactory(
-    RecordingPortMapper(
-      mapErr: Opt.some("mock no IGD"), unmapResult: Result[void, string].ok()
-    )
-  )
-
 proc loopbackAddr(): MultiAddress =
   MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()
 
@@ -539,8 +483,8 @@ suite "NATService (setupMappings)":
   asyncTest "NatPmp announces external IP after successful mapping":
     let
       externalIp = parseIpAddress("203.0.113.99")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
@@ -559,8 +503,8 @@ suite "NATService (setupMappings)":
     # on a v4 listen address, so the mapping produces no announced address
     let
       externalIp = parseIpAddress("2001:db8::1")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
@@ -576,8 +520,8 @@ suite "NATService (setupMappings)":
   asyncTest "non-private listen addresses are skipped":
     let
       externalIp = parseIpAddress("203.0.113.1")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
@@ -601,8 +545,8 @@ suite "NATService (setupMappings)":
     let
       externalIp = parseIpAddress("203.0.113.111")
       userAddr = MultiAddress.init("/ip4/198.51.100.7/tcp/4242").tryGet()
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
@@ -620,8 +564,8 @@ suite "NATService (setupMappings)":
   asyncTest "multiple private listen addresses are each mapped once":
     let
       externalIp = parseIpAddress("203.0.113.10")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
@@ -647,8 +591,8 @@ suite "NATService (setupMappings)":
   asyncTest "setupMappings unmaps stale ports when a listen addr is removed":
     let
       externalIp = parseIpAddress("203.0.113.20")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
@@ -665,21 +609,19 @@ suite "NATService (setupMappings)":
     # Second cycle: one of them is gone. unmapStale must clean it up.
     discard await svc.setupMappings(@[privateAddr(9000)])
     check mapper.unmapCalls.len == 1
-    check mapper.unmapCalls[^1].external == Port(9001)
+    check mapper.unmapCalls[^1].externalPort == Port(9001)
     check mapper.unmapCalls[^1].proto == mpTcp
 
   asyncTest "IGD returning a different external port surfaces in announced":
     let
       externalIp = parseIpAddress("203.0.113.30")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      # queued external port simulates the IGD remapping the request to a
+      # different port (e.g. because the requested one is already busy).
+      mapper = newMock(extIp = externalIp, extPorts = @[Port(54321)])
+      factory = mapperFactory(mapper)
       cfg = upnpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)
-
-    # Simulate the IGD remapping the request to a different external port
-    # (e.g. because the requested one is already busy on the gateway).
-    mapper.mapPortOverride = Opt.some(Port(54321))
 
     await switch.start()
     defer:
@@ -694,7 +636,8 @@ suite "NATService (setupMappings)":
   asyncTest "NatPmp mapping failure leaves announced empty":
     let
       cfg = natPmpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], recordingFactoryFail())
+      mapper = newMock(mapErr = Opt.some("mock no IGD"))
+      switch = makeSwitch(cfg, @[loopbackAddr()], mapperFactory(mapper))
       svc = findNatService(switch)
 
     await switch.start()
@@ -708,8 +651,8 @@ suite "NATService (setupMappings)":
   asyncTest "NatPmp stop unmaps all created mappings":
     let
       externalIp = parseIpAddress("203.0.113.40")
-      mapper = newRecordingOk(externalIp)
-      factory = recordingFactory(mapper)
+      mapper = newMock(extIp = externalIp)
+      factory = mapperFactory(mapper)
       cfg = natPmpConfig()
       switch = makeSwitch(cfg, @[loopbackAddr()], factory)
       svc = findNatService(switch)

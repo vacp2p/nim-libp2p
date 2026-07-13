@@ -29,8 +29,10 @@ logScope:
   topics = "libp2p natservice plum"
 
 const
-  DefaultDiscoverTimeout* = 10.seconds
-  DefaultMappingTimeout* = 10.seconds
+  # Module-private fallbacks for PlumMapper.new()'s own default args; the public
+  # NAT timeout knobs live in natservice (DefaultDiscoveryTimeout/MappingTimeout).
+  DefaultDiscoverTimeout = 10.seconds
+  DefaultMappingTimeout = 10.seconds
 
 type
   MappingKey = tuple[externalPort: uint16, proto: MapProto]
