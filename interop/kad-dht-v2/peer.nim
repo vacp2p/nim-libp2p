@@ -14,7 +14,7 @@
 
 import std/[os, sets, strutils]
 import chronos, chronicles, stew/byteutils
-import ../../libp2p/[builders, switch, peerid, multihash]
+import ../../libp2p/[builders, switch, peerid]
 import ../../libp2p/protocols/kademlia
 import ../unified_testing
 
@@ -78,11 +78,10 @@ proc buildSwitch(config: KadConfig): Switch =
   buildBaseSwitch(base).build()
 
 proc provideKey(testKey: string): Key =
-  ## The provider record key. nim's `handleAddProvider` requires a valid
-  ## multihash, so we hash the logical key rather than sending raw bytes.
-  ## NOTE: this must byte-match the py/dotnet nodes for cross-impl interop;
-  ## that is validated separately (see the kad-dht integration notes).
-  MultiHash.digest("sha2-256", ("interop-test-key-" & testKey).toBytes()).get().toKey()
+  ## Raw UTF-8 bytes of the logical key, matching go/js/py/dotnet, which
+  ## advertise non-multihash provider keys. The receiver accepts these because
+  ## provider keys are length-bounded rather than required to be multihashes.
+  ("interop-test-key-" & testKey).toBytes()
 
 proc valueKey(testKey: string): Key =
   ("/example/data/" & testKey).toBytes()
