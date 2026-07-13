@@ -173,7 +173,7 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
 
   # stops the advertiser maintenance loop before draining advertiser tasks, 
   # so shutdown cannot spawn new registration work while cleanup is running
-  if not disco.advertiserMaintenanceLoop.isNil():
+  if not disco.advertiserMaintenanceLoop.isNil:
     await disco.advertiserMaintenanceLoop.cancelAndWait()
     disco.advertiserMaintenanceLoop = nil
 
@@ -182,19 +182,19 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   let serviceBootstrapFuts = move disco.serviceBootstrapFuts
   await noCancel serviceBootstrapFuts.cancelAndWait()
 
-  if not disco.selfSignedPeerRecordLoop.isNil():
-    disco.selfSignedPeerRecordLoop.cancelSoon()
+  if not disco.selfSignedPeerRecordLoop.isNil:
+    await disco.selfSignedPeerRecordLoop.cancelAndWait()
     disco.selfSignedPeerRecordLoop = nil
 
-  if not disco.pruneExpiredAdsLoop.isNil():
-    disco.pruneExpiredAdsLoop.cancelSoon()
+  if not disco.pruneExpiredAdsLoop.isNil:
+    await disco.pruneExpiredAdsLoop.cancelAndWait()
     disco.pruneExpiredAdsLoop = nil
 
-  if not disco.refreshServiceTablesLoop.isNil():
-    disco.refreshServiceTablesLoop.cancelSoon()
+  if not disco.refreshServiceTablesLoop.isNil:
+    await disco.refreshServiceTablesLoop.cancelAndWait()
     disco.refreshServiceTablesLoop = nil
 
-  if not disco.localRegistrationLoop.isNil():
+  if not disco.localRegistrationLoop.isNil:
     await disco.localRegistrationLoop.cancelAndWait()
     disco.localRegistrationLoop = nil
 
