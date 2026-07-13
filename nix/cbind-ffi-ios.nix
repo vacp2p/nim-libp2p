@@ -29,6 +29,11 @@ let
     then "-mios-simulator-version-min=${minVersion}"
     else "-miphoneos-version-min=${minVersion}";
 
+  platformCheck =
+    if sdk == "iphonesimulator"
+    then "platform (IOSSIMULATOR|7)|LC_VERSION_MIN_IPHONEOS"
+    else "platform (IOS|2)|LC_VERSION_MIN_IPHONEOS";
+
   tinycborVendor = "${cbindDeps.ffi}/ffi/codegen/templates/cpp/vendor/tinycbor";
 in
 pkgs.stdenv.mkDerivation {
@@ -59,13 +64,61 @@ pkgs.stdenv.mkDerivation {
     export NIMBLE_DIR=$TMPDIR/.nimble
     export NIMCACHE=$TMPDIR/nimcache
 
-    if [ ! -x /usr/bin/xcrun ]; then
-      echo "xcrun is required; build iOS targets on macOS with Xcode installed" >&2
+    export IOS_SDK_NAME=${sdk}
+    case "$IOS_SDK_NAME" in
+      iphoneos)
+        IOS_PLATFORM_DIR=iPhoneOS.platform
+        IOS_SDK_PREFIX=iPhoneOS
+        ;;
+      iphonesimulator)
+        IOS_PLATFORM_DIR=iPhoneSimulator.platform
+        IOS_SDK_PREFIX=iPhoneSimulator
+        ;;
+      *)
+        echo "unsupported iOS SDK: $IOS_SDK_NAME" >&2
+        exit 1
+        ;;
+    esac
+
+    IOS_DEVELOPER_DIR=
+    for candidate in /Applications/Xcode*.app/Contents/Developer; do
+      if [ -d "$candidate/Platforms/$IOS_PLATFORM_DIR/Developer/SDKs" ]; then
+        IOS_DEVELOPER_DIR="$candidate"
+      fi
+    done
+    if [ -z "$IOS_DEVELOPER_DIR" ]; then
+      echo "Xcode with $IOS_PLATFORM_DIR SDKs is required for iOS builds" >&2
       exit 1
     fi
+    export IOS_DEVELOPER_DIR
+    export DEVELOPER_DIR="$IOS_DEVELOPER_DIR"
 
-    export IOS_SDK_NAME=${sdk}
-    export IOS_SDK_PATH="$(/usr/bin/xcrun --sdk "$IOS_SDK_NAME" --show-sdk-path)"
+    IOS_SDK_PATH=
+    for candidate in "$IOS_DEVELOPER_DIR/Platforms/$IOS_PLATFORM_DIR/Developer/SDKs/$IOS_SDK_PREFIX"*.sdk; do
+      if [ -d "$candidate" ]; then
+        IOS_SDK_PATH="$candidate"
+      fi
+    done
+    if [ -z "$IOS_SDK_PATH" ]; then
+      echo "unable to find $IOS_SDK_NAME SDK under $IOS_DEVELOPER_DIR" >&2
+      exit 1
+    fi
+    export IOS_SDK_PATH
+    export SDKROOT="$IOS_SDK_PATH"
+
+    IOS_TOOLCHAIN="$IOS_DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+    export IOS_CLANG="$IOS_TOOLCHAIN/clang"
+    export IOS_CLANGXX="$IOS_TOOLCHAIN/clang++"
+    export IOS_AR="$IOS_TOOLCHAIN/ar"
+    export IOS_RANLIB="$IOS_TOOLCHAIN/ranlib"
+    export IOS_OTOOL="$IOS_TOOLCHAIN/otool"
+    export IOS_LIPO="$IOS_TOOLCHAIN/lipo"
+    for tool in "$IOS_CLANG" "$IOS_CLANGXX" "$IOS_AR" "$IOS_RANLIB" "$IOS_OTOOL" "$IOS_LIPO"; do
+      if [ ! -x "$tool" ]; then
+        echo "missing Xcode tool: $tool" >&2
+        exit 1
+      fi
+    done
     export IOS_TARGET_TRIPLE=${targetTriple}
     export IOS_MIN_VERSION_FLAG=${minVersionFlag}
 
@@ -74,7 +127,9 @@ pkgs.stdenv.mkDerivation {
 
     cat > "$TOOLCHAIN/clang" <<'EOF'
 #!${pkgs.bash}/bin/bash
-exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" clang \
+export DEVELOPER_DIR="$IOS_DEVELOPER_DIR"
+export SDKROOT="$IOS_SDK_PATH"
+exec "$IOS_CLANG" \
   -target "$IOS_TARGET_TRIPLE" \
   -isysroot "$IOS_SDK_PATH" \
   "$IOS_MIN_VERSION_FLAG" \
@@ -82,7 +137,9 @@ exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" clang \
 EOF
     cat > "$TOOLCHAIN/clang++" <<'EOF'
 #!${pkgs.bash}/bin/bash
-exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" clang++ \
+export DEVELOPER_DIR="$IOS_DEVELOPER_DIR"
+export SDKROOT="$IOS_SDK_PATH"
+exec "$IOS_CLANGXX" \
   -target "$IOS_TARGET_TRIPLE" \
   -isysroot "$IOS_SDK_PATH" \
   "$IOS_MIN_VERSION_FLAG" \
@@ -90,11 +147,15 @@ exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" clang++ \
 EOF
     cat > "$TOOLCHAIN/ar" <<'EOF'
 #!${pkgs.bash}/bin/bash
-exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" ar "$@"
+export DEVELOPER_DIR="$IOS_DEVELOPER_DIR"
+export SDKROOT="$IOS_SDK_PATH"
+exec "$IOS_AR" "$@"
 EOF
     cat > "$TOOLCHAIN/ranlib" <<'EOF'
 #!${pkgs.bash}/bin/bash
-exec /usr/bin/xcrun --sdk "$IOS_SDK_NAME" ranlib "$@"
+export DEVELOPER_DIR="$IOS_DEVELOPER_DIR"
+export SDKROOT="$IOS_SDK_PATH"
+exec "$IOS_RANLIB" "$@"
 EOF
     ln -s "$TOOLCHAIN/ar" "$TOOLCHAIN/llvm-ar"
     ln -s "$TOOLCHAIN/ranlib" "$TOOLCHAIN/llvm-ranlib"
@@ -110,6 +171,15 @@ EOF
     NAT_PKG=$TMPDIR/nat_traversal
     cp -r ${deps.nat_traversal} $NAT_PKG
     chmod -R +w $NAT_PKG
+
+    # iOS SDKs do not expose <net/route.h>, which upstream libnatpmp's gateway
+    # discovery helper requires. Keep NAT-PMP linkable for the mobile ABI and
+    # report gateway discovery as unsupported at runtime.
+    cat > "$NAT_PKG/vendor/libnatpmp-upstream/getgateway.c" <<'EOF'
+#include <netinet/in.h>
+#include "getgateway.h"
+int getdefaultgateway(in_addr_t *addr) { (void)addr; return -1; }
+EOF
 
     echo "== Building nat_traversal vendored C libs for iOS ${targetName} =="
     make -C "$NAT_PKG/vendor/miniupnp/miniupnpc" \
@@ -168,11 +238,12 @@ EOF
       -lc++ \
       -o build/libp2p_ffi_ios_check
 
-    /usr/bin/xcrun --sdk "$IOS_SDK_NAME" otool -l build/liblibp2p.dylib > build/liblibp2p.dylib.otool
-    /usr/bin/xcrun --sdk "$IOS_SDK_NAME" otool -l build/libp2p_ffi_ios_check > build/libp2p_ffi_ios_check.otool
-    /usr/bin/xcrun --sdk "$IOS_SDK_NAME" lipo -info build/liblibp2p.dylib > build/liblibp2p.dylib.lipo
-    /usr/bin/xcrun --sdk "$IOS_SDK_NAME" lipo -info build/liblibp2p.a > build/liblibp2p.a.lipo
-    grep -q "platform ${platformName}" build/liblibp2p.dylib.otool
+    echo "== Inspecting iOS artifacts for ${targetName} =="
+    "$IOS_OTOOL" -l build/liblibp2p.dylib | tee build/liblibp2p.dylib.otool
+    "$IOS_OTOOL" -l build/libp2p_ffi_ios_check | tee build/libp2p_ffi_ios_check.otool
+    "$IOS_LIPO" -info build/liblibp2p.dylib | tee build/liblibp2p.dylib.lipo
+    "$IOS_LIPO" -info build/liblibp2p.a | tee build/liblibp2p.a.lipo
+    grep -Eq "${platformCheck}" build/liblibp2p.dylib.otool
     grep -q "arm64" build/liblibp2p.dylib.lipo
   '';
 
