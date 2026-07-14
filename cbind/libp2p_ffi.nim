@@ -864,9 +864,7 @@ proc libp2pCreateXpr*(
   for s in req.services:
     services.add(ServiceInfo(id: s.id, data: Opt.some(s.data)))
 
-  let peerRecord = ExtendedPeerRecord.init(
-    peerId = peerInfo.peerId, addresses = addresses, seqNo = seqNo, services = services
-  )
+  let peerRecord = ExtendedPeerRecord.init(peerInfo.peerId, addresses, seqNo, services)
 
   let xpr = SignedExtendedPeerRecord.build(peerInfo.privateKey, peerRecord).valueOr:
     return err(error)
