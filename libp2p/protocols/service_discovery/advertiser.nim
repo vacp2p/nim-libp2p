@@ -231,15 +231,15 @@ proc ticketRetryDelay*(ticket: Ticket, now: Moment): Duration {.raises: [].} =
   ## the eligibility window ``[tMod + tWaitFor, tMod + tWaitFor + delta]``.
   let tMod = ticket.tMod.valueOr:
     return ZeroDuration
-  
+
   let tWaitFor = ticket.tWaitFor.valueOr:
     return ZeroDuration
-  
+
   let eligibility = tMod + tWaitFor
-  
+
   if now >= eligibility:
     return ZeroDuration
-  
+
   return eligibility - now
 
 proc advertiseToRegistrar*(
