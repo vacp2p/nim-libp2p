@@ -440,7 +440,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
-  discard await noCancel allFinished(transport.closeFuts)
+  await noCancel allFutures(transport.closeFuts)
   transport.closeFuts = @[]
 
   var endpointStops: seq[Future[void]]
