@@ -315,7 +315,7 @@ proc negotiateStream*(
   trace "Negotiating stream", stream, protos
   let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
-    await stream.closeWithEOF()
+    await stream.reset()
     raise newException(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
@@ -323,7 +323,7 @@ proc negotiateStream*(
 
   self.ms.lookupProtocol(selected).withValue(protocol):
     if not protocol.reserveOutgoing(stream.peerId):
-      await stream.closeWithEOF()
+      await stream.reset()
       raise newException(
         DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
       )

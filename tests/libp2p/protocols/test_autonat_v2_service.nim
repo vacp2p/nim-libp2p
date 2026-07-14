@@ -536,7 +536,7 @@ suite "AutonatV2 Service":
 
   asyncTest "Handler must receive the dial-back address on Reachable":
     let
-      (service, _) = newService(NetworkReachability.Reachable)
+      (service, client) = newService(NetworkReachability.Reachable)
       switch = createSwitch(Opt.some(service))
     var switches = createSwitches(3)
 
@@ -554,10 +554,11 @@ suite "AutonatV2 Service":
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     let capturedAddr = await awaiter
+    await client.finished
 
     check service.networkReachability == NetworkReachability.Reachable
     check capturedAddr.isSome()
-    check capturedAddr.get() == switch.peerInfo.addrs[0]
+    check capturedAddr.get() == client.allTestAddrs[^1][0]
 
     await switch.stop()
     await switches.stopAll()
@@ -586,7 +587,7 @@ suite "AutonatV2 Service":
 
     check service.networkReachability == NetworkReachability.NotReachable
     check capturedAddr.isSome()
-    check capturedAddr.get() == switch.peerInfo.addrs[0]
+    check capturedAddr.get() == client.allTestAddrs[^1][0]
 
     await switch.stop()
     await switches.stopAll()

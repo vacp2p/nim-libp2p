@@ -73,6 +73,7 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
   if muxer.isNil:
     return
   var stream: Stream
+  var pushCompleted = false
   try:
     stream = await muxer.newStream()
     if stream.isNil:
@@ -81,6 +82,7 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
 
     if await MultistreamSelect.select(stream, IdentifyPushCodec):
       await p.identifyPush.push(p.peerInfo, stream)
+      pushCompleted = true
   except CancelledError as e:
     raise e
   except MuxerError as e:
@@ -92,10 +94,10 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
     trace "stream error during identify push", peerId, description = e.msg
   finally:
     if not stream.isNil:
-      # Close the stream unconditionally to prevent resource leaks,
-      # mainly issue in tests and `checkTrackers`.
-      # In production cancelling is fine.
-      await noCancel stream.closeWithEOF()
+      if pushCompleted:
+        await noCancel stream.closeWithEOF()
+      else:
+        await noCancel stream.reset()
 
 proc broadcast(p: IdentifyPusher) =
   ## Send an IdentifyPush message with our current `peerInfo` to every
