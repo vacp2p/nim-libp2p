@@ -235,6 +235,33 @@ suite "Service Discovery Component - Advertise Discover":
     let ads = registrarNode.getAdsInCache(serviceId)
     check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
+  asyncTest "advertiser retry succeeds when tWaitFor exceeds advertExpiry":
+    # Regression: sleeping min(advertExpiry, tWaitFor) caused early retries that
+    # the registrar rejected as "ticket outside valid time window".
+    # empty-cache wait ≈ advertExpiry * safetyParam = 1s * 2 = 2s > advertExpiry.
+    let conf = ServiceDiscoveryConfig.new(
+      advertExpiry = 1.secs,
+      safetyParam = 2.0,
+      ipSimCoefficient = 0.0,
+      registrationWindow = 5.secs,
+      advertCacheCap = 1_000_000,
+    )
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(serviceId) == 1
+
+    let ads = registrarNode.getAdsInCache(serviceId)
+    check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+
   asyncTest "remote registration task terminates after one Confirmed cycle and maintenance refills the slot":
     let conf = ServiceDiscoveryConfig.new(advertExpiry = 300.millis, safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)

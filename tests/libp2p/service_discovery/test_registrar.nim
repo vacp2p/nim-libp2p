@@ -1291,6 +1291,42 @@ suite "Service Discovery Registrar - registration response":
       ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
 
+  test "Wait ticket timestamps are second-aligned for wire consistency":
+    let config = ServiceDiscoveryConfig.new(safetyParam = 1.0)
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
+    let serviceIdName = "service"
+    let serviceId = serviceIdName.hashServiceId()
+    let ad = makeAdvertisement(serviceIdName)
+    let adBytes = ad.encode().get()
+
+    # Seed another service so waitingTime is non-zero via occupancy/service sim
+    let otherId = makeServiceId(9)
+    let otherAd = makeAdvertisement($otherId)
+    disco.registrar.cache[otherId] = @[otherAd]
+    disco.registrar.cacheTimestamps[otherAd.toAdvertisementKey()] = Moment.now()
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(ad.data.peerId, inMsg).register.get()
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    let ticket = reply.ticket.get()
+    check:
+      ticket.tMod.isSome
+      ticket.tInit.isSome
+      # Second-aligned: re-init from epochSeconds must be identity
+      ticket.tMod.get() == Moment.init(ticket.tMod.get().epochSeconds, Second)
+      ticket.tInit.get() == Moment.init(ticket.tInit.get().epochSeconds, Second)
+
   test "retrying with a valid ticket inside the window caches the ad":
     let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)
     let disco = setupServiceDiscoveryNode(discoConfig = conf)

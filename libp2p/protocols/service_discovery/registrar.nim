@@ -488,10 +488,13 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
+  # Floor to whole seconds so in-memory ticket times match wire encode/decode
+  # and the signature payload (epochSeconds / Duration.seconds).
+  let nowSec = Moment.init(now.epochSeconds, Second)
   var ticket = Ticket(
     advertisement: regMsg.advertisement,
-    tInit: Opt.some(now),
-    tMod: Opt.some(now),
+    tInit: Opt.some(nowSec),
+    tMod: Opt.some(nowSec),
     tWaitFor: Opt.some(tWait),
   )
 

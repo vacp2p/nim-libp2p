@@ -230,3 +230,46 @@ suite "Advertiser - record creation":
     let recDef = discoDef.record()
     check recDef.isOk()
     check recDef.get().data.addresses.len == 2
+
+suite "Advertiser - ticketRetryDelay":
+  teardown:
+    checkTrackers()
+
+  test "returns remaining time until eligibility when now is before windowStart":
+    let tMod = Moment.init(1_000, Second)
+    let ticket = Ticket(
+      advertisement: Opt.some(@[1'u8]),
+      tInit: Opt.some(tMod),
+      tMod: Opt.some(tMod),
+      tWaitFor: Opt.some(10.secs),
+      signature: Opt.none(seq[byte]),
+    )
+    let now = tMod + 3.secs
+    check ticketRetryDelay(ticket, now) == 7.secs
+
+  test "returns ZeroDuration when now is at or after eligibility":
+    let tMod = Moment.init(1_000, Second)
+    let ticket = Ticket(
+      advertisement: Opt.some(@[1'u8]),
+      tInit: Opt.some(tMod),
+      tMod: Opt.some(tMod),
+      tWaitFor: Opt.some(5.secs),
+      signature: Opt.none(seq[byte]),
+    )
+    check ticketRetryDelay(ticket, tMod + 5.secs) == ZeroDuration
+    check ticketRetryDelay(ticket, tMod + 6.secs) == ZeroDuration
+
+  test "is not capped by advertExpiry (uses full tWaitFor)":
+    # Regression: previous code slept min(advertExpiry, tWaitFor), so under load
+    # when tWaitFor > advertExpiry the retry arrived before windowStart and was
+    # rejected as "ticket outside valid time window".
+    let tMod = Moment.init(2_000, Second)
+    let ticket = Ticket(
+      advertisement: Opt.some(@[1'u8]),
+      tInit: Opt.some(tMod),
+      tMod: Opt.some(tMod),
+      tWaitFor: Opt.some(900.secs),
+      signature: Opt.none(seq[byte]),
+    )
+    let now = tMod
+    check ticketRetryDelay(ticket, now) == 900.secs
