@@ -28,10 +28,15 @@ import ../libp2p/protocols/service_discovery
 import ../libp2p/protocols/service_discovery/types
 import ../libp2p/protocols/connectivity/relay/client
 
-type StreamRegistry = object
-  ## Owns the live streams handed out across the FFI boundary.
+type StreamRegistry = ref object
+  ## Owns the live streams handed out across the FFI boundary and the
+  ## release-waiter futures that keep custom-protocol handlers alive until the
+  ## host is done with the stream. A `ref` so the custom-protocol handler can
+  ## capture it directly instead of the whole `LibP2P`, which would form a
+  ## `lib -> customProtocols -> handler -> lib` cycle that `--mm:refc` leaks.
   streams: Table[uint64, Stream]
   nextStreamId: uint64
+  releaseWaiters: Table[uint64, Future[void].Raising([CancelledError])]
 
 type LibP2P* = ref object
   ## Main library state. The FFI context owns one instance; its tables mutate
@@ -76,7 +81,41 @@ type DialCircuitRelayRequest {.ffi.} = object
   proto: string
   timeoutMs: int64
 
-proc register(reg: var StreamRegistry, stream: Stream): uint64 =
+type StreamWriteRequest {.ffi.} = object
+  streamId: uint64
+  data: seq[byte]
+
+type StreamReadExactlyRequest {.ffi.} = object
+  streamId: uint64
+  numBytes: int64
+
+type StreamReadLpRequest {.ffi.} = object
+  streamId: uint64
+  maxSize: int64
+
+type PublishRequest {.ffi.} = object
+  topic: string
+  data: seq[byte]
+
+type PublishResponse {.ffi.} = object
+  peerCount: int64 ## number of peers the message was forwarded to
+
+type ReadResponse {.ffi.} = object
+  data: seq[byte]
+
+type IncomingStreamEvent {.ffi.} = object
+  proto: string
+  streamId: uint64
+
+type PubsubMessageEvent {.ffi.} = object
+  topic: string
+  data: seq[byte]
+
+proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent: "on_incoming_stream".}
+
+proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent: "on_pubsub_message".}
+
+proc register(reg: StreamRegistry, stream: Stream): uint64 =
   reg.nextStreamId.inc()
   let id = reg.nextStreamId
   reg.streams[id] = stream
@@ -87,6 +126,15 @@ func get(reg: StreamRegistry, id: uint64): Result[Stream, string] =
   if stream.isNil():
     return err("unknown stream handle")
   ok(stream)
+
+proc release(reg: StreamRegistry, id: uint64) =
+  # Completes the waiting protocol handler so multistream doesn't close the stream early.
+  let releaseWaiter = reg.releaseWaiters.getOrDefault(id, nil)
+  if not releaseWaiter.isNil():
+    reg.releaseWaiters.del(id)
+    if not releaseWaiter.finished():
+      releaseWaiter.complete()
+  reg.streams.del(id)
 
 const MaxReadBytes = 64 * 1024 * 1024
   ## Upper bound on a single stream read. Caps the buffer an untrusted peer can
@@ -216,7 +264,13 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
     except LPError as e:
       return err("could not create libp2p node: " & e.msg)
 
-  let lib = LibP2P(switch: switch, rng: rng, relayClient: relayClientOpt, stopped: true)
+  let lib = LibP2P(
+    switch: switch,
+    rng: rng,
+    relayClient: relayClientOpt,
+    streams: StreamRegistry(),
+    stopped: true,
+  )
 
   ?mountProtocols(lib, cfg)
 
@@ -236,19 +290,19 @@ proc shutdownSwitch(lib: LibP2P) {.async.} =
   lib.stopped = true
   await lib.switch.stop()
 
-proc libp2pStart*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
+proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   if not lib.stopped:
-    return ok()
+    return ok(true)
   try:
     await lib.switch.start()
   except LPError as e:
     return err(e.msg)
   lib.stopped = false
-  ok()
+  ok(true)
 
-proc libp2pStop*(lib: LibP2P): Future[Result[void, string]] {.ffi.} =
+proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   await shutdownSwitch(lib)
-  ok()
+  ok(true)
 
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## Owns the full teardown: the FFI runtime runs this on the worker loop at
@@ -310,7 +364,7 @@ func dialTimeout(timeoutMs: int64): Duration =
 
 proc libp2pConnect*(
     lib: LibP2P, req: ConnectRequest
-): Future[Result[void, string]] {.ffi: "timeout = 30000".} =
+): Future[Result[bool, string]] {.ffi: "timeout = 30000".} =
   # The FFI runtime caps every handler at a 5s default; a dial+upgrade can take
   # up to libp2p's 30s UpgradeTimeout, so raise the backstop to match. The
   # per-call `req.timeoutMs` bounds the dial itself whenever it is shorter.
@@ -327,15 +381,15 @@ proc libp2pConnect*(
   except DialFailedError as e:
     return err(e.msg)
 
-  ok()
+  ok(true)
 
 proc libp2pDisconnect*(
     lib: LibP2P, peerId: string
-): Future[Result[void, string]] {.ffi.} =
+): Future[Result[bool, string]] {.ffi.} =
   let pid = PeerId.init(peerId).valueOr:
     return err($error)
   await lib.switch.disconnect(pid)
-  ok()
+  ok(true)
 
 proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
   let peerInfo = lib.switch.peerInfo
@@ -396,5 +450,156 @@ proc libp2pDialCircuitRelay*(
     except DialFailedError as e:
       return err(e.msg)
   ok(DialResponse(streamId: lib.streams.register(stream)))
+
+func validateReadLength(n: int64): Result[int, string] =
+  ## Guards attacker-controlled read lengths before they size an allocation:
+  ## rejects negatives and anything past the `MaxReadBytes` DoS ceiling. The
+  ## ceiling (64 MiB) sits well below `int.high` even on 32-bit targets, so the
+  ## `int(n)` narrowing below is always safe; `int.high` stays as a backstop in
+  ## case the ceiling is ever raised.
+  if n < 0:
+    return err("invalid read length")
+  if n > MaxReadBytes:
+    return err("read length exceeds maximum")
+  if n > int.high:
+    return err("read length too large")
+  ok(int(n))
+
+proc libp2pStreamReadExactly*(
+    lib: LibP2P, req: StreamReadExactlyRequest
+): Future[Result[ReadResponse, string]] {.ffi.} =
+  let stream = ?lib.streams.get(req.streamId)
+  let expected = ?validateReadLength(req.numBytes)
+  if expected == 0:
+    return ok(ReadResponse(data: @[]))
+  var buf = newSeqUninit[byte](expected)
+  try:
+    await stream.readExactly(addr buf[0], expected)
+  except LPStreamError as e:
+    return err(e.msg)
+  ok(ReadResponse(data: buf))
+
+proc libp2pStreamReadLp*(
+    lib: LibP2P, req: StreamReadLpRequest
+): Future[Result[ReadResponse, string]] {.ffi.} =
+  let stream = ?lib.streams.get(req.streamId)
+  let maxSize = ?validateReadLength(req.maxSize)
+  let data =
+    try:
+      await stream.readLp(maxSize)
+    except LPStreamError as e:
+      return err(e.msg)
+  ok(ReadResponse(data: data))
+
+proc libp2pStreamWrite*(
+    lib: LibP2P, req: StreamWriteRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let stream = ?lib.streams.get(req.streamId)
+  try:
+    await stream.write(req.data)
+  except LPStreamError as e:
+    return err(e.msg)
+  ok(true)
+
+proc libp2pStreamWriteLp*(
+    lib: LibP2P, req: StreamWriteRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let stream = ?lib.streams.get(req.streamId)
+  try:
+    await stream.writeLp(req.data)
+  except LPStreamError as e:
+    return err(e.msg)
+  ok(true)
+
+proc libp2pStreamClose*(
+    lib: LibP2P, streamId: uint64
+): Future[Result[bool, string]] {.ffi.} =
+  let stream = ?lib.streams.get(streamId)
+  await stream.close()
+  ok(true)
+
+proc libp2pStreamCloseWithEof*(
+    lib: LibP2P, streamId: uint64
+): Future[Result[bool, string]] {.ffi.} =
+  let stream = ?lib.streams.get(streamId)
+  await stream.closeWithEOF()
+  ok(true)
+
+proc libp2pStreamRelease*(
+    lib: LibP2P, streamId: uint64
+): Future[Result[bool, string]] {.ffi.} =
+  discard ?lib.streams.get(streamId)
+  lib.streams.release(streamId)
+  ok(true)
+
+proc libp2pMountProtocol*(
+    lib: LibP2P, proto: string
+): Future[Result[bool, string]] {.ffi.} =
+  if proto.len == 0:
+    return err("proto is empty")
+  if lib.switch.isNil():
+    return err("libp2p switch is not initialized")
+
+  let peerInfo = lib.switch.peerInfo
+  if lib.customProtocols.hasKey(proto) or proto in peerInfo.protocols:
+    return err("protocol already mounted: " & proto)
+
+  # Capture the registry ref, not `lib`: a closure over `lib` stored back into
+  # `lib.customProtocols` would cycle and leak under `--mm:refc`.
+  let streams = lib.streams
+  proc handle(
+      stream: Stream, selectedProto: string
+  ) {.async: (raises: [CancelledError]).} =
+    let streamId = streams.register(stream)
+    defer:
+      streams.release(streamId)
+    let releaseWaiter =
+      Future[void].Raising([CancelledError]).init("cbind custom protocol release")
+    streams.releaseWaiters[streamId] = releaseWaiter
+    onIncomingStream(IncomingStreamEvent(proto: selectedProto, streamId: streamId))
+    await releaseWaiter
+
+  let mountedProtocol = LPProtocol.new(codecs = @[proto], handler = handle)
+  await mountedProtocol.start()
+
+  try:
+    lib.switch.mount(mountedProtocol)
+  except LPError as e:
+    await mountedProtocol.stop()
+    return err(e.msg)
+
+  lib.customProtocols[proto] = mountedProtocol
+  ok(true)
+
+proc libp2pGossipsubPublish*(
+    lib: LibP2P, req: PublishRequest
+): Future[Result[PublishResponse, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  let peerCount = await gossipSub.publish(req.topic, req.data)
+  ok(PublishResponse(peerCount: peerCount.int64))
+
+proc libp2pGossipsubSubscribe*(
+    lib: LibP2P, topic: string
+): Future[Result[bool, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  if not lib.topicHandlers.hasKey(topic):
+    let handler = proc(t: string, data: seq[byte]): Future[void] {.async.} =
+      onPubsubMessage(PubsubMessageEvent(topic: t, data: data))
+    lib.topicHandlers[topic] = handler
+    gossipSub.subscribe(topic, handler)
+  ok(true)
+
+proc libp2pGossipsubUnsubscribe*(
+    lib: LibP2P, topic: string
+): Future[Result[bool, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  let handler = lib.topicHandlers.getOrDefault(topic, nil)
+  if not handler.isNil():
+    lib.topicHandlers.del(topic)
+    gossipSub.unsubscribe(topic, handler)
+  ok(true)
 
 genBindings()

@@ -118,7 +118,7 @@ proc new*(T: type[SwitchBuilder]): T =
     circuitRelay: Opt.none(Relay),
     rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
-    identifyPusherEnabled: true,
+    identifyPusherEnabled: false,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
