@@ -438,9 +438,7 @@ suite "Identify":
     ms.addHandler(limitedPing)
 
     let
-      dialer = Dialer.new(
-        localInfo.peerId, ConnManager.new(), peerStore, @[], ms, nil
-      )
+      dialer = Dialer.new(localInfo.peerId, ConnManager.new(), peerStore, @[], ms, nil)
       stream = await muxDialer.newStream()
       negotiateFut = dialer.negotiateStream(stream, @[IdentifyCodec])
 
