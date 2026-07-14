@@ -268,7 +268,7 @@ suite "KadDHT - Add Provider":
     await senderKad.addProvider(senderKad.rtable.selfId.toCid())
 
     # Empty key is out of bounds, record must not be stored
-    await sleepAsync(200.milliseconds)
+    await sleepAsync(200.milliseconds) # sleep needed for negative assertion
     check receiverKad.providerManager.providerRecords.len == 0
 
   asyncTest "Add provider rejects a key exceeding the length bound":
@@ -289,8 +289,8 @@ suite "KadDHT - Add Provider":
     )
     await senderKad.addProvider(senderKad.rtable.selfId.toCid())
 
-    # Over-length key is out of bounds → record must not be stored
-    await sleepAsync(200.milliseconds)
+    # Over-size key is out of bounds, record must not be stored
+    await sleepAsync(200.milliseconds) # sleep needed for negative assertion
     check receiverKad.providerManager.providerRecords.len == 0
 
   asyncTest "Add provider with CID key extracts multihash":
