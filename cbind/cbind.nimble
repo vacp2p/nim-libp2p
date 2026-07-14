@@ -55,41 +55,36 @@ task libDynamic, "Generate dynamic bindings":
 task libStatic, "Generate static bindings":
   buildCBindings "static", ""
 
-proc findNatPkgDir(): string =
-  # Match the top-level Makefile: nimble installs deps under pkgs2 on newer
-  # versions and pkgs on older ones; resolve from either.
-  for base in ["../nimbledeps/pkgs2", "../nimbledeps/pkgs"]:
-    if dirExists(base):
-      for d in listDirs(base):
-        if d.extractFilename().startsWith("nat_traversal-"):
-          return d
-  quit "nat_traversal package not found under ../nimbledeps/pkgs2 or " &
-    "../nimbledeps/pkgs; run 'nimble install_pinned' first"
-
-task examples, "Build and run C bindings examples":
-  buildCBindings "static", ""
-  # libp2p.a transitively references miniupnpc and libnatpmp via nat_traversal.
-  # Build the vendored .a's via the parent Makefile and link them in.
-  exec "make -C .. nat_libs"
-  let natPkg = findNatPkgDir()
-  # miniupnpc's unix Makefile drops the .a under build/, but its Makefile.mingw
-  # drops it at the package root. Match the parent Makefile's per-OS choice.
-  let upnpA =
-    when defined(windows):
-      natPkg / "vendor/miniupnp/miniupnpc/libminiupnpc.a"
-    else:
-      natPkg / "vendor/miniupnp/miniupnpc/build/libminiupnpc.a"
-  let pmpA = natPkg / "vendor/libnatpmp-upstream/libnatpmp.a"
-  let natLibs = upnpA & " " & pmpA
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
-    natLibs & " -pthread"
-  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &
-    " -pthread"
-  exec "../build/cbindings"
-  exec "../build/echo"
-
 # nim-ffi library, built in parallel to the legacy cbind above (see libp2p_ffi.nim).
 # Renamed over libp2p.nim at the flip PR, which drops everything above this line.
+
+proc findInstalledPkgDir(prefix: string): string =
+  ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). install_pinned
+  ## drops cbind's pinned deps under the project-local `nimbledeps/pkgs2`; a plain
+  ## `nimble install` uses the global store. Check both.
+  var bases = @["nimbledeps/pkgs2", "../nimbledeps/pkgs2"]
+  let home = getEnv("HOME")
+  if home.len > 0:
+    bases.add home & "/.nimble/pkgs2"
+  for base in bases:
+    if not dirExists(base):
+      continue
+    for entry in listDirs(base):
+      if entry.extractFilename().startsWith(prefix):
+        return entry
+  raise newException(
+    IOError,
+    "could not locate installed package '" & prefix &
+      "*'; run `nimble install_pinned` first",
+  )
+
+proc ffiDepPaths(): string =
+  # ffi and cbor_serialization aren't cbind `requires` (they're not in the nimble
+  # registry, so setup can't resolve them onto nimble.paths); point the compiler
+  # at the installed copies. Their transitive deps (chronos, serialization, stew,
+  # results, faststreams, …) are libp2p deps already on the inherited root paths.
+  " --path:" & findInstalledPkgDir("ffi-") & " --path:" &
+    findInstalledPkgDir("cbor_serialization-")
 
 proc ffiLibExt(): string =
   when defined(windows):
@@ -103,6 +98,9 @@ proc buildFfiLib() =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
+  # liblibp2p.so transitively references miniupnpc and libnatpmp via
+  # nat_traversal's {.passL.} of their vendored .a's; build them first.
+  exec "make -C .. nat_libs"
   # Name the output `lib<name>` so the file matches the soname nim derives from
   # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
   # nim-ffi's `declareLibrary` imports.
@@ -110,7 +108,7 @@ proc buildFfiLib() =
   # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
-    " -d:ffiThreadExitTimeoutMs=5000" &
+    " -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
     " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p_ffi.nim"
 
 task buildffi, "Build the FFI shared library":
@@ -119,7 +117,7 @@ task buildffi, "Build the FFI shared library":
 proc genBindingsFor(lang, outDir: string) =
   exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
     " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
-    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p_ffi.nim" &
+    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p_ffi.nim" & ffiDepPaths() &
     " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p_ffi.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
@@ -127,3 +125,35 @@ task genbindings_c, "Generate C bindings (cbind/c_bindings)":
 
 task genbindings_cddl, "Generate CDDL schema (cbind/cddl_bindings)":
   genBindingsFor("cddl", "cddl_bindings")
+
+proc findFfiVendorDir(): string =
+  ## TinyCBOR sources vendored inside the installed nim-ffi package.
+  let vendor = findInstalledPkgDir("ffi-") & "/ffi/codegen/templates/cpp/vendor"
+  if not fileExists(vendor & "/tinycbor/cbor.h"):
+    raise newException(IOError, "vendored tinycbor missing under " & vendor)
+  vendor
+
+task examples, "Build and run the C bindings examples":
+  let lib = "../build/liblibp2p." & ffiLibExt()
+  if not fileExists(lib):
+    buildFfiLib()
+  if not fileExists("c_bindings/libp2p.h"):
+    genBindingsFor("c", "c_bindings")
+
+  let vendor = findFfiVendorDir()
+  var cborObjs: seq[string]
+  for name in [
+    "cborencoder", "cborencoder_close_container_checked", "cborparser",
+    "cborparser_dup_string", "cborerrorstrings",
+  ]:
+    let obj = "../build/" & name & ".o"
+    exec "gcc -std=c99 -O2 -fPIC -I " & vendor & " -I " & vendor & "/tinycbor -c " &
+      vendor & "/tinycbor/" & name & ".c -o " & obj
+    cborObjs.add obj
+  let cborObjsStr = cborObjs.join(" ")
+
+  for example in ["echo", "gossipsub"]:
+    let outBin = "../build/" & example
+    exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
+      cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
+    exec outBin
