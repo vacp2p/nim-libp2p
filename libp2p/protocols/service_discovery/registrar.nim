@@ -21,7 +21,7 @@ logScope:
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.cacheTimestamps.len.float64)
   cd_registrar_cache_services.set(registrar.cache.len.float64)
-  cd_iptree_unique_ips.set(
+  cd_iptree_total_ips.set(
     registrar.ipTree.root.counter.float64 + registrar.ipTree.root6.counter.float64
   )
 
