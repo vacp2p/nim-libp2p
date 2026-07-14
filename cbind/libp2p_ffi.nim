@@ -15,6 +15,7 @@
 import ffi
 
 import std/[tables, sequtils]
+from std/times import getTime, toUnix
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
@@ -140,6 +141,22 @@ type ExtendedPeerRecordEntry {.ffi.} = object
 
 type ExtendedRecordsResponse {.ffi.} = object
   records: seq[ExtendedPeerRecordEntry]
+
+type StartAdvertisingRequest {.ffi.} = object
+  serviceId: string
+  serviceData: seq[byte]
+
+type CreateXprRequest {.ffi.} = object
+  addrs: seq[string]
+  services: seq[ServiceInfoEntry]
+  seqNo: uint64
+
+type DecodeXprRequest {.ffi.} = object
+  encoded: seq[byte]
+
+type LookupRequest {.ffi.} = object
+  serviceId: string
+  serviceData: seq[byte]
 
 type IncomingStreamEvent {.ffi.} = object
   proto: string
@@ -759,6 +776,111 @@ proc libp2pKadRandomRecords*(
     return err(error)
   let records = await disco.lookupRandom()
   ok(toExtendedRecordsResponse(records))
+
+proc libp2pServiceDiscoStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.start()
+  ok(true)
+
+proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.stop()
+  ok(true)
+
+proc libp2pServiceDiscoStartAdvertising*(
+    lib: LibP2P, req: StartAdvertisingRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  disco.startAdvertising(
+    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
+  )
+  ok(true)
+
+proc libp2pServiceDiscoStopAdvertising*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.stopAdvertising(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoRegisterInterest*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  discard disco.registerInterest(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoUnregisterInterest*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  disco.unregisterInterest(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoLookup*(
+    lib: LibP2P, req: LookupRequest
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let service = ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
+  let res = await disco.lookup(service)
+  let ads = res.valueOr:
+    return err($error)
+  ok(toExtendedRecordsResponse(ads.mapIt(it.data)))
+
+proc libp2pServiceDiscoRandomLookup*(
+    lib: LibP2P
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let records = await disco.lookupRandom()
+  ok(toExtendedRecordsResponse(records))
+
+proc libp2pCreateXpr*(
+    lib: LibP2P, req: CreateXprRequest
+): Future[Result[seq[byte], string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  var addresses = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+  if addresses.len == 0:
+    addresses = peerInfo.addrs
+
+  let seqNo =
+    if req.seqNo == 0:
+      getTime().toUnix().uint64
+    else:
+      req.seqNo
+
+  var services: seq[ServiceInfo]
+  for s in req.services:
+    services.add(ServiceInfo(id: s.id, data: Opt.some(s.data)))
+
+  let peerRecord = ExtendedPeerRecord.init(peerInfo.peerId, addresses, seqNo, services)
+
+  let xpr = SignedExtendedPeerRecord.build(peerInfo.privateKey, peerRecord).valueOr:
+    return err(error)
+
+  ok(xpr.encode())
+
+proc libp2pDecodeXpr*(
+    lib: LibP2P, req: DecodeXprRequest
+): Future[Result[ExtendedPeerRecordEntry, string]] {.ffi.} =
+  let sxpr = SignedExtendedPeerRecord.decode(req.encoded).valueOr:
+    return err("failed to decode signed extended peer record: " & $error)
+
+  sxpr.checkValid().isOkOr:
+    return err("invalid XPR signature: " & $error)
+
+  ok(toExtendedRecordEntry(sxpr.data))
 
 proc libp2pCreateCid*(
     lib: LibP2P, req: CreateCidRequest
