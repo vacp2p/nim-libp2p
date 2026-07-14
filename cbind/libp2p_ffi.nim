@@ -25,8 +25,9 @@ import ../libp2p/protocols/protocol
 import ../libp2p/protocols/ping
 import ../libp2p/protocols/kademlia
 import ../libp2p/protocols/service_discovery
-import ../libp2p/protocols/service_discovery/types
+import ../libp2p/protocols/service_discovery/[random_find, types]
 import ../libp2p/protocols/connectivity/relay/client
+import ../libp2p/extended_peer_record
 
 type StreamRegistry = ref object
   ## Owns the live streams handed out across the FFI boundary and the
@@ -102,6 +103,43 @@ type PublishResponse {.ffi.} = object
 
 type ReadResponse {.ffi.} = object
   data: seq[byte]
+
+type CreateCidRequest {.ffi.} = object
+  version: int
+  multicodec: string
+  hash: string
+  data: seq[byte]
+
+type NewPrivateKeyRequest {.ffi.} = object
+  scheme: int
+
+type KadPutValueRequest {.ffi.} = object
+  key: seq[byte]
+  value: seq[byte]
+
+type KadGetValueRequest {.ffi.} = object
+  key: seq[byte]
+  quorum: int
+
+type ProviderInfo {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type ProvidersResponse {.ffi.} = object
+  providers: seq[ProviderInfo]
+
+type ServiceInfoEntry {.ffi.} = object
+  id: string
+  data: seq[byte]
+
+type ExtendedPeerRecordEntry {.ffi.} = object
+  peerId: string
+  seqNo: uint64
+  addrs: seq[string]
+  services: seq[ServiceInfoEntry]
+
+type ExtendedRecordsResponse {.ffi.} = object
+  records: seq[ExtendedPeerRecordEntry]
 
 type IncomingStreamEvent {.ffi.} = object
   proto: string
@@ -601,5 +639,168 @@ proc libp2pGossipsubUnsubscribe*(
     lib.topicHandlers.del(topic)
     gossipSub.unsubscribe(topic, handler)
   ok(true)
+
+func toExtendedRecordEntry(record: ExtendedPeerRecord): ExtendedPeerRecordEntry =
+  ExtendedPeerRecordEntry(
+    peerId: $record.peerId,
+    seqNo: record.seqNo,
+    addrs: record.addresses.mapIt($it.address),
+    services: record.services.mapIt(ServiceInfoEntry(id: it.id, data: it.data.get(@[]))),
+  )
+
+func toExtendedRecordsResponse(
+    records: seq[ExtendedPeerRecord]
+): ExtendedRecordsResponse =
+  ExtendedRecordsResponse(records: records.mapIt(toExtendedRecordEntry(it)))
+
+proc libp2pKadFindNode*(
+    lib: LibP2P, peerId: string
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let target = PeerId.init(peerId).valueOr:
+    return err($error)
+  let peers =
+    try:
+      await kad.findNode(target.toKey())
+    except LPError as e:
+      return err(e.msg)
+  ok(PeersResponse(peerIds: peers.mapIt($it)))
+
+proc libp2pKadPutValue*(
+    lib: LibP2P, req: KadPutValueRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let res = await kad.putValue(req.key, req.value)
+  if res.isErr():
+    return err(res.error)
+  ok(true)
+
+proc libp2pKadGetValue*(
+    lib: LibP2P, req: KadGetValueRequest
+): Future[Result[ReadResponse, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  if req.quorum == 0:
+    return err("quorum must be greater than 0 (use a negative value for the default)")
+  let quorum =
+    if req.quorum < 0:
+      Opt.none(int)
+    else:
+      Opt.some(req.quorum)
+  let res =
+    try:
+      await kad.getValue(req.key, quorum)
+    except LPError as e:
+      return err(e.msg)
+  let entry = res.valueOr:
+    return err(res.error)
+  ok(ReadResponse(data: entry.value))
+
+proc kadAndCid(lib: LibP2P, cid: string): Result[(KadDHT, Cid), string] =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let c = Cid.init(cid).valueOr:
+    return err("invalid cid: " & $error)
+  ok((kad, c))
+
+proc libp2pKadAddProvider*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  await kad.addProvider(c)
+  ok(true)
+
+proc libp2pKadStartProviding*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  await kad.startProviding(c)
+  ok(true)
+
+proc libp2pKadStopProviding*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  kad.stopProviding(c)
+  ok(true)
+
+proc libp2pKadGetProviders*(
+    lib: LibP2P, cid: string
+): Future[Result[ProvidersResponse, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  let providersSet =
+    try:
+      await kad.getProviders(c.toKey())
+    except LPError as e:
+      return err(e.msg)
+
+  var providers: seq[ProviderInfo]
+  for provider in providersSet.toSeq():
+    let providerId = provider.id.valueOr:
+      continue
+    let peerId = PeerId.init(providerId).valueOr:
+      continue
+    providers.add(ProviderInfo(peerId: $peerId, addrs: provider.addrs.mapIt($it)))
+  ok(ProvidersResponse(providers: providers))
+
+proc resolveServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
+  let kad = lib.kad.valueOr:
+    return err("service discovery not initialized")
+  if not (kad of ServiceDiscovery):
+    return err("service discovery not mounted")
+  ok(ServiceDiscovery(kad))
+
+proc libp2pKadRandomRecords*(
+    lib: LibP2P
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let records = await disco.lookupRandom()
+  ok(toExtendedRecordsResponse(records))
+
+proc libp2pCreateCid*(
+    lib: LibP2P, req: CreateCidRequest
+): Future[Result[string, string]] {.ffi.} =
+  let cidVer =
+    case req.version
+    of 0:
+      CIDv0
+    of 1:
+      CIDv1
+    else:
+      return err("cid version must be 0 or 1")
+
+  let mc = MultiCodec.codec(req.multicodec)
+  if mc == InvalidMultiCodec:
+    return err("invalid multicodec: " & req.multicodec)
+
+  let mh = MultiHash.digest(req.hash, req.data).valueOr:
+    return err("multihash error: " & $error)
+
+  let cid = Cid.init(cidVer, mc, mh).valueOr:
+    return err("cid init error: " & $error)
+
+  ok($cid)
+
+proc libp2pNewPrivateKey*(
+    lib: LibP2P, req: NewPrivateKeyRequest
+): Future[Result[seq[byte], string]] {.ffi.} =
+  if req.scheme < ord(low(PKScheme)) or req.scheme > ord(high(PKScheme)):
+    return err("invalid key scheme")
+  let scheme = PKScheme(req.scheme)
+
+  let key = PrivateKey.random(scheme, lib.rng).valueOr:
+    return err("could not generate private key")
+
+  let keyData = key.getBytes().valueOr:
+    return err("could not get bytes for private key")
+
+  ok(keyData)
 
 genBindings()
