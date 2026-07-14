@@ -81,11 +81,44 @@ suite "IpTree":
 
     tree.removeIp(ip3)
     check tree.root.counter == 2
-    check tree.root.right.left.counter == 0
+    check tree.root.right.left.isNil
 
     tree.removeIp(ip1)
     tree.removeIp(ip2)
     check tree.root.counter == 0
+
+  test "removeIp fully clears the leaf, not just ancestors":
+    let tree = IpTree.new()
+    let ipA = ip4(10, 0, 0, 1)
+    let ipB = ip4(192, 168, 1, 1)
+
+    tree.insertIp(ipA)
+    tree.insertIp(ipB)
+    tree.removeIp(ipA)
+
+    check tree.root.counter == 1
+    check tree.ipScore(ipA) == 0.0
+
+  test "removeIp prunes dead branches but keeps branches still in use":
+    let tree = IpTree.new()
+    # 10.0.0.1 and 10.0.0.2 share every bit except the last.
+    let ipA = ip4(10, 0, 0, 1)
+    let ipB = ip4(10, 0, 0, 2)
+
+    tree.insertIp(ipA)
+    tree.insertIp(ipB)
+    tree.removeIp(ipA)
+
+    # The shared prefix is still needed by ipB, so it must stay linked.
+    check not tree.root.left.isNil
+    check tree.ipScore(ipB) > 0.9
+
+    tree.removeIp(ipB)
+
+    # Nothing left using this branch: fully pruned back to the root.
+    check tree.root.counter == 0
+    check tree.root.left.isNil
+    check tree.root.right.isNil
 
   test "removeIp should not affect tree if IP was never inserted":
     let tree = IpTree.new()

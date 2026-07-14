@@ -27,6 +27,19 @@ proc treeRoot(ipTree: IpTree, ip: IpAddress): IpTreeNode =
   of IpAddressFamily.IPv4: ipTree.root
   of IpAddressFamily.IPv6: ipTree.root6
 
+proc step(v: IpTreeNode, goRight: bool, create: bool): IpTreeNode =
+  ## Returns the child of `v` in the direction given by `goRight`. With
+  ## `create`, a missing child is allocated and linked in, so the result is
+  ## never nil; otherwise a missing child yields nil.
+  var nxt = if goRight: v.right else: v.left
+  if nxt.isNil and create:
+    nxt = IpTreeNode(counter: 0)
+    if goRight:
+      v.right = nxt
+    else:
+      v.left = nxt
+  nxt
+
 proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Inserts an IP address into the IP tree, following its binary
   ## representation and incrementing counters at each visited node.
@@ -40,49 +53,55 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   for b in bytes:
     for bit in countdown(7, 0):
       let goRight = (b and (1'u8 shl bit)) != 0
-
-      if goRight:
-        if v.right.isNil:
-          v.right = IpTreeNode(counter: 0)
-        v = v.right
-      else:
-        if v.left.isNil:
-          v.left = IpTreeNode(counter: 0)
-        v = v.left
-
+      v = step(v, goRight, create = true)
       v.counter += 1
 
 proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Removes an IP address from the IP tree by decrementing counters along
-  ## its binary-representation path. Counters never go below zero.
+  ## its binary-representation path, from the root through the leaf.
+  ## Counters never go below zero. Any trailing run of nodes left at counter
+  ## 0 with no children is unlinked, so a fully-removed address doesn't leave
+  ## dead nodes behind.
   let root = ipTree.treeRoot(ip)
   if root.counter == 0:
     return
 
-  var v = root
   let bytes = ip.ipBytes()
 
-  var path: array[128, IpTreeNode]
-  var pathLen = 0
+  # path[0] is the root; path[i] for i > 0 is the node reached after the
+  # i-th bit. Sized for the deepest case (IPv6: root + 128 levels).
+  var path: array[129, IpTreeNode]
+  path[0] = root
+  var pathLen = 1
 
+  var v = root
   for b in bytes:
     for bit in countdown(7, 0):
+      let goRight = (b and (1'u8 shl bit)) != 0
+      v = step(v, goRight, create = false)
       if v.isNil or v.counter == 0:
         return
 
       path[pathLen] = v
       inc pathLen
 
-      let goLeft = (b and (1'u8 shl bit)) == 0
-      let nxt = if goLeft: v.left else: v.right
-      if nxt.isNil:
-        return
-      v = nxt
-
+  # Every node visited above has counter > 0 (checked as it was added to
+  # path), so this can't underflow.
   for j in 0 ..< pathLen:
-    let n = path[j]
-    if n.counter > 0:
-      dec n.counter
+    dec path[j].counter
+
+  # Prune the trailing run of now-empty leaves: walk from the leaf back
+  # toward the root, unlinking any node left with counter == 0 and no
+  # children, stopping at the first node that still has either.
+  for i in countdown(pathLen - 1, 1):
+    let n = path[i]
+    if n.counter > 0 or not n.left.isNil or not n.right.isNil:
+      break
+    let parent = path[i - 1]
+    if parent.left == n:
+      parent.left = nil
+    else:
+      parent.right = nil
 
 proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   ## Returns an IP similarity score in [0.0, 1.0] for the given IP address.
@@ -108,7 +127,8 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
     for bit in countdown(7, 0):
       let threshold = total / pow(2.0, float64(depth + 1))
 
-      v = if (b and (1'u8 shl bit)) == 0: v.left else: v.right
+      let goRight = (b and (1'u8 shl bit)) != 0
+      v = step(v, goRight, create = false)
 
       if v.isNil:
         return (float64(score) / float64(nBits))
