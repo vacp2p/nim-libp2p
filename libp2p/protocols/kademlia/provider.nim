@@ -247,9 +247,9 @@ method handleAddProvider*(
     error "Key not set: handleAddProvider", msg = msg, stream = stream
     return
 
-  if not MultiHash.validate(msgKey):
-    error "Received key is an invalid Multihash",
-      msg = msg, stream = stream, key = msgKey
+  if msgKey.len == 0 or msgKey.len > MaxProviderKeyLen:
+    error "ADD_PROVIDER key length out of bounds",
+      msg = msg, stream = stream, keyLen = msgKey.len, maxLen = MaxProviderKeyLen
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
