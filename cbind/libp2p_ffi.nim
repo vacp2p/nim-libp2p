@@ -93,6 +93,13 @@ type StreamReadLpRequest {.ffi.} = object
   streamId: uint64
   maxSize: int64
 
+type PublishRequest {.ffi.} = object
+  topic: string
+  data: seq[byte]
+
+type PublishResponse {.ffi.} = object
+  peerCount: int64 ## number of peers the message was forwarded to
+
 type ReadResponse {.ffi.} = object
   data: seq[byte]
 
@@ -100,7 +107,13 @@ type IncomingStreamEvent {.ffi.} = object
   proto: string
   streamId: uint64
 
+type PubsubMessageEvent {.ffi.} = object
+  topic: string
+  data: seq[byte]
+
 proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent: "on_incoming_stream".}
+
+proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent: "on_pubsub_message".}
 
 proc register(reg: StreamRegistry, stream: Stream): uint64 =
   reg.nextStreamId.inc()
@@ -556,6 +569,37 @@ proc libp2pMountProtocol*(
     return err(e.msg)
 
   lib.customProtocols[proto] = mountedProtocol
+  ok(true)
+
+proc libp2pGossipsubPublish*(
+    lib: LibP2P, req: PublishRequest
+): Future[Result[PublishResponse, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  let peerCount = await gossipSub.publish(req.topic, req.data)
+  ok(PublishResponse(peerCount: peerCount.int64))
+
+proc libp2pGossipsubSubscribe*(
+    lib: LibP2P, topic: string
+): Future[Result[bool, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  if not lib.topicHandlers.hasKey(topic):
+    let handler = proc(t: string, data: seq[byte]): Future[void] {.async.} =
+      onPubsubMessage(PubsubMessageEvent(topic: t, data: data))
+    lib.topicHandlers[topic] = handler
+    gossipSub.subscribe(topic, handler)
+  ok(true)
+
+proc libp2pGossipsubUnsubscribe*(
+    lib: LibP2P, topic: string
+): Future[Result[bool, string]] {.ffi.} =
+  let gossipSub = lib.gossipSub.valueOr:
+    return err("gossipsub not initialized")
+  let handler = lib.topicHandlers.getOrDefault(topic, nil)
+  if not handler.isNil():
+    lib.topicHandlers.del(topic)
+    gossipSub.unsubscribe(topic, handler)
   ok(true)
 
 genBindings()
