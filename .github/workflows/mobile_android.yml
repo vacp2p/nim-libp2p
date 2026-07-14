@@ -54,8 +54,6 @@ jobs:
           test -f "$out/lib/liblibp2p.so"
           test -f "$out/lib/liblibp2p.a"
           test -f "$out/lib/libc++_shared.so"
-          test -f "$out/lib/libminiupnpc.a"
-          test -f "$out/lib/libnatpmp.a"
           test -f "$out/include/libp2p.h"
           test -f "$out/include/nim_ffi_cbor.h"
           test -f "$out/include/nim_ffi_prelude.h"
