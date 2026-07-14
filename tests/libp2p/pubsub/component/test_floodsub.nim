@@ -229,7 +229,8 @@ suite "FloodSub Component":
     for node in nodes:
       node.unsubscribeAll(topic)
       check:
-        node.floodsub.getOrDefault(topic).len == numberOfNodes - 1 # we keep the peers in table
+        node.floodsub.getOrDefault(topic).len == numberOfNodes - 1
+          # we keep the peers in table
         node.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
