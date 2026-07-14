@@ -8,12 +8,9 @@ let
   deps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
-  # nat_traversal is resolved from a writable copy (see buildPhase), not the store.
-  depsWithoutNat = builtins.removeAttrs deps [ "nat_traversal" ];
-
   pathArgs =
     builtins.concatStringsSep " "
-      (map (p: "--path:${p}") (builtins.attrValues depsWithoutNat));
+      (map (p: "--path:${p}") (builtins.attrValues deps));
 
   cbindPathArgs =
     builtins.concatStringsSep " "
@@ -34,10 +31,6 @@ pkgs.stdenv.mkDerivation {
     pkgs.nim-2_2
     pkgs.git
     pkgs.nimble
-  ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-    # miniupnpc's Darwin Makefile archives via `LIBTOOL ?= $(shell which libtool)`; cctools supplies it, which resolves it.
-    pkgs.cctools
-    pkgs.which
   ];
 
   buildPhase = ''
@@ -48,20 +41,12 @@ pkgs.stdenv.mkDerivation {
 
     mkdir -p build $NIMCACHE
 
-    echo "== Building nat_traversal vendored C libs =="
-    # nat_traversal's {.passl: <pkgRoot>/vendor/.../lib*.a.} needs a writable copy: the store is read-only.
-    NAT_PKG=$TMPDIR/nat_traversal
-    cp -r ${deps.nat_traversal} $NAT_PKG
-    chmod -R +w $NAT_PKG
-    # Reuse the repo Makefile's `nat_libs` target (the same recipe the nimble
-    # `examples` task drives) rather than re-deriving the per-OS make args here.
-    # NAT_PKG_DIR points it at the writable copy; NAT_CC forwards the nix $CC,
-    # since the vendored Makefiles default to CC=gcc, absent on the Darwin stdenv.
-    make nat_libs NAT_PKG_DIR="$NAT_PKG" NAT_CC="$CC"
-
+    # libplum's vendored C sources compile into liblibp2p via nim's {.compile.}
+    # pragmas, so there is no separate NAT library to build or link.
+    #
     # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
     # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
-    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
+    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} \
       --threads:on --opt:size --noMain --mm:refc --d:metrics \
       -d:ffiThreadExitTimeoutMs=5000 \
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
@@ -87,9 +72,6 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out/lib $out/include
     cp build/liblibp2p.${libExt} $out/lib
     cp build/liblibp2p.a         $out/lib
-    # libp2p.a references these via {.passl.}; install them so static linking resolves.
-    cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib
-    cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib
     # Install nim-ffi's headers (libp2p.h + companions) flat: consumers stage
     # them via `cp $out/include/*.h`, so a nested dir would be missed.
     cp cbind/c_bindings/*.h   $out/include/
