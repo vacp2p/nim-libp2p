@@ -5,8 +5,8 @@
 ##
 ## `plum_init`/`plum_cleanup` is a process-global singleton, so this module
 ## ref-counts init across every live `PlumMapper` and keeps the first mapper's
-## protocol filter. The ref-count/filter globals are unsynchronized: create and
-## close every `PlumMapper` from the same chronos event-loop thread.
+## settings (protocol filter + timeouts). Those globals are unsynchronized:
+## create and close every `PlumMapper` from the same chronos event-loop thread.
 
 {.push raises: [].}
 
@@ -26,16 +26,24 @@ const
   DefaultMappingTimeout = 10.seconds
 
 type
-  MappingKey = tuple[externalPort: uint16, proto: MapProto]
+  # Keyed by the internal (listen) port so a repeated map() for an unchanged
+  # listen address reuses the existing libplum mapping instead of leaking it.
+  MappingKey = tuple[internalPort: uint16, proto: MapProto]
+
+  MappingEntry = tuple[id: cint, mapped: MappedPort] ## libplum id + its result
 
   PlumMapper* = ref object of PortMapper
     filter: ProtocolFilter
+    mappingTimeout: Duration
     closed: bool
-    mappings: Table[MappingKey, cint] ## -> libplum mapping id, to destroy later
+    lock: AsyncLock ## serializes map/unmap/close over `mappings`
+    mappings: Table[MappingKey, MappingEntry]
 
 var
   plumRefCount = 0
   plumActiveFilter = ProtocolFilter.Any
+  plumActiveDiscoverTimeout = DefaultDiscoverTimeout
+  plumActiveMappingTimeout = DefaultMappingTimeout
 
 func toPlumProto(p: MapProto): PlumProtocol =
   case p
@@ -44,6 +52,13 @@ func toPlumProto(p: MapProto): PlumProtocol =
 
 func toMs(d: Duration): int32 =
   int32(d.milliseconds.clamp(0'i64, int64(high(int32))))
+
+proc safeRelease(lock: AsyncLock) =
+  ## Release from a defer block; releasing without holding is a developer error.
+  try:
+    lock.release()
+  except AsyncLockError as e:
+    raiseAssert "PlumMapper lock release failed: " & e.msg
 
 proc acquirePlum(
     filter: ProtocolFilter, discoverTimeout, mappingTimeout: Duration
@@ -57,9 +72,19 @@ proc acquirePlum(
     ).isOkOr:
       return err(error)
     plumActiveFilter = filter
-  elif filter != plumActiveFilter:
-    warn "libplum already initialized with a different protocol filter; reusing existing",
-      requested = filter, active = plumActiveFilter
+    plumActiveDiscoverTimeout = discoverTimeout
+    plumActiveMappingTimeout = mappingTimeout
+  elif filter != plumActiveFilter or discoverTimeout != plumActiveDiscoverTimeout or
+      mappingTimeout != plumActiveMappingTimeout:
+    # plum_init is process-global; the first mapper's settings win and every
+    # later mapper silently reuses them.
+    warn "libplum already initialized with different settings; reusing existing",
+      requestedFilter = filter,
+      activeFilter = plumActiveFilter,
+      requestedDiscoverTimeout = discoverTimeout,
+      activeDiscoverTimeout = plumActiveDiscoverTimeout,
+      requestedMappingTimeout = mappingTimeout,
+      activeMappingTimeout = plumActiveMappingTimeout
   inc plumRefCount
   ok()
 
@@ -78,7 +103,7 @@ proc new*(
     mappingTimeout = DefaultMappingTimeout,
 ): Result[T, string] =
   ?acquirePlum(filter, discoverTimeout, mappingTimeout)
-  ok(PlumMapper(filter: filter))
+  ok(PlumMapper(filter: filter, mappingTimeout: mappingTimeout, lock: newAsyncLock()))
 
 method map*(
     self: PlumMapper, internalPort: Port, externalPort: Port, proto: MapProto
@@ -86,10 +111,28 @@ method map*(
   if self.closed:
     return err("PlumMapper closed")
 
+  await self.lock.acquire()
+  defer:
+    self.lock.safeRelease()
+
+  # close() may have run (and torn libplum down) while we waited for the lock.
+  if self.closed:
+    return err("PlumMapper closed")
+
+  # Reuse a still-live mapping for this listen port rather than asking libplum
+  # for a fresh one (which would orphan the previous id).
+  let key: MappingKey = (internalPort.uint16, proto)
+  self.mappings.withValue(key, existing):
+    if hasMapping(existing.id):
+      return ok(existing.mapped)
+    destroyMapping(existing.id)
+    self.mappings.del(key)
+
   let res = ?await createMapping(
     protocol = toPlumProto(proto),
     internalPort = internalPort.uint16,
     externalPort = externalPort.uint16,
+    timeout = self.mappingTimeout,
   )
 
   # close() may have torn libplum down during the await; drop the new mapping.
@@ -106,28 +149,46 @@ method map*(
         "plum: cannot parse external host '" & res.mapping.externalHost & "': " & e.msg
       )
 
-  self.mappings[(res.mapping.externalPort, proto)] = res.id
-  ok(MappedPort(externalIp: externalIp, externalPort: Port(res.mapping.externalPort)))
+  let mapped =
+    MappedPort(externalIp: externalIp, externalPort: Port(res.mapping.externalPort))
+  self.mappings[key] = (id: res.id, mapped: mapped)
+  ok(mapped)
 
 method unmap*(
     self: PlumMapper, externalPort: Port, proto: MapProto
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let key: MappingKey = (externalPort.uint16, proto)
-  # libplum ids are non-negative; -1 marks "no mapping recorded".
-  let id = self.mappings.getOrDefault(key, cint(-1))
-  if id < 0:
-    return err("plum unmap: no known mapping for external port " & $externalPort.uint16)
+  if self.closed:
+    return err("PlumMapper closed")
 
-  destroyMapping(id)
-  self.mappings.del(key)
-  ok()
+  await self.lock.acquire()
+  defer:
+    self.lock.safeRelease()
+
+  if self.closed:
+    return err("PlumMapper closed")
+
+  # The PortMapper contract keys unmap on the external port; find the entry
+  # whose assigned external port matches.
+  for key, entry in self.mappings:
+    if key.proto == proto and entry.mapped.externalPort == externalPort:
+      destroyMapping(entry.id)
+      self.mappings.del(key)
+      return ok()
+
+  err("plum unmap: no known mapping for external port " & $externalPort.uint16)
 
 method close*(self: PlumMapper) {.async: (raises: []), gcsafe.} =
   if self.closed:
     return
   self.closed = true
 
-  for id in self.mappings.values():
-    destroyMapping(id)
+  # Wait uncancellably for any in-flight map/unmap so we don't tear libplum
+  # down (or clear `mappings`) while another op is mid-await.
+  await noCancel(self.lock.acquire())
+  defer:
+    self.lock.safeRelease()
+
+  for entry in self.mappings.values():
+    destroyMapping(entry.id)
   self.mappings.clear()
   releasePlum()

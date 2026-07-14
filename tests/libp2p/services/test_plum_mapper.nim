@@ -29,6 +29,14 @@ suite "PlumMapper":
     check r.isErr()
     check r.error() == "PlumMapper closed"
 
+  asyncTest "unmap after close returns 'closed' error":
+    let m = PlumMapper.new().get()
+    await m.close()
+
+    let r = await m.unmap(Port(9000), mpTcp)
+    check r.isErr()
+    check r.error() == "PlumMapper closed"
+
   asyncTest "unmap without a prior map returns 'no known mapping' error":
     # no recorded mapping id, so there is nothing to destroy.
     let m = PlumMapper.new().get()
