@@ -127,7 +127,7 @@ jobs:
           cd tests && nimble install_pinned
 
       - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths nat_libs
+        run: make nimble.paths tests/nimble.paths
 
       - name: Build test_multiformat_exts
         id: build-test

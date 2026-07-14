@@ -38,9 +38,10 @@ export
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
   connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig,
   natservice.PortMappingMode, natservice.AutonatVersion, natservice.PortMapperFactory,
-  natservice.NATService, natservice.upnpConfig, natservice.natPmpConfig,
-  natservice.explicitIpConfig, natservice.autonatConfig, natservice.holePunchingConfig,
-  natservice.AutonatV2ServiceConfig, natservice.AutonatV2Service, natservice.natService
+  natservice.NATService, natservice.natConfig, natservice.upnpConfig,
+  natservice.natPmpConfig, natservice.explicitIpConfig, natservice.autonatConfig,
+  natservice.holePunchingConfig, natservice.AutonatV2ServiceConfig,
+  natservice.AutonatV2Service, natservice.natService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -113,7 +114,7 @@ proc new*(T: type[SwitchBuilder]): T =
     circuitRelay: Opt.none(Relay),
     rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
-    identifyPusherEnabled: true,
+    identifyPusherEnabled: false,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
