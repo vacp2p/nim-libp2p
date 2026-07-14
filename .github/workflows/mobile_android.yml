@@ -87,15 +87,13 @@ jobs:
           arch: x86_64
           target: default
           force-avd-creation: false
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -gpu swiftshader_indirect
           disable-animations: true
           script: |
-            out="result-x86_64"
-            remote="/data/local/tmp/nim-libp2p"
-            adb shell "mkdir -p $remote"
-            adb push "$out/lib/liblibp2p.so" "$remote/"
-            adb push "$out/lib/libc++_shared.so" "$remote/"
-            adb push "$out/bin/libp2p_ffi_android_check" "$remote/"
-            adb shell "chmod 755 $remote/libp2p_ffi_android_check"
-            adb shell "cd $remote && LD_LIBRARY_PATH=$remote ./libp2p_ffi_android_check; echo RC=\$?" | tee run.log
+            adb shell "mkdir -p /data/local/tmp/nim-libp2p"
+            adb push "result-x86_64/lib/liblibp2p.so" "/data/local/tmp/nim-libp2p/"
+            adb push "result-x86_64/lib/libc++_shared.so" "/data/local/tmp/nim-libp2p/"
+            adb push "result-x86_64/bin/libp2p_ffi_android_check" "/data/local/tmp/nim-libp2p/"
+            adb shell "chmod 755 /data/local/tmp/nim-libp2p/libp2p_ffi_android_check"
+            adb shell "cd /data/local/tmp/nim-libp2p && LD_LIBRARY_PATH=/data/local/tmp/nim-libp2p ./libp2p_ffi_android_check; echo RC=\$?" | tee run.log
             grep -q '^RC=0' run.log
