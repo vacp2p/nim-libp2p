@@ -16,6 +16,8 @@ let
     builtins.concatStringsSep " "
       (map (p: "--path:${p}") (builtins.attrValues cbindDeps));
 
+  tinycborVendor = "${cbindDeps.ffi}/ffi/codegen/templates/cpp/vendor/tinycbor";
+
   libExt =
     if pkgs.stdenv.hostPlatform.isWindows then "dll"
     else if pkgs.stdenv.hostPlatform.isDarwin then "dylib"
@@ -75,6 +77,8 @@ pkgs.stdenv.mkDerivation {
     # Install nim-ffi's headers (libp2p.h + companions) flat: consumers stage
     # them via `cp $out/include/*.h`, so a nested dir would be missed.
     cp cbind/c_bindings/*.h   $out/include/
+    # libp2p.h includes <tinycbor/cbor.h>; install the vendored C runtime too.
+    cp -r ${tinycborVendor} $out/include/tinycbor
     cp -r cbind/cddl_bindings $out/include/
   '';
 }
