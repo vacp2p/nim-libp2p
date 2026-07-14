@@ -48,6 +48,8 @@ const
   DefaultMaxPeersPerSubnet* = 10
     ## upper bound on Kademlia routing-table peers sharing one IP subnet
 
+  MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
+
 type Key* = seq[byte]
 
 proc toCid*(k: Key): Cid =

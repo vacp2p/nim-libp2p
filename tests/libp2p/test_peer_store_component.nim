@@ -70,8 +70,8 @@ suite "PeerStore Address TTL - Component":
 
   asyncTest "later identify update does not downgrade a verified High address":
     let
-      listener = makeStandardSwitch()
-      dialer = makeStandardSwitch()
+      listener = makeStandardSwitchBuilder().withIdentifyPusher().build()
+      dialer = makeStandardSwitchBuilder().withIdentifyPusher().build()
     startAndDeferStop(@[listener, dialer])
 
     # Wait for the listener to finish identifying the dialer,

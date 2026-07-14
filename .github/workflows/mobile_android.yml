@@ -1,0 +1,71 @@
+name: Mobile Android
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cbind-ffi-android:
+    timeout-minutes: 60
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            attr: cbind-ffi-android-arm64-v8a
+            machine: AArch64
+          - abi: x86_64
+            attr: cbind-ffi-android-x86_64
+            machine: Advanced Micro Devices X86-64
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "Android ${{ matrix.abi }} FFI check build"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Build Android C ABI package
+        run: |
+          nix --extra-experimental-features "nix-command flakes" \
+            build ".#${{ matrix.attr }}" \
+            -o "result-${{ matrix.abi }}"
+
+      - name: Verify Android artifacts
+        run: |
+          out="result-${{ matrix.abi }}"
+
+          test -f "$out/lib/liblibp2p.so"
+          test -f "$out/lib/liblibp2p.a"
+          test -f "$out/lib/libc++_shared.so"
+          test -f "$out/include/libp2p.h"
+          test -f "$out/include/nim_ffi_cbor.h"
+          test -f "$out/include/nim_ffi_prelude.h"
+          test -f "$out/include/tinycbor/cbor.h"
+          test -f "$out/include/cddl_bindings/libp2p.cddl"
+          test -x "$out/bin/libp2p_ffi_android_check"
+
+          readelf -h "$out/lib/liblibp2p.so" | tee liblibp2p.readelf
+          readelf -h "$out/bin/libp2p_ffi_android_check" | tee check.readelf
+
+          grep -q "Machine:[[:space:]]*${{ matrix.machine }}" liblibp2p.readelf
+          grep -q "Machine:[[:space:]]*${{ matrix.machine }}" check.readelf
+
+          file "$out/lib/liblibp2p.so"
+          file "$out/bin/libp2p_ffi_android_check"

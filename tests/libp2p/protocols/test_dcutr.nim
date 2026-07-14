@@ -16,6 +16,25 @@ import ../../tools/[unittest, switch_builder, multiaddress]
 proc makeSwitch(address: MultiAddress = TcpAutoAddress): Switch =
   return makeStandardSwitch(address)
 
+proc waitDirectConnIdentified(
+    clientSwitch: Switch, serverPeerId: PeerId
+): Future[void].Raising([CancelledError]) =
+  # Completes once the direct (second) connection to `serverPeerId` has been
+  # fully identified. The inbound upgrade bumps connCount before opening the
+  # identify stream, so waiting on connCount alone tears the switch down while
+  # that identify LPChannel is still being opened, leaking it on slow runners.
+  let identified =
+    Future[void].Raising([CancelledError]).init("dcutr direct connection identified")
+
+  proc onIdentified(
+      peerId: PeerId, event: PeerEvent
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    if peerId == serverPeerId and clientSwitch.connManager.connCount(serverPeerId) == 2:
+      identified.completeOnce()
+
+  clientSwitch.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
+  identified
+
 suite "Dcutr":
   teardown:
     checkTrackers()
@@ -59,6 +78,9 @@ suite "Dcutr":
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)
 
+    let directConnIdentified =
+      waitDirectConnIdentified(behindNATSwitch, publicSwitch.peerInfo.peerId)
+
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
     defer:
       await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
@@ -81,9 +103,10 @@ suite "Dcutr":
         )
         .wait(300.millis)
 
-    checkUntilTimeout:
-      # we still expect a new connection to be open by the receiver peer acting as the dcutr server
-      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
+    # we still expect a new connection to be open by the receiver peer acting as
+    # the dcutr server; wait until it is identified so teardown doesn't race the
+    # inbound identify stream
+    check await directConnIdentified.withTimeout(30.seconds)
 
   asyncTest "DCUtR establishes a new QUIC connection":
     let behindNATSwitch = makeSwitch(QuicAutoAddress)
@@ -139,6 +162,9 @@ suite "Dcutr":
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)
 
+    let directConnIdentified =
+      waitDirectConnIdentified(behindNATSwitch, publicSwitch.peerInfo.peerId)
+
     await allFutures(behindNATSwitch.start(), publicSwitch.start())
     defer:
       await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
@@ -152,9 +178,10 @@ suite "Dcutr":
 
     body
 
-    checkUntilTimeout:
-      # we still expect a new connection to be open by the receiver peer acting as the dcutr server
-      behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) == 2
+    # we still expect a new connection to be open by the receiver peer acting as
+    # the dcutr server; wait until it is identified so teardown doesn't race the
+    # inbound identify stream
+    check await directConnIdentified.withTimeout(30.seconds)
 
   asyncTest "Client connect timeout":
     proc connectTimeoutProc(
