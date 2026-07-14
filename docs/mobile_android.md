@@ -14,8 +14,8 @@ toolchain from Nix:
 | `x86_64` | `amd64` | `x86_64-linux-android23-clang` |
 
 The Nix derivation currently pins Android NDK `27.2.12479018` through
-`androidenv.composeAndroidPackages` and rebuilds the vendored `nat_traversal` C
-libraries with the same Android clang used for Nim-generated C code.
+`androidenv.composeAndroidPackages` and uses the same Android clang for
+Nim-generated C code and the C check harness.
 
 ## Build Commands
 
@@ -53,8 +53,6 @@ result/
   lib/liblibp2p.so
   lib/liblibp2p.a
   lib/libc++_shared.so
-  lib/libminiupnpc.a
-  lib/libnatpmp.a
   nix-support/android-target
 ```
 
@@ -86,14 +84,7 @@ library.
 For shared-library linking, package the matching ABI's `lib/liblibp2p.so` and
 `lib/libc++_shared.so` with the Android application and load them through the
 normal Android native library path. For static linking, link `lib/liblibp2p.a`
-together with `lib/libminiupnpc.a`, `lib/libnatpmp.a`, and the Android C++
-runtime selected by your application.
-
-## Dependency Notes
-
-The Android derivation uses a writable copy of `nat_traversal` so its vendored
-`miniupnpc` and `libnatpmp` archives can be rebuilt with the selected Android
-clang.
+together with the Android C++ runtime selected by your application.
 
 ## Android Check Harness
 

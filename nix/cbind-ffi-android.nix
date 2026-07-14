@@ -10,13 +10,9 @@ let
   deps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
-  # nat_traversal is copied into the build directory because its vendored C
-  # archives need to be rebuilt with the Android toolchain.
-  depsWithoutWritable = builtins.removeAttrs deps [ "nat_traversal" ];
-
   pathArgs =
     builtins.concatStringsSep " "
-      (map (p: "--path:${p}") (builtins.attrValues depsWithoutWritable));
+      (map (p: "--path:${p}") (builtins.attrValues deps));
 
   cbindPathArgs =
     builtins.concatStringsSep " "
@@ -98,31 +94,16 @@ pkgs.stdenv.mkDerivation {
     fi
 
     mkdir -p build $NIMCACHE
-
-    echo "== Preparing writable dependency copies for Android ${abi} =="
-    NAT_PKG=$TMPDIR/nat_traversal
-    cp -r ${deps.nat_traversal} $NAT_PKG
-    chmod -R +w $NAT_PKG
-
-    echo "== Building nat_traversal vendored C libs for Android ${abi} =="
-    make -C "$NAT_PKG/vendor/miniupnp/miniupnpc" \
-      CC="$ANDROID_CC" AR="$ANDROID_AR" RANLIB="$ANDROID_RANLIB" \
-      CFLAGS="-Os -fPIC -DANDROID" \
-      build/libminiupnpc.a
-
-    make -C "$NAT_PKG/vendor/libnatpmp-upstream" \
-      CC="$ANDROID_CC" AR="$ANDROID_AR" RANLIB="$ANDROID_RANLIB" \
-      CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" \
-      libnatpmp.a
+    echo 'INPUT(-lc)' > build/libpthread.so
 
     # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
     # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
-    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
+    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} \
       --os:android --cpu:${nimCpu} --cc:clang \
       --clang.path:$ANDROID_TOOLCHAIN/bin \
       --clang.exe:${androidCcName} --clang.linkerexe:${androidCxxName} \
       --passC:-DANDROID --passC:-fPIC \
-      --passL:-lc++_shared --passL:-llog --passL:-ldl --passL:-lm \
+      --passL:-L$PWD/build --passL:-lc++_shared --passL:-llog --passL:-ldl --passL:-lm \
       --threads:on --opt:size --noMain --mm:refc --d:metrics \
       -d:ffiThreadExitTimeoutMs=5000 \
       --nimMainPrefix:liblibp2p --nimcache:$NIMCACHE"
@@ -156,7 +137,7 @@ pkgs.stdenv.mkDerivation {
       obj=build/check-objects/$(basename "$src" .c).o
       "$ANDROID_CC" -std=c11 -fPIE -I cbind/c_bindings/tinycbor -c "$src" -o "$obj"
     done
-    "$ANDROID_CXX" -fPIE -pie -pthread \
+    "$ANDROID_CXX" -L build -fPIE -pie -pthread \
       build/check-objects/*.o build/liblibp2p.so \
       -lc++_shared -ldl -lm -llog \
       -o build/libp2p_ffi_android_check
@@ -172,9 +153,6 @@ pkgs.stdenv.mkDerivation {
     cp build/liblibp2p.so $out/lib/
     cp build/liblibp2p.a  $out/lib/
     cp "$ANDROID_CXX_STDLIB" $out/lib/
-    cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib/
-    cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib/
-
     cp cbind/c_bindings/*.h $out/include/
     cp -r cbind/c_bindings/tinycbor $out/include/
     cp -r cbind/cddl_bindings $out/include/
