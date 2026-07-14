@@ -7,6 +7,9 @@ The bindings are a header-only C API over a C ABI. Every generated method is asy
 - `echo.c` — two TCP nodes; the server mounts a custom `/cbind/echo/1.0.0` protocol and echoes the bytes it reads, the client dials it and verifies the round-trip. The incoming-stream handler only hands the stream id to `main`, which serves it inline, since calling back into the library from the dispatch thread would deadlock.
 - `gossipsub.c` — two TCP nodes join a shared topic and exchange one message, delivered to the subscriber through its pub/sub-message listener.
 - `kad.c` — two TCP nodes form a Kademlia DHT (a server, and a client that lists the server as its bootstrap node), then round-trip a value (`kad_put_value` / `kad_get_value`) and a provider record (`create_cid`, `kad_start_providing` / `kad_get_providers`) over the wire.
+- `relay.c` — three TCP nodes: a relay, a destination and a source. The destination reserves a slot on the relay (`circuit_relay_reserve`); the source reaches it over a `/p2p-circuit` address (`dial_circuit_relay`) and runs the echo exchange relayed instead of direct.
+- `peerstore.c` — drives one node's peerstore directly from a second node's PeerInfo: `peerstore_add_peer`, `peerstore_get_peers`, `peerstore_get_peer_info`, `peerstore_set_peer_protocols`, then `peerstore_delete_peer`. No dialing required.
+- `metrics.c` — two TCP nodes connect, then one dumps the process-wide Prometheus registry as JSON via `collect_metrics`.
 
 ## Build
 
@@ -38,6 +41,9 @@ cmake -S . -B build -DTINYCBOR_VENDOR=$(nimble path ffi)/ffi/codegen/templates/c
 ./build/echo
 ./build/gossipsub
 ./build/kad
+./build/relay
+./build/peerstore
+./build/metrics
 ```
 
 Each program exits `0` on success and prints the values it exchanged over the wire.
