@@ -228,15 +228,19 @@ proc sendRegister*(
 
 proc ticketRetryDelay*(ticket: Ticket, now: Moment): Duration {.raises: [].} =
   ## Time to sleep before presenting ``ticket`` so the registrar sees it inside
-  ## the eligibility window ``[tMod + tWaitFor, tMod + tWaitFor + Δ]``.
-  ##
-  ## Uses absolute ticket timestamps (not a relative wait from response receipt,
-  ## and not capped by advert expiry) so retries under load are not rejected as
-  ## "ticket outside valid time window".
-  let eligibility = ticket.tMod.get() + ticket.tWaitFor.get()
+  ## the eligibility window ``[tMod + tWaitFor, tMod + tWaitFor + delta]``.
+  let tMod = ticket.tMod.valueOr:
+    return ZeroDuration
+  
+  let tWaitFor = ticket.tWaitFor.valueOr:
+    return ZeroDuration
+  
+  let eligibility = tMod + tWaitFor
+  
   if now >= eligibility:
     return ZeroDuration
-  eligibility - now
+  
+  return eligibility - now
 
 proc advertiseToRegistrar*(
     disco: ServiceDiscovery,
@@ -295,9 +299,8 @@ proc advertiseToRegistrar*(
 
       let waitSecs = ticketRetryDelay(newTicket, Moment.now())
 
-      debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
-
       if waitSecs > ZeroDuration:
+        debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
         await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:
       debug "registrar rejection, aborting", serviceId, registrar

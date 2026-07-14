@@ -490,6 +490,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   # Floor to whole seconds so in-memory ticket times match wire encode/decode
   # and the signature payload (epochSeconds / Duration.seconds).
+  # tWait is already rounded.
   let nowSec = Moment.init(now.epochSeconds, Second)
   var ticket = Ticket(
     advertisement: regMsg.advertisement,
