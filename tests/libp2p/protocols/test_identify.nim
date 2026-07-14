@@ -432,9 +432,8 @@ suite "Identify":
     ): Future[void] {.async: (raises: [CancelledError]).} =
       discard
 
-    let limitedPing = LPProtocol.new(
-      @[PingCodec], unusedHandler, maxOutgoingStreamsTotal = 0
-    )
+    let limitedPing =
+      LPProtocol.new(@[PingCodec], unusedHandler, maxOutgoingStreamsTotal = 0)
     ms.addHandler(limitedPing)
 
     let
