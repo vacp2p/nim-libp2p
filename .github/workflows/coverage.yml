@@ -85,7 +85,10 @@ jobs:
           find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info
-          genhtml coverage/coverage.f.info --output-directory coverage/output
+          # Ignore source files that no longer exist on disk: a restored nimcache
+          # can carry .gcno graphs for files deleted since (e.g. upnp_mapper.nim),
+          # and genhtml otherwise hard-errors trying to read the missing source.
+          genhtml coverage/coverage.f.info --ignore-errors source --output-directory coverage/output
 
       - name: Upload coverage to codecov
         uses: codecov/codecov-action@v5
