@@ -50,7 +50,7 @@ type LibP2P* = ref object
   topicHandlers: Table[string, TopicHandler]
   customProtocols: Table[string, LPProtocol]
   streams: StreamRegistry
-  stopped: bool
+  running: bool
 
 declareLibrary("libp2p", LibP2P)
 
@@ -303,11 +303,7 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
       return err("could not create libp2p node: " & e.msg)
 
   let lib = LibP2P(
-    switch: switch,
-    rng: rng,
-    relayClient: relayClientOpt,
-    streams: StreamRegistry(),
-    stopped: true,
+    switch: switch, rng: rng, relayClient: relayClientOpt, streams: StreamRegistry()
   )
 
   ?mountProtocols(lib, cfg)
@@ -323,19 +319,19 @@ proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.
 proc shutdownSwitch(lib: LibP2P) {.async.} =
   ## Single source of truth for graceful shutdown. Idempotent: safe to call from
   ## both an explicit `libp2pStop` and `libp2pDestroy`'s teardown.
-  if lib.stopped:
+  if not lib.running:
     return
-  lib.stopped = true
   await lib.switch.stop()
+  lib.running = false
 
 proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
-  if not lib.stopped:
+  if lib.running:
     return ok(true)
   try:
     await lib.switch.start()
   except LPError as e:
     return err(e.msg)
-  lib.stopped = false
+  lib.running = true
   ok(true)
 
 proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
