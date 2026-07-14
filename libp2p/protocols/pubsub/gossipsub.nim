@@ -736,7 +736,13 @@ method rpcHandler*(
     # as we have a "lax" policy and allow signed messages
 
     # Be careful not to fill the validationSeen table
-    # (eg, pop everything you put in it)
+    # (eg, pop everything you put in it). rpcHandler itself is owned by
+    # the stream read loop, not g.pendingTasks, and it can resume here
+    # after stop() has set started=false. A nil heartbeatFut means
+    # start() was never called, so direct rpcHandler calls are still allowed.
+    if not g.started and not g.heartbeatFut.isNil():
+      raise newException(CancelledError, "gossipsub stopped")
+
     g.validationSeen[msgIdSalted] = initHashSet[PubSubPeer]()
 
     g.pendingTasks.trackFut(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
@@ -1096,20 +1102,29 @@ method start*(
   g.started = true
   newFutureCompleted[void]()
 
-method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
+method stop*(g: GossipSub): Future[void] {.async: (raises: []).} =
   trace "gossipsub stop"
 
   if not g.started:
     warn "Stopping gossipsub without starting it"
-    return newFutureCompleted[void]()
+    return
 
   g.started = false
-  g.directPeersLoop.cancelSoon()
-  g.scoringHeartbeatFut.cancelSoon()
-  g.heartbeatFut.cancelSoon()
-  g.pendingTasks.cancelSoon()
-  g.pendingTasks = @[]
-  newFutureCompleted[void]()
+
+  await noCancel g.directPeersLoop.cancelAndWait()
+  g.directPeersLoop = nil
+
+  await noCancel g.scoringHeartbeatFut.cancelAndWait()
+  g.scoringHeartbeatFut = nil
+
+  # Keep heartbeatFut set after draining; rpcHandler uses it to distinguish
+  # stopped instances from ones where start() was never called.
+  await noCancel g.heartbeatFut.cancelAndWait()
+
+  while g.pendingTasks.len > 0:
+    let tasks = g.pendingTasks
+    g.pendingTasks = @[]
+    await noCancel tasks.cancelAndWait()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()

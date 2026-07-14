@@ -448,8 +448,8 @@ proc handleData*(
         try:
           futs = await allFinished(futs)
         except CancelledError:
-          # propagate cancellation
-          futs.cancelSoon()
+          await noCancel futs.cancelAndWait()
+          return
 
         # check for errors in futures
         for fut in futs:
@@ -683,7 +683,13 @@ method validate*(
       for validator in validators[]:
         pending.add(validator(topic, message))
   var valResult = ValidationResult.Accept
-  let futs = await allFinished(pending)
+  let futs =
+    try:
+      await allFinished(pending)
+    except CancelledError as exc:
+      await noCancel pending.cancelAndWait()
+      raise exc
+
   for fut in futs:
     if fut.failed:
       valResult = ValidationResult.Reject
