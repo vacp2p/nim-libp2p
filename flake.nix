@@ -54,10 +54,6 @@
               pkgs.nim-2_2
               pkgs.nimble
               pkgs.makeWrapper
-            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-              # cbind's nat_traversal build needs Apple's `libtool` (cctools), resolved via `$(shell which libtool)`.
-              pkgs.cctools
-              pkgs.which
             ];
           };
         }

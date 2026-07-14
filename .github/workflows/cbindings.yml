@@ -124,7 +124,6 @@ jobs:
           cd cbind
           nimble install_pinned
           nimble setup
-          make -C .. nat_libs
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl

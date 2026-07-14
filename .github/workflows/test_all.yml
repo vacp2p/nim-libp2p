@@ -111,13 +111,10 @@ jobs:
           path: |
             nimbledeps
             tests/nimbledeps
-          # Scope by os/cpu/cc: nimbledeps contains pre-built .a files for
-          # nim-nat-traversal's vendored miniupnpc/libnatpmp, rebuilt by
-          # `make nat_libs` against the host toolchain. Sharing the cache
-          # across mismatched toolchains (linux<->windows, gcc<->clang)
-          # produced broken artifacts last time. Keep this key in sync
-          # with the other workflows that cache nimbledeps so cache
-          # entries are reusable across them.
+          # Scope by os/cpu/cc so cache entries can't leak vendored/compiled
+          # artifacts across mismatched toolchains (linux<->windows,
+          # gcc<->clang). Keep this key in sync with the other workflows that
+          # cache nimbledeps so cache entries are reusable across them.
           key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
@@ -169,7 +166,7 @@ jobs:
           cd tests && nimble install_pinned
 
       - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths nat_libs
+        run: make nimble.paths tests/nimble.paths
 
       - name: Restore build cache
         id: nimcache-restore
