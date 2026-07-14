@@ -27,7 +27,8 @@ let
   androidCxxName = "${androidTriple}${androidApiString}-clang++";
 
   androidHostTag =
-    if pkgs.stdenv.hostPlatform.isDarwin then "darwin-x86_64"
+    if pkgs.stdenv.hostPlatform.system == "aarch64-darwin" then "darwin-arm64"
+    else if pkgs.stdenv.hostPlatform.isDarwin then "darwin-x86_64"
     else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then "linux-aarch64"
     else "linux-x86_64";
 
