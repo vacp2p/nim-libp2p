@@ -14,7 +14,8 @@
 
 import ffi
 
-import std/[tables, sequtils, times]
+import std/[tables, sequtils]
+from std/times import getTime, toUnix
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
