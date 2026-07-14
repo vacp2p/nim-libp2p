@@ -150,6 +150,9 @@ static int create_node(LibP2PCtx **out_ctx) {
     return 1;
   }
   if (wait_for_callback(&create_wait, "create") != 0) {
+    if (create_wait.ctx != NULL) {
+      libp2p_ctx_destroy(create_wait.ctx);
+    }
     wait_destroy(&create_wait);
     return 1;
   }

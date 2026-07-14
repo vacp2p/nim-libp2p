@@ -5,8 +5,8 @@
 
 ## Supported Targets
 
-The iOS build uses Xcode's SDKs through `xcrun` and targets iOS 13.0 or newer by
-default:
+The iOS build targets iOS 13.0 or newer by default and uses SDKs from an
+installed Xcode bundle:
 
 | Target | Nim CPU | SDK | Clang target |
 | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ nix build .#cbind-ffi-ios
 ```
 
 If your Nix installation uses sandboxing on macOS, disable it for this build so
-the derivation can access Xcode through `xcrun`:
+the derivation can access the host Xcode bundle and SDKs:
 
 ```sh
 nix --extra-experimental-features "nix-command flakes" \
@@ -116,4 +116,5 @@ The workflow checks that each output contains:
 - TinyCBOR headers used by the generated C helper layer
 - the linked iOS check executable
 - Mach-O platform metadata matching the selected SDK
-- `arm64` architecture metadata for the dynamic and static libraries
+- `arm64` architecture metadata for the dynamic library, static library,
+  and check executable

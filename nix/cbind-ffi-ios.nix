@@ -52,7 +52,8 @@ pkgs.stdenv.mkDerivation {
   ];
 
   # iOS SDKs come from Xcode on the host macOS runner, not from nixpkgs.
-  # The GitHub workflow disables the Nix sandbox so xcrun can access them.
+  # The GitHub workflow disables the Nix sandbox so the derivation can
+  # access the host Xcode SDKs.
   __noChroot = true;
 
   # iOS Mach-O files are target artifacts; host fixup/patchelf would be wrong.
@@ -240,11 +241,17 @@ EOF
 
     echo "== Inspecting iOS artifacts for ${targetName} =="
     "$IOS_OTOOL" -l build/liblibp2p.dylib | tee build/liblibp2p.dylib.otool
+    "$IOS_OTOOL" -l build/liblibp2p.a | tee build/liblibp2p.a.otool
     "$IOS_OTOOL" -l build/libp2p_ffi_ios_check | tee build/libp2p_ffi_ios_check.otool
     "$IOS_LIPO" -info build/liblibp2p.dylib | tee build/liblibp2p.dylib.lipo
     "$IOS_LIPO" -info build/liblibp2p.a | tee build/liblibp2p.a.lipo
+    "$IOS_LIPO" -info build/libp2p_ffi_ios_check | tee build/libp2p_ffi_ios_check.lipo
     grep -Eq "${platformCheck}" build/liblibp2p.dylib.otool
+    grep -Eq "${platformCheck}" build/liblibp2p.a.otool
+    grep -Eq "${platformCheck}" build/libp2p_ffi_ios_check.otool
     grep -q "arm64" build/liblibp2p.dylib.lipo
+    grep -q "arm64" build/liblibp2p.a.lipo
+    grep -q "arm64" build/libp2p_ffi_ios_check.lipo
   '';
 
   installPhase = ''
