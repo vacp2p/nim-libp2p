@@ -9,6 +9,7 @@ import
     transports/transport,
     transports/quictransport,
     upgrademngrs/upgrade,
+    utils/future,
     muxers/muxer,
     multiaddress,
   ]
@@ -19,7 +20,7 @@ import ./utils
 
 proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   try:
-    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet())
+    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet(), rng())
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
@@ -54,6 +55,36 @@ suite "Quic transport":
     Opt.some(MultiAddress.init(addressIP6).get()),
     streamProvider,
   )
+
+  asyncTest "listener-role dial sends UDP hole-punch packets":
+    let packetReceived =
+      Future[int].Raising([CancelledError]).init("QUIC hole-punch packet received")
+
+    proc receivePacket(
+        transp: DatagramTransport, remote: TransportAddress
+    ): Future[void] {.async: (raises: []).} =
+      try:
+        packetReceived.completeOnce(transp.getMessage().len)
+      except chronos.TransportError:
+        discard
+
+    let receiver =
+      newDatagramTransport(receivePacket, local = initTAddress("127.0.0.1:0"))
+    defer:
+      receiver.close()
+
+    let puncher = await createQuicTransport(isServer = true)
+    defer:
+      await puncher.stop()
+
+    let remoteAddr = MultiAddress
+      .init("/ip4/127.0.0.1/udp/" & $receiver.localAddress().port & "/quic-v1")
+      .tryGet()
+    let punchFut = puncher.dial("", remoteAddr, Opt.none(PeerId), Direction.In)
+    defer:
+      await punchFut.cancelAndWait()
+
+    check (await packetReceived.wait(1.seconds)) == 64
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)

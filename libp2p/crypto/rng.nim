@@ -113,6 +113,19 @@ proc randBelow(rng: Rng, max: uint32): int =
     if r >= threshold:
       return (r mod max).int
 
+proc rand*(rng: Rng, low, high: int): int =
+  ## Return a uniformly random integer in the inclusive range [`low`, `high`].
+  doAssert low <= high, "random range must not be empty"
+
+  let width =
+    if low >= 0 or high < 0:
+      uint64(high - low) + 1
+    else:
+      uint64(-(low + 1)) + uint64(high) + 2
+  doAssert width <= uint64(uint32.high), "random range is too large"
+
+  low + rng.randBelow(width.uint32)
+
 proc pick*[T](rng: Rng, x: openArray[T], n: int): Opt[seq[T]] =
   doAssert n >= 0, "n must be non-negative"
   if x.len == 0:

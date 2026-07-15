@@ -5,6 +5,7 @@ import std/[hashes, sets, sequtils]
 import chronos, chronicles, metrics, results
 import lsquic
 import
+  ../crypto/rng,
   ../wire,
   ../connmanager,
   ../multiaddress,
@@ -350,11 +351,15 @@ proc new*(
     _: type QuicTransport,
     u: Upgrade,
     privateKey: PrivateKey,
+    rng: Rng,
     connManager: ConnManager = nil,
 ): QuicTransport =
+  doAssert not rng.isNil, "Rng is nil"
+
   let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
+    rng: rng,
     certGenerator: defaultCertGenerator,
   )
   procCall Transport(self).initialize()
@@ -364,12 +369,16 @@ proc new*(
     _: type QuicTransport,
     u: Upgrade,
     privateKey: PrivateKey,
+    rng: Rng,
     certGenerator: CertGenerator,
     connManager: ConnManager = nil,
 ): QuicTransport =
+  doAssert not rng.isNil, "Rng is nil"
+
   let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
+    rng: rng,
     certGenerator: certGenerator,
   )
   procCall Transport(self).initialize()
@@ -576,6 +585,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   let taAddress =
     try:
@@ -586,6 +596,23 @@ method dial*(
       )
 
   try:
+    if dir == Direction.In:
+      let endpoint = self.listenerEndpointFor(taAddress)
+      if endpoint.isNone():
+        raise newException(
+          QuicTransportDialError,
+          "error in QUIC hole punch: no unique listener for address family",
+        )
+
+      # The Sync sender is the QUIC server. Open its NAT mapping with random
+      # UDP packets from the listener socket and let the expected inbound
+      # connection complete the DCUtR attempt.
+      while true:
+        let payload = self.rng.generateBytes(64)
+        await endpoint.get().datagramTransport().sendTo(taAddress, payload)
+        let delay = self.rng.rand(10, 200)
+        await sleepAsync(delay.milliseconds)
+
     let endpoint = self.dialEndpointFor(taAddress)
     let quicConnection = await endpoint.dial(taAddress)
     peerId.withValue(expectedPeerId):
@@ -606,6 +633,8 @@ method dial*(
     )
   except TransportOsError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
+  except chronos.TransportError as e:
+    raise newException(QuicTransportDialError, "error in quic dial: " & e.msg, e)
   except DialError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
   except QuicError as e:
