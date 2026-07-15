@@ -243,8 +243,7 @@ proc updateWaitAfterRetry*(
     disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
 ) =
   ticketOpt.withValue(ticket):
-    #Always use seconds granularity
-    let totalWaitSoFar = Moment.init(now.epochSeconds, Second) - ticket.tInit.get()
+    let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar
 
 proc isValidTicket(
@@ -460,7 +459,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
     error "invalid ticket", error

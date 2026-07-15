@@ -898,32 +898,6 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     # totalWaitSoFar = 150 ± 1; tRemaining = 150 ± 1
     check abs(tWait.secs - 150) <= 1
 
-  test "updateWaitAfterRetry floors elapsed time to whole seconds":
-    # `now` carries a sub-second part (700 ms). With seconds granularity the
-    # deducted elapsed time is floored to a whole second; using raw `now`
-    # instead would deduct the fractional part and leave a sub-second wait.
-    let disco = setupServiceDiscoveryNode()
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    # tInit sits on a whole-second boundary; now is 150.7s ahead of it.
-    let tInit = initMoment(1_000_000)
-    let now = initMoment(1_000_150) + 700.millis # now.epochSeconds == 1_000_150
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: tInit,
-      tMod: tInit,
-      tWaitFor: 0.secs,
-      signature: Opt.none(seq[byte]),
-    )
-
-    var tWait = 300.secs
-    disco.updateWaitAfterRetry(Opt.some(ticket), now, tWait)
-
-    # Seconds granularity: deduct 150s → wait = 150s exactly (a whole second).
-    # Raw `now`: deduct 150.7s → wait = 149.3s, which would fail this check.
-    check tWait == 150.secs
-
 suite "Service Discovery Registrar - registration rejects invalid tickets":
   # These tests exercise the full registration() path (not just the helper).
   # Cryptographically invalid tickets must produce Rejected and must never
@@ -1367,6 +1341,49 @@ suite "Service Discovery Registrar - registration response":
       ticket.tWaitFor.isSome
       ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
+
+  test "registration quantizes now to whole-second granularity":
+    # `now` is read once in registration() and truncated to whole seconds, so
+    # every time value it emits — the ticket's tInit/tMod and the recorded
+    # service timestamp — must land exactly on a second boundary. Using the
+    # raw Moment.now() (sub-second nanoseconds) would break these checks.
+    let config = ServiceDiscoveryConfig.new(safetyParam = 1.0) # forces a Wait
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let adBytes = ad.encode().get()
+    let advertiserId = ad.data.peerId
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(advertiserId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.isSome()
+
+    # Reconstructing a Moment from its own epochSeconds is a fixed point only
+    # when the moment already has no sub-second part.
+    let ticket = reply.ticket.get()
+    let tInit = ticket.tInit.get()
+    let tMod = ticket.tMod.get()
+    check tInit == Moment.init(tInit.epochSeconds, Second)
+    check tMod == Moment.init(tMod.epochSeconds, Second)
+
+    # The recorded service timestamp mirrors the same truncated `now`.
+    check serviceId in disco.registrar.timestampService
+    let ts = disco.registrar.timestampService[serviceId]
+    check ts == Moment.init(ts.epochSeconds, Second)
 
   test "retrying with a valid ticket inside the window caches the ad":
     let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)
