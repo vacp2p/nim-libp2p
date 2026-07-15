@@ -308,3 +308,34 @@ suite "KadDHT Find":
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
+
+  asyncTest "closerPeers advertises a peer's observed inbound address":
+    # TODO: nim-libp2p#2826
+    let kads = setupKadSwitches(3)
+    let (a, b, c) = (kads[0], kads[1], kads[2])
+    startAndDeferStop(kads)
+
+    let
+      bId = b.switch.peerInfo.peerId
+      bKey = bId.toKey()
+      bListenAddr = b.switch.peerInfo.addrs
+
+    # B dials A and sends a FIND_NODE, so A learns B from the inbound stream.
+    await b.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    discard (await b.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).expect(
+      "FIND_NODE reply"
+    )
+
+    # A records B under its observed inbound source address, an ephemeral dial
+    # port that is not one of B's listen addresses.
+    checkUntilTimeout:
+      a.switch.peerStore[AddressBook][bId].anyIt(it notin bListenAddr)
+
+    # C asks A for peers near B, and A advertises that observed address in closerPeers.
+    await c.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    let reply = (await c.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).value()
+    let bCloser =
+      reply.closerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    check:
+      bCloser.len == 1
+      bCloser[0].addrs.anyIt(it notin bListenAddr)

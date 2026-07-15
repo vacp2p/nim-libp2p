@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, tables
+import chronos, results, sequtils, sets, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
 import ../../tools/[lifecycle, topology, unittest]
@@ -278,3 +278,48 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[2])
       providers.containsPeer(kads[3])
       providers.containsPeer(kads[4])
+
+  asyncTest "providerPeers carries a provider's listen address, closerPeers its observed address":
+    # TODO: nim-libp2p#2826
+    let
+      a = setupKad(config = testKadConfig(providerRejection = true))
+      b = setupKad()
+      c = setupKad()
+    startAndDeferStop(@[a, b, c])
+
+    let
+      bId = b.switch.peerInfo.peerId
+      bListenAddr = b.switch.peerInfo.addrs
+      providerKey = @[1.byte, 2, 3, 4, 5]
+
+    # B dials A and sends a FIND_NODE, so A learns B from the inbound stream.
+    await b.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    discard (await b.dispatchFindNode(a.switch.peerInfo.peerId, bId.toKey())).expect(
+      "FIND_NODE reply"
+    )
+
+    # A records B under its observed inbound source address, an ephemeral dial
+    # port that is not one of B's listen addresses.
+    checkUntilTimeout:
+      a.switch.peerStore[AddressBook][bId].anyIt(it notin bListenAddr)
+
+    # B announces itself as a provider, carrying its listen addresses to A.
+    discard (await sendAddProviderAndGetStatus(b, a, providerKey)).expect(
+      "add provider accepted"
+    )
+
+    # C asks A for providers of the key. For the same peer B, A returns a diallable
+    # listen address in providerPeers but its observed inbound source address in
+    # closerPeers.
+    await c.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    let reply =
+      (await c.dispatchGetProviders(a.switch.peerInfo.peerId, providerKey)).value()
+    let bProvider =
+      reply.providerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    let bCloser =
+      reply.closerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    check:
+      bProvider.len == 1
+      bCloser.len == 1
+      bProvider[0].addrs.anyIt(it in bListenAddr)
+      bCloser[0].addrs.anyIt(it notin bListenAddr)
