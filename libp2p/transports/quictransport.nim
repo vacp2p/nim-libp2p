@@ -211,6 +211,9 @@ type QuicMuxer* = ref object of Muxer
 proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): QuicMuxer {.raises: [CertificateParsingError, LPError].} =
+  if conn.isNil:
+    raise (ref QuicTransportError)(msg: "cannot create QUIC muxer from nil connection")
+
   let session = QuicSession(conn)
   session.peerId = peerId.valueOr:
     let certificates = session.connection.certificates()
@@ -437,6 +440,9 @@ method start*(
   await procCall Transport(self).start(listenMAs)
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
+  if transport.running:
+    await noCancel procCall Transport(transport).stop()
+
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
@@ -456,8 +462,6 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await noCancel allFutures(transport.listeners.mapIt(it.stop()))
   transport.listeners = @[]
   transport.acceptFuts = @[]
-
-  await procCall Transport(transport).stop()
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction
@@ -519,9 +523,8 @@ method accept*(
   if not self.running or self.listeners.len == 0: # Stopped while waiting
     raise newTransportClosedError()
 
-  # becasue some listener has accepted we need to run 
-  # accept manually in the place for this listner again 
-  # so that it keeps accepting for future method calls
+  # Replace the completed accept before awaiting its result so that every
+  # listener remains ready for future connections.
   let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.listeners[index].accept()
 
@@ -529,11 +532,14 @@ method accept*(
     let conn = await finished
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
-    debug "Quic Error", description = exc.msg
+    warn "QUIC accept failed", description = exc.msg
+    raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
-    debug "Transport Error", description = exc.msg
+    warn "QUIC transport accept failed", description = exc.msg
+    raise newTransportClosedError(exc)
   except TransportOsError as exc:
-    debug "OS Error", description = exc.msg
+    warn "QUIC OS accept failed", description = exc.msg
+    raise (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
 proc listenerEndpointFor(
     self: QuicTransport, address: TransportAddress
