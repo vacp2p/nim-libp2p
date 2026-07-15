@@ -226,6 +226,57 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     # ipSim ≈ 0.97 for same /24; w should be in the hundreds of seconds
     check w > 500.seconds
 
+suite "Service Discovery Registrar - advertExpiry cap":
+  # The wait time must never exceed advertExpiry: a wait longer than the
+  # advert's own lifetime is pointless and is clamped at the end of waitingTime.
+
+  test "waitingTime clamps formula-driven wait to advertExpiry":
+    let registrar = Registrar.new()
+    # cache at capacity ⇒ occupancy = 100.0; with safetyParam = 1.0 the
+    # uncapped w = 100 * 100.0 * 1.0 = 10000s ≫ advertExpiry (100s).
+    let discoConfig =
+      ServiceDiscoveryConfig.new(advertExpiry = 100.secs, safetyParam = 1.0)
+    let serviceId = makeServiceId()
+    let ad = makeAdvertisement()
+    let now = Moment.now()
+
+    for i in 0 ..< 1000:
+      registrar.cacheTimestamps[(peerId: ad.data.peerId, seqNo: uint64(i))] = now
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    check w == discoConfig.advertExpiry
+
+  test "waitingTime clamps lower-bound wait to advertExpiry":
+    let registrar = Registrar.new()
+    let discoConfig = ServiceDiscoveryConfig.new() # advertExpiry = 900s (default)
+    let serviceId = makeServiceId()
+    let ad = makeAdvertisement($serviceId)
+    let now = initMoment(0)
+
+    # A stale bound far in the future: effective lower bound = 100000s ≫ 900s.
+    registrar.boundService[serviceId] = initMoment(100000)
+    registrar.timestampService[serviceId] = initMoment(0)
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    check w == discoConfig.advertExpiry
+
+  test "waitingTime cap leaves a legitimately small wait untouched":
+    let registrar = Registrar.new()
+    # Empty cache, safetyParam = 0.5 ⇒ uncapped w = 10000 * 0.5 = 5000s,
+    # comfortably below advertExpiry (10000s) so the clamp is a no-op.
+    let discoConfig =
+      ServiceDiscoveryConfig.new(advertExpiry = 10000.secs, safetyParam = 0.5)
+    let serviceId = makeServiceId()
+    let ad = makeAdvertisement()
+    let now = Moment.now()
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    check w < discoConfig.advertExpiry
+    check w == 5000.secs
+
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":
     let registrar = Registrar.new()
@@ -278,7 +329,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
   test "waitingTime uses most restrictive lower bound":
     let registrar = Registrar.new()
-    let discoConfig = ServiceDiscoveryConfig.new()
+    let discoConfig = ServiceDiscoveryConfig.new(advertExpiry = 2500.secs)
     let serviceId = makeServiceId()
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"

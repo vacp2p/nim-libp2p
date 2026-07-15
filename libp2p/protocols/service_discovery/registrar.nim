@@ -156,8 +156,7 @@ proc waitingTime*(
     (serviceSim + discoConfig.ipSimCoefficient * ipSim + discoConfig.safetyParam)
 
   # Bound & Quantize W
-  w = max(0.0, w)
-  w = min(w, float64(uint32.high))
+  w = w.clamp(0.0, float64(uint32.high))
   w = round(w)
 
   var waitDuration = w.int64.secs
@@ -184,6 +183,8 @@ proc waitingTime*(
         prevWaitDuration = prevBound - prevTimestamp
       if waitDuration < prevWaitDuration - elapsedDuration:
         waitDuration = prevWaitDuration - elapsedDuration
+
+  waitDuration = min(discoConfig.advertExpiry, waitDuration)
 
   return waitDuration
 
