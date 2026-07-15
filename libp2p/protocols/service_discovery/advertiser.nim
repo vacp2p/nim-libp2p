@@ -256,7 +256,8 @@ proc advertiseToRegistrar*(
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
-      debug "advert accepted", serviceId, registrar
+      debug "advert accepted",
+        serviceId, registrar, hadTicket = currentTicket.isSome(), isSelf
 
       await sleepAsync(disco.discoConfig.advertExpiry)
 
@@ -279,7 +280,16 @@ proc advertiseToRegistrar*(
 
       let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor.get())
 
-      debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
+      notice "registrar asked advertiser to wait",
+        serviceId,
+        registrar,
+        wait = waitSecs.seconds,
+        ticketWaitFor = newTicket.tWaitFor.get().seconds,
+        advertExpiry = disco.discoConfig.advertExpiry.seconds,
+        retryMayBeEarly = waitSecs < newTicket.tWaitFor.get(),
+        ticketTInit = newTicket.tInit.get().epochSeconds,
+        ticketTMod = newTicket.tMod.get().epochSeconds,
+        isSelf
 
       await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:

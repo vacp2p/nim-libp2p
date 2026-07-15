@@ -246,7 +246,12 @@ proc updateWaitAfterRetry*(
     wait -= totalWaitSoFar
 
 proc isValidTicket(
-    disco: ServiceDiscovery, regMsg: RegisterMessage, now: Moment
+    disco: ServiceDiscovery,
+    regMsg: RegisterMessage,
+    now: Moment,
+    peerId: PeerId,
+    serviceId: ServiceId,
+    ad: Advertisement,
 ): Result[Opt[Ticket], string] {.raises: [].} =
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
@@ -265,6 +270,27 @@ proc isValidTicket(
     windowEnd = windowStart + disco.discoConfig.registrationWindow
 
   if now notin windowStart .. windowEnd:
+    let relation =
+      if now < windowStart:
+        "early"
+      elif now > windowEnd:
+        "late"
+      else:
+        "outside"
+    notice "ticket outside valid time window",
+      relation,
+      registrar = disco.switch.peerInfo.peerId,
+      peerId,
+      advertisedPeer = ad.data.peerId,
+      serviceId,
+      now = now.epochSeconds,
+      ticketTInit = ticket.tInit.get().epochSeconds,
+      ticketTMod = ticket.tMod.get().epochSeconds,
+      ticketWaitFor = ticket.tWaitFor.get().seconds,
+      windowStart = windowStart.epochSeconds,
+      windowEnd = windowEnd.epochSeconds,
+      registrationWindow = disco.discoConfig.registrationWindow.seconds,
+      advertExpiry = disco.discoConfig.advertExpiry.seconds
     return err("ticket outside valid time window")
 
   return ok(Opt.some(ticket))
@@ -460,8 +486,13 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   let now = Moment.now()
 
-  let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
-    error "invalid ticket", error
+  let ticketOpt = disco.isValidTicket(regMsg, now, peerId, serviceId, ad).valueOr:
+    error "invalid ticket",
+      error,
+      registrar = disco.switch.peerInfo.peerId,
+      peerId,
+      advertisedPeer = ad.data.peerId,
+      serviceId
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -476,6 +507,12 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
   disco.updateWaitAfterRetry(ticketOpt, now, tWait)
 
   if tWait <= ZeroDuration:
+    debug "register confirmed",
+      registrar = disco.switch.peerInfo.peerId,
+      peerId,
+      advertisedPeer = ad.data.peerId,
+      serviceId,
+      hadTicket = ticketOpt.isSome()
     disco.acceptAdvertisement(now, serviceId, ad)
 
     msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
@@ -487,6 +524,16 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     return msg
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
+
+  debug "register wait",
+    registrar = disco.switch.peerInfo.peerId,
+    peerId,
+    advertisedPeer = ad.data.peerId,
+    serviceId,
+    wait = tWait.seconds,
+    hadTicket = ticketOpt.isSome(),
+    advertExpiry = disco.discoConfig.advertExpiry.seconds,
+    registrationWindow = disco.discoConfig.registrationWindow.seconds
 
   var ticket = Ticket(
     advertisement: regMsg.advertisement,
