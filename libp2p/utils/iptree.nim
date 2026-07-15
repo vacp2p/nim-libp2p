@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[net, math]
+import std/net
 
 type
   IpTreeNode* = ref object
@@ -122,11 +122,9 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   let bytes = ip.ipBytes()
   let nBits = bytes.len * 8
 
-  var depth = 0
+  var threshold = total * 0.5
   for b in bytes:
     for bit in countdown(7, 0):
-      let threshold = total / pow(2.0, float64(depth + 1))
-
       let goRight = (b and (1'u8 shl bit)) != 0
       v = step(v, goRight, create = false)
 
@@ -136,6 +134,6 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
       if float64(v.counter) > threshold:
         score += 1
 
-      inc depth
+      threshold *= 0.5
 
   (float64(score) / float64(nBits))
