@@ -1,21 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## C FFI bindings for nim-libp2p, built on top of `nim-ffi`.
-##
-## `nim-ffi` provides the FFI runtime and generates the C/CDDL bindings. This
-## file only declares the library state, the request/response shapes and the
-## libp2p-specific bodies; `genBindings()` at the bottom emits the foreign
-## bindings consumed by `logos-co/logos-libp2p-module`.
-##
-## The `{.ffi.}` config types and all of their parsing live in
-## `libp2p_ffi/config.nim`, `include`d below — see that file for the
-## `config.parse()` entry point and for why it is included rather than imported.
+## C FFI bindings for nim-libp2p, on top of `nim-ffi` (the FFI runtime + C/CDDL
+## generator). Declares the request/response shapes and libp2p bodies that
+## `genBindings()` emits at the bottom; config parsing lives in the `include`d `config`.
 
 import ffi
 
-import std/[tables, sequtils]
-from std/times import getTime, toUnix
+import std/[tables, sequtils, sets, json, jsonutils, strutils, locks]
+from std/times import getTime, toUnix, Time, nanosecond
+import metrics
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
@@ -31,11 +25,9 @@ import ../libp2p/protocols/connectivity/relay/client
 import ../libp2p/extended_peer_record
 
 type StreamRegistry = ref object
-  ## Owns the live streams handed out across the FFI boundary and the
-  ## release-waiter futures that keep custom-protocol handlers alive until the
-  ## host is done with the stream. A `ref` so the custom-protocol handler can
-  ## capture it directly instead of the whole `LibP2P`, which would form a
-  ## `lib -> customProtocols -> handler -> lib` cycle that `--mm:refc` leaks.
+  ## Owns the live streams handed across the FFI boundary and the release-waiter
+  ## futures keeping custom-protocol handlers alive until the host is done. A `ref`
+  ## so a handler captures it alone, avoiding a `lib` cycle that leaks under `--mm:refc`.
   streams: Table[uint64, Stream]
   nextStreamId: uint64
   releaseWaiters: Table[uint64, Future[void].Raising([CancelledError])]
@@ -158,6 +150,35 @@ type LookupRequest {.ffi.} = object
   serviceId: string
   serviceData: seq[byte]
 
+type ReservationResponse {.ffi.} = object
+  addrs: seq[string]
+  expireTime: uint64
+
+type CircuitRelayReserveRequest {.ffi.} = object
+  relayPeerId: string
+  relayAddrs: seq[string]
+
+type AddPeerRequest {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+  protocols: seq[string]
+
+type SetAddressesRequest {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type SetProtocolsRequest {.ffi.} = object
+  peerId: string
+  protocols: seq[string]
+
+type PeerStoreEntryResponse {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+  protocols: seq[string]
+  publicKey: seq[byte]
+  agentVersion: string
+  protoVersion: string
+
 type IncomingStreamEvent {.ffi.} = object
   proto: string
   streamId: uint64
@@ -206,8 +227,7 @@ proc mountGossipsub(lib: LibP2P, triggerSelf: bool): Result[void, string] =
   ok()
 
 proc defaultKadConfig(): KadDHTConfig =
-  # Validator/selector are host callbacks that can't cross the FFI boundary, so
-  # fall back to the defaults.
+  # Validator/selector are host callbacks that can't cross the FFI boundary; use the defaults.
   KadDHTConfig.new(
     validator = DefaultEntryValidator(), selector = DefaultEntrySelector()
   )
@@ -357,13 +377,11 @@ proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
 
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## Owns the full teardown: the FFI runtime runs this on the worker loop at
-  ## shutdown, so the switch is gracefully stopped before the threads are joined
-  ## and the context is freed. Destroy alone is sufficient; libp2pStop is
-  ## optional and only useful for an explicit, error-reporting shutdown.
+  ## shutdown, so the switch stops gracefully before threads join and the context is
+  ## freed. Sufficient on its own; libp2pStop is optional, for explicit shutdown.
   await shutdownSwitch(lib)
 
-# Hand-maintained C-ABI mirror of `Libp2pConfig`: the `{.ffi.}` config crosses as
-# CBOR, not a C struct, so it's absent from the generated bindings. Keep in sync.
+# Hand-maintained C-ABI mirror of `Libp2pConfig`: the `{.ffi.}` config crosses as CBOR, not a C struct, so it's absent from the generated bindings. Keep in sync.
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
@@ -398,8 +416,7 @@ proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
 
-  # Scheme-native serialization, so whatever key the switch was built with
-  # round-trips — not just secp256k1. The default builder uses Ed25519.
+  # Scheme-native serialization: whatever key the switch was built with round-trips, not just secp256k1 (the default builder uses Ed25519).
   let rawBytes = peerInfo.publicKey.getRawBytes().valueOr:
     return err("could not serialize public key: " & $error)
   ok(rawBytes)
@@ -416,9 +433,7 @@ func dialTimeout(timeoutMs: int64): Duration =
 proc libp2pConnect*(
     lib: LibP2P, req: ConnectRequest
 ): Future[Result[bool, string]] {.ffi: "timeout = 30000".} =
-  # The FFI runtime caps every handler at a 5s default; a dial+upgrade can take
-  # up to libp2p's 30s UpgradeTimeout, so raise the backstop to match. The
-  # per-call `req.timeoutMs` bounds the dial itself whenever it is shorter.
+  # Raise the FFI handler backstop (5s default) to libp2p's 30s UpgradeTimeout; `req.timeoutMs` bounds the dial itself when shorter.
   let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
     return err(error)
 
@@ -469,10 +484,7 @@ proc libp2pConnectedPeers*(
 proc libp2pDial*(
     lib: LibP2P, req: DialRequest
 ): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
-  # See libp2pConnect: a dial can run to the 30s UpgradeTimeout, so the handler
-  # needs more than the FFI runtime's 5s default or the caller is unblocked with
-  # a spurious timeout while this handler keeps running and leaks the streamId.
-  # `req.timeoutMs` bounds the dial itself.
+  # Same 30s backstop as libp2pConnect (else a slow dial trips a spurious timeout and leaks the streamId); `req.timeoutMs` bounds the dial itself.
   let peerId = PeerId.init(req.peerId).valueOr:
     return err($error)
   let stream =
@@ -504,10 +516,8 @@ proc libp2pDialCircuitRelay*(
 
 func validateReadLength(n: int64): Result[int, string] =
   ## Guards attacker-controlled read lengths before they size an allocation:
-  ## rejects negatives and anything past the `MaxReadBytes` DoS ceiling. The
-  ## ceiling (64 MiB) sits well below `int.high` even on 32-bit targets, so the
-  ## `int(n)` narrowing below is always safe; `int.high` stays as a backstop in
-  ## case the ceiling is ever raised.
+  ## rejects negatives and anything past the `MaxReadBytes` ceiling (64 MiB), which
+  ## sits well below `int.high` even on 32-bit, so the `int(n)` narrowing is always safe.
   if n < 0:
     return err("invalid read length")
   if n > MaxReadBytes:
@@ -595,8 +605,7 @@ proc libp2pMountProtocol*(
   if lib.customProtocols.hasKey(proto) or proto in peerInfo.protocols:
     return err("protocol already mounted: " & proto)
 
-  # Capture the registry ref, not `lib`: a closure over `lib` stored back into
-  # `lib.customProtocols` would cycle and leak under `--mm:refc`.
+  # Capture the registry ref, not `lib`: a closure over `lib` stored back into `lib.customProtocols` would cycle and leak under `--mm:refc`.
   let streams = lib.streams
   proc handle(
       stream: Stream, selectedProto: string
@@ -882,6 +891,103 @@ proc libp2pDecodeXpr*(
 
   ok(toExtendedRecordEntry(sxpr.data))
 
+proc libp2pCircuitRelayReserve*(
+    lib: LibP2P, req: CircuitRelayReserveRequest
+): Future[Result[ReservationResponse, string]] {.ffi.} =
+  let cl = lib.relayClient.valueOr:
+    return err("relay client is not mounted (set circuitRelayClient=true in config)")
+
+  let peerId = PeerId.init(req.relayPeerId).valueOr:
+    return err($error)
+
+  let multiaddresses = parseMultiaddrs(req.relayAddrs).valueOr:
+    return err(error)
+
+  let rsvp =
+    try:
+      await cl.reserve(peerId, multiaddresses)
+    except ReservationError as e:
+      return err("reservation failed: " & e.msg)
+    except DialFailedError as e:
+      return err("dial failed: " & e.msg)
+
+  ok(ReservationResponse(addrs: rsvp.addrs.mapIt($it), expireTime: rsvp.expire))
+
+proc libp2pPeerstoreGetPeers*(
+    lib: LibP2P
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  var peerIds: seq[string]
+  try:
+    for peerId in keys(lib.switch.peerStore[AddressBook].book):
+      peerIds.add($peerId)
+  except LPError as e:
+    return err(e.msg)
+  ok(PeersResponse(peerIds: peerIds))
+
+proc libp2pPeerstoreGetPeerInfo*(
+    lib: LibP2P, peerId: string
+): Future[Result[PeerStoreEntryResponse, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  let peerStore = lib.switch.peerStore
+  try:
+    var entry = PeerStoreEntryResponse(peerId: $pid)
+    entry.addrs = peerStore[AddressBook][pid].mapIt($it)
+    entry.protocols = peerStore[ProtoBook][pid]
+    if peerStore[KeyBook].contains(pid):
+      entry.publicKey = peerStore[KeyBook][pid].getBytes().valueOr:
+        seq[byte].default
+    entry.agentVersion = peerStore[AgentBook][pid]
+    entry.protoVersion = peerStore[ProtoVersionBook][pid]
+    ok(entry)
+  except LPError as e:
+    err(e.msg)
+
+proc libp2pPeerstoreAddPeer*(
+    lib: LibP2P, req: AddPeerRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  if req.addrs.len == 0:
+    return err("at least one address is required")
+
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+
+  let peerStore = lib.switch.peerStore
+  peerStore[AddressBook].extend(pid, addrs)
+  if req.protocols.len > 0:
+    peerStore[ProtoBook].extend(pid, req.protocols)
+  ok(true)
+
+proc libp2pPeerstoreSetPeerAddresses*(
+    lib: LibP2P, req: SetAddressesRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+
+  let addrs = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+
+  lib.switch.peerStore[AddressBook][pid] = addrs
+  ok(true)
+
+proc libp2pPeerstoreSetPeerProtocols*(
+    lib: LibP2P, req: SetProtocolsRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(req.peerId).valueOr:
+    return err($error)
+  lib.switch.peerStore[ProtoBook][pid] = req.protocols
+  ok(true)
+
+proc libp2pPeerstoreDeletePeer*(
+    lib: LibP2P, peerId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let pid = PeerId.init(peerId).valueOr:
+    return err($error)
+  lib.switch.peerStore.del(pid)
+  ok(true)
+
 proc libp2pCreateCid*(
     lib: LibP2P, req: CreateCidRequest
 ): Future[Result[string, string]] {.ffi.} =
@@ -920,5 +1026,96 @@ proc libp2pNewPrivateKey*(
     return err("could not get bytes for private key")
 
   ok(keyData)
+
+type LabelPair = object
+  name: string
+  value: string
+
+type MetricEntry = object
+  name: string
+  `type`: string
+  help: string
+  labels: seq[LabelPair]
+  value: float64
+  timestamp: int64
+
+const UntypedMetricKind = "untyped"
+
+proc parseMetricType(typeLine: string): string =
+  ## `typeLine` is the collector's pre-formatted "# TYPE <name> <kind>\n";
+  ## returns <kind>, or "untyped" when the line is empty or malformed.
+  let tokens = typeLine.splitWhitespace()
+  if tokens.len < 4:
+    return UntypedMetricKind
+  tokens[^1]
+
+proc parseMetricHelp(helpLine: string): string =
+  ## `helpLine` is the collector's pre-formatted "# HELP <name> <text>\n";
+  ## returns <text> (which itself may contain whitespace), or "" when absent.
+  const PrefixTokens = 3 # "#", "HELP", "<name>"
+  let tokens = helpLine.splitWhitespace(PrefixTokens)
+  if tokens.len <= PrefixTokens:
+    return ""
+  tokens[PrefixTokens].strip()
+
+func toUnixMillis(t: Time): int64 =
+  ## Milliseconds since the Unix epoch. `std/times` has no `toMilliseconds` on
+  ## Nim 2.2.4, so build it from the second and nanosecond components.
+  t.toUnix() * 1000 + t.nanosecond div 1_000_000
+
+proc addMetricEntry(
+    entries: ptr seq[MetricEntry],
+    metricType: string,
+    help: string,
+    name: string,
+    value: float64,
+    labels, labelValues: openArray[string],
+    timestamp: Time,
+) {.gcsafe, raises: [].} =
+  # Skip _created entries: OpenMetrics timestamp metadata, not measurements.
+  if name.endsWith("_created"):
+    return
+  doAssert labels.len == labelValues.len, "metric label count mismatch"
+  var labelPairs = newSeq[LabelPair](labels.len)
+  for i in 0 ..< labels.len:
+    labelPairs[i] = LabelPair(name: labels[i], value: labelValues[i])
+  entries[].add MetricEntry(
+    name: name,
+    `type`: metricType,
+    help: help,
+    labels: labelPairs,
+    value: value,
+    timestamp: timestamp.toUnixMillis(),
+  )
+
+proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
+  var entries: seq[MetricEntry]
+  {.cast(gcsafe).}:
+    withLock registry.lock:
+      for collector in registry.collectors:
+        let metricType = parseMetricType(collector.typ)
+        let help = parseMetricHelp(collector.help)
+        let entriesPtr = addr entries
+        collector.collect(
+          proc(
+              name: string,
+              value: float64,
+              labels, labelValues: openArray[string],
+              timestamp: Time,
+          ) {.gcsafe, raises: [].} =
+            addMetricEntry(
+              entriesPtr, metricType, help, name, value, labels, labelValues, timestamp
+            )
+        )
+  entries
+
+proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+  var jsonText: string
+  try:
+    {.cast(gcsafe).}:
+      jsonText = $collectRegistryMetrics(defaultRegistry).toJson()
+  except CatchableError as e:
+    return err("failed to serialize metrics: " & e.msg)
+  ok(jsonText)
 
 genBindings()
