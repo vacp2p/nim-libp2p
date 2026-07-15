@@ -532,13 +532,13 @@ method accept*(
     let conn = await finished
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
-    warn "QUIC accept failed", description = exc.msg
+    debug "Quic Error", description = exc.msg
     raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
-    warn "QUIC transport accept failed", description = exc.msg
+    debug "Transport Error", description = exc.msg
     raise newTransportClosedError(exc)
   except TransportOsError as exc:
-    warn "QUIC OS accept failed", description = exc.msg
+    debug "OS Error", description = exc.msg
     raise (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
 proc listenerEndpointFor(
