@@ -55,8 +55,6 @@ result/
   include/cddl_bindings/libp2p.cddl
   lib/liblibp2p.dylib
   lib/liblibp2p.a
-  lib/libminiupnpc.a
-  lib/libnatpmp.a
   nix-support/ios-target
 ```
 
@@ -87,14 +85,8 @@ into the app or a support library.
 
 For shared-library linking, package the matching target's `lib/liblibp2p.dylib`
 with the iOS application using the normal Xcode embedding/signing flow. For
-static linking, link `lib/liblibp2p.a` together with `lib/libminiupnpc.a`,
-`lib/libnatpmp.a`, and the C++ runtime selected by the application.
-
-## Dependency Notes
-
-The iOS derivation uses a writable copy of `nat_traversal` so its vendored
-`miniupnpc` and `libnatpmp` archives can be rebuilt with the selected iOS SDK
-and clang target.
+static linking, link `lib/liblibp2p.a` together with the C++ runtime selected by
+the application.
 
 ## iOS Check Harness
 

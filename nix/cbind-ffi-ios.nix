@@ -12,13 +12,9 @@ let
   deps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
-  # nat_traversal is copied into the build directory because its vendored C
-  # archives need to be rebuilt with the iOS toolchain.
-  depsWithoutWritable = builtins.removeAttrs deps [ "nat_traversal" ];
-
   pathArgs =
     builtins.concatStringsSep " "
-      (map (p: "--path:${p}") (builtins.attrValues depsWithoutWritable));
+      (map (p: "--path:${p}") (builtins.attrValues deps));
 
   cbindPathArgs =
     builtins.concatStringsSep " "
@@ -168,34 +164,9 @@ EOF
     export AR=$TOOLCHAIN/ar
     export RANLIB=$TOOLCHAIN/ranlib
 
-    echo "== Preparing writable dependency copies for iOS ${targetName} =="
-    NAT_PKG=$TMPDIR/nat_traversal
-    cp -r ${deps.nat_traversal} $NAT_PKG
-    chmod -R +w $NAT_PKG
-
-    # iOS SDKs do not expose <net/route.h>, which upstream libnatpmp's gateway
-    # discovery helper requires. Keep NAT-PMP linkable for the mobile ABI and
-    # report gateway discovery as unsupported at runtime.
-    cat > "$NAT_PKG/vendor/libnatpmp-upstream/getgateway.c" <<'EOF'
-#include <netinet/in.h>
-#include "getgateway.h"
-int getdefaultgateway(in_addr_t *addr) { (void)addr; return -1; }
-EOF
-
-    echo "== Building nat_traversal vendored C libs for iOS ${targetName} =="
-    make -C "$NAT_PKG/vendor/miniupnp/miniupnpc" \
-      CC="$CC" AR="$AR" RANLIB="$RANLIB" \
-      CFLAGS="-Os -fPIC -D__APPLE__ -D_DARWIN_C_SOURCE" \
-      build/libminiupnpc.a
-
-    make -C "$NAT_PKG/vendor/libnatpmp-upstream" \
-      CC="$CC" AR="$AR" RANLIB="$RANLIB" \
-      CFLAGS="-Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4" \
-      libnatpmp.a
-
     # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
     # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
-    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} --path:$NAT_PKG \
+    commonArgs="--noNimblePath ${cbindPathArgs} ${pathArgs} \
       --os:ios --cpu:${nimCpu} --cc:clang \
       --clang.path:$TOOLCHAIN \
       --clang.exe:clang --clang.linkerexe:clang++ \
@@ -259,8 +230,6 @@ EOF
 
     cp build/liblibp2p.dylib $out/lib/
     cp build/liblibp2p.a     $out/lib/
-    cp $NAT_PKG/vendor/miniupnp/miniupnpc/build/libminiupnpc.a $out/lib/
-    cp $NAT_PKG/vendor/libnatpmp-upstream/libnatpmp.a          $out/lib/
 
     cp cbind/c_bindings/*.h $out/include/
     cp -r cbind/c_bindings/tinycbor $out/include/
