@@ -8,7 +8,7 @@
 import ffi
 
 import std/[tables, sequtils, sets, json, jsonutils, strutils, locks]
-from std/times import getTime, toUnix, Time, toMilliseconds
+from std/times import getTime, toUnix, Time, nanosecond
 import metrics
 
 import ../libp2p
@@ -1058,6 +1058,11 @@ proc parseMetricHelp(helpLine: string): string =
     return ""
   tokens[PrefixTokens].strip()
 
+func toUnixMillis(t: Time): int64 =
+  ## Milliseconds since the Unix epoch. `std/times` has no `toMilliseconds` on
+  ## Nim 2.2.4, so build it from the second and nanosecond components.
+  t.toUnix() * 1000 + t.nanosecond div 1_000_000
+
 proc addMetricEntry(
     entries: ptr seq[MetricEntry],
     metricType: string,
@@ -1080,7 +1085,7 @@ proc addMetricEntry(
     help: help,
     labels: labelPairs,
     value: value,
-    timestamp: timestamp.toMilliseconds(),
+    timestamp: timestamp.toUnixMillis(),
   )
 
 proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
