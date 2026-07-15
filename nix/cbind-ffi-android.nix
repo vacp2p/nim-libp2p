@@ -131,7 +131,7 @@ pkgs.stdenv.mkDerivation {
     mkdir -p build/check-objects
     "$ANDROID_CC" -std=c11 -fPIE -pthread \
       -I cbind/c_bindings -I cbind/c_bindings/tinycbor \
-      -c cbind/examples/libp2p_ffi_android_check.c \
+      -c cbind/examples/libp2p_ffi_mobile_check.c \
       -o build/check-objects/libp2p_ffi_android_check.o
     for src in cbind/c_bindings/tinycbor/*.c; do
       obj=build/check-objects/$(basename "$src" .c).o

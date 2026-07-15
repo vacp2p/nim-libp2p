@@ -88,7 +88,7 @@ together with the Android C++ runtime selected by your application.
 
 ## Android Check Harness
 
-The Nix Android derivation compiles `cbind/examples/libp2p_ffi_android_check.c`
+The Nix Android derivation compiles `cbind/examples/libp2p_ffi_mobile_check.c`
 for each ABI. The harness includes the generated nim-ffi C header, creates a
 default TCP/Yamux node, starts it, stops it, destroys the context, and fails on
 callback errors or timeouts.
