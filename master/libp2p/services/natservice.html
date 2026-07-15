@@ -177,12 +177,11 @@ window.addEventListener("DOMContentLoaded", main2);
   case mode*: PortMappingMode
   of ExplicitIp:
     explicitIp*: IpAddress
-  of Upnp, NatPmp:
-    refreshInterval*: Duration
-    discoveryTimeout*: Duration
-    leaseDuration*: Duration">PortMappingConfig</a></li>
+  of Upnp, NatPmp, Auto:
+    discoveryTimeout*: Duration ## how long libplum probes for a gateway
+    mappingTimeout*: Duration ## how long libplum waits for a mapping reply">PortMappingConfig</a></li>
 <li><a class="reference" href="#PortMappingMode" title="PortMappingMode = enum
-  ExplicitIp, Upnp, NatPmp">PortMappingMode</a></li>
+  ExplicitIp, Upnp, NatPmp, Auto">PortMappingMode</a></li>
 <li><a class="reference" href="#ReachabilityConfig" title="ReachabilityConfig = object
   version*: AutonatVersion
   scheduleInterval*: Opt[Duration]
@@ -196,8 +195,7 @@ window.addEventListener("DOMContentLoaded", main2);
     <summary><a class="reference reference-toplevel" href="#10" id="60">Consts</a></summary>
     <ul class="simple simple-toc-section">
       <li><a class="reference" href="#DefaultDiscoveryTimeout" title="DefaultDiscoveryTimeout = (value: 10000000000)">DefaultDiscoveryTimeout</a></li>
-<li><a class="reference" href="#DefaultLeaseDuration" title="DefaultLeaseDuration = (value: 3600000000000)">DefaultLeaseDuration</a></li>
-<li><a class="reference" href="#DefaultRefreshInterval" title="DefaultRefreshInterval = (value: 1800000000000)">DefaultRefreshInterval</a></li>
+<li><a class="reference" href="#DefaultMappingTimeout" title="DefaultMappingTimeout = (value: 10000000000)">DefaultMappingTimeout</a></li>
 
     </ul>
   </details>
@@ -238,12 +236,16 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#mergeInto%2CNATConfig%2CNATConfig" title="mergeInto(dst: var NATConfig; src: NATConfig)">mergeInto(dst: var NATConfig; src: NATConfig)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">natConfig
+  <li><a class="reference" href="#natConfig_2" title="natConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+          mappingTimeout = DefaultMappingTimeout): NATConfig">natConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+          mappingTimeout = DefaultMappingTimeout): NATConfig</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">natPmpConfig
-  <li><a class="reference" href="#natPmpConfig" title="natPmpConfig(refreshInterval = DefaultRefreshInterval;
-             discoveryTimeout = DefaultDiscoveryTimeout;
-             leaseDuration = DefaultLeaseDuration): NATConfig">natPmpConfig(refreshInterval = DefaultRefreshInterval;
-             discoveryTimeout = DefaultDiscoveryTimeout;
-             leaseDuration = DefaultLeaseDuration): NATConfig</a></li>
+  <li><a class="reference" href="#natPmpConfig" title="natPmpConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+             mappingTimeout = DefaultMappingTimeout): NATConfig">natPmpConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+             mappingTimeout = DefaultMappingTimeout): NATConfig</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">natService
@@ -263,11 +265,9 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">upnpConfig
-  <li><a class="reference" href="#upnpConfig" title="upnpConfig(refreshInterval = DefaultRefreshInterval;
-           discoveryTimeout = DefaultDiscoveryTimeout;
-           leaseDuration = DefaultLeaseDuration): NATConfig">upnpConfig(refreshInterval = DefaultRefreshInterval;
-           discoveryTimeout = DefaultDiscoveryTimeout;
-           leaseDuration = DefaultLeaseDuration): NATConfig</a></li>
+  <li><a class="reference" href="#upnpConfig" title="upnpConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+           mappingTimeout = DefaultMappingTimeout): NATConfig">upnpConfig(discoveryTimeout = DefaultDiscoveryTimeout;
+           mappingTimeout = DefaultMappingTimeout): NATConfig</a></li>
 
 </ul>
 
@@ -315,7 +315,7 @@ window.addEventListener("DOMContentLoaded", main2);
     <div class="section" id="6">
   <h1><a class="toc-backref" href="#6">Imports</a></h1>
   <dl class="item">
-    <a class="reference external" href="../multiaddress.html">../multiaddress</a>, <a class="reference external" href="../multicodec.html">../multicodec</a>, <a class="reference external" href="../wire.html">../wire</a>, <a class="reference external" href="../switch.html">../switch</a>, <a class="reference external" href="../crypto/crypto.html">../crypto/crypto</a>, <a class="reference external" href="../utils/heartbeat.html">../utils/heartbeat</a>, <a class="reference external" href="nat/portmapper.html">nat/portmapper</a>, <a class="reference external" href="nat/upnp_mapper.html">nat/upnp_mapper</a>, <a class="reference external" href="nat/natpmp_mapper.html">nat/natpmp_mapper</a>, <a class="reference external" href="../protocols/connectivity/autonat/client.html">../protocols/connectivity/autonat/client</a>, <a class="reference external" href="../protocols/connectivity/autonat/service.html">../protocols/connectivity/autonat/service</a>, <a class="reference external" href="../protocols/connectivity/autonatv2/client.html">../protocols/connectivity/autonatv2/client</a>, <a class="reference external" href="../protocols/connectivity/autonatv2/service.html">../protocols/connectivity/autonatv2/service</a>, <a class="reference external" href="../protocols/connectivity/relay/client.html">../protocols/connectivity/relay/client</a>, <a class="reference external" href="autorelayservice.html">autorelayservice</a>, <a class="reference external" href="hpservice.html">hpservice</a>
+    <a class="reference external" href="../multiaddress.html">../multiaddress</a>, <a class="reference external" href="../multicodec.html">../multicodec</a>, <a class="reference external" href="../wire.html">../wire</a>, <a class="reference external" href="../switch.html">../switch</a>, <a class="reference external" href="../crypto/crypto.html">../crypto/crypto</a>, <a class="reference external" href="nat/portmapper.html">nat/portmapper</a>, <a class="reference external" href="nat/plum_mapper.html">nat/plum_mapper</a>, <a class="reference external" href="../protocols/connectivity/autonat/client.html">../protocols/connectivity/autonat/client</a>, <a class="reference external" href="../protocols/connectivity/autonat/service.html">../protocols/connectivity/autonat/service</a>, <a class="reference external" href="../protocols/connectivity/autonatv2/client.html">../protocols/connectivity/autonatv2/client</a>, <a class="reference external" href="../protocols/connectivity/autonatv2/service.html">../protocols/connectivity/autonatv2/service</a>, <a class="reference external" href="../protocols/connectivity/relay/client.html">../protocols/connectivity/relay/client</a>, <a class="reference external" href="autorelayservice.html">autorelayservice</a>, <a class="reference external" href="hpservice.html">hpservice</a>
   </dl>
 </div>
 <div class="section" id="7">
@@ -327,8 +327,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L25" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L25" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L24" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L24" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -340,8 +340,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L50" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L50" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L49" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L49" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -353,8 +353,8 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
 <dd>
 
 <tt class="docutils literal"><span class="pre">portMapping</span></tt> is independent; <tt class="docutils literal"><span class="pre">reachability</span></tt> and <tt class="docutils literal"><span class="pre">holePunching</span></tt> are mutually exclusive (HP drives its own AutoNAT v1) and rejected at setup.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L56" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L56" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L55" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L55" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -364,8 +364,8 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L66" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L66" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L65" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L65" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -375,8 +375,8 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L63" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L63" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L62" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L62" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -385,10 +385,9 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
   <span class="Keyword">case</span> <span class="Identifier">mode</span><span class="Operator">*</span><span class="Other">:</span> <a href="#PortMappingMode"><span class="Identifier">PortMappingMode</span></a>
   <span class="Keyword">of</span> <span class="Identifier">ExplicitIp</span><span class="Other">:</span>
     <span class="Identifier">explicitIp</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">IpAddress</span>
-  <span class="Keyword">of</span> <span class="Identifier">Upnp</span><span class="Other">,</span> <span class="Identifier">NatPmp</span><span class="Other">:</span>
-    <span class="Identifier">refreshInterval</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span>
-    <span class="Identifier">discoveryTimeout</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span>
-    <span class="Identifier">leaseDuration</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span></pre></dt>
+  <span class="Keyword">of</span> <span class="Identifier">Upnp</span><span class="Other">,</span> <span class="Identifier">NatPmp</span><span class="Other">,</span> <span class="Identifier">Auto</span><span class="Other">:</span>
+    <span class="Identifier">discoveryTimeout</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Comment">## how long libplum probes for a gateway</span>
+    <span class="Identifier">mappingTimeout</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Comment">## how long libplum waits for a mapping reply</span></pre></dt>
 <dd>
 
 
@@ -399,12 +398,12 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
 </div>
 <div id="PortMappingMode" class="tohide">
 <dt><pre><a href="#PortMappingMode"><span class="Identifier">PortMappingMode</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">ExplicitIp</span><span class="Other">,</span> <span class="Identifier">Upnp</span><span class="Other">,</span> <span class="Identifier">NatPmp</span></pre></dt>
+  <span class="Identifier">ExplicitIp</span><span class="Other">,</span> <span class="Identifier">Upnp</span><span class="Other">,</span> <span class="Identifier">NatPmp</span><span class="Other">,</span> <span class="Identifier">Auto</span></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L29" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L29" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L28" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L28" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -416,8 +415,8 @@ DCUtR hole-punching; drives AutoNAT v1 + AutoRelay internally.
 <dd>
 
 AutoNAT reachability probing. <tt class="docutils literal"><span class="pre">scheduleInterval</span></tt> tunes the v1 cadence; <tt class="docutils literal"><span class="pre">v2ServiceConfig</span></tt> configures the v2 service.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L43" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L43" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L42" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L42" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -432,28 +431,18 @@ AutoNAT reachability probing. <tt class="docutils literal"><span class="pre">sch
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L79" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L79" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L76" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L76" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
-<div id="DefaultLeaseDuration" class="tohide">
-<dt><pre><a href="#DefaultLeaseDuration"><span class="Identifier">DefaultLeaseDuration</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">3600000000000</span><span class="Other">)</span></pre></dt>
+<div id="DefaultMappingTimeout" class="tohide">
+<dt><pre><a href="#DefaultMappingTimeout"><span class="Identifier">DefaultMappingTimeout</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">10000000000</span><span class="Other">)</span></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L80" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L80" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
-
-</dd>
-</div>
-<div id="DefaultRefreshInterval" class="tohide">
-<dt><pre><a href="#DefaultRefreshInterval"><span class="Identifier">DefaultRefreshInterval</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">1800000000000</span><span class="Other">)</span></pre></dt>
-<dd>
-
-
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L78" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L78" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L77" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L77" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -472,8 +461,8 @@ AutoNAT reachability probing. <tt class="docutils literal"><span class="pre">sch
 <dd>
 
 Probe-only AutoNAT (no port-mapping, no hole-punching).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L156" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L156" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L147" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L147" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -486,8 +475,8 @@ Probe-only AutoNAT (no port-mapping, no hole-punching).
 <dd>
 
 The live AutoNAT v2 service when reachability uses AutonatV2, else none.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L105" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L105" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L94" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L94" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -500,8 +489,8 @@ The live AutoNAT v2 service when reachability uses AutonatV2, else none.
 <dd>
 
 Announce <tt class="docutils literal"><span class="pre">explicitIp</span></tt> as the external IP; no port-mapping is performed.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L150" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L150" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L141" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L141" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -514,8 +503,8 @@ Announce <tt class="docutils literal"><span class="pre">explicitIp</span></tt> a
 <dd>
 
 For each listen address that carries an IP component matching the family of <tt class="docutils literal"><span class="pre">explicitIp</span></tt>, emit a copy with the IP swapped to <tt class="docutils literal"><span class="pre">explicitIp</span></tt>. Transport, port, and any suffix (e.g. <tt class="docutils literal"><span class="pre">/quic-v1</span></tt>, <tt class="docutils literal"><span class="pre">/ws</span></tt>, <tt class="docutils literal"><span class="pre">/wss</span></tt>, <tt class="docutils literal"><span class="pre">/tls/ws</span></tt>) are preserved. Addresses without an IP component, or with a mismatching family, are dropped. Duplicates (which can arise when the wildcard resolver expands a wildcard listen addr across multiple interfaces sharing the same port) are collapsed.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L208" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L208" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L199" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L199" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -530,8 +519,8 @@ For each listen address that carries an IP component matching the family of <tt 
 <dd>
 
 AutoNAT v1 + AutoRelay + DCUtR. Hole-punching with v2 is not supported.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L172" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L172" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L163" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L163" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -544,8 +533,23 @@ AutoNAT v1 + AutoRelay + DCUtR. Hole-punching with v2 is not supported.
 <dd>
 
 Fold <tt class="docutils literal"><span class="pre">src</span></tt>'s set concerns into <tt class="docutils literal"><span class="pre">dst</span></tt>; setting one concern twice is a programmer error (build-time misuse), so it fails fast with a Defect.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L193" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L193" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L184" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L184" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="natConfig-procs-all">
+  <div id="natConfig_2" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#natConfig_2"><span class="Identifier">natConfig</span></a><span class="Other">(</span><span class="Identifier">discoveryTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultDiscoveryTimeout</span><span class="Other">;</span>
+               <span class="Identifier">mappingTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultMappingTimeout</span><span class="Other">)</span><span class="Other">:</span> <a href="#NATConfig"><span class="Identifier">NATConfig</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Recommended default: let libplum try every protocol (PCP -&gt; NAT-PMP -&gt; UPnP-IGD) and use whichever the gateway answers.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L122" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L122" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -553,15 +557,14 @@ Fold <tt class="docutils literal"><span class="pre">src</span></tt>'s set concer
 </div>
 <div id="natPmpConfig-procs-all">
   <div id="natPmpConfig" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#natPmpConfig"><span class="Identifier">natPmpConfig</span></a><span class="Other">(</span><span class="Identifier">refreshInterval</span> <span class="Other">=</span> <span class="Identifier">DefaultRefreshInterval</span><span class="Other">;</span>
-                  <span class="Identifier">discoveryTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultDiscoveryTimeout</span><span class="Other">;</span>
-                  <span class="Identifier">leaseDuration</span> <span class="Other">=</span> <span class="Identifier">DefaultLeaseDuration</span><span class="Other">)</span><span class="Other">:</span> <a href="#NATConfig"><span class="Identifier">NATConfig</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#natPmpConfig"><span class="Identifier">natPmpConfig</span></a><span class="Other">(</span><span class="Identifier">discoveryTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultDiscoveryTimeout</span><span class="Other">;</span>
+                  <span class="Identifier">mappingTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultMappingTimeout</span><span class="Other">)</span><span class="Other">:</span> <a href="#NATConfig"><span class="Identifier">NATConfig</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L134" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L134" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+Restrict libplum to PCP / NAT-PMP.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L135" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L135" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -574,8 +577,8 @@ Fold <tt class="docutils literal"><span class="pre">src</span></tt>'s set concer
 <dd>
 
 The switch's NATService, if one was configured.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L111" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L111" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L100" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L100" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -588,8 +591,8 @@ The switch's NATService, if one was configured.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L97" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L97" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L86" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L86" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -603,8 +606,8 @@ The switch's NATService, if one was configured.
 <dd>
 
 Request a mapping for every private listen address; updates <tt class="docutils literal"><span class="pre">externalIp</span></tt> and <tt class="docutils literal"><span class="pre">mappedPorts</span></tt> as a side-effect, and tears down mappings that are no longer needed.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L343" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L343" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L322" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L322" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -612,15 +615,14 @@ Request a mapping for every private listen address; updates <tt class="docutils 
 </div>
 <div id="upnpConfig-procs-all">
   <div id="upnpConfig" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#upnpConfig"><span class="Identifier">upnpConfig</span></a><span class="Other">(</span><span class="Identifier">refreshInterval</span> <span class="Other">=</span> <span class="Identifier">DefaultRefreshInterval</span><span class="Other">;</span>
-                <span class="Identifier">discoveryTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultDiscoveryTimeout</span><span class="Other">;</span>
-                <span class="Identifier">leaseDuration</span> <span class="Other">=</span> <span class="Identifier">DefaultLeaseDuration</span><span class="Other">)</span><span class="Other">:</span> <a href="#NATConfig"><span class="Identifier">NATConfig</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#upnpConfig"><span class="Identifier">upnpConfig</span></a><span class="Other">(</span><span class="Identifier">discoveryTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultDiscoveryTimeout</span><span class="Other">;</span>
+                <span class="Identifier">mappingTimeout</span> <span class="Other">=</span> <span class="Identifier">DefaultMappingTimeout</span><span class="Other">)</span><span class="Other">:</span> <a href="#NATConfig"><span class="Identifier">NATConfig</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L118" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L118" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+Restrict libplum to UPnP-IGD.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L129" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L129" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -639,8 +641,8 @@ Request a mapping for every private listen address; updates <tt class="docutils 
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L480" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L480" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L437" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L437" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -654,8 +656,8 @@ Request a mapping for every private listen address; updates <tt class="docutils 
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L536" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L536" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L499" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L499" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -669,8 +671,8 @@ Request a mapping for every private listen address; updates <tt class="docutils 
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L571" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L571" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/services/natservice.nim#L531" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/services/natservice.nim#L531" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -682,7 +684,7 @@ Request a mapping for every private listen address; updates <tt class="docutils 
 <div class="section" id="19">
   <h1><a class="toc-backref" href="#19">Exports</a></h1>
   <dl class="item">
-    <a href="nat/portmapper.html#fireSyncOrErr,ThreadSignalPtr"><span class="Identifier">fireSyncOrErr</span></a>, <a href="nat/portmapper.html#unmap.e,PortMapper,Port,MapProto"><span class="Identifier">unmap</span></a>, <a href="nat/portmapper.html#safeRelease,AsyncLock,staticstring"><span class="Identifier">safeRelease</span></a>, <a href="nat/portmapper.html#map.e,PortMapper,Port,Port,MapProto,uint32"><span class="Identifier">map</span></a>, <a href="nat/portmapper.html#getError,MapperResponse"><span class="Identifier">getError</span></a>, <a href="nat/portmapper.html#PortMapper"><span class="Identifier">PortMapper</span></a>, <a href="nat/portmapper.html#free,ptr.T"><span class="Identifier">free</span></a>, <a href="nat/portmapper.html#discover.e,PortMapper,Duration"><span class="Identifier">discover</span></a>, <a href="nat/portmapper.html#ErrBufLen"><span class="Identifier">ErrBufLen</span></a>, <a href="nat/portmapper.html#setError,MapperResponse,string"><span class="Identifier">setError</span></a>, <a href="nat/portmapper.html#close.e,PortMapper"><span class="Identifier">close</span></a>, <a href="nat/portmapper.html#MapperResponse"><span class="Identifier">MapperResponse</span></a>, <a href="nat/portmapper.html#initSignals,ptr.T,staticstring"><span class="Identifier">initSignals</span></a>, <a href="nat/portmapper.html#MapProto"><span class="Identifier">MapProto</span></a>, <a href="autorelayservice.html#OnReservationHandler"><span class="Identifier">OnReservationHandler</span></a>, <a href="../protocols/connectivity/autonatv2/service.html#AutonatV2ServiceConfig"><span class="Identifier">AutonatV2ServiceConfig</span></a>, <a href="../protocols/connectivity/autonatv2/service.html#AutonatV2Service"><span class="Identifier">AutonatV2Service</span></a>
+    <a href="nat/portmapper.html#unmap.e,PortMapper,Port,MapProto"><span class="Identifier">unmap</span></a>, <a href="nat/portmapper.html#close.e,PortMapper"><span class="Identifier">close</span></a>, <a href="nat/portmapper.html#map.e,PortMapper,Port,Port,MapProto"><span class="Identifier">map</span></a>, <a href="nat/portmapper.html#PortMapper"><span class="Identifier">PortMapper</span></a>, <a href="nat/portmapper.html#MapProto"><span class="Identifier">MapProto</span></a>, <a href="nat/portmapper.html#MappedPort"><span class="Identifier">MappedPort</span></a>, <a href="autorelayservice.html#OnReservationHandler"><span class="Identifier">OnReservationHandler</span></a>, <a href="../protocols/connectivity/autonatv2/service.html#AutonatV2ServiceConfig"><span class="Identifier">AutonatV2ServiceConfig</span></a>, <a href="../protocols/connectivity/autonatv2/service.html#AutonatV2Service"><span class="Identifier">AutonatV2Service</span></a>
   </dl>
 </div>
 
@@ -692,7 +694,7 @@ Request a mapping for every private listen address; updates <tt class="docutils 
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-14 05:50:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-15 05:49:08 UTC</small>
       </div>
     </div>
   </div>
