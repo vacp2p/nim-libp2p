@@ -539,7 +539,8 @@ method accept*(
     raise newTransportClosedError(exc)
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
-    raise (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
+    raise
+      (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
 proc listenerEndpointFor(
     self: QuicTransport, address: TransportAddress
