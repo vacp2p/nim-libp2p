@@ -30,4 +30,9 @@ jobs:
           git checkout FETCH_HEAD
           cd ../..
 
+          # TODO: Remove this temporary vendor once nimbus-eth2 is updated to include plum.
+          git clone https://github.com/logos-storage/nim-libplum.git vendor/nim-libplum
+          git -C vendor/nim-libplum checkout acefbe424cf9d1f05f2d93533790c9ac4e034df8
+          git -C vendor/nim-libplum submodule update --init --recursive
+
           make -j"$(nproc)" nimbus_beacon_node
