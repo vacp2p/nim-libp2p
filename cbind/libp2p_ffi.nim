@@ -15,6 +15,7 @@
 import ffi
 
 import std/[tables, sequtils]
+from std/times import getTime, toUnix
 
 import ../libp2p
 import ../libp2p/[multiaddress, peerid]
@@ -25,8 +26,9 @@ import ../libp2p/protocols/protocol
 import ../libp2p/protocols/ping
 import ../libp2p/protocols/kademlia
 import ../libp2p/protocols/service_discovery
-import ../libp2p/protocols/service_discovery/types
+import ../libp2p/protocols/service_discovery/[random_find, types]
 import ../libp2p/protocols/connectivity/relay/client
+import ../libp2p/extended_peer_record
 
 type StreamRegistry = ref object
   ## Owns the live streams handed out across the FFI boundary and the
@@ -49,7 +51,7 @@ type LibP2P* = ref object
   topicHandlers: Table[string, TopicHandler]
   customProtocols: Table[string, LPProtocol]
   streams: StreamRegistry
-  stopped: bool
+  running: bool
 
 declareLibrary("libp2p", LibP2P)
 
@@ -102,6 +104,59 @@ type PublishResponse {.ffi.} = object
 
 type ReadResponse {.ffi.} = object
   data: seq[byte]
+
+type CreateCidRequest {.ffi.} = object
+  version: int
+  multicodec: string
+  hash: string
+  data: seq[byte]
+
+type NewPrivateKeyRequest {.ffi.} = object
+  scheme: int
+
+type KadPutValueRequest {.ffi.} = object
+  key: seq[byte]
+  value: seq[byte]
+
+type KadGetValueRequest {.ffi.} = object
+  key: seq[byte]
+  quorum: int
+
+type ProviderInfo {.ffi.} = object
+  peerId: string
+  addrs: seq[string]
+
+type ProvidersResponse {.ffi.} = object
+  providers: seq[ProviderInfo]
+
+type ServiceInfoEntry {.ffi.} = object
+  id: string
+  data: seq[byte]
+
+type ExtendedPeerRecordEntry {.ffi.} = object
+  peerId: string
+  seqNo: uint64
+  addrs: seq[string]
+  services: seq[ServiceInfoEntry]
+
+type ExtendedRecordsResponse {.ffi.} = object
+  records: seq[ExtendedPeerRecordEntry]
+
+type StartAdvertisingRequest {.ffi.} = object
+  serviceId: string
+  serviceData: seq[byte]
+
+type CreateXprRequest {.ffi.} = object
+  addrs: seq[string]
+  services: seq[ServiceInfoEntry]
+  seqNo: uint64
+
+type DecodeXprRequest {.ffi.} = object
+  encoded: seq[byte]
+
+type LookupRequest {.ffi.} = object
+  serviceId: string
+  serviceData: seq[byte]
 
 type IncomingStreamEvent {.ffi.} = object
   proto: string
@@ -265,11 +320,7 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
       return err("could not create libp2p node: " & e.msg)
 
   let lib = LibP2P(
-    switch: switch,
-    rng: rng,
-    relayClient: relayClientOpt,
-    streams: StreamRegistry(),
-    stopped: true,
+    switch: switch, rng: rng, relayClient: relayClientOpt, streams: StreamRegistry()
   )
 
   ?mountProtocols(lib, cfg)
@@ -285,19 +336,19 @@ proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.
 proc shutdownSwitch(lib: LibP2P) {.async.} =
   ## Single source of truth for graceful shutdown. Idempotent: safe to call from
   ## both an explicit `libp2pStop` and `libp2pDestroy`'s teardown.
-  if lib.stopped:
+  if not lib.running:
     return
-  lib.stopped = true
   await lib.switch.stop()
+  lib.running = false
 
 proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
-  if not lib.stopped:
+  if lib.running:
     return ok(true)
   try:
     await lib.switch.start()
   except LPError as e:
     return err(e.msg)
-  lib.stopped = false
+  lib.running = true
   ok(true)
 
 proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
@@ -601,5 +652,273 @@ proc libp2pGossipsubUnsubscribe*(
     lib.topicHandlers.del(topic)
     gossipSub.unsubscribe(topic, handler)
   ok(true)
+
+func toExtendedRecordEntry(record: ExtendedPeerRecord): ExtendedPeerRecordEntry =
+  ExtendedPeerRecordEntry(
+    peerId: $record.peerId,
+    seqNo: record.seqNo,
+    addrs: record.addresses.mapIt($it.address),
+    services: record.services.mapIt(ServiceInfoEntry(id: it.id, data: it.data.get(@[]))),
+  )
+
+func toExtendedRecordsResponse(
+    records: seq[ExtendedPeerRecord]
+): ExtendedRecordsResponse =
+  ExtendedRecordsResponse(records: records.mapIt(toExtendedRecordEntry(it)))
+
+proc libp2pKadFindNode*(
+    lib: LibP2P, peerId: string
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let target = PeerId.init(peerId).valueOr:
+    return err($error)
+  let peers =
+    try:
+      await kad.findNode(target.toKey())
+    except LPError as e:
+      return err(e.msg)
+  ok(PeersResponse(peerIds: peers.mapIt($it)))
+
+proc libp2pKadPutValue*(
+    lib: LibP2P, req: KadPutValueRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let res = await kad.putValue(req.key, req.value)
+  if res.isErr():
+    return err(res.error)
+  ok(true)
+
+proc libp2pKadGetValue*(
+    lib: LibP2P, req: KadGetValueRequest
+): Future[Result[ReadResponse, string]] {.ffi.} =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  if req.quorum == 0:
+    return err("quorum must be greater than 0 (use a negative value for the default)")
+  let quorum =
+    if req.quorum < 0:
+      Opt.none(int)
+    else:
+      Opt.some(req.quorum)
+  let res =
+    try:
+      await kad.getValue(req.key, quorum)
+    except LPError as e:
+      return err(e.msg)
+  let entry = res.valueOr:
+    return err(res.error)
+  ok(ReadResponse(data: entry.value))
+
+proc kadAndCid(lib: LibP2P, cid: string): Result[(KadDHT, Cid), string] =
+  let kad = lib.kad.valueOr:
+    return err("kad-dht not initialized")
+  let c = Cid.init(cid).valueOr:
+    return err("invalid cid: " & $error)
+  ok((kad, c))
+
+proc libp2pKadAddProvider*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  await kad.addProvider(c)
+  ok(true)
+
+proc libp2pKadStartProviding*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  await kad.startProviding(c)
+  ok(true)
+
+proc libp2pKadStopProviding*(
+    lib: LibP2P, cid: string
+): Future[Result[bool, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  kad.stopProviding(c)
+  ok(true)
+
+proc libp2pKadGetProviders*(
+    lib: LibP2P, cid: string
+): Future[Result[ProvidersResponse, string]] {.ffi.} =
+  let (kad, c) = kadAndCid(lib, cid).valueOr:
+    return err(error)
+  let providersSet =
+    try:
+      await kad.getProviders(c.toKey())
+    except LPError as e:
+      return err(e.msg)
+
+  var providers: seq[ProviderInfo]
+  for provider in providersSet.toSeq():
+    let providerId = provider.id.valueOr:
+      continue
+    let peerId = PeerId.init(providerId).valueOr:
+      continue
+    providers.add(ProviderInfo(peerId: $peerId, addrs: provider.addrs.mapIt($it)))
+  ok(ProvidersResponse(providers: providers))
+
+proc resolveServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
+  let kad = lib.kad.valueOr:
+    return err("service discovery not initialized")
+  if not (kad of ServiceDiscovery):
+    return err("service discovery not mounted")
+  ok(ServiceDiscovery(kad))
+
+proc libp2pKadRandomRecords*(
+    lib: LibP2P
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let records = await disco.lookupRandom()
+  ok(toExtendedRecordsResponse(records))
+
+proc libp2pServiceDiscoStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.start()
+  ok(true)
+
+proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.stop()
+  ok(true)
+
+proc libp2pServiceDiscoStartAdvertising*(
+    lib: LibP2P, req: StartAdvertisingRequest
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  disco.startAdvertising(
+    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
+  )
+  ok(true)
+
+proc libp2pServiceDiscoStopAdvertising*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  await disco.stopAdvertising(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoRegisterInterest*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  discard disco.registerInterest(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoUnregisterInterest*(
+    lib: LibP2P, serviceId: string
+): Future[Result[bool, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  disco.unregisterInterest(serviceId)
+  ok(true)
+
+proc libp2pServiceDiscoLookup*(
+    lib: LibP2P, req: LookupRequest
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let service = ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
+  let res = await disco.lookup(service)
+  let ads = res.valueOr:
+    return err($error)
+  ok(toExtendedRecordsResponse(ads.mapIt(it.data)))
+
+proc libp2pServiceDiscoRandomLookup*(
+    lib: LibP2P
+): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  let disco = resolveServiceDiscovery(lib).valueOr:
+    return err(error)
+  let records = await disco.lookupRandom()
+  ok(toExtendedRecordsResponse(records))
+
+proc libp2pCreateXpr*(
+    lib: LibP2P, req: CreateXprRequest
+): Future[Result[seq[byte], string]] {.ffi.} =
+  let peerInfo = lib.switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  var addresses = parseMultiaddrs(req.addrs).valueOr:
+    return err(error)
+  if addresses.len == 0:
+    addresses = peerInfo.addrs
+
+  let seqNo =
+    if req.seqNo == 0:
+      getTime().toUnix().uint64
+    else:
+      req.seqNo
+
+  var services: seq[ServiceInfo]
+  for s in req.services:
+    services.add(ServiceInfo(id: s.id, data: Opt.some(s.data)))
+
+  let peerRecord = ExtendedPeerRecord.init(peerInfo.peerId, addresses, seqNo, services)
+
+  let xpr = SignedExtendedPeerRecord.build(peerInfo.privateKey, peerRecord).valueOr:
+    return err(error)
+
+  ok(xpr.encode())
+
+proc libp2pDecodeXpr*(
+    lib: LibP2P, req: DecodeXprRequest
+): Future[Result[ExtendedPeerRecordEntry, string]] {.ffi.} =
+  let sxpr = SignedExtendedPeerRecord.decode(req.encoded).valueOr:
+    return err("failed to decode signed extended peer record: " & $error)
+
+  sxpr.checkValid().isOkOr:
+    return err("invalid XPR signature: " & $error)
+
+  ok(toExtendedRecordEntry(sxpr.data))
+
+proc libp2pCreateCid*(
+    lib: LibP2P, req: CreateCidRequest
+): Future[Result[string, string]] {.ffi.} =
+  let cidVer =
+    case req.version
+    of 0:
+      CIDv0
+    of 1:
+      CIDv1
+    else:
+      return err("cid version must be 0 or 1")
+
+  let mc = MultiCodec.codec(req.multicodec)
+  if mc == InvalidMultiCodec:
+    return err("invalid multicodec: " & req.multicodec)
+
+  let mh = MultiHash.digest(req.hash, req.data).valueOr:
+    return err("multihash error: " & $error)
+
+  let cid = Cid.init(cidVer, mc, mh).valueOr:
+    return err("cid init error: " & $error)
+
+  ok($cid)
+
+proc libp2pNewPrivateKey*(
+    lib: LibP2P, req: NewPrivateKeyRequest
+): Future[Result[seq[byte], string]] {.ffi.} =
+  if req.scheme < ord(low(PKScheme)) or req.scheme > ord(high(PKScheme)):
+    return err("invalid key scheme")
+  let scheme = PKScheme(req.scheme)
+
+  let key = PrivateKey.random(scheme, lib.rng).valueOr:
+    return err("could not generate private key")
+
+  let keyData = key.getBytes().valueOr:
+    return err("could not get bytes for private key")
+
+  ok(keyData)
 
 genBindings()
