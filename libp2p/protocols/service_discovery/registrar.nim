@@ -243,7 +243,8 @@ proc updateWaitAfterRetry*(
     disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
 ) =
   ticketOpt.withValue(ticket):
-    let totalWaitSoFar = now - ticket.tInit.get()
+    #Always use seconds granularity
+    let totalWaitSoFar = Moment.init(now.epochSeconds, Second) - ticket.tInit.get()
     wait -= totalWaitSoFar
 
 proc isValidTicket(

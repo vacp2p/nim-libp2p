@@ -898,6 +898,32 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     # totalWaitSoFar = 150 ± 1; tRemaining = 150 ± 1
     check abs(tWait.secs - 150) <= 1
 
+  test "updateWaitAfterRetry floors elapsed time to whole seconds":
+    # `now` carries a sub-second part (700 ms). With seconds granularity the
+    # deducted elapsed time is floored to a whole second; using raw `now`
+    # instead would deduct the fractional part and leave a sub-second wait.
+    let disco = setupServiceDiscoveryNode()
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    # tInit sits on a whole-second boundary; now is 150.7s ahead of it.
+    let tInit = initMoment(1_000_000)
+    let now = initMoment(1_000_150) + 700.millis # now.epochSeconds == 1_000_150
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: tInit,
+      tMod: tInit,
+      tWaitFor: 0.secs,
+      signature: Opt.none(seq[byte]),
+    )
+
+    var tWait = 300.secs
+    disco.updateWaitAfterRetry(Opt.some(ticket), now, tWait)
+
+    # Seconds granularity: deduct 150s → wait = 150s exactly (a whole second).
+    # Raw `now`: deduct 150.7s → wait = 149.3s, which would fail this check.
+    check tWait == 150.secs
+
 suite "Service Discovery Registrar - registration rejects invalid tickets":
   # These tests exercise the full registration() path (not just the helper).
   # Cryptographically invalid tickets must produce Rejected and must never
