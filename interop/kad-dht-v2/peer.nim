@@ -7,7 +7,7 @@
 ## `ROLE` env var (bootstrap | provider | querier). The harness passes only
 ## `ROLE`, `REDIS_ADDR`, and `TEST_KEY`; the transport is fixed to tcp/noise/yamux.
 ##
-## Contract (mirrors kad-dht/images/py/node.py and images/dotnet/Program.cs):
+## Contract:
 ##   - bootstrap: publish own multiaddr to Redis `{TEST_KEY}_bootstrap_addr`, stay up
 ##   - provider:  connect to bootstrap, addProvider + putValue, set `{TEST_KEY}_provider_done`
 ##   - querier:   wait for both keys, connect, getProviders + getValue, print `status: pass`
@@ -22,13 +22,11 @@ logScope:
   topics = "kad-dht interop"
 
 const
-  # Redis key suffixes agreed with the py/dotnet nodes.
+  # Redis key suffixes
   BootstrapAddrSuffix = "_bootstrap_addr"
   ProviderDoneSuffix = "_provider_done"
   # Value announced by the provider and checked (substring) by the querier.
   ProviderValue = "hello from nim client"
-  # Retry budget for the querier's DHT lookups: propagation in a 3-node network
-  # is racy even after `provider_done`, so poll a few times before giving up.
   LookupAttempts = 10
   LookupDelay = 1.seconds
   RedisWaitTimeout = 60.seconds
@@ -48,9 +46,12 @@ proc readKadConfig(): KadConfig =
   let roleStr = getEnv("ROLE")
   let role =
     case roleStr
-    of "bootstrap": Role.bootstrap
-    of "provider": Role.provider
-    of "querier": Role.querier
+    of "bootstrap":
+      Role.bootstrap
+    of "provider":
+      Role.provider
+    of "querier":
+      Role.querier
     else:
       raise newException(CatchableError, "unknown or missing ROLE: '" & roleStr & "'")
   let testKey = getEnv("TEST_KEY")
@@ -66,7 +67,6 @@ proc readKadConfig(): KadConfig =
 proc buildSwitch(config: KadConfig): Switch =
   ## Reuse the shared switch builder with the kad-dht fixed transport stack.
   let base = BaseConfig(
-    isDialer: config.role != Role.bootstrap,
     bindIp: config.bindIp,
     redisAddr: config.redisAddr,
     testKey: config.testKey,
@@ -78,16 +78,19 @@ proc buildSwitch(config: KadConfig): Switch =
   buildBaseSwitch(base).build()
 
 proc provideKey(testKey: string): Key =
-  ## Raw UTF-8 bytes of the logical key, matching go/js/py/dotnet, which
-  ## advertise non-multihash provider keys. The receiver accepts these because
-  ## provider keys are length-bounded rather than required to be multihashes.
   ("interop-test-key-" & testKey).toBytes()
 
 proc valueKey(testKey: string): Key =
   ("/example/data/" & testKey).toBytes()
 
 proc newKad(switch: Switch): KadDHT =
-  KadDHT.new(switch, config = KadDHTConfig.new(quorum = 1), rng = rng())
+  KadDHT.new(
+    switch,
+    # providerRejection makes the receiver reply to ADD_PROVIDER
+    # without it dotnet blocks waiting for a reply that never comes.
+    config = KadDHTConfig.new(quorum = 1, providerRejection = true),
+    rng = rng(),
+  )
 
 proc connectBootstrap(
     switch: Switch, kad: KadDHT, redisClient: Redis, testKey: string
@@ -105,7 +108,6 @@ proc runBootstrap(config: KadConfig, switch: Switch, redisClient: Redis) {.async
   await switch.start()
   defer:
     await switch.stop()
-  await kad.start()
 
   let myAddr = switch.peerInfo.fullAddrs.tryGet()[0]
   redisClient.publishValue(config.testKey, BootstrapAddrSuffix, $myAddr)
@@ -121,7 +123,6 @@ proc runProvider(config: KadConfig, switch: Switch, redisClient: Redis) {.async.
     await switch.stop()
 
   await connectBootstrap(switch, kad, redisClient, config.testKey)
-  await kad.start()
 
   await kad.addProvider(provideKey(config.testKey))
   info "Provider announced key"
@@ -137,7 +138,6 @@ proc runProvider(config: KadConfig, switch: Switch, redisClient: Redis) {.async.
 proc fail(msg: string) =
   echo "error: " & msg
   echo "status: fail"
-  flushFile(stdout)
   quit(QuitFailure)
 
 proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.} =
@@ -147,10 +147,10 @@ proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.}
   defer:
     await switch.stop()
 
-  # Wait until the provider is done before connecting (matches py/dotnet).
-  discard await redisClient.fetchValue(config.testKey, ProviderDoneSuffix, RedisWaitTimeout)
+  # Wait until the provider is done before connecting.
+  discard
+    await redisClient.fetchValue(config.testKey, ProviderDoneSuffix, RedisWaitTimeout)
   await connectBootstrap(switch, kad, redisClient, config.testKey)
-  await kad.start()
 
   # Test 2: find the provider record.
   let pkey = provideKey(config.testKey)
@@ -183,7 +183,6 @@ proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.}
   info "Querier retrieved value", value = value
 
   echo "status: pass"
-  flushFile(stdout)
 
 proc main() {.async.} =
   let config = readKadConfig()
