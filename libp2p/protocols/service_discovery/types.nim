@@ -28,7 +28,7 @@ const
   Default_C*: uint64 = 1_000
   Default_P_occ* = 10.0
   Default_G* = 1e-7
-  Default_Delta* = 1.secs
+  Default_Delta* = 5.secs
   Default_M_buckets* = 16
   Default_IpSimCoefficient* = 1.0
 
