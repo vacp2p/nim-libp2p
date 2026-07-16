@@ -42,6 +42,7 @@ jobs:
               ("Daily test all (latests dependnecies)", "daily_test_all_latest_deps.yml"),
               ("Daily test all (without feature flags)", "daily_test_all_no_flags.yml"),
               ("Daily runnable examples", "daily_runnable_examples.yml"),
+              ("Daily interop", "daily_interop.yml"),
           ]
 
           LABEL_NAME = "daily-ci-failure"

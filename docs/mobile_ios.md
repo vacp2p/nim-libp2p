@@ -1,7 +1,6 @@
-# iOS Mobile Builds For libp2p_ffi
+# iOS Mobile Builds For libp2p
 
-`cbind/libp2p_ffi.nim` is the supported C ABI target for iOS builds. The legacy
-`cbind/libp2p.nim` target is not extended for iOS.
+`cbind/libp2p.nim` is the supported C ABI target for iOS builds.
 
 ## Supported Targets
 
@@ -47,7 +46,7 @@ Single-target outputs are flat:
 
 ```text
 result/
-  bin/libp2p_ffi_ios_check
+  bin/libp2p_ios_check
   include/libp2p.h
   include/nim_ffi_cbor.h
   include/nim_ffi_prelude.h
@@ -66,7 +65,7 @@ result/ios/simulator-arm64/...
 ```
 
 `liblibp2p.dylib` and `liblibp2p.a` intentionally keep the same naming as the
-host `cbind-ffi` package.
+host `cbind` package.
 
 ## Downstream Linking Notes
 
@@ -90,7 +89,7 @@ the application.
 
 ## iOS Check Harness
 
-The Nix iOS derivation compiles `cbind/examples/libp2p_ffi_mobile_check.c` for
+The Nix iOS derivation compiles `cbind/examples/libp2p_mobile_check.c` for
 each target. The harness includes the generated nim-ffi C header, creates a
 default TCP/Yamux node, starts it, stops it, destroys the context, and fails on
 callback errors or timeouts.

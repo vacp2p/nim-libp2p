@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Config crossing the FFI boundary and its parsing, `include`d into
-## `../libp2p_ffi.nim`.
+## `../libp2p.nim`.
 ##
 ## `Libp2pConfig` is the raw, wire-friendly shape the host fills in; `parse`
 ## validates it once and returns a `ParsedConfig` of ready-to-use Nim values, so
