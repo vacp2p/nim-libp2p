@@ -25,7 +25,7 @@ const
   Default_K_lookup* = 5
   Default_F_lookup* = 30
   Default_F_return* = 10
-  Default_E* = 600.secs
+  Default_E* = 300.secs
   Default_C*: uint64 = 1_000
   Default_P_occ* = 10.0
   Default_G* = 1e-7
