@@ -63,11 +63,36 @@ proc pruneAdsForService(
     expiredCount: var int,
 ) =
   var i = 0
+  var missingTimestampLogged = false
   while i < ads.len:
     let ad = ads[i]
     let key = ad.toAdvertisementKey()
+    if key notin registrar.cacheTimestamps:
+      if not missingTimestampLogged:
+        info "registrar cache ad missing timestamp; prune loop will not advance",
+          serviceId = serviceId,
+          peerId = key.peerId,
+          seqNo = key.seqNo,
+          adServices = ad.data.services.len,
+          serviceAds = ads.len,
+          index = i,
+          cacheServices = registrar.cache.len,
+          cacheTimestamps = registrar.cacheTimestamps.len
+        missingTimestampLogged = true
+
     registrar.cacheTimestamps.withValue(key, ts):
       if isExpired(now, ts[], advertExpiry):
+        info "registrar pruning expired ad",
+          serviceId = serviceId,
+          peerId = key.peerId,
+          seqNo = key.seqNo,
+          adServices = ad.data.services.len,
+          age = now - ts[],
+          advertExpiry = advertExpiry,
+          serviceAds = ads.len,
+          index = i,
+          cacheServices = registrar.cache.len,
+          cacheTimestamps = registrar.cacheTimestamps.len
         registrar.ipTree.removeAd(ad)
         registrar.cacheTimestamps.del(key)
         ads.delete(i)
@@ -105,6 +130,12 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
 
   var expiredCount = 0
 
+  info "registrar prune expired ads started",
+    advertExpiry = advertExpiry,
+    cacheServices = registrar.cache.len,
+    cacheTimestamps = registrar.cacheTimestamps.len,
+    ipTreeCount = registrar.ipTree.root.counter
+
   # Prune ads per service
   for serviceId, ads in registrar.cache.mpairs:
     registrar.pruneAdsForService(serviceId, ads, now, advertExpiry, expiredCount)
@@ -124,6 +155,13 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
 
   # Expire IP-level bounds
   pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
+
+  info "registrar prune expired ads completed",
+    advertExpiry = advertExpiry,
+    expiredCount = expiredCount,
+    cacheServices = registrar.cache.len,
+    cacheTimestamps = registrar.cacheTimestamps.len,
+    ipTreeCount = registrar.ipTree.root.counter
 
   debug "pruned expired adverts", count = expiredCount
 
