@@ -19,83 +19,13 @@ jobs:
   bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
     # Scheduled runs proceed when DEPENDENCIES_AUTOBUMP_ENABLED is unset or true; set it to false to disable.
+    name: Bump libp2p version
     if: >
       (github.event_name != 'schedule' ||
         vars.DEPENDENCIES_AUTOBUMP_ENABLED == '' ||
         vars.DEPENDENCIES_AUTOBUMP_ENABLED == 'true') &&
       (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-ci'))
-    runs-on: ubuntu-latest
-    name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - repository: status-im/nimbus-eth2
-            ref: unstable
-            secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
-          - repository: status-im/nimbus-eth2
-            ref: stable
-            secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
-          - repository: logos-messaging/logos-delivery
-            ref: master
-            secret: ACTIONS_GITHUB_TOKEN_NWAKU
-            nimble: true
-          - repository: codex-storage/nim-codex
-            ref: master
-            secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
-    steps:
-      - name: Clone target repository
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ matrix.target.repository }}
-          ref: ${{ matrix.target.ref}}
-          path: nbc
-          fetch-depth: 0
-          token: ${{ secrets[matrix.target.secret] }}
-
-      - name: Setup Nim (only for nimble targets)
-        if: matrix.target.nimble == true
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: '2.2.4' # should be the same as the one in logos-delivery/nimbus/codex
-
-      - name: Checkout this ref in target repository
-        env:
-          LIBP2P_REF: ${{ inputs.libp2p_ref || github.event.pull_request.head.sha || github.sha }}
-        run: |
-          cd nbc
-          if [ "${{ matrix.target.nimble }}" = "true" ]; then
-            # Update waku.nimble: replace ref after 'nim-libp2p.git#' with selected ref
-            perl -0pi -e 's|(https://github[.]com/vacp2p/nim-libp2p[.]git#)[^"[:space:]]+|$1$ENV{LIBP2P_REF}|' waku.nimble
-
-            # Clean previous state
-            rm -rf nimble.lock nimbledeps nimble.paths
-
-            # Ensure nimble is up-to-date
-            nimble install nimble -y
-
-            # Regenerate lock file
-            nimble setup --localdeps -y
-
-          else
-
-            git submodule update --init vendor/nim-libp2p
-            cd vendor/nim-libp2p
-            git fetch https://github.com/vacp2p/nim-libp2p.git "$LIBP2P_REF"
-            git checkout FETCH_HEAD
-
-          fi
-
-      - name: Push this ref to target repository
-        run: |
-          cd nbc
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name "${{ github.actor }}"
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No dependency changes detected; skipping push."
-            exit 0
-          fi
-          git commit -a -m "auto-bump nim-libp2p"
-          git branch -D nim-libp2p-auto-bump-${{ matrix.target.ref }} || true
-          git switch -c nim-libp2p-auto-bump-${{ matrix.target.ref }}
-          git push -f origin nim-libp2p-auto-bump-${{ matrix.target.ref }}
+    uses: ./.github/workflows/dependencies_matrix.yml
+    with:
+      libp2p_ref: ${{ inputs.libp2p_ref || github.event.pull_request.head.sha || github.sha }}
+    secrets: inherit
