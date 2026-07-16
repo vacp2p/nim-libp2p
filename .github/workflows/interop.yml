@@ -129,8 +129,8 @@ jobs:
           go build -C ./go-peer -o peer ./peer.go
           ./go-peer/peer & ./nim-peer/src/peer
 
-  # The -v2 interop peers are driven by the external unified-testing suite, so
-  # they are never built anywhere else in CI. Build their Dockerfiles here
+  # These interop peers are driven by the external unified-testing suite,
+  # so they are never built anywhere else in CI. Build their Dockerfiles here
   # to guarantee the peers keep compiling against the current nim-libp2p tree.
   build-unified-testing-interop-images:
     name: Build unified-testing interop image (${{ matrix.name }})
@@ -145,6 +145,8 @@ jobs:
             dockerfile: interop/kad-dht-v2/Dockerfile
           - name: transport-v2
             dockerfile: interop/transport-v2/Dockerfile
+          - name: perf
+            dockerfile: interop/perf/Dockerfile
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
