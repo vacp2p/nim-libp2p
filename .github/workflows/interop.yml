@@ -129,9 +129,6 @@ jobs:
           go build -C ./go-peer -o peer ./peer.go
           ./go-peer/peer & ./nim-peer/src/peer
 
-  # These interop peers are driven by the external unified-testing suite,
-  # so they are never built anywhere else in CI. Build their Dockerfiles here
-  # to guarantee the peers keep compiling against the current nim-libp2p tree.
   build-unified-testing-interop-images:
     name: Build unified-testing interop image (${{ matrix.name }})
     runs-on: ubuntu-22.04
