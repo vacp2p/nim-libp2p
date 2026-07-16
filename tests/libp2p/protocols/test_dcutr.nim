@@ -108,7 +108,7 @@ suite "Dcutr":
     # inbound identify stream
     check await directConnIdentified.withTimeout(30.seconds)
 
-  asyncTest "DCUtR establishes a new QUIC connection":
+  asyncTest "DCUtR QUIC initiator uses listener role":
     let behindNATSwitch = makeSwitch(QuicAutoAddress)
     let publicSwitch = makeSwitch(QuicAutoAddress)
 
@@ -126,35 +126,18 @@ suite "Dcutr":
       behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId)
     check initialConnCount == 1
 
-    let directConnSeen =
-      Future[void].Raising([CancelledError]).init("dcutr direct connection seen")
-
-    proc onDirectConn(
-        peerId: PeerId, event: ConnEvent
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      if peerId == publicSwitch.peerInfo.peerId and
-          behindNATSwitch.connManager.connCount(publicSwitch.peerInfo.peerId) >
-          initialConnCount:
-        directConnSeen.completeOnce()
-
-    # use event handler to wait-and-assert exact moment when condition 
-    # (publicSwitch has connected to behindNATSwitch) is satisfied 
-    # instead of polling, as polling can miss a short-lived true state
-    behindNATSwitch.connManager.addConnEventHandler(
-      onDirectConn, ConnEventKind.Connected
-    )
-
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    await DcutrClient
-      .new(connectTimeout = 5.seconds)
-      .startSync(
+    # A direct QUIC connection stands in for the relay, so the listener-role
+    # hole punch must time out.
+    try:
+      await DcutrClient.new(connectTimeout = 300.millis).startSync(
         behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
       )
-      .wait(10.seconds)
-
-    check await directConnSeen.withTimeout(10.seconds)
+      check false
+    except DcutrError as err:
+      check err.parent of AsyncTimeoutError
 
   template ductrClientTest(
       behindNATSwitch: Switch, publicSwitch: Switch, body: untyped

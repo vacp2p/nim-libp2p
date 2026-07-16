@@ -286,6 +286,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   if self.stopping:
