@@ -1,7 +1,6 @@
 # Android Mobile Builds For libp2p
 
-`cbind/libp2p.nim` is the supported C ABI target for mobile builds. The
-legacy `cbind/libp2p.nim` target is not extended for Android.
+`cbind/libp2p.nim` is the supported C ABI target for mobile builds.
 
 ## Supported Targets
 
@@ -35,7 +34,7 @@ nix build .#cbind-ffi-android
 The host C ABI package remains available as:
 
 ```sh
-nix build .#cbind-ffi
+nix build .#cbind
 ```
 
 ## Artifact Layout
@@ -64,7 +63,7 @@ result/android/x86_64/...
 ```
 
 `liblibp2p.so` and `liblibp2p.a` intentionally keep the same naming as the host
-`cbind-ffi` package.
+`cbind` package.
 
 ## Downstream Linking Notes
 

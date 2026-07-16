@@ -1,7 +1,6 @@
 # iOS Mobile Builds For libp2p
 
-`cbind/libp2p.nim` is the supported C ABI target for iOS builds. The legacy
-`cbind/libp2p.nim` target is not extended for iOS.
+`cbind/libp2p.nim` is the supported C ABI target for iOS builds.
 
 ## Supported Targets
 
@@ -66,7 +65,7 @@ result/ios/simulator-arm64/...
 ```
 
 `liblibp2p.dylib` and `liblibp2p.a` intentionally keep the same naming as the
-host `cbind-ffi` package.
+host `cbind` package.
 
 ## Downstream Linking Notes
 
