@@ -227,55 +227,85 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     check w > 500.seconds
 
 suite "Service Discovery Registrar - advertExpiry cap":
-  # The wait time must never exceed advertExpiry: a wait longer than the
-  # advert's own lifetime is pointless and is clamped at the end of waitingTime.
+  test "registration caps the offered tWaitFor at advertExpiry":
+    let advertExpiry = 100.secs
+    let conf = ServiceDiscoveryConfig.new(
+      advertExpiry = advertExpiry, safetyParam = 1.0, advertCacheCap = 10
+    )
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let advertiserKey = PrivateKey.random(rng()).get()
+    let advertiserId = PeerId.init(advertiserKey).get()
+    let adBytes = makeAdvertisement(serviceName, advertiserKey).encode().get()
 
-  test "waitingTime clamps formula-driven wait to advertExpiry":
-    let registrar = Registrar.new()
-    # cache at capacity ⇒ occupancy = 100.0; with safetyParam = 1.0 the
-    # uncapped w = 100 * 100.0 * 1.0 = 10000s ≫ advertExpiry (100s).
-    let discoConfig =
-      ServiceDiscoveryConfig.new(advertExpiry = 100.secs, safetyParam = 1.0)
-    let serviceId = makeServiceId()
-    let ad = makeAdvertisement()
-    let now = Moment.now()
+    # Saturate the cache: occupancy pins at 100.0, so w = 100*100*1.0 = 10000s.
+    for i in 0 ..< 10:
+      disco.registrar.cacheTimestamps[(peerId: randomPeerId(), seqNo: uint64(i))] =
+        Moment.now()
 
-    for i in 0 ..< 1000:
-      registrar.cacheTimestamps[(peerId: ad.data.peerId, seqNo: uint64(i))] = now
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+    let reply = disco.registration(advertiserId, inMsg).register.get()
 
-    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.get().tWaitFor.get() == advertExpiry
 
-    check w == discoConfig.advertExpiry
+  test "sustained overload keeps offering advertExpiry-length waits across retries":
+    let advertExpiry = 100.secs
+    let registrationWindow = 10.secs
+    let conf = ServiceDiscoveryConfig.new(
+      advertExpiry = advertExpiry,
+      safetyParam = 1.0,
+      advertCacheCap = 10,
+      registrationWindow = registrationWindow,
+    )
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let advertiserKey = PrivateKey.random(rng()).get()
+    let advertiserId = PeerId.init(advertiserKey).get()
+    let adBytes = makeAdvertisement(serviceName, advertiserKey).encode().get()
 
-  test "waitingTime clamps lower-bound wait to advertExpiry":
-    let registrar = Registrar.new()
-    let discoConfig = ServiceDiscoveryConfig.new() # advertExpiry = 900s (default)
-    let serviceId = makeServiceId()
-    let ad = makeAdvertisement($serviceId)
-    let now = initMoment(0)
+    for i in 0 ..< 10:
+      disco.registrar.cacheTimestamps[(peerId: randomPeerId(), seqNo: uint64(i))] =
+        Moment.now()
 
-    # A stale bound far in the future: effective lower bound = 100000s ≫ 900s.
-    registrar.boundService[serviceId] = initMoment(100000)
-    registrar.timestampService[serviceId] = initMoment(0)
+    let firstAttemptTime =
+      Moment.init((Moment.now() - advertExpiry).epochSeconds, Second)
+    var retryTicket = Ticket(
+      advertisement: adBytes,
+      tInit: firstAttemptTime,
+      tMod: firstAttemptTime,
+      tWaitFor: advertExpiry,
+      signature: Opt.none(seq[byte]),
+    )
+    check retryTicket.sign(disco.switch.peerInfo.privateKey).isOk()
 
-    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.some(retryTicket),
+        )
+      ),
+    )
+    let reply = disco.registration(advertiserId, inMsg).register.get()
 
-    check w == discoConfig.advertExpiry
-
-  test "waitingTime cap leaves a legitimately small wait untouched":
-    let registrar = Registrar.new()
-    # Empty cache, safetyParam = 0.5 ⇒ uncapped w = 10000 * 0.5 = 5000s,
-    # comfortably below advertExpiry (10000s) so the clamp is a no-op.
-    let discoConfig =
-      ServiceDiscoveryConfig.new(advertExpiry = 10000.secs, safetyParam = 0.5)
-    let serviceId = makeServiceId()
-    let ad = makeAdvertisement()
-    let now = Moment.now()
-
-    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
-
-    check w < discoConfig.advertExpiry
-    check w == 5000.secs
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.get().tWaitFor.get() == advertExpiry
 
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":

@@ -185,8 +185,6 @@ proc waitingTime*(
       if waitDuration < prevWaitDuration - elapsedDuration:
         waitDuration = prevWaitDuration - elapsedDuration
 
-  waitDuration = min(discoConfig.advertExpiry, waitDuration)
-
   return waitDuration
 
 proc updateLowerBounds*(
@@ -488,6 +486,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     )
 
     return msg
+
+  tWait = min(disco.discoConfig.advertExpiry, tWait)
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
