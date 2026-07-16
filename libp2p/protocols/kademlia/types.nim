@@ -15,9 +15,6 @@ const
     ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
   DefaultMaxBuckets* = MaxBucketsLimit
   MaxRefreshLeadingZeros* = 12
-    ## Cap on the prefix bits a refresh target may share with the local id:
-    ## targets cost ~2^bits hashes to find, so buckets nearer than this are
-    ## left to the self-lookup that starts every refresh.
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes

@@ -210,11 +210,6 @@ proc isStale*(bucket: Bucket): bool =
   return false
 
 proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
-  ## Returns a random key that `rtable` places in `bucketIndex`, for use as a
-  ## bucket-refresh lookup target. A key's bucket is decided by its hash, which
-  ## cannot be inverted, so candidates are drawn until one hashes into the
-  ## bucket, costing ~2^lz draws. Buckets nearer than `MaxRefreshLeadingZeros`,
-  ## and searches that exhaust their budget, return `none`.
   let lz = clamp(bucketIndex, 0, bucketCount(rtable.config.maxBuckets) - 1)
   if lz > MaxRefreshLeadingZeros:
     return Opt.none(Key)
@@ -222,11 +217,10 @@ proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[K
   # A draw hits the bucket with probability ~2^-(lz+1); overshooting is free.
   let maxAttempts = 32 shl lz
   let selfHash = rtable.selfHash()
-  var candidate: array[IdLength, byte]
+  var key = newSeqUninit[byte](IdLength)
 
   for _ in 0 ..< maxAttempts:
-    rng.generate(candidate)
-    let key = @candidate
+    rng.generate(key)
     if rtable.bucketIndexFor(selfHash, key) == lz:
       return Opt.some(key)
 
