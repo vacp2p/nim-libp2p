@@ -44,6 +44,10 @@ suite "Quic transport":
   teardown:
     checkTrackers()
 
+  test "muxer rejects a nil connection":
+    expect QuicTransportError:
+      discard QuicMuxer.new(RawConn(nil))
+
   basicTransportTest(
     quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
     invalidAddresses,
@@ -57,8 +61,9 @@ suite "Quic transport":
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
-    asyncSpawn createServerAcceptConn(server)()
+    let serverTask = createServerAcceptConn(server)()
     defer:
+      await serverTask.cancelAndWait()
       await server.stop()
 
     proc runClient() {.async.} =
@@ -71,8 +76,9 @@ suite "Quic transport":
 
   asyncTest "transport e2e - invalid cert - client":
     let server = await createQuicTransport(isServer = true)
-    asyncSpawn createServerAcceptConn(server)()
+    let serverTask = createServerAcceptConn(server)()
     defer:
+      await serverTask.cancelAndWait()
       await server.stop()
 
     proc runClient() {.async.} =

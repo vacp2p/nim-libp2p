@@ -79,7 +79,7 @@ proc readBaseConfig*(): BaseConfig =
     testKey: testKey,
     transport: getEnv("TRANSPORT", "tcp"),
     secureChannel: getEnv("SECURE_CHANNEL", "noise"),
-    muxer: getEnv("MUXER", "mplex"),
+    muxer: getEnv("MUXER", "yamux"),
     testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
   )
   config

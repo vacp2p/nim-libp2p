@@ -1,0 +1,38 @@
+name: Daily interop
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-unified-testing-interop-images:
+    name: Build unified-testing interop image (${{ matrix.name }})
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: hole-punching-v2
+            dockerfile: interop/hole-punching-v2/Dockerfile
+          - name: kad-dht-v2
+            dockerfile: interop/kad-dht-v2/Dockerfile
+          - name: transport-v2
+            dockerfile: interop/transport-v2/Dockerfile
+          - name: perf
+            dockerfile: interop/perf/Dockerfile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image
+        run: docker build -f ${{ matrix.dockerfile }} .
