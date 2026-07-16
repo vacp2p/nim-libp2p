@@ -101,7 +101,8 @@ proc pruneExpiredEntries[K](
     bounds.del(k)
 
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   var expiredCount = 0
 
@@ -156,8 +157,7 @@ proc waitingTime*(
     (serviceSim + discoConfig.ipSimCoefficient * ipSim + discoConfig.safetyParam)
 
   # Bound & Quantize W
-  w = max(0.0, w)
-  w = min(w, float64(uint32.high))
+  w = w.clamp(0.0, float64(uint32.high))
   w = round(w)
 
   var waitDuration = w.int64.secs
@@ -458,7 +458,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
     error "invalid ticket", error
@@ -485,6 +486,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     )
 
     return msg
+
+  tWait = min(disco.discoConfig.advertExpiry, tWait)
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 

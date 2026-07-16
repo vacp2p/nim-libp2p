@@ -5,6 +5,7 @@ import std/[hashes, sets, sequtils]
 import chronos, chronicles, metrics, results
 import lsquic
 import
+  ../crypto/rng,
   ../wire,
   ../connmanager,
   ../multiaddress,
@@ -24,6 +25,8 @@ export transport
 
 logScope:
   topics = "libp2p quictransport"
+
+const QuicHolePunchPacketSize* = 64
 
 type
   P2PConnection = connection.Connection
@@ -211,6 +214,9 @@ type QuicMuxer* = ref object of Muxer
 proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): QuicMuxer {.raises: [CertificateParsingError, LPError].} =
+  if conn.isNil:
+    raise (ref QuicTransportError)(msg: "cannot create QUIC muxer from nil connection")
+
   let session = QuicSession(conn)
   session.peerId = peerId.valueOr:
     let certificates = session.connection.certificates()
@@ -350,11 +356,15 @@ proc new*(
     _: type QuicTransport,
     u: Upgrade,
     privateKey: PrivateKey,
+    rng: Rng,
     connManager: ConnManager = nil,
 ): QuicTransport =
+  doAssert not rng.isNil, "Rng is nil"
+
   let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
+    rng: rng,
     certGenerator: defaultCertGenerator,
   )
   procCall Transport(self).initialize()
@@ -364,12 +374,16 @@ proc new*(
     _: type QuicTransport,
     u: Upgrade,
     privateKey: PrivateKey,
+    rng: Rng,
     certGenerator: CertGenerator,
     connManager: ConnManager = nil,
 ): QuicTransport =
+  doAssert not rng.isNil, "Rng is nil"
+
   let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
+    rng: rng,
     certGenerator: certGenerator,
   )
   procCall Transport(self).initialize()
@@ -437,6 +451,9 @@ method start*(
   await procCall Transport(self).start(listenMAs)
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
+  if transport.running:
+    await noCancel procCall Transport(transport).stop()
+
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
@@ -456,8 +473,6 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await noCancel allFutures(transport.listeners.mapIt(it.stop()))
   transport.listeners = @[]
   transport.acceptFuts = @[]
-
-  await procCall Transport(transport).stop()
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction
@@ -519,9 +534,8 @@ method accept*(
   if not self.running or self.listeners.len == 0: # Stopped while waiting
     raise newTransportClosedError()
 
-  # becasue some listener has accepted we need to run 
-  # accept manually in the place for this listner again 
-  # so that it keeps accepting for future method calls
+  # Replace the completed accept before awaiting its result so that every
+  # listener remains ready for future connections.
   let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.listeners[index].accept()
 
@@ -530,10 +544,14 @@ method accept*(
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
+    raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
     debug "Transport Error", description = exc.msg
+    raise newTransportClosedError(exc)
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
+    raise
+      (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
 proc listenerEndpointFor(
     self: QuicTransport, address: TransportAddress
@@ -576,6 +594,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   let taAddress =
     try:
@@ -586,6 +605,23 @@ method dial*(
       )
 
   try:
+    if dir == Direction.In:
+      let endpoint = self.listenerEndpointFor(taAddress)
+      if endpoint.isNone():
+        raise newException(
+          QuicTransportDialError,
+          "error in QUIC hole punch: no unique listener for address family",
+        )
+
+      # The Sync sender is the QUIC server. Open its NAT mapping with random
+      # UDP packets from the listener socket and let the expected inbound
+      # connection complete the DCUtR attempt.
+      while true:
+        let payload = self.rng.generateBytes(QuicHolePunchPacketSize)
+        await endpoint.get().datagramTransport().sendTo(taAddress, payload)
+        let delay = self.rng.rand(10, 200)
+        await sleepAsync(delay.milliseconds)
+
     let endpoint = self.dialEndpointFor(taAddress)
     let quicConnection = await endpoint.dial(taAddress)
     peerId.withValue(expectedPeerId):
@@ -606,6 +642,8 @@ method dial*(
     )
   except TransportOsError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
+  except chronos.TransportError as e:
+    raise newException(QuicTransportDialError, "error in quic dial: " & e.msg, e)
   except DialError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
   except QuicError as e:

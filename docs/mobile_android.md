@@ -1,7 +1,6 @@
-# Android Mobile Builds For libp2p_ffi
+# Android Mobile Builds For libp2p
 
-`cbind/libp2p_ffi.nim` is the supported C ABI target for mobile builds. The
-legacy `cbind/libp2p.nim` target is not extended for Android.
+`cbind/libp2p.nim` is the supported C ABI target for mobile builds.
 
 ## Supported Targets
 
@@ -35,7 +34,7 @@ nix build .#cbind-ffi-android
 The host C ABI package remains available as:
 
 ```sh
-nix build .#cbind-ffi
+nix build .#cbind
 ```
 
 ## Artifact Layout
@@ -44,7 +43,7 @@ Single-ABI outputs are flat:
 
 ```text
 result/
-  bin/libp2p_ffi_android_check
+  bin/libp2p_android_check
   include/libp2p.h
   include/nim_ffi_cbor.h
   include/nim_ffi_prelude.h
@@ -64,7 +63,7 @@ result/android/x86_64/...
 ```
 
 `liblibp2p.so` and `liblibp2p.a` intentionally keep the same naming as the host
-`cbind-ffi` package.
+`cbind` package.
 
 ## Downstream Linking Notes
 
@@ -88,7 +87,7 @@ together with the Android C++ runtime selected by your application.
 
 ## Android Check Harness
 
-The Nix Android derivation compiles `cbind/examples/libp2p_ffi_mobile_check.c`
+The Nix Android derivation compiles `cbind/examples/libp2p_mobile_check.c`
 for each ABI. The harness includes the generated nim-ffi C header, creates a
 default TCP/Yamux node, starts it, stops it, destroys the context, and fails on
 callback errors or timeouts.
@@ -102,8 +101,8 @@ nix build .#cbind-ffi-android-arm64-v8a
 
 adb shell 'mkdir -p /data/local/tmp/nim-libp2p'
 adb push result/lib/liblibp2p.so /data/local/tmp/nim-libp2p/
-adb push result/bin/libp2p_ffi_android_check /data/local/tmp/nim-libp2p/
-adb shell 'cd /data/local/tmp/nim-libp2p && chmod 755 libp2p_ffi_android_check && LD_LIBRARY_PATH=. ./libp2p_ffi_android_check'
+adb push result/bin/libp2p_android_check /data/local/tmp/nim-libp2p/
+adb shell 'cd /data/local/tmp/nim-libp2p && chmod 755 libp2p_android_check && LD_LIBRARY_PATH=. ./libp2p_android_check'
 ```
 
 For an x86_64 emulator, replace the build command with:
