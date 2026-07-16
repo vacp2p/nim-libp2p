@@ -71,10 +71,10 @@ jobs:
           test -f "$out/include/nim_ffi_prelude.h"
           test -f "$out/include/tinycbor/cbor.h"
           test -f "$out/include/cddl_bindings/libp2p.cddl"
-          test -x "$out/bin/libp2p_ffi_ios_check"
+          test -x "$out/bin/libp2p_ios_check"
 
           otool -l "$out/lib/liblibp2p.dylib" | tee liblibp2p.otool
-          otool -l "$out/bin/libp2p_ffi_ios_check" | tee check.otool
+          otool -l "$out/bin/libp2p_ios_check" | tee check.otool
           lipo -info "$out/lib/liblibp2p.dylib" | tee liblibp2p.lipo
           lipo -info "$out/lib/liblibp2p.a" | tee liblibp2p_static.lipo
 
@@ -84,7 +84,7 @@ jobs:
           grep -q "arm64" liblibp2p_static.lipo
 
           file "$out/lib/liblibp2p.dylib"
-          file "$out/bin/libp2p_ffi_ios_check"
+          file "$out/bin/libp2p_ios_check"
 
       - name: Run FFI check on iOS simulator
         if: matrix.target == 'simulator-arm64'
@@ -93,15 +93,15 @@ jobs:
           run_dir="$RUNNER_TEMP/nim-libp2p-ios-sim"
           rm -rf "$run_dir"
           mkdir -p "$run_dir/bin" "$run_dir/lib"
-          cp "$out/bin/libp2p_ffi_ios_check" "$run_dir/bin/"
+          cp "$out/bin/libp2p_ios_check" "$run_dir/bin/"
           cp "$out/lib/liblibp2p.dylib" "$run_dir/lib/"
           chmod -R u+w "$run_dir"
 
-          install_name="$(otool -L "$run_dir/bin/libp2p_ffi_ios_check" | awk '/liblibp2p\.dylib/{print $1; exit}')"
+          install_name="$(otool -L "$run_dir/bin/libp2p_ios_check" | awk '/liblibp2p\.dylib/{print $1; exit}')"
           test -n "$install_name"
-          install_name_tool -change "$install_name" "@executable_path/../lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ffi_ios_check"
+          install_name_tool -change "$install_name" "@executable_path/../lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
           install_name_tool -id "@rpath/liblibp2p.dylib" "$run_dir/lib/liblibp2p.dylib"
-          codesign --force --sign - "$run_dir/lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ffi_ios_check"
+          codesign --force --sign - "$run_dir/lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
 
           device_udid="$(
             xcrun simctl list devices --json | /usr/bin/python3 -c '
@@ -143,4 +143,4 @@ jobs:
 
           xcrun simctl boot "$device_udid" || true
           xcrun simctl bootstatus "$device_udid" -b
-          xcrun simctl spawn "$device_udid" "$run_dir/bin/libp2p_ffi_ios_check"
+          xcrun simctl spawn "$device_udid" "$run_dir/bin/libp2p_ios_check"
