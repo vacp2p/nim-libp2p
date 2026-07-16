@@ -48,9 +48,6 @@ proc createServerAcceptConn*(
         (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
   .} =
     let conn = await server.accept()
-    if conn == nil:
-      return
-
     let muxer = QuicMuxer.new(conn)
     let stream = await muxer.newStream()
     defer:
