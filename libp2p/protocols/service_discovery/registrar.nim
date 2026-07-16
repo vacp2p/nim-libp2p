@@ -101,7 +101,8 @@ proc pruneExpiredEntries[K](
     bounds.del(k)
 
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   var expiredCount = 0
 
