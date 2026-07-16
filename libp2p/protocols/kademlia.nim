@@ -17,11 +17,35 @@ logScope:
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 
+proc bucketStats(bucket: Bucket): tuple[stalePeers: int, oldestAge: Duration] =
+  let now = Moment.now()
+  var oldestAge = ZeroDuration
+  var stalePeers = 0
+
+  for peer in bucket.peers:
+    let age = now - peer.lastSeen
+    if age > oldestAge:
+      oldestAge = age
+    if age > DefaultBucketStaleTime:
+      stalePeers.inc()
+
+  (stalePeers: stalePeers, oldestAge: oldestAge)
+
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
+
+  let refreshStarted = Moment.now()
+  var refreshedBuckets = 0
+  var staleBuckets = 0
+  var nonEmptyBuckets = 0
+
+  info "refresh table started",
+    forceRefresh,
+    buckets = rtable.buckets.len,
+    staleTime = DefaultBucketStaleTime.seconds
 
   discard await kad.findNode(rtable.selfId, rtable)
 
@@ -32,13 +56,36 @@ proc refreshTable*(
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
+    nonEmptyBuckets.inc()
+
+    let stats = bucket.bucketStats()
+    let stale = stats.stalePeers > 0
+    if stale:
+      staleBuckets.inc()
+
+    info "refresh table bucket",
+      bucket = i,
+      peers = bucket.peers.len,
+      stalePeers = stats.stalePeers,
+      oldestAge = stats.oldestAge.seconds,
+      forceRefresh,
+      willRefresh = forceRefresh or stale
+
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
-    if not (forceRefresh or bucket.isStale()):
+    if not (forceRefresh or stale):
       continue
 
     let randomKey =
       randomKeyInBucket(rtable.selfId, i, kad.rng, rtable.config.maxBuckets)
+    refreshedBuckets.inc()
     discard await kad.findNode(randomKey, rtable)
+
+  info "refresh table completed",
+    forceRefresh,
+    nonEmptyBuckets,
+    staleBuckets,
+    refreshedBuckets,
+    duration = (Moment.now() - refreshStarted).seconds
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false

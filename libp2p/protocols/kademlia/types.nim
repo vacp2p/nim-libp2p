@@ -14,7 +14,7 @@ const
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
-  DefaultBucketStaleTime* = 30.minutes
+  DefaultBucketStaleTime* = 5.minutes
     # peer not seen for this duration marks bucket stale
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
