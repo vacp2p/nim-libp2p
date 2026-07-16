@@ -51,11 +51,14 @@ jobs:
       NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
     runs-on: ${{ needs.pick-platform.outputs.builder }}
-    name: "test_multiformat_exts (${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
+    name: "test_multiformat_exts"
     defaults:
       run:
         shell: ${{ needs.pick-platform.outputs.shell }}
     steps:
+      - name: selected platform
+        run: echo "(${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
