@@ -227,7 +227,6 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     check w > 500.seconds
 
 suite "Service Discovery Registrar - advertExpiry cap":
-
   test "waitingTime does not cap a formula-driven wait at advertExpiry":
     let registrar = Registrar.new()
     # cache at capacity ⇒ occupancy = 100.0; with safetyParam = 1.0 the
