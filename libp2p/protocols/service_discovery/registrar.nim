@@ -66,14 +66,20 @@ proc pruneAdsForService(
   while i < ads.len:
     let ad = ads[i]
     let key = ad.toAdvertisementKey()
+    # Default true: missing timestamp → orphan, must leave this service list
+    var remove = true
     registrar.cacheTimestamps.withValue(key, ts):
-      if isExpired(now, ts[], advertExpiry):
+      remove = isExpired(now, ts[], advertExpiry)
+
+    if remove:
+      # Free global state only while this key still owns a timestamp.
+      if key in registrar.cacheTimestamps:
         registrar.ipTree.removeAd(ad)
         registrar.cacheTimestamps.del(key)
-        ads.delete(i)
-        inc(expiredCount)
-      else:
-        inc(i)
+      ads.delete(i)
+      inc(expiredCount)
+    else:
+      inc(i)
 
 proc pruneEmptyServices(registrar: Registrar) =
   var toRemove: seq[ServiceId] = @[]
@@ -317,27 +323,33 @@ proc evictOldestAd*(
   let oldestKey = disco.findOldestKey().valueOr:
     return
 
-  var emptiedSid: ServiceId
-  var sidBecameEmpty = false
+  var emptiedSids: seq[ServiceId] = @[]
+  var removedFromIpTree = false
 
-  block search:
-    for sid, sads in disco.registrar.cache.mpairs:
-      for i in 0 ..< sads.len:
-        if sads[i].toAdvertisementKey() == oldestKey:
+  for sid, sads in disco.registrar.cache.mpairs:
+    var i = 0
+    var removedFromThisService = false
+    while i < sads.len:
+      if sads[i].toAdvertisementKey() == oldestKey:
+        # Free IP tree / timestamp once; further service lists are orphans.
+        if not removedFromIpTree:
           disco.registrar.ipTree.removeAd(sads[i])
           disco.registrar.cacheTimestamps.del(oldestKey)
-          sads.delete(i)
+          removedFromIpTree = true
+        sads.delete(i)
+        removedFromThisService = true
+      else:
+        inc(i)
 
-          if sid == serviceId:
-            ads = sads
-          elif sads.len == 0:
-            emptiedSid = sid
-            sidBecameEmpty = true
+    if sads.len == 0:
+      emptiedSids.add(sid)
 
-          break search
+    # Sync the caller's working list only when we mutated this service's entry.
+    if removedFromThisService and sid == serviceId:
+      ads = sads
 
-  if sidBecameEmpty:
-    disco.registrar.cache.del(emptiedSid)
+  for sid in emptiedSids:
+    disco.registrar.cache.del(sid)
 
 proc updateExistingAd*(
     registrar: Registrar,
