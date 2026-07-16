@@ -178,7 +178,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
         await acceptFut.value().closeWait()
     self.acceptFuts = @[]
 
-    discard await noCancel allFinished(self.closeFuts)
+    await noCancel allFutures(self.closeFuts)
     self.closeFuts = @[]
 
     if self.clients[Direction.In].len != 0 or self.clients[Direction.Out].len != 0:
@@ -198,7 +198,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       "No incoming connections possible without start"
     await noCancel allFutures(self.clients[Direction.Out].mapIt(it.closeWait()))
 
-    discard await noCancel allFinished(self.closeFuts)
+    await noCancel allFutures(self.closeFuts)
     self.closeFuts = @[]
 
 method accept*(
