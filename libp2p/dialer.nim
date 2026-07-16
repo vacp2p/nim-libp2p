@@ -56,7 +56,7 @@ proc dialAndUpgrade*(
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          await transport.dial(hostname, addrs, peerId)
+          await transport.dial(hostname, addrs, peerId, dir)
         except CancelledError as exc:
           trace "Dialing canceled", description = exc.msg, peerId
           raise exc

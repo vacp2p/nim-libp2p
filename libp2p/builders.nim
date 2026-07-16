@@ -243,7 +243,7 @@ proc withWsTransport*(
 proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      QuicTransport.new(config.upgr, config.privateKey, config.connManager)
+      QuicTransport.new(config.upgr, config.privateKey, config.rng, config.connManager)
   )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =

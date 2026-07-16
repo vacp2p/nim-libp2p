@@ -87,9 +87,9 @@ proc createQuicTransport*(
 
   let trans =
     if withInvalidCert:
-      QuicTransport.new(Upgrade(), key, invalidCertGenerator)
+      QuicTransport.new(Upgrade(), key, rng(), invalidCertGenerator)
     else:
-      QuicTransport.new(Upgrade(), key)
+      QuicTransport.new(Upgrade(), key, rng())
 
   if isServer: # servers are started because they need to listen
     await trans.start(addresses)
