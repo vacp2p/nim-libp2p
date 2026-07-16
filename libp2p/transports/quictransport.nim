@@ -26,6 +26,8 @@ export transport
 logScope:
   topics = "libp2p quictransport"
 
+const QuicHolePunchPacketSize* = 64
+
 type
   P2PConnection = connection.Connection
   QuicConnection = lsquic.Connection
@@ -608,7 +610,7 @@ method dial*(
       # UDP packets from the listener socket and let the expected inbound
       # connection complete the DCUtR attempt.
       while true:
-        let payload = self.rng.generateBytes(64)
+        let payload = self.rng.generateBytes(QuicHolePunchPacketSize)
         await endpoint.get().datagramTransport().sendTo(taAddress, payload)
         let delay = self.rng.rand(10, 200)
         await sleepAsync(delay.milliseconds)

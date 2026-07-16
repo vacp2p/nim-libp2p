@@ -84,7 +84,7 @@ suite "Quic transport":
     defer:
       await punchFut.cancelAndWait()
 
-    check (await packetReceived.wait(1.seconds)) == 64
+    check (await packetReceived) == QuicHolePunchPacketSize
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
