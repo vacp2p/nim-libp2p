@@ -237,3 +237,15 @@ proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
     proc(e: NodeEntry): Key =
       e.nodeId
   )
+
+proc refreshTarget*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
+  ## Key to run a findNode against in order to refresh `bucketIndex`.
+  let random = randomKeyInBucket(rtable, bucketIndex, rng)
+  if random.isSome():
+    return random
+
+  # Buckets near self need a shared prefix too long to draw at random. A peer
+  # the bucket already holds has that prefix by construction.
+  if bucketIndex notin 0 ..< rtable.buckets.len:
+    return Opt.none(Key)
+  rtable.buckets[bucketIndex].randomKey(rng)

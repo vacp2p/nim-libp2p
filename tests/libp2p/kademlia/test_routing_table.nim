@@ -12,17 +12,24 @@ proc testKey*(x: byte): Key =
   buf[31] = x
   return @buf
 
+proc randomTestKey(): Key =
+  var buf = newSeqUninit[byte](IdLength)
+  rng().generate(buf)
+  buf
+
+proc keyWithLeadingZeros(n: int): Key =
+  ## Key whose XOR distance to an all-zero selfId under `noOpHasher` has
+  ## exactly `n` leading zero bits.
+  doAssert n < IdLength * 8, "an all-zero key has no first set bit"
+  var buf: array[IdLength, byte]
+  buf[n div 8] = 0x80'u8 shr (n mod 8)
+  return @buf
+
 suite "KadDHT Routing Table":
   const TargetBucket = 6
 
   proc keyInBucket(rt: RoutingTable, bucket: int): Key =
     randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
-
-  proc keyWithPrefix(leadingZeros: int): Key =
-    ## Key whose distance from `testKey(0)` has exactly `leadingZeros` leading zeros.
-    var buf: array[IdLength, byte]
-    buf[leadingZeros div 8] = 0b1000_0000'u8 shr (leadingZeros mod 8)
-    return @buf
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
@@ -184,7 +191,7 @@ suite "KadDHT Routing Table":
       RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
 
     for lz in 0 .. 8:
-      check rt.bucketIndex(keyWithPrefix(lz)) == lz
+      check rt.bucketIndex(keyWithLeadingZeros(lz)) == lz
 
   test "small maxBuckets keeps prefix resolution and saturates the last bucket":
     let selfId = testKey(0)
@@ -196,11 +203,11 @@ suite "KadDHT Routing Table":
 
     # Prefix lengths below the cap each get their own bucket.
     for lz in 0 ..< MaxBuckets - 1:
-      check rt.bucketIndex(keyWithPrefix(lz)) == lz
+      check rt.bucketIndex(keyWithLeadingZeros(lz)) == lz
 
     # Deeper prefixes all fall into the last bucket.
     for lz in MaxBuckets - 1 .. MaxBuckets + 8:
-      check rt.bucketIndex(keyWithPrefix(lz)) == MaxBuckets - 1
+      check rt.bucketIndex(keyWithLeadingZeros(lz)) == MaxBuckets - 1
 
   test "randomKeyInBucket targets the bucket under the default (hashing) hasher":
     # The bucket of a key is decided by its *hash*, so a target built by
@@ -231,6 +238,44 @@ suite "KadDHT Routing Table":
 
     # The last bucket needs 15 shared prefix bits — beyond the cap.
     check randomKeyInBucket(rt, MaxBuckets - 1, rng()).isNone()
+
+  test "refreshTarget falls back to a peer of a bucket too near to search for":
+    # Buckets past the cap share too long a prefix with selfId to draw at random.
+    const NearBucket = MaxRefreshLeadingZeros + 1
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+
+    var inserted: seq[Key]
+    while inserted.len < 3:
+      let key = randomTestKey()
+      if rt.bucketIndex(key) != NearBucket:
+        continue
+      discard rt.insert(key)
+      inserted.add(key)
+
+    check randomKeyInBucket(rt, NearBucket, rng()).isNone()
+
+    let target = rt.refreshTarget(NearBucket, rng()).expect("bucket holds peers")
+    check:
+      target in inserted
+      rt.bucketIndex(target) == NearBucket
+
+  test "refreshTarget returns none for an unreachable empty bucket":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+
+    check rt.refreshTarget(MaxRefreshLeadingZeros + 1, rng()).isNone()
+
+  test "refreshTarget prefers a random key when the bucket is reachable":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+    let peer = rt.keyInBucket(TargetBucket)
+    discard rt.insert(peer)
+
+    let target = rt.refreshTarget(TargetBucket, rng()).expect("bucket is reachable")
+    check:
+      target != peer
+      rt.bucketIndex(target) == TargetBucket
 
   test "randomKey returns none for empty bucket":
     var bucket: Bucket
