@@ -20,6 +20,8 @@ proc new*(
     maxBuckets: int = DefaultMaxBuckets,
     selfIdPreHashed = false,
 ): T =
+  doAssert maxBuckets > 0 and maxBuckets <= MaxBucketsLimit,
+    "maxBuckets must be in 1 .. " & $MaxBucketsLimit
   RoutingTableConfig(
     replication: replication,
     hasher: hasher,
@@ -40,6 +42,9 @@ proc new*(
     selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
   )
 
+func bucketCount(maxBuckets: int): int =
+  clamp(maxBuckets, 1, MaxBucketsLimit)
+
 proc bucketIndex*(rtable: RoutingTable, key: Key): int =
   let
     selfHash =
@@ -50,10 +55,7 @@ proc bucketIndex*(rtable: RoutingTable, key: Key): int =
     keyHash = key.hashFor(rtable.config.hasher)
     lz = xorDistance(selfHash, keyHash).leadingZeros
 
-  if rtable.config.maxBuckets <= 1:
-    return 0
-
-  return min(((lz * rtable.config.maxBuckets) div 256), rtable.config.maxBuckets - 1)
+  min(lz, bucketCount(rtable.config.maxBuckets) - 1)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -209,9 +211,7 @@ proc randomKeyInBucket*(
     selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
 ): Key =
   let
-    index = clamp(bucketIndex, 0, (maxBuckets - 1))
-    buckets = max(1, maxBuckets)
-    leadingZeros = index * 256 div buckets
+    leadingZeros = clamp(bucketIndex, 0, bucketCount(maxBuckets) - 1)
     (byteIdx, rem) = divmod(leadingZeros, 8)
     boundBitIdx = 7 - rem
 
