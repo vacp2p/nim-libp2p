@@ -308,13 +308,6 @@ suite "Service Discovery Registrar - advertExpiry cap":
     check reply.ticket.get().tWaitFor.get() == advertExpiry
 
   test "sustained overload keeps offering advertExpiry-length waits across retries":
-    # Regression test: previously the advertExpiry cap was applied inside
-    # waitingTime() *before* elapsed retry time was subtracted, so an
-    # advertiser retrying after waiting exactly advertExpiry seconds would
-    # see tWait collapse to ~0 (= Confirmed) regardless of whether the
-    # registrar was still overloaded. The cap must apply *after* the
-    # elapsed-time subtraction, so a still-overloaded registrar keeps
-    # offering a full advertExpiry-length wait on every retry.
     let advertExpiry = 100.secs
     let registrationWindow = 10.secs
     let conf = ServiceDiscoveryConfig.new(
