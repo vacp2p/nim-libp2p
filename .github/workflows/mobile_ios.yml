@@ -85,3 +85,62 @@ jobs:
 
           file "$out/lib/liblibp2p.dylib"
           file "$out/bin/libp2p_ios_check"
+
+      - name: Run FFI check on iOS simulator
+        if: matrix.target == 'simulator-arm64'
+        run: |
+          out="$PWD/result-${{ matrix.target }}"
+          run_dir="$RUNNER_TEMP/nim-libp2p-ios-sim"
+          rm -rf "$run_dir"
+          mkdir -p "$run_dir/bin" "$run_dir/lib"
+          cp "$out/bin/libp2p_ios_check" "$run_dir/bin/"
+          cp "$out/lib/liblibp2p.dylib" "$run_dir/lib/"
+          chmod -R u+w "$run_dir"
+
+          install_name="$(otool -L "$run_dir/bin/libp2p_ios_check" | awk '/liblibp2p\.dylib/{print $1; exit}')"
+          test -n "$install_name"
+          install_name_tool -change "$install_name" "@executable_path/../lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
+          install_name_tool -id "@rpath/liblibp2p.dylib" "$run_dir/lib/liblibp2p.dylib"
+          codesign --force --sign - "$run_dir/lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
+
+          device_udid="$(
+            xcrun simctl list devices --json | /usr/bin/python3 -c '
+          import json
+          import re
+          import sys
+
+          def runtime_version(runtime):
+              match = re.search(r"iOS-(\d+(?:[-.]\d+)*)", runtime)
+              if not match:
+                  return ()
+              return tuple(int(part) for part in re.split(r"[-.]", match.group(1)))
+
+          candidates = []
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              if ".iOS-" not in runtime:
+                  continue
+              for device in devices:
+                  availability = device.get("availability", "")
+                  if device.get("isAvailable") is False or "unavailable" in availability.lower():
+                      continue
+                  if not device.get("name", "").startswith("iPhone"):
+                      continue
+                  candidates.append((
+                      runtime_version(runtime),
+                      device.get("state") == "Shutdown",
+                      device.get("name", ""),
+                      device["udid"],
+                  ))
+          if not candidates:
+              raise SystemExit("no available iPhone simulator device")
+          print(max(candidates)[3])
+          '
+          )"
+          cleanup() {
+            xcrun simctl shutdown "$device_udid" || true
+          }
+          trap cleanup EXIT
+
+          xcrun simctl boot "$device_udid" || true
+          xcrun simctl bootstatus "$device_udid" -b
+          xcrun simctl spawn "$device_udid" "$run_dir/bin/libp2p_ios_check"
