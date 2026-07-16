@@ -36,8 +36,10 @@ proc refreshTable*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey =
-      randomKeyInBucket(rtable.selfId, i, kad.rng, rtable.config.maxBuckets)
+    # Buckets too near to target are covered by the findNode on selfId above.
+    let randomKey = randomKeyInBucket(rtable, i, kad.rng).valueOr:
+      trace "No refresh target for bucket", bucket = i
+      continue
     discard await kad.findNode(randomKey, rtable)
 
 proc bootstrap*(

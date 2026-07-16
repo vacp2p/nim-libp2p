@@ -15,6 +15,15 @@ proc testKey*(x: byte): Key =
 suite "KadDHT Routing Table":
   const TargetBucket = 6
 
+  proc keyInBucket(rt: RoutingTable, bucket: int): Key =
+    randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
+
+  proc keyWithPrefix(leadingZeros: int): Key =
+    ## Key whose distance from `testKey(0)` has exactly `leadingZeros` leading zeros.
+    var buf: array[IdLength, byte]
+    buf[leadingZeros div 8] = 0b1000_0000'u8 shr (leadingZeros mod 8)
+    return @buf
+
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId)
@@ -38,7 +47,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 5:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng())
+      let kid = rt.keyInBucket(TargetBucket)
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
@@ -50,7 +59,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 10:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng())
+      let kid = rt.keyInBucket(TargetBucket)
       discard rt.insert(kid)
 
     check rt.buckets[TargetBucket].peers.len == config.replication
@@ -58,7 +67,7 @@ suite "KadDHT Routing Table":
     # new entry should evict oldest entry
     let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+    check rt.insert(rt.keyInBucket(TargetBucket))
 
     let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
@@ -70,9 +79,9 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
 
-    let key1 = randomKeyInBucket(selfId, TargetBucket, rng())
-    let key2 = randomKeyInBucket(selfId, TargetBucket, rng())
-    let key3 = randomKeyInBucket(selfId, TargetBucket, rng())
+    let key1 = rt.keyInBucket(TargetBucket)
+    let key2 = rt.keyInBucket(TargetBucket)
+    let key3 = rt.keyInBucket(TargetBucket)
 
     discard rt.insert(key1)
     discard rt.insert(key2)
@@ -163,7 +172,7 @@ suite "KadDHT Routing Table":
     let selfId = testKey(0)
     var rt =
       RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
-    var rid = randomKeyInBucket(selfId, TargetBucket, rng())
+    let rid = randomKeyInBucket(rt, TargetBucket, rng()).expect("bucket is reachable")
     let idx = rt.bucketIndex(rid)
     check:
       idx == TargetBucket
@@ -175,8 +184,7 @@ suite "KadDHT Routing Table":
       RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
 
     for lz in 0 .. 8:
-      let key = randomKeyInBucket(selfId, lz, rng())
-      check rt.bucketIndex(key) == lz
+      check rt.bucketIndex(keyWithPrefix(lz)) == lz
 
   test "small maxBuckets keeps prefix resolution and saturates the last bucket":
     let selfId = testKey(0)
@@ -188,13 +196,41 @@ suite "KadDHT Routing Table":
 
     # Prefix lengths below the cap each get their own bucket.
     for lz in 0 ..< MaxBuckets - 1:
-      let key = randomKeyInBucket(selfId, lz, rng(), MaxBuckets)
-      check rt.bucketIndex(key) == lz
+      check rt.bucketIndex(keyWithPrefix(lz)) == lz
 
     # Deeper prefixes all fall into the last bucket.
     for lz in MaxBuckets - 1 .. MaxBuckets + 8:
-      let key = randomKeyInBucket(selfId, lz, rng(), DefaultMaxBuckets)
-      check rt.bucketIndex(key) == MaxBuckets - 1
+      check rt.bucketIndex(keyWithPrefix(lz)) == MaxBuckets - 1
+
+  test "randomKeyInBucket targets the bucket under the default (hashing) hasher":
+    # The bucket of a key is decided by its *hash*, so a target built by
+    # manipulating selfId's bits lands in an unrelated bucket once hashed.
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+
+    for bucket in [0, 1, TargetBucket, MaxRefreshLeadingZeros]:
+      for _ in 0 ..< 5:
+        let rid = randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
+        check rt.bucketIndex(rid) == bucket
+
+  test "randomKeyInBucket returns none for buckets too near to search for":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+
+    check randomKeyInBucket(rt, MaxRefreshLeadingZeros + 1, rng()).isNone()
+
+  test "randomKeyInBucket respects a narrow bucket split":
+    # Service-discovery tables split the id space into few buckets.
+    const MaxBuckets = 16
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new(maxBuckets = MaxBuckets))
+
+    for bucket in 0 .. MaxRefreshLeadingZeros:
+      let rid = randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
+      check rt.bucketIndex(rid) == bucket
+
+    # The last bucket needs 15 shared prefix bits — beyond the cap.
+    check randomKeyInBucket(rt, MaxBuckets - 1, rng()).isNone()
 
   test "randomKey returns none for empty bucket":
     var bucket: Bucket
@@ -204,7 +240,7 @@ suite "KadDHT Routing Table":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
-    let key = randomKeyInBucket(selfId, TargetBucket, rng())
+    let key = rt.keyInBucket(TargetBucket)
     discard rt.insert(key)
 
     let picked = randomKey(rt.buckets[TargetBucket], rng())
@@ -218,7 +254,7 @@ suite "KadDHT Routing Table":
     var rt = RoutingTable.new(selfId, config)
     var keys: seq[Key]
     for _ in 0 ..< config.replication:
-      let k = randomKeyInBucket(selfId, TargetBucket, rng())
+      let k = rt.keyInBucket(TargetBucket)
       keys.add(k)
       discard rt.insert(k)
 
