@@ -102,58 +102,40 @@ proc connectBootstrap(
   kad.updatePeers(@[(bootstrapPeerId, @[bootstrapMA])])
   info "Connected to bootstrap", peerId = bootstrapPeerId
 
-proc runBootstrap(config: KadConfig, switch: Switch, redisClient: Redis) {.async.} =
-  let kad = newKad(switch)
-  switch.mount(kad)
-  await switch.start()
-  defer:
-    await switch.stop()
-
+proc runBootstrap(switch: Switch, redisClient: Redis, testKey: string) {.async.} =
   let myAddr = switch.peerInfo.fullAddrs.tryGet()[0]
-  redisClient.publishValue(config.testKey, BootstrapAddrSuffix, $myAddr)
+  redisClient.publishValue(testKey, BootstrapAddrSuffix, $myAddr)
   info "Bootstrap published multiaddr", address = $myAddr
 
-  await sleepAsync(1.hours) # harness aborts the stack once the querier exits
+proc runProvider(
+    switch: Switch, kad: KadDHT, redisClient: Redis, testKey: string
+) {.async.} =
+  await connectBootstrap(switch, kad, redisClient, testKey)
 
-proc runProvider(config: KadConfig, switch: Switch, redisClient: Redis) {.async.} =
-  let kad = newKad(switch)
-  switch.mount(kad)
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  await connectBootstrap(switch, kad, redisClient, config.testKey)
-
-  await kad.addProvider(provideKey(config.testKey))
+  await kad.addProvider(provideKey(testKey))
   info "Provider announced key"
 
-  let putRes = await kad.putValue(valueKey(config.testKey), ProviderValue.toBytes())
+  let putRes = await kad.putValue(valueKey(testKey), ProviderValue.toBytes())
   if putRes.isErr:
-    raise newException(CatchableError, "putValue failed: " & putRes.error)
+    raise newException(ValueError, "putValue failed: " & putRes.error)
   info "Provider stored value"
 
-  redisClient.publishValue(config.testKey, ProviderDoneSuffix, "done")
-  await sleepAsync(1.hours)
+  redisClient.publishValue(testKey, ProviderDoneSuffix, "done")
 
 proc fail(msg: string) =
   echo "error: " & msg
   echo "status: fail"
   quit(QuitFailure)
 
-proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.} =
-  let kad = newKad(switch)
-  switch.mount(kad)
-  await switch.start()
-  defer:
-    await switch.stop()
-
+proc runQuerier(
+    switch: Switch, kad: KadDHT, redisClient: Redis, testKey: string
+) {.async.} =
   # Wait until the provider is done before connecting.
-  discard
-    await redisClient.fetchValue(config.testKey, ProviderDoneSuffix, RedisWaitTimeout)
-  await connectBootstrap(switch, kad, redisClient, config.testKey)
+  discard await redisClient.fetchValue(testKey, ProviderDoneSuffix, RedisWaitTimeout)
+  await connectBootstrap(switch, kad, redisClient, testKey)
 
-  # Test 2: find the provider record.
-  let pkey = provideKey(config.testKey)
+  # Find the provider record.
+  let pkey = provideKey(testKey)
   var providerCount = 0
   for attempt in 0 ..< LookupAttempts:
     try:
@@ -167,8 +149,8 @@ proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.}
     fail("no providers found for key after " & $LookupAttempts & " attempts")
   info "Querier found providers", count = providerCount
 
-  # Test 4: read the stored value.
-  let vkey = valueKey(config.testKey)
+  # Read the stored value.
+  let vkey = valueKey(testKey)
   var value = ""
   for attempt in 0 ..< LookupAttempts:
     let getRes = await kad.getValue(vkey)
@@ -187,15 +169,25 @@ proc runQuerier(config: KadConfig, switch: Switch, redisClient: Redis) {.async.}
 proc main() {.async.} =
   let config = readKadConfig()
   info "Kad-dht interop peer", role = config.role, testKey = config.testKey
+
   let switch = buildSwitch(config)
+  let kad = newKad(switch)
+  switch.mount(kad)
+  await switch.start()
+  defer:
+    await switch.stop()
+
   let redisClient = setupRedis(config.redisAddr)
+
   case config.role
   of Role.bootstrap:
-    await runBootstrap(config, switch, redisClient)
+    await runBootstrap(switch, redisClient, config.testKey)
+    await sleepAsync(1.hours) # harness aborts the stack once the querier exits
   of Role.provider:
-    await runProvider(config, switch, redisClient)
+    await runProvider(switch, kad, redisClient, config.testKey)
+    await sleepAsync(1.hours)
   of Role.querier:
-    await runQuerier(config, switch, redisClient)
+    await runQuerier(switch, kad, redisClient, config.testKey)
 
 let testTimeout = parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout)
 runMain(main, testTimeout)
