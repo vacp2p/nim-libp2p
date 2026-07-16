@@ -308,3 +308,27 @@ suite "KadDHT Find":
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
+
+  asyncTest "closerPeers does not advertise an observed inbound address":
+    let kads = setupKadSwitches(3)
+    let (a, b, c) = (kads[0], kads[1], kads[2])
+    startAndDeferStop(kads)
+
+    let
+      bId = b.switch.peerInfo.peerId
+      bKey = bId.toKey()
+      bListenAddrs = b.switch.peerInfo.addrs
+
+    # B's inbound connection to A uses an ephemeral source port.
+    await b.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    discard (await b.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).expect(
+      "FIND_NODE reply"
+    )
+
+    check a.switch.peerStore[AddressBook][bId].allIt(it in bListenAddrs)
+
+    await c.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    let reply = (await c.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).value()
+    let bCloser =
+      reply.closerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    check bCloser.mapIt(it.addrs).concat().allIt(it in bListenAddrs)
