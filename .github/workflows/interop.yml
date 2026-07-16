@@ -128,24 +128,3 @@ jobs:
           nim c ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go
           ./go-peer/peer & ./nim-peer/src/peer
-
-  build-unified-testing-interop-images:
-    name: Build unified-testing interop image (${{ matrix.name }})
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: hole-punching-v2
-            dockerfile: interop/hole-punching-v2/Dockerfile
-          - name: kad-dht-v2
-            dockerfile: interop/kad-dht-v2/Dockerfile
-          - name: transport-v2
-            dockerfile: interop/transport-v2/Dockerfile
-          - name: perf
-            dockerfile: interop/perf/Dockerfile
-    steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
-      - name: Build image
-        run: docker build -f ${{ matrix.dockerfile }} .
