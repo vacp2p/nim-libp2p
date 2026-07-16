@@ -486,7 +486,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  tWait = min(max(disco.discoConfig.advertExpiry, ZeroDuration), tWait)
+  tWait = min(disco.discoConfig.advertExpiry, tWait)
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
