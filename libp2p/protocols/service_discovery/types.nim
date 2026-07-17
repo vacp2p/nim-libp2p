@@ -50,10 +50,24 @@ type
 
   Advertisement* = SignedExtendedPeerRecord
 
-  Registrar* = ref object
-    cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, Moment]
+  AdPutResult* = enum
+    AdIgnored
+    AdRefreshed
+    AdInserted
+    AdReplaced
+
+  CachedAd* = ref object
+    ad*: Advertisement
+    timestamp*: Moment
+    services*: HashSet[ServiceId]
+
+  AdvertisementCache* = ref object
+    entries*: Table[AdvertisementKey, CachedAd]
+    byService*: Table[ServiceId, Table[PeerId, AdvertisementKey]]
     ipTree*: IpTree
+
+  Registrar* = ref object
+    ads*: AdvertisementCache
     boundService*: Table[ServiceId, Moment]
     timestampService*: Table[ServiceId, Moment]
     boundIp*: Table[string, Moment]
@@ -138,6 +152,13 @@ proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
 proc hash*(ad: Advertisement): Hash {.raises: [].} =
   hash(ad.envelope.signature.data)
 
+proc new*(T: typedesc[AdvertisementCache]): T {.raises: [].} =
+  T(
+    entries: initTable[AdvertisementKey, CachedAd](),
+    byService: initTable[ServiceId, Table[PeerId, AdvertisementKey]](),
+    ipTree: IpTree.new(),
+  )
+
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
   var adBytes: seq[seq[byte]]
   for ad in ads:
@@ -155,9 +176,7 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
 
 proc new*(T: typedesc[Registrar]): T =
   T(
-    cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, Moment](),
-    ipTree: IpTree.new(),
+    ads: AdvertisementCache.new(),
     boundService: initTable[ServiceId, Moment](),
     timestampService: initTable[ServiceId, Moment](),
     boundIp: initTable[string, Moment](),
