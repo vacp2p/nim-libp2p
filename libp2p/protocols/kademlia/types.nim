@@ -19,6 +19,10 @@ const
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes
     # peer not seen for this duration marks bucket stale
+  DefaultUsefulnessGracePeriod* = 1.hours
+    ## A newly inserted peer is protected from eviction until it has been in the
+    ## table this long without proving useful (answering a query), mirroring the
+    ## usefulness-grace concept from go-libp2p's k-bucket.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -195,6 +199,11 @@ type
   NodeEntry* = object
     nodeId*: Key
     lastSeen*: Moment
+    addedAt*: Moment
+    lastUsefulAt*: Opt[Moment]
+      ## Set when the peer answers a query. `Opt.none` means it has not yet
+      ## proven useful; such a peer becomes replaceable once past the grace
+      ## period since it was added.
 
   Bucket* = object
     peers*: seq[NodeEntry]
@@ -204,6 +213,7 @@ type
     hasher*: Opt[XorDHasher]
     maxBuckets*: int
     selfIdPreHashed*: bool
+    usefulnessGracePeriod*: Duration
 
   RoutingTable* = ref object
     selfId*: Key

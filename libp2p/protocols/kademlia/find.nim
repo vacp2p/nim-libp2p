@@ -415,6 +415,8 @@ proc lookOnce*(
   for (peerId, res) in completedRPCBatch:
     let reply = res.valueOr:
       continue
+    # A successful reply proves the peer useful; retain it through eviction.
+    rtable.markUseful(peerId)
     let newPeerInfos = state.updateShortlist(reply)
     kad.switch.updatePeers(
       kad.config.addressPolicy, rtable, newPeerInfos, kad.config.limits.maxPeersPerIp,

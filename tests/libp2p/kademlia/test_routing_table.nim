@@ -61,7 +61,14 @@ suite "KadDHT Routing Table":
     let bucket = rt.buckets[TargetBucket]
     check bucket.peers.len <= config.replication
 
-  test "evicts oldest key at max capacity":
+  proc agePastGrace(rt: RoutingTable, bucketIdx: int) =
+    ## Push every peer past the usefulness grace period so eviction can act.
+    var bucket = rt.buckets[bucketIdx]
+    for i in 0 ..< bucket.peers.len:
+      bucket.peers[i].addedAt = Moment.now() - 2.hours
+    rt.buckets[bucketIdx] = bucket
+
+  test "evicts oldest replaceable key at max capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
@@ -71,15 +78,52 @@ suite "KadDHT Routing Table":
 
     check rt.buckets[TargetBucket].peers.len == config.replication
 
+    # Fresh peers are protected by the grace period; age them so they are
+    # eligible for eviction.
+    rt.agePastGrace(TargetBucket)
+
     # new entry should evict oldest entry
     let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
 
     check rt.insert(rt.keyInBucket(TargetBucket))
 
-    let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
+    check:
+      rt.buckets[TargetBucket].peers.len == config.replication
+      not rt.buckets[TargetBucket].allKeys().contains(oldest.nodeId)
 
-    # oldest was evicted
-    check oldest.nodeId != oldestAfterInsert.nodeId
+  test "retains peers still within the usefulness grace period":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+
+    let before = rt.buckets[TargetBucket].allKeys()
+    let newcomer = randomKeyInBucket(selfId, TargetBucket, rng())
+
+    # Bucket is full of fresh, unproven peers: the newcomer is rejected rather
+    # than blindly evicting one of them.
+    check:
+      not rt.insert(newcomer)
+      rt.buckets[TargetBucket].allKeys() == before
+      not rt.buckets[TargetBucket].allKeys().contains(newcomer)
+
+  test "markUseful protects a peer from eviction":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+
+    rt.agePastGrace(TargetBucket)
+
+    # The oldest-seen peer would be evicted first, but marking it useful keeps
+    # it and forces a different peer out.
+    let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
+    rt.markUseful(oldest.nodeId)
+
+    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+    check rt.buckets[TargetBucket].allKeys().contains(oldest.nodeId)
 
   test "re-insert existing key updates lastSeen":
     let selfId = testKey(0)

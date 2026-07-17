@@ -19,6 +19,7 @@ proc new*(
     hasher: Opt[XorDHasher] = NoneHasher,
     maxBuckets: int = DefaultMaxBuckets,
     selfIdPreHashed = false,
+    usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod,
 ): T =
   doAssert maxBuckets > 0 and maxBuckets <= MaxBucketsLimit,
     "maxBuckets must be in 1 .. " & $MaxBucketsLimit
@@ -27,6 +28,7 @@ proc new*(
     hasher: hasher,
     maxBuckets: maxBuckets,
     selfIdPreHashed: selfIdPreHashed,
+    usefulnessGracePeriod: usefulnessGracePeriod,
   )
 
 proc `$`*(rt: RoutingTable): string =
@@ -74,18 +76,42 @@ proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
       oldestIdx = i
   (oldest, oldestIdx)
 
-proc replaceOldest(bucket: var Bucket, newNodeId: Key, replication: int): bool =
-  if bucket.peers.len < replication:
+func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
+  ## A peer is replaceable once it has spent longer than `gracePeriod` in the
+  ## table without proving useful. A peer that answered a query within the grace
+  ## period — or that was only just added — is retained.
+  now - entry.lastUsefulAt.get(entry.addedAt) > gracePeriod
+
+proc replaceableCandidate(bucket: Bucket, gracePeriod: Duration): Opt[int] =
+  ## Least-recently-seen peer that is past the usefulness grace period, i.e. the
+  ## best candidate to evict. `Opt.none` when every peer is still useful/fresh.
+  let now = Moment.now()
+  var candidateIdx = -1
+  var oldestSeen: Moment
+  for i, p in bucket.peers:
+    if not p.isReplaceable(gracePeriod, now):
+      continue
+    if candidateIdx == -1 or p.lastSeen < oldestSeen:
+      candidateIdx = i
+      oldestSeen = p.lastSeen
+  if candidateIdx == -1:
+    return Opt.none(int)
+  Opt.some(candidateIdx)
+
+proc tryReplaceStalePeer(
+    bucket: var Bucket, newNodeId: Key, config: RoutingTableConfig
+): bool =
+  if bucket.peers.len < config.replication:
     trace "Skipping replace: bucket is not full", newNodeId = newNodeId
     return false
 
-  let (oldest, oldestIdx) = bucket.oldestPeer()
-
-  if oldest.nodeId == newNodeId:
-    trace "Failed to replace: same nodeId", newNodeId = newNodeId
+  let idx = bucket.replaceableCandidate(config.usefulnessGracePeriod).valueOr:
+    trace "Skipping replace: no peer past usefulness grace period",
+      newNodeId = newNodeId
     return false
 
-  bucket.peers[oldestIdx] = NodeEntry(nodeId: newNodeId, lastSeen: Moment.now())
+  let now = Moment.now()
+  bucket.peers[idx] = NodeEntry(nodeId: newNodeId, lastSeen: now, addedAt: now)
   true
 
 proc updateRoutingTableMetrics*(rtable: RoutingTable) =
@@ -115,12 +141,14 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   if keyx.isSome:
     bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
   elif bucket.peers.len < rtable.config.replication:
-    bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
+    let now = Moment.now()
+    bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: now, addedAt: now))
     kad_routing_table_insertions.inc()
   else:
-    # eviction policy: replace oldest key
-    if not bucket.replaceOldest(nodeId, rtable.config.replication):
-      debug "Cannot insert, failed to replace oldest key in bucket",
+    # A full bucket with no replaceable peer rejects the newcomer rather than
+    # evicting a still-useful one.
+    if not bucket.tryReplaceStalePeer(nodeId, rtable.config):
+      debug "Cannot insert, no replaceable peer in bucket",
         bucket = idx, nodeId = nodeId
       return false
     kad_routing_table_replacements.inc()
@@ -131,6 +159,22 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
 
 proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
+
+proc markUseful*(rtable: RoutingTable, nodeId: Key) =
+  ## Records that `nodeId` answered a query: refreshes its usefulness and
+  ## last-seen timestamps so it is retained through bucket eviction. No-op when
+  ## the peer is not in the table.
+  let idx = rtable.bucketIndex(nodeId)
+  if idx >= rtable.buckets.len:
+    return
+  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
+    return
+  let now = Moment.now()
+  rtable.buckets[idx].peers[pos].lastUsefulAt = Opt.some(now)
+  rtable.buckets[idx].peers[pos].lastSeen = now
+
+proc markUseful*(rtable: RoutingTable, peerId: PeerId) =
+  rtable.markUseful(peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   ## Returns up to `count` nodes in the table with the smallest XOR distance to `targetId`.
