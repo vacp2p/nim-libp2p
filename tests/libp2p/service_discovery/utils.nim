@@ -170,10 +170,7 @@ proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
 
 proc seedAd*(
-    reg: Registrar,
-    serviceId: ServiceId,
-    ad: Advertisement,
-    now: Moment = Moment.now(),
+    reg: Registrar, serviceId: ServiceId, ad: Advertisement, now: Moment = Moment.now()
 ) =
   ## Test helper: admit `ad` into the registrar cache via the public API.
   reg.ads.put(serviceId, ad, now)
