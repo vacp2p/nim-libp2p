@@ -118,8 +118,6 @@ proc evictOldest(c: AdvertisementCache) =
 proc replaceEverywhere(
     c: AdvertisementCache, oldKey: AdvertisementKey, ad: Advertisement, now: Moment
 ) =
-  ## Replace `oldKey` with `ad` in every service that admitted the old key.
-  ## IP tree is adjusted once per membership.
   var oldEntry: CachedAd
   c.entries.withValue(oldKey, e):
     oldEntry = e[]
@@ -130,25 +128,31 @@ proc replaceEverywhere(
   let newKey = ad.toAdvertisementKey()
   let oldServices = oldEntry.services
 
+  var keptServices = initHashSet[ServiceId]()
   for serviceId in oldServices:
+    # Free the old admission's IP contribution for every prior membership.
     c.ipTree.removeAd(oldEntry.ad)
+    if ad.advertisesService(serviceId):
+      keptServices.incl(serviceId)
+    else:
+      c.dropServicePeer(serviceId, peerId)
 
   c.entries.del(oldKey)
+
+  if keptServices.len == 0:
+    return
 
   if newKey in c.entries:
     c.entries.withValue(newKey, newEntry):
       newEntry[].ad = ad
       newEntry[].timestamp = now
-      for serviceId in oldServices:
+      for serviceId in keptServices:
         newEntry[].services.incl(serviceId)
         c.setServicePeer(serviceId, peerId, newKey)
         c.ipTree.insertAd(ad)
   else:
-    var services = initHashSet[ServiceId]()
-    for serviceId in oldServices:
-      services.incl(serviceId)
-    c.entries[newKey] = CachedAd(ad: ad, timestamp: now, services: services)
-    for serviceId in oldServices:
+    c.entries[newKey] = CachedAd(ad: ad, timestamp: now, services: keptServices)
+    for serviceId in keptServices:
       c.setServicePeer(serviceId, peerId, newKey)
       c.ipTree.insertAd(ad)
 

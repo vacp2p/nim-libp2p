@@ -1045,24 +1045,13 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "same peer higher seqNo replaces existing ad":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
-    let oldAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 1, addresses: @[], services: @[]),
-      )
-      .get()
-
-    let newAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 2, addresses: @[], services: @[]),
-      )
-      .get()
+    let oldAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 1)
+    let newAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 2)
 
     disco.acceptAdvertisement(now, serviceId, oldAd)
     check disco.registrar.ads.adsForService(serviceId)[0].data.seqNo == 1
@@ -1075,24 +1064,13 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "same peer lower seqNo is silently dropped":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
-    let newerAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 10, addresses: @[], services: @[]),
-      )
-      .get()
-
-    let olderAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 5, addresses: @[], services: @[]),
-      )
-      .get()
+    let newerAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+    let olderAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
 
     disco.acceptAdvertisement(now, serviceId, newerAd)
     disco.acceptAdvertisement(now, serviceId, olderAd)
@@ -1103,9 +1081,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "different peers each store their own ad":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement($serviceId)
-    let ad2 = makeAdvertisement($serviceId)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad1 = makeAdvertisement(serviceName)
+    let ad2 = makeAdvertisement(serviceName)
     let now = Moment.now()
 
     disco.acceptAdvertisement(now, serviceId, ad1)
@@ -1116,34 +1095,23 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "seqNo replacement updates IP tree correctly":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
-    let oldAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(
-          peerId: peerId,
-          seqNo: 1,
-          addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.1"))],
-          services: @[],
-        ),
-      )
-      .get()
-
-    let newAd = SignedExtendedPeerRecord
-      .init(
-        privateKey,
-        ExtendedPeerRecord(
-          peerId: peerId,
-          seqNo: 2,
-          addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.2"))],
-          services: @[],
-        ),
-      )
-      .get()
+    let oldAd = makeAdvertisement(
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
+    )
+    let newAd = makeAdvertisement(
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 2,
+      addrs = @[makeMultiAddress("10.0.0.2")],
+    )
 
     disco.acceptAdvertisement(now, serviceId, oldAd)
     let counterAfterFirst = disco.registrar.ads.ipTotal
@@ -1218,10 +1186,11 @@ suite "Service Discovery Registrar - AdvertisementCache put":
 
   test "higher seqNo replaces ad, updates timestamps and IP tree, returns AdReplaced":
     let ads = AdvertisementCache.new()
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let oldAd = makeAdvertisement(privateKey = privateKey, seqNo = 1)
-    let newAd = makeAdvertisement(privateKey = privateKey, seqNo = 2)
+    let oldAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 1)
+    let newAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 2)
 
     check ads.put(serviceId, oldAd, initMoment(1000), HighCap) == AdInserted
     check ads.put(serviceId, newAd, initMoment(2000), HighCap) == AdReplaced
@@ -1234,13 +1203,20 @@ suite "Service Discovery Registrar - AdvertisementCache put":
 
   test "higher seqNo with address swap keeps IP multi-set size stable":
     let ads = AdvertisementCache.new()
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
     let oldAd = makeAdvertisement(
-      privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
     )
     let newAd = makeAdvertisement(
-      privateKey = privateKey, seqNo = 2, addrs = @[makeMultiAddress("192.168.1.1")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 2,
+      addrs = @[makeMultiAddress("192.168.1.1")],
     )
 
     discard ads.put(serviceId, oldAd, initMoment(1000), HighCap)
@@ -1252,10 +1228,11 @@ suite "Service Discovery Registrar - AdvertisementCache put":
 
   test "lower seqNo leaves cache unchanged, returns AdIgnored":
     let ads = AdvertisementCache.new()
-    let serviceId = makeServiceId()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let currentAd = makeAdvertisement(privateKey = privateKey, seqNo = 10)
-    let staleAd = makeAdvertisement(privateKey = privateKey, seqNo = 5)
+    let currentAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+    let staleAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
 
     discard ads.put(serviceId, currentAd, initMoment(1000), HighCap)
     check ads.put(serviceId, staleAd, initMoment(2000), HighCap) == AdIgnored
@@ -1266,14 +1243,23 @@ suite "Service Discovery Registrar - AdvertisementCache put":
 
   test "higher seqNo replaces stale copies in every other service that cached it":
     let ads = AdvertisementCache.new()
-    let serviceId1 = makeServiceId(1)
-    let serviceId2 = makeServiceId(2)
+    let serviceName1 = "service-a"
+    let serviceName2 = "service-b"
+    let serviceId1 = serviceName1.hashServiceId()
+    let serviceId2 = serviceName2.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
-    let oldAd = makeAdvertisement(
-      privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+    let services = @[makeServiceInfo(serviceName1), makeServiceInfo(serviceName2)]
+    let oldAd = makeAdvertisementWithServices(
+      services,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
     )
-    let newAd = makeAdvertisement(
-      privateKey = privateKey, seqNo = 2, addrs = @[makeMultiAddress("192.168.1.1")]
+    let newAd = makeAdvertisementWithServices(
+      services,
+      privateKey = privateKey,
+      seqNo = 2,
+      addrs = @[makeMultiAddress("192.168.1.1")],
     )
 
     discard ads.put(serviceId1, oldAd, initMoment(1000), HighCap)
@@ -1287,6 +1273,43 @@ suite "Service Discovery Registrar - AdvertisementCache put":
     check oldAd.toAdvertisementKey() notin ads
     check newAd.toAdvertisementKey() in ads
     check ads.ipTotal == 2
+
+  test "higher seqNo drops services the new ad no longer advertises":
+    let ads = AdvertisementCache.new()
+    let serviceName1 = "service-a"
+    let serviceName2 = "service-b"
+    let serviceId1 = serviceName1.hashServiceId()
+    let serviceId2 = serviceName2.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let oldAd = makeAdvertisementWithServices(
+      @[makeServiceInfo(serviceName1), makeServiceInfo(serviceName2)],
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
+    )
+    # Newer ad only claims service-a.
+    let newAd = makeAdvertisementWithServices(
+      @[makeServiceInfo(serviceName1)],
+      privateKey = privateKey,
+      seqNo = 2,
+      addrs = @[makeMultiAddress("10.0.0.1")],
+    )
+
+    discard ads.put(serviceId1, oldAd, initMoment(1000), HighCap)
+    discard ads.put(serviceId2, oldAd, initMoment(1000), HighCap)
+    check ads.ipTotal == 2
+    check ads.serviceAdCount(serviceId2) == 1
+
+    check ads.put(serviceId1, newAd, initMoment(2000), HighCap) == AdReplaced
+
+    check:
+      ads.serviceAdCount(serviceId1) == 1
+      ads.adsForService(serviceId1)[0].data.seqNo == 2
+      ads.serviceAdCount(serviceId2) == 0
+      not ads.containsService(serviceId2)
+      oldAd.toAdvertisementKey() notin ads
+      newAd.toAdvertisementKey() in ads
+      ads.ipTotal == 1
 
   test "inserts ad into cache, IP tree, and timestamps":
     let ads = AdvertisementCache.new()
