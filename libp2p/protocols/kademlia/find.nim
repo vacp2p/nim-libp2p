@@ -504,12 +504,30 @@ proc findPeer*(
 
   return ok(PeerInfo(peerId: target, addrs: kad.switch.peerStore[AddressBook][target]))
 
-proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
-  let closestPeerKeys = kad.rtable.findClosest(target, kad.config.replication).filterIt(
-      it != kad.switch.peerInfo.peerId.toKey()
-    )
+proc findClosestPeers*(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
+  ## Over-fetches by `excluded.len` so dropping self and `requester` still fills the reply.
+  let excluded = [kad.switch.peerInfo.peerId.toKey(), requester.toKey()]
+  let closestPeerKeys = kad.rtable
+    .findClosest(target, kad.config.replication + excluded.len)
+    .filterIt(it notin excluded)
 
-  return kad.switch.toPeers(closestPeerKeys)
+  return kad.switch.toPeers(
+    closestPeerKeys[0 ..< min(kad.config.replication, closestPeerKeys.len)]
+  )
+
+proc findNodeCloserPeers(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
+  ## Also returns the target itself, which keeps client-mode peers resolvable.
+  let closest = kad.findClosestPeers(target, requester)
+  if target == requester.toKey():
+    return closest
+
+  let targetPeer = target.toPeer(kad.switch).valueOr:
+    return closest
+
+  if closest.len > 0 and closest[0].id == targetPeer.id:
+    return closest
+
+  return @[targetPeer] & closest
 
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
@@ -519,7 +537,8 @@ method handleFindNode*(
     return
 
   let response = Message(
-    msgType: Opt.some(MessageType.findNode), closerPeers: kad.findClosestPeers(msgKey)
+    msgType: Opt.some(MessageType.findNode),
+    closerPeers: kad.findNodeCloserPeers(msgKey, stream.peerId),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
