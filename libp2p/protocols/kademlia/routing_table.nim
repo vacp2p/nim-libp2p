@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import algorithm, sequtils, math, bitops
+import algorithm, sequtils
 import chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
@@ -45,17 +45,19 @@ proc new*(
 func bucketCount(maxBuckets: int): int =
   clamp(maxBuckets, 1, MaxBucketsLimit)
 
-proc bucketIndex*(rtable: RoutingTable, key: Key): int =
-  let
-    selfHash =
-      if rtable.config.selfIdPreHashed:
-        rtable.selfId
-      else:
-        rtable.selfId.hashFor(rtable.config.hasher)
-    keyHash = key.hashFor(rtable.config.hasher)
-    lz = xorDistance(selfHash, keyHash).leadingZeros
+func selfHash(rtable: RoutingTable): Key =
+  if rtable.config.selfIdPreHashed:
+    rtable.selfId
+  else:
+    rtable.selfId.hashFor(rtable.config.hasher)
+
+func bucketIndexFor(rtable: RoutingTable, selfHash: Key, key: Key): int =
+  let lz = xorDistance(selfHash, key.hashFor(rtable.config.hasher)).leadingZeros()
 
   min(lz, bucketCount(rtable.config.maxBuckets) - 1)
+
+func bucketIndex*(rtable: RoutingTable, key: Key): int =
+  rtable.bucketIndexFor(rtable.selfHash(), key)
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -207,32 +209,22 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(
-    selfId: Key, bucketIndex: int, rng: Rng, maxBuckets: int = DefaultMaxBuckets
-): Key =
-  let
-    leadingZeros = clamp(bucketIndex, 0, bucketCount(maxBuckets) - 1)
-    (byteIdx, rem) = divmod(leadingZeros, 8)
-    boundBitIdx = 7 - rem
+proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
+  let lz = clamp(bucketIndex, 0, bucketCount(rtable.config.maxBuckets) - 1)
+  if lz > MaxRefreshLeadingZeros:
+    return Opt.none(Key)
 
-  var key = selfId
+  # A draw hits the bucket with probability ~2^-(lz+1); overshooting is free.
+  let maxAttempts = 32 shl lz
+  let selfHash = rtable.selfHash()
+  var key = newSeqUninit[byte](IdLength)
 
-  # For the boundary byte, from 0 to boundBitIdx the bits should be random.
-  for i in byteIdx ..< IdLength:
-    rng.generate(key[i])
+  for _ in 0 ..< maxAttempts:
+    rng.generate(key)
+    if rtable.bucketIndexFor(selfHash, key) == lz:
+      return Opt.some(key)
 
-  # For the boundary byte, from boundBitIdx to 7 the bits should be the same as seflId.
-  for i in boundBitIdx .. 7:
-    if selfId[byteIdx].testBit(i):
-      key[byteIdx].setBit(i)
-    else:
-      key[byteIdx].clearBit(i)
-
-  # The bit at the boundary should be the opposite of selfId. So that the XOR is not 0.
-  if selfId[byteIdx].testBit(boundBitIdx) == key[byteIdx].testBit(boundBitIdx):
-    key[byteIdx].flipBit(boundBitIdx)
-
-  key
+  Opt.none(Key)
 
 proc allKeys*(bucket: Bucket): seq[Key] =
   return bucket.peers.mapIt(it.nodeId)
@@ -245,3 +237,15 @@ proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
     proc(e: NodeEntry): Key =
       e.nodeId
   )
+
+proc refreshTarget*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
+  ## Key to run a findNode against in order to refresh `bucketIndex`.
+  let random = randomKeyInBucket(rtable, bucketIndex, rng)
+  if random.isSome():
+    return random
+
+  # Buckets near self need a shared prefix too long to draw at random. A peer
+  # the bucket already holds has that prefix by construction.
+  if bucketIndex notin 0 ..< rtable.buckets.len:
+    return Opt.none(Key)
+  rtable.buckets[bucketIndex].randomKey(rng)
