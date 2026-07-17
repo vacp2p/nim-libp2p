@@ -583,6 +583,8 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cache[serviceId1] = @[ad]
     registrar.cache[serviceId2] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
+    # Each service's copy is a separate ad_cache admission
+    registrar.ipTree.insertAd(ad)
     registrar.ipTree.insertAd(ad)
 
     pruneExpiredAds(registrar, 900.secs)
@@ -633,7 +635,7 @@ suite "Service Discovery Registrar - Cache Pruning":
       fresh.toAdvertisementKey() in registrar.cacheTimestamps
       expired.toAdvertisementKey() notin registrar.cacheTimestamps
 
-  test "pruneExpiredAds removes multi-service ad from IP tree only once":
+  test "pruneExpiredAds removes multi-service ad from IP tree once per service":
     let registrar = Registrar.new()
     let serviceId1 = makeServiceId(1)
     let serviceId2 = makeServiceId(2)
@@ -643,8 +645,10 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cache[serviceId1] = @[ad]
     registrar.cache[serviceId2] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
+    # Each service's copy is a separate ad_cache admission
     registrar.ipTree.insertAd(ad)
-    check registrar.ipTree.root.counter == 1
+    registrar.ipTree.insertAd(ad)
+    check registrar.ipTree.root.counter == 2
 
     pruneExpiredAds(registrar, 900.secs)
 
@@ -1336,6 +1340,40 @@ suite "Service Discovery Registrar - updateExistingAd":
     check currentAd.toAdvertisementKey() in registrar.cacheTimestamps
     check staleAd.toAdvertisementKey() notin registrar.cacheTimestamps
 
+  test "higher seqNo replaces stale copies in every other service that cached it":
+    let registrar = Registrar.new()
+    let serviceId1 = makeServiceId(1)
+    let serviceId2 = makeServiceId(2)
+    let privateKey = PrivateKey.random(rng()).get()
+    let oldAd = makeAdvertisement(
+      privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+    )
+    let newAd = makeAdvertisement(
+      privateKey = privateKey, seqNo = 2, addrs = @[makeMultiAddress("192.168.1.1")]
+    )
+
+    registrar.cache[serviceId1] = @[oldAd]
+    registrar.cache[serviceId2] = @[oldAd]
+    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = initMoment(1000)
+    # Each service's copy is a separate ad_cache admission
+    registrar.ipTree.insertAd(oldAd)
+    registrar.ipTree.insertAd(oldAd)
+    check registrar.ipTree.root.counter == 2
+
+    var ads1 = registrar.cache[serviceId1]
+    let changed = registrar.updateExistingAd(ads1, 0, newAd, initMoment(2000))
+    registrar.cache[serviceId1] = ads1
+
+    check changed
+    check registrar.cache[serviceId1].len == 1
+    check registrar.cache[serviceId1][0].data.seqNo == 2
+    # serviceId2 was never passed into updateExistingAd directly.
+    check registrar.cache[serviceId2].len == 1
+    check registrar.cache[serviceId2][0].data.seqNo == 2
+    check oldAd.toAdvertisementKey() notin registrar.cacheTimestamps
+    check newAd.toAdvertisementKey() in registrar.cacheTimestamps
+    check registrar.ipTree.root.counter == 2
+
 suite "Service Discovery Registrar - insertNewAd":
   test "inserts ad into cache, IP tree, and timestamps, returns true":
     let disco =
@@ -1353,6 +1391,30 @@ suite "Service Discovery Registrar - insertNewAd":
     check ad.toAdvertisementKey() in disco.registrar.cacheTimestamps
     check disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] == now
     check disco.registrar.ipTree.root.counter > 0
+
+  test "same ad accepted for three services counts the IP tree once per service":
+    # ad_cache associates each advertisement to its service_id : the
+    # same physical ad admitted for 3 services is 3 separate admissions,
+    # each of which adds the IP once - not one shared contribution.
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
+    let serviceId1 = makeServiceId(1)
+    let serviceId2 = makeServiceId(2)
+    let serviceId3 = makeServiceId(3)
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let now = initMoment(1000)
+
+    var ads1: seq[Advertisement] = @[]
+    var ads2: seq[Advertisement] = @[]
+    var ads3: seq[Advertisement] = @[]
+    discard disco.insertNewAd(serviceId1, ads1, ad, now)
+    discard disco.insertNewAd(serviceId2, ads2, ad, now)
+    discard disco.insertNewAd(serviceId3, ads3, ad, now)
+    disco.registrar.cache[serviceId1] = ads1
+    disco.registrar.cache[serviceId2] = ads2
+    disco.registrar.cache[serviceId3] = ads3
+
+    check disco.registrar.ipTree.root.counter == 3
 
   test "inserts ad without eviction when cache is under capacity":
     let disco = setupServiceDiscoveryNode(
