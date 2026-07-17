@@ -391,7 +391,7 @@ proc handleGetProviders*(
   let response = Message(
     msgType: Opt.some(MessageType.getProviders),
     key: msg.key,
-    closerPeers: kad.findClosestPeers(msgKey),
+    closerPeers: kad.findClosestPeers(msgKey, stream.peerId),
     providerPeers: providers.toSeq(),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)

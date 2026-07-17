@@ -217,10 +217,11 @@ suite "KadDHT Find":
     check kads[0].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
-    let kads = setupKadSwitches(2)
+    let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
-    await connect(kads[0], kads[1])
+    # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     # Send FIND_NODE with empty key directly
     let emptyKey: Key = @[]
@@ -231,9 +232,9 @@ suite "KadDHT Find":
     check:
       response.msgType == MessageType.findNode
       response.closerPeers.len == 1
-      response.closerPeers[0].id.get() == kads[1].rtable.selfId
+      response.closerPeers[0].id.get() == kads[2].rtable.selfId
 
-  asyncTest "Find node for own PeerID returns closest peers":
+  asyncTest "Find node for own PeerID excludes the requester":
     let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
@@ -248,9 +249,28 @@ suite "KadDHT Find":
     let closerPeersIds = response.closerPeers.mapIt(it.id.get())
     check:
       response.msgType == MessageType.findNode
-      # kads[0] knows kads[1] and kads[2], should return both as closest peers
-      response.closerPeers.len == 2
-      kads[1].rtable.selfId in closerPeersIds
+      # kads[0] knows kads[1] and kads[2], but must not hand kads[1] its own id back
+      response.closerPeers.len == 1
+      kads[1].rtable.selfId notin closerPeersIds
+      kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node excludes the requester for an unrelated target":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    # kads[0] knows kads[1] and kads[2], and both fit in a reply, so pre-filter
+    # kads[1] would get itself back even though the target is unrelated to it.
+    let response = (
+      await kads[1].dispatchFindNode(
+        kads[0].switch.peerInfo.peerId, randomPeerId().toKey()
+      )
+    ).value()
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id.get())
+    check:
+      kads[1].rtable.selfId notin closerPeersIds
       kads[2].rtable.selfId in closerPeersIds
 
   asyncTest "Find node with empty routing table returns empty result":
