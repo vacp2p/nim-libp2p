@@ -87,7 +87,7 @@ proc new*(
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),
-    registrar: Registrar.new(),
+    registrar: Registrar.new(discoConfig.advertCacheCap),
     services: toHashSet(services),
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,

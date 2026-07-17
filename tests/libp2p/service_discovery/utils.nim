@@ -174,20 +174,18 @@ proc seedAd*(
     serviceId: ServiceId,
     ad: Advertisement,
     now: Moment = Moment.now(),
-    capacity: uint64 = uint64.high,
 ) =
   ## Test helper: admit `ad` into the registrar cache via the public API.
-  discard reg.ads.put(serviceId, ad, now, capacity)
+  reg.ads.put(serviceId, ad, now)
 
 proc seedAds*(
     reg: Registrar,
     serviceId: ServiceId,
     ads: seq[Advertisement],
     now: Moment = Moment.now(),
-    capacity: uint64 = uint64.high,
 ) =
   for ad in ads:
-    reg.seedAd(serviceId, ad, now, capacity)
+    reg.seedAd(serviceId, ad, now)
 
 proc containsPeer*(
     response: Result[seq[Advertisement], string], node: ServiceDiscovery

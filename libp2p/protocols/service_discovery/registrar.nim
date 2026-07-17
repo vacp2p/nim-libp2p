@@ -65,11 +65,10 @@ proc waitingTime*(
     registrar: Registrar,
     discoConfig: ServiceDiscoveryConfig,
     ad: Advertisement,
-    advertCacheCap: uint64,
     serviceId: ServiceId,
     now: Moment,
 ): Duration =
-  doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
+  let advertCacheCap = registrar.ads.capacity
   let c = registrar.ads.len.uint64
   let c_s = registrar.ads.serviceAdCount(serviceId)
 
@@ -232,11 +231,8 @@ proc acceptAdvertisement*(
   )
   disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
 
-  let putResult =
-    disco.registrar.ads.put(serviceId, ad, now, disco.discoConfig.advertCacheCap)
-
-  if putResult in {AdInserted, AdReplaced}:
-    disco.registrar.updateRegistrarMetrics()
+  disco.registrar.ads.put(serviceId, ad, now)
+  disco.registrar.updateRegistrarMetrics()
 
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
@@ -302,9 +298,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  var tWait = disco.registrar.waitingTime(
-    disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
-  )
+  var tWait = disco.registrar.waitingTime(disco.discoConfig, ad, serviceId, now)
 
   disco.updateWaitAfterRetry(ticketOpt, now, tWait)
 

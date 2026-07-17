@@ -46,25 +46,16 @@ type
     serviceStatus*: Table[ServiceId, ServiceStatus]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
-  AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
-
   Advertisement* = SignedExtendedPeerRecord
 
-  AdPutResult* = enum
-    AdIgnored
-    AdRefreshed
-    AdInserted
-    AdReplaced
-
-  CachedAd* = ref object
+  CachedAd* = object
     ad*: Advertisement
     timestamp*: Moment
-    services*: HashSet[ServiceId]
 
   AdvertisementCache* = ref object
-    entries*: Table[AdvertisementKey, CachedAd]
-    byService*: Table[ServiceId, Table[PeerId, AdvertisementKey]]
+    byService*: Table[ServiceId, seq[CachedAd]]
     ipTree*: IpTree
+    capacity*: uint64
 
   Registrar* = ref object
     ads*: AdvertisementCache
@@ -146,17 +137,17 @@ proc new*(
 proc hash*(t: AdvertiseTask): Hash =
   hash(cast[pointer](t))
 
-proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
-  (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
-
 proc hash*(ad: Advertisement): Hash {.raises: [].} =
   hash(ad.envelope.signature.data)
 
-proc new*(T: typedesc[AdvertisementCache]): T {.raises: [].} =
+proc new*(
+    T: typedesc[AdvertisementCache], capacity: uint64 = Default_C
+): T {.raises: [].} =
+  doAssert capacity > 0, "capacity must be > 0"
   T(
-    entries: initTable[AdvertisementKey, CachedAd](),
-    byService: initTable[ServiceId, Table[PeerId, AdvertisementKey]](),
+    byService: initTable[ServiceId, seq[CachedAd]](),
     ipTree: IpTree.new(),
+    capacity: capacity,
   )
 
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
@@ -174,9 +165,9 @@ proc hashServiceId*(serviceStr: string): ServiceId =
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
 
-proc new*(T: typedesc[Registrar]): T =
+proc new*(T: typedesc[Registrar], advertCacheCap: uint64 = Default_C): T =
   T(
-    ads: AdvertisementCache.new(),
+    ads: AdvertisementCache.new(advertCacheCap),
     boundService: initTable[ServiceId, Moment](),
     timestampService: initTable[ServiceId, Moment](),
     boundIp: initTable[string, Moment](),
