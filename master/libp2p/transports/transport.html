@@ -214,11 +214,11 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">dial
-  <li><a class="reference" href="#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D" title="dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]">dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+  <li><a class="reference" href="#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection" title="dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]">dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">handles
@@ -364,8 +364,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L84" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L84" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L85" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L85" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -405,8 +405,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L123" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L123" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L124" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L124" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -435,17 +435,18 @@ accept incoming connections
 
 </div>
 <div id="dial-methods-all">
-  <div id="dial.e,Transport,string,MultiAddress,Opt[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D"><span class="Identifier">dial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="#Transport"><span class="Identifier">Transport</span></a><span class="Other">;</span> <span class="Identifier">hostname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
-            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <a href="../stream/connection.html#RawConn"><span class="Identifier">RawConn</span></a><span class="Other">,</span> <span class="Other">(</span><a href="#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <div id="dial.e,Transport,string,MultiAddress,Opt[PeerId],Direction" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection"><span class="Identifier">dial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="#Transport"><span class="Identifier">Transport</span></a><span class="Other">;</span> <span class="Identifier">hostname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">address</span><span class="Other">:</span> <a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
+            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">;</span>
+            <span class="Identifier">dir</span><span class="Other">:</span> <a href="../stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a> <span class="Other">=</span> <a href="../stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="../stream/connection.html#RawConn"><span class="Identifier">RawConn</span></a><span class="Other">,</span>
+    <span class="Other">(</span><a href="#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+                                        <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 dial a peer 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L78" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L78" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L79" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L79" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -458,8 +459,8 @@ dial a peer
 <dd>
 
 check if transport supports the multiaddress 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L97" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L97" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L98" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L98" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -504,8 +505,8 @@ stop and cleanup the transport including all outstanding connections
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L91" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L91" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L92" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L92" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -523,8 +524,8 @@ stop and cleanup the transport including all outstanding connections
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L116" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L116" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L117" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L117" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -536,8 +537,8 @@ stop and cleanup the transport including all outstanding connections
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L109" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L109" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/transports/transport.nim#L110" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/transports/transport.nim#L110" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -559,7 +560,7 @@ stop and cleanup the transport including all outstanding connections
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-16 05:55:39 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-17 05:55:04 UTC</small>
       </div>
     </div>
   </div>

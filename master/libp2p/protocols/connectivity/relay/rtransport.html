@@ -194,11 +194,11 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">dial
-  <li><a class="reference" href="#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D" title="dial(self: RelayTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]">dial(self: RelayTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+  <li><a class="reference" href="#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection" title="dial(self: RelayTransport; hostname: string; ma: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]">dial(self: RelayTransport; hostname: string; ma: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">handles
@@ -279,8 +279,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L132" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L132" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L133" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L133" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -309,16 +309,18 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </div>
 <div id="dial-methods-all">
-  <div id="dial.e,RelayTransport,string,MultiAddress,Opt[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D"><span class="Identifier">dial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">;</span> <span class="Identifier">hostname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
-            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <a href="../../../stream/connection.html#RawConn"><span class="Identifier">RawConn</span></a><span class="Other">,</span> <span class="Other">(</span><a href="../../../transports/transport.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <div id="dial.e,RelayTransport,string,MultiAddress,Opt[PeerId],Direction" class="tohide">
+<dt><pre><span class="Keyword">method</span> <a href="#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection"><span class="Identifier">dial</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="#RelayTransport"><span class="Identifier">RelayTransport</span></a><span class="Other">;</span> <span class="Identifier">hostname</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">ma</span><span class="Other">:</span> <a href="../../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span>
+            <span class="Identifier">peerId</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Opt</span><span class="Other">.</span><span class="Identifier">none</span><span class="Other">(</span><span class="Identifier">PeerId</span><span class="Other">)</span><span class="Other">;</span>
+            <span class="Identifier">dir</span><span class="Other">:</span> <a href="../../../stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a> <span class="Other">=</span> <a href="../../../stream/lpstream.html#Direction"><span class="Identifier">Direction</span></a><span class="Other">.</span><span class="Identifier">Out</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><a href="../../../stream/connection.html#RawConn"><span class="Identifier">RawConn</span></a><span class="Other">,</span>
+    <span class="Other">(</span><a href="../../../transports/transport.html#TransportError"><span class="Identifier">TransportError</span></a><span class="Other">,</span> <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                        <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
+                                        <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L110" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L110" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L111" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L111" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -331,8 +333,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L121" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L121" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/connectivity/relay/rtransport.nim#L122" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/connectivity/relay/rtransport.nim#L122" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -378,7 +380,7 @@ window.addEventListener("DOMContentLoaded", main2);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-16 05:55:46 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-17 05:55:11 UTC</small>
       </div>
     </div>
   </div>

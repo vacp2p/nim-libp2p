@@ -2414,10 +2414,10 @@
     (RelayDialError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="rtransport: method dial(self: RelayTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/protocols/connectivity/relay/rtransport.html#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">rtransport: method dial(self: RelayTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/protocols/connectivity/relay/rtransport.html#dial.e%2CRelayTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">rtransport: method dial(self: RelayTransport; hostname: string; ma: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="switch: proc dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): InternalRaisesFuture[
     Stream, (DialFailedError, CancelledError)]" href="libp2p/switch.html#dial%2CSwitch%2CPeerId%2Cseq%5BMultiAddress%5D%2Cstring">switch: proc dial(s: Switch; peerId: PeerId; addrs: seq[MultiAddress]; proto: string): InternalRaisesFuture[
@@ -2446,38 +2446,38 @@
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[RawConn]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="memorytransport: method dial(self: MemoryTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/transports/memorytransport.html#dial.e%2CMemoryTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">memorytransport: method dial(self: MemoryTransport; hostname: string; ma: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/transports/memorytransport.html#dial.e%2CMemoryTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">memorytransport: method dial(self: MemoryTransport; hostname: string; ma: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="quictransport: method dial(self: QuicTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/transports/quictransport.html#dial.e%2CQuicTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">quictransport: method dial(self: QuicTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/transports/quictransport.html#dial.e%2CQuicTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">quictransport: method dial(self: QuicTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: method dial(self: TcpTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/transports/tcptransport.html#dial.e%2CTcpTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">tcptransport: method dial(self: TcpTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/transports/tcptransport.html#dial.e%2CTcpTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">tcptransport: method dial(self: TcpTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="transport: proc dial(self: Transport; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[RawConn]" href="libp2p/transports/transport.html#dial%2CTransport%2CMultiAddress%2COpt%5BPeerId%5D">transport: proc dial(self: Transport; address: MultiAddress;
      peerId: Opt[PeerId] = Opt.none(PeerId)): Future[RawConn]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="transport: method dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">transport: method dial(self: Transport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/transports/transport.html#dial.e%2CTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">transport: method dial(self: Transport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="wstransport: method dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D">wstransport: method dial(self: WsTransport; hostname: string; address: MultiAddress;
-     peerId: Opt[PeerId] = Opt.none(PeerId)): InternalRaisesFuture[RawConn,
-    (TransportError, CancelledError)]</a></li>
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]" href="libp2p/transports/wstransport.html#dial.e%2CWsTransport%2Cstring%2CMultiAddress%2COpt%5BPeerId%5D%2CDirection">wstransport: method dial(self: WsTransport; hostname: string; address: MultiAddress;
+     peerId: Opt[PeerId] = Opt.none(PeerId); dir: Direction = Direction.Out): InternalRaisesFuture[
+    RawConn, (TransportError, CancelledError)]</a></li>
           </ul></dd>
 <dt><a name="dialAndUpgrade" href="#dialAndUpgrade"><span>dialAndUpgrade:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5331,6 +5331,10 @@
 <li><a class="reference external"
           data-doc-search-tag="client: const MaxAcceptedDialDataRequest" href="libp2p/protocols/connectivity/autonatv2/client.html#MaxAcceptedDialDataRequest">client: const MaxAcceptedDialDataRequest</a></li>
           </ul></dd>
+<dt><a name="MaxBucketsLimit" href="#MaxBucketsLimit"><span>MaxBucketsLimit:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="types: const MaxBucketsLimit" href="libp2p/protocols/kademlia/types.html#MaxBucketsLimit">types: const MaxBucketsLimit</a></li>
+          </ul></dd>
 <dt><a name="MaxChannelCount" href="#MaxChannelCount"><span>MaxChannelCount:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="yamux: const MaxChannelCount" href="libp2p/muxers/yamux/yamux.html#MaxChannelCount">yamux: const MaxChannelCount</a></li>
@@ -6041,12 +6045,12 @@
     peerId: Opt[PeerId] = Opt.none(PeerId)): QuicMuxer" href="libp2p/transports/quictransport.html#new%2CtypeQuicMuxer%2CP2PConnection%2COpt%5BPeerId%5D">quictransport: proc new(_: type QuicMuxer; conn: P2PConnection;
     peerId: Opt[PeerId] = Opt.none(PeerId)): QuicMuxer</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey;
-    certGenerator: CertGenerator; connManager: ConnManager = nil): QuicTransport" href="libp2p/transports/quictransport.html#new%2CtypeQuicTransport%2CUpgrade%2CPrivateKey%2CCertGenerator%2CConnManager">quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey;
+          data-doc-search-tag="quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey; rng: Rng;
+    certGenerator: CertGenerator; connManager: ConnManager = nil): QuicTransport" href="libp2p/transports/quictransport.html#new%2CtypeQuicTransport%2CUpgrade%2CPrivateKey%2CRng%2CCertGenerator%2CConnManager">quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey; rng: Rng;
     certGenerator: CertGenerator; connManager: ConnManager = nil): QuicTransport</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey;
-    connManager: ConnManager = nil): QuicTransport" href="libp2p/transports/quictransport.html#new%2CtypeQuicTransport%2CUpgrade%2CPrivateKey%2CConnManager">quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey;
+          data-doc-search-tag="quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey; rng: Rng;
+    connManager: ConnManager = nil): QuicTransport" href="libp2p/transports/quictransport.html#new%2CtypeQuicTransport%2CUpgrade%2CPrivateKey%2CRng%2CConnManager">quictransport: proc new(_: type QuicTransport; u: Upgrade; privateKey: PrivateKey; rng: Rng;
     connManager: ConnManager = nil): QuicTransport</a></li>
           <li><a class="reference external"
           data-doc-search-tag="tcptransport: proc new(T: typedesc[TcpTransport]; flags: set[ServerFlags] = {}; upgrade: Upgrade;
@@ -7085,6 +7089,10 @@
 <li><a class="reference external"
           data-doc-search-tag="multiaddress: const QUIC_DNS" href="libp2p/multiaddress.html#QUIC_DNS">multiaddress: const QUIC_DNS</a></li>
           </ul></dd>
+<dt><a name="QuicHolePunchPacketSize" href="#QuicHolePunchPacketSize"><span>QuicHolePunchPacketSize:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="quictransport: const QuicHolePunchPacketSize" href="libp2p/transports/quictransport.html#QuicHolePunchPacketSize">quictransport: const QuicHolePunchPacketSize</a></li>
+          </ul></dd>
 <dt><a name="QUIC_IP" href="#QUIC_IP"><span>QUIC_IP:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multiaddress: const QUIC_IP" href="libp2p/multiaddress.html#QUIC_IP">multiaddress: const QUIC_IP</a></li>
@@ -7132,6 +7140,10 @@
 <dt><a name="QUIC_V1_IP4" href="#QUIC_V1_IP4"><span>QUIC_V1_IP4:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multiaddress: const QUIC_V1_IP4" href="libp2p/multiaddress.html#QUIC_V1_IP4">multiaddress: const QUIC_V1_IP4</a></li>
+          </ul></dd>
+<dt><a name="rand" href="#rand"><span>rand:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="rng: proc rand(rng: Rng; low, high: int): int" href="libp2p/crypto/rng.html#rand%2CRng%2Cint%2Cint">rng: proc rand(rng: Rng; low, high: int): int</a></li>
           </ul></dd>
 <dt><a name="random" href="#random"><span>random:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -10091,7 +10103,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-16 05:55:49 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-17 05:55:14 UTC</small>
       </div>
     </div>
   </div>
