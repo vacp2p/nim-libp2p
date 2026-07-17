@@ -385,7 +385,7 @@ type Attempt = object
     ## its ``timeout`` elapsed; the slot is freed but the RPC
     ## keeps running so it can still deliver, and its late result is ignored.
 
-proc runDispatch(
+proc dispatchPeer(
     kad: KadDHT, peerId: PeerId, target: Key, dispatch: DispatchProc
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
@@ -401,7 +401,7 @@ func activePeers(pending: seq[Attempt]): HashSet[PeerId] {.raises: [].} =
       peers.incl(a.peer)
   peers
 
-proc refill(
+proc fillSlots(
     kad: KadDHT, state: LookupState, pending: var seq[Attempt], dispatch: DispatchProc
 ) {.raises: [].} =
   ## Keep up to ``alpha`` RPCs in flight by dispatching the next-closest
@@ -418,7 +418,7 @@ proc refill(
     pending.add(
       Attempt(
         peer: peerId,
-        fut: kad.runDispatch(peerId, target, dispatch),
+        fut: kad.dispatchPeer(peerId, target, dispatch),
         deadline: Moment.now() + kad.config.timeout,
         abandoned: false,
       )
@@ -449,7 +449,7 @@ proc awaitProgress(pending: seq[Attempt]) {.async: (raises: [CancelledError]).} 
   except ValueError:
     raiseAssert "race() cannot raise ValueError on a non-empty future list"
 
-proc reapFinished(
+proc harvestInflight(
     pending: var seq[Attempt], now: Moment
 ): seq[DispatchResult] {.raises: [].} =
   ## Collect the replies of finished, still-relevant RPCs and drop them, and
@@ -529,14 +529,14 @@ proc iterativeLookup*(
     await pending.mapIt(it.fut).cancelAndWait()
 
   while true:
-    let completed = pending.reapFinished(Moment.now())
+    let completed = pending.harvestInflight(Moment.now())
     await kad.applyReplies(state, rtable, completed, onReply)
     await state.dropDonePeers(pending).cancelAndWait()
 
     # Once the stop condition holds, dispatch no new peers but keep draining the
     # replies already in flight, so the returned peer set stays complete.
     if not stopCond(state):
-      kad.refill(state, pending, dispatch)
+      kad.fillSlots(state, pending, dispatch)
 
     if pending.activePeers().len == 0:
       break
