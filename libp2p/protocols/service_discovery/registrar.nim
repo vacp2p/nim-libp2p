@@ -57,14 +57,13 @@ proc isExpired(now, ts: Moment, expiry: Duration): bool =
 proc removeAdvertisementEverywhere(registrar: Registrar, ad: Advertisement) =
   let key = ad.toAdvertisementKey()
 
-  if key in registrar.cacheTimestamps:
-    registrar.ipTree.removeAd(ad)
-    registrar.cacheTimestamps.del(key)
+  registrar.cacheTimestamps.del(key)
 
   for _, sads in registrar.cache.mpairs:
     var j = 0
     while j < sads.len:
       if sads[j].toAdvertisementKey() == key:
+        registrar.ipTree.removeAd(sads[j])
         sads.delete(j)
       else:
         inc(j)
@@ -335,18 +334,18 @@ proc evictOldestAd*(
     return
 
   var emptiedSids: seq[ServiceId] = @[]
-  var removedFromIpTree = false
+  disco.registrar.cacheTimestamps.del(oldestKey)
 
   for sid, sads in disco.registrar.cache.mpairs:
     var i = 0
     var removedFromThisService = false
     while i < sads.len:
       if sads[i].toAdvertisementKey() == oldestKey:
-        # Free IP tree / timestamp once; further service lists are orphans.
-        if not removedFromIpTree:
-          disco.registrar.ipTree.removeAd(sads[i])
-          disco.registrar.cacheTimestamps.del(oldestKey)
-          removedFromIpTree = true
+        # Each service holding this key was a separate ad_cache admission
+        # (an advertisement is associated to its service_id) that added
+        # the IP once - remove it once per matching entry, not once total,
+        # or the tree stays inflated for every service beyond the first.
+        disco.registrar.ipTree.removeAd(sads[i])
         sads.delete(i)
         removedFromThisService = true
       else:
@@ -383,13 +382,13 @@ proc updateExistingAd*(
     for _, sads in registrar.cache.mpairs:
       for j in 0 ..< sads.len:
         if sads[j].toAdvertisementKey() == oldKey:
+          registrar.ipTree.removeAd(sads[j])
+          registrar.ipTree.insertAd(ad)
           sads[j] = ad
 
-    registrar.ipTree.removeAd(existing)
     registrar.cacheTimestamps.del(oldKey)
     ads[idx] = ad
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-    registrar.ipTree.insertAd(ad)
     return true
   else:
     return false
@@ -404,6 +403,9 @@ proc insertNewAd*(
   ## Insert a brand-new advertisement into the cache.
   ## Evicts the globally oldest entry first if the cache is at capacity.
   ## Returns true (a new insertion always warrants a metrics update).
+  ## The IP tree is incremented unconditionally, once per (service, ad)
+  ## admission - the same physical ad accepted for 3 services is 3 separate
+  ## ad_cache admissions, and each one adds the IP once.
   let key = ad.toAdvertisementKey()
   let isNewKey = key notin disco.registrar.cacheTimestamps
   if isNewKey and
@@ -411,8 +413,7 @@ proc insertNewAd*(
     evictOldestAd(disco, serviceId, ads)
   ads.add(ad)
   disco.registrar.cacheTimestamps[key] = now
-  if isNewKey:
-    disco.registrar.ipTree.insertAd(ad)
+  disco.registrar.ipTree.insertAd(ad)
   return true
 
 proc acceptAdvertisement*(
