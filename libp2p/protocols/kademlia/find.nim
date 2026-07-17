@@ -515,6 +515,20 @@ proc findClosestPeers*(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
     closestPeerKeys[0 ..< min(kad.config.replication, closestPeerKeys.len)]
   )
 
+proc findNodeCloserPeers(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
+  ## Also returns the target itself, which keeps client-mode peers resolvable.
+  let closest = kad.findClosestPeers(target, requester)
+  if target == requester.toKey():
+    return closest
+
+  let targetPeer = target.toPeer(kad.switch).valueOr:
+    return closest
+
+  if closest.len > 0 and closest[0].id == targetPeer.id:
+    return closest
+
+  return @[targetPeer] & closest
+
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
@@ -524,7 +538,7 @@ method handleFindNode*(
 
   let response = Message(
     msgType: Opt.some(MessageType.findNode),
-    closerPeers: kad.findClosestPeers(msgKey, stream.peerId),
+    closerPeers: kad.findNodeCloserPeers(msgKey, stream.peerId),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])

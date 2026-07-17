@@ -249,10 +249,60 @@ suite "KadDHT Find":
     let closerPeersIds = response.closerPeers.mapIt(it.id.get())
     check:
       response.msgType == MessageType.findNode
-      # kads[0] knows kads[1] and kads[2], but must not hand kads[1] its own id back
       response.closerPeers.len == 1
       kads[1].rtable.selfId notin closerPeersIds
       kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node for a known target returns it once":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    let response = (
+      await kads[1].dispatchFindNode(
+        kads[0].switch.peerInfo.peerId, kads[2].rtable.selfId
+      )
+    ).value()
+
+    check:
+      response.closerPeers.len == 1
+      response.closerPeers[0].id.get() == kads[2].rtable.selfId
+
+  asyncTest "Find node for an unknown target omits it":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    let unknownTarget = randomPeerId().toKey()
+    let response = (
+      await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, unknownTarget)
+    ).value()
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id.get())
+    check:
+      unknownTarget notin closerPeersIds
+      kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node returns a target known only from the address book":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    # A client-mode peer is in nobody's routing table, but its addresses are known.
+    let client = randomPeerId()
+    kads[0].switch.peerStore[AddressBook][client] =
+      @[MultiAddress.init("/ip4/127.0.0.1/tcp/9999").tryGet()]
+
+    let response = (
+      await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, client.toKey())
+    ).value()
+
+    check:
+      not kads[0].hasKey(client.toKey())
+      response.closerPeers[0].id.get() == client.toKey()
 
   asyncTest "Find node excludes the requester for an unrelated target":
     let kads = setupKadSwitches(3)
