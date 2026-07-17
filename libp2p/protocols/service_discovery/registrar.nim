@@ -54,6 +54,21 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
 proc isExpired(now, ts: Moment, expiry: Duration): bool =
   now - ts > expiry
 
+proc removeAdvertisementEverywhere(registrar: Registrar, ad: Advertisement) =
+  let key = ad.toAdvertisementKey()
+
+  if key in registrar.cacheTimestamps:
+    registrar.ipTree.removeAd(ad)
+    registrar.cacheTimestamps.del(key)
+
+  for _, sads in registrar.cache.mpairs:
+    var j = 0
+    while j < sads.len:
+      if sads[j].toAdvertisementKey() == key:
+        sads.delete(j)
+      else:
+        inc(j)
+
 proc pruneAdsForService(
     registrar: Registrar,
     serviceId: ServiceId,
@@ -72,11 +87,7 @@ proc pruneAdsForService(
       remove = isExpired(now, ts[], advertExpiry)
 
     if remove:
-      # Free global state only while this key still owns a timestamp.
-      if key in registrar.cacheTimestamps:
-        registrar.ipTree.removeAd(ad)
-        registrar.cacheTimestamps.del(key)
-      ads.delete(i)
+      registrar.removeAdvertisementEverywhere(ad)
       inc(expiredCount)
     else:
       inc(i)
