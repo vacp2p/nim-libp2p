@@ -379,8 +379,14 @@ proc updateExistingAd*(
     registrar.cacheTimestamps[existing.toAdvertisementKey()] = now
     return false
   elif ad.data.seqNo > existing.data.seqNo:
+    let oldKey = existing.toAdvertisementKey()
+    for _, sads in registrar.cache.mpairs:
+      for j in 0 ..< sads.len:
+        if sads[j].toAdvertisementKey() == oldKey:
+          sads[j] = ad
+
     registrar.ipTree.removeAd(existing)
-    registrar.cacheTimestamps.del(existing.toAdvertisementKey())
+    registrar.cacheTimestamps.del(oldKey)
     ads[idx] = ad
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
     registrar.ipTree.insertAd(ad)
@@ -398,11 +404,15 @@ proc insertNewAd*(
   ## Insert a brand-new advertisement into the cache.
   ## Evicts the globally oldest entry first if the cache is at capacity.
   ## Returns true (a new insertion always warrants a metrics update).
-  if disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
+  let key = ad.toAdvertisementKey()
+  let isNewKey = key notin disco.registrar.cacheTimestamps
+  if isNewKey and
+      disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
     evictOldestAd(disco, serviceId, ads)
   ads.add(ad)
-  disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-  disco.registrar.ipTree.insertAd(ad)
+  disco.registrar.cacheTimestamps[key] = now
+  if isNewKey:
+    disco.registrar.ipTree.insertAd(ad)
   return true
 
 proc acceptAdvertisement*(
