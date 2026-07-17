@@ -132,6 +132,13 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
 proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
+proc contains*(rtable: RoutingTable, nodeId: Key): bool =
+  ## Membership test that scans only the node's bucket, not the whole table.
+  let idx = rtable.bucketIndex(nodeId)
+  if idx >= rtable.buckets.len:
+    return false
+  peerIndexInBucket(rtable.buckets[idx], nodeId).isSome()
+
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   ## Returns up to `count` nodes in the table with the smallest XOR distance to `targetId`.
   var allNodes: seq[Key] = @[]

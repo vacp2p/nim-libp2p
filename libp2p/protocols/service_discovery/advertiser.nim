@@ -253,7 +253,7 @@ proc advertiseToRegistrar*(
       error "failed to register ad", serviceId, registrar, error
       return
 
-    disco.updatePeers(response.closerPeers)
+    disco.admitPeers(response.closerPeers)
 
     for p in response.closerPeers:
       discard disco.insertPeer(serviceId, p)

@@ -117,11 +117,17 @@ suite "KadDHT Bootstrap Component":
     )
     startAndDeferStop(kads)
 
-    # All nodes should know about all other nodes after bootstrap
-    for i, kad in kads:
-      for j, otherKad in kads:
-        if i != j:
-          check kad.hasKey(otherKad.rtable.selfId)
+    # All nodes should know about all other nodes after bootstrap. Admission
+    # is gated behind background probes, so poll until the tables converge.
+    proc allPeersKnowEachOther(): bool =
+      for i, kad in kads:
+        for j, otherKad in kads:
+          if i != j and not kad.hasKey(otherKad.rtable.selfId):
+            return false
+      true
+
+    checkUntilTimeout:
+      allPeersKnowEachOther()
 
   asyncTest "bootstrap with unreachable peer completes gracefully":
     # Fake bootstrap peer with valid address format

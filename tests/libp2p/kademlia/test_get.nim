@@ -156,9 +156,10 @@ suite "KadDHT Get":
     let record = await kads[2].getValue(key, quorumOverride = Opt.some(1))
 
     # kads[2] should discover kads[1] through the closerPeers in the response
-    check:
-      record.isErr()
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check record.isErr()
+    # discovered via closerPeers, inserted once the background probe succeeds
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get updates routing table with closerPeers (with record)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
@@ -183,9 +184,10 @@ suite "KadDHT Get":
     let record = await kads[2].getValue(key, quorumOverride = Opt.some(1))
 
     # kads[2] should discover kads[1] through the closerPeers in the response.
-    check:
-      record.get().value == value
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check record.get().value == value
+    # discovered via closerPeers, inserted once the background probe succeeds
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Quorum handling is ignored if quorum is 0 or 1":
     let kads = setupKadSwitches(

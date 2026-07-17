@@ -254,6 +254,23 @@ proc sharesSubnet64(addrs: seq[Ipv6Address], subnet: Ipv6Subnet64): bool =
       return true
   false
 
+proc diversityPeers(
+    rtable: RoutingTable, pending: seq[PeerId]
+): seq[PeerId] {.raises: [].} =
+  ## Peers whose addresses count against the IP-diversity caps: the ones already
+  ## in the routing table plus the ones with an admission probe in flight. The
+  ## latter close a flooding hole — a single reply can list many distinct peer
+  ## ids all pointing at one victim address, and without counting in-flight
+  ## probes they would all pass the cap (none are in the table yet) and be
+  ## dialed at once.
+  var peers: seq[PeerId]
+  for key in rtable.allKeys():
+    let pid = key.toPeerId().valueOr:
+      continue
+    peers.add(pid)
+  peers.add(pending)
+  peers
+
 proc hasIpDiversity*(
     addressBook: AddressBook,
     rtable: RoutingTable,
@@ -262,10 +279,11 @@ proc hasIpDiversity*(
     maxPeersPerIp: int,
     maxPeersPerIpv4Subnet: int,
     maxPeersPerIpv6Subnet: int,
+    pending: seq[PeerId] = @[],
 ): bool {.raises: [].} =
   # Existing entries may refresh their addresses; diversity limits apply to new
   # routing-table admission, not to maintenance of already-admitted peers.
-  if peerId.toKey() in rtable.allKeys():
+  if peerId.toKey() in rtable:
     return true
 
   let candidateIps = addrs.uniquePublicIps()
@@ -274,7 +292,7 @@ proc hasIpDiversity*(
   if candidateIps.ipv4s.len == 0 and candidateIps.ipv6s.len == 0:
     return true
 
-  let currentKeys = rtable.allKeys()
+  let others = rtable.diversityPeers(pending)
   # A multi-addressed peer is admissible if at least one public address remains
   # below both its exact-IP and subnet caps.
   for candidateIp in candidateIps.ipv4s:
@@ -282,9 +300,7 @@ proc hasIpDiversity*(
     var exactCount = 0
     var subnetCount = 0
 
-    for key in currentKeys:
-      let existingPeer = key.toPeerId().valueOr:
-        continue
+    for existingPeer in others:
       if existingPeer == peerId:
         continue
 
@@ -302,9 +318,7 @@ proc hasIpDiversity*(
     var exactCount = 0
     var subnetCount = 0
 
-    for key in currentKeys:
-      let existingPeer = key.toPeerId().valueOr:
-        continue
+    for existingPeer in others:
       if existingPeer == peerId:
         continue
 
@@ -319,6 +333,30 @@ proc hasIpDiversity*(
 
   false
 
+proc admissibleAddrs(
+    switch: Switch,
+    addressPolicy: PeerAddressPolicy,
+    rtable: RoutingTable,
+    p: PeerInfo,
+    maxPeersPerIp: int,
+    maxPeersPerIpv4Subnet: int,
+    maxPeersPerIpv6Subnet: int,
+    pending: seq[PeerId] = @[],
+): seq[MultiAddress] {.raises: [].} =
+  ## Addresses that survive the address policy and IP-diversity filter, or an
+  ## empty seq when the peer is not admissible to the routing table. ``pending``
+  ## lists peers with an admission probe in flight, counted toward the
+  ## diversity caps so a single reply cannot fan out many probes to one IP.
+  let addrs = addressPolicy.filterAddrs(p.addrs)
+  if addrs.len == 0:
+    return @[]
+  if not switch.peerStore[AddressBook].hasIpDiversity(
+    rtable, p.peerId, addrs, maxPeersPerIp, maxPeersPerIpv4Subnet,
+    maxPeersPerIpv6Subnet, pending,
+  ):
+    return @[]
+  addrs
+
 proc updatePeers*(
     switch: Switch,
     addressPolicy: PeerAddressPolicy,
@@ -328,15 +366,16 @@ proc updatePeers*(
     maxPeersPerIpv4Subnet: int = DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: int = DefaultMaxPeersPerSubnet,
 ) {.raises: [].} =
+  ## Direct routing-table admission without probing. Used for trusted seed
+  ## peers (bootstrap). Network-discovered peers should go through
+  ## ``admitPeers`` so they are probed first.
   let addressBook = switch.peerStore[AddressBook]
   for p in peerInfos:
-    let addrs = addressPolicy.filterAddrs(p.addrs)
-    if addrs.len == 0:
-      continue
-    if not addressBook.hasIpDiversity(
-      rtable, p.peerId, addrs, maxPeersPerIp, maxPeersPerIpv4Subnet,
+    let addrs = switch.admissibleAddrs(
+      addressPolicy, rtable, p, maxPeersPerIp, maxPeersPerIpv4Subnet,
       maxPeersPerIpv6Subnet,
-    ):
+    )
+    if addrs.len == 0:
       continue
     if rtable.insert(p.peerId):
       addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
@@ -351,6 +390,85 @@ proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
+
+proc lookupCheck(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## Probe a candidate before routing-table admission. A FIND_NODE for the
+  ## peer's own key both confirms it is reachable and that it speaks the DHT
+  ## protocol; only a well-formed reply admits the peer.
+  let reply = await kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
+  reply.isOk()
+
+proc admitPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId, addrs: seq[MultiAddress]
+) {.async: (raises: []).} =
+  ## Probe ``peerId`` under the dedicated probe semaphore and insert it into
+  ## ``rtable`` only if the probe succeeds.
+  defer:
+    kad.admissionProbes.del(peerId)
+  try:
+    await kad.probeSem.acquire()
+  except CancelledError:
+    return
+  except AsyncSemaphoreError:
+    return
+  defer:
+    try:
+      kad.probeSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "probeSem released without acquire"
+
+  let reachable =
+    try:
+      await kad.lookupCheck(peerId, addrs)
+    except CancelledError:
+      return
+  if not reachable:
+    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    return
+  discard rtable.insert(peerId)
+
+proc admitPeers*(
+    kad: KadDHT, rtable: RoutingTable, peerInfos: seq[PeerInfo]
+) {.raises: [].} =
+  ## Admit network-discovered peers into ``rtable``. Addresses are recorded
+  ## immediately so lookups can still dial them, but insertion is gated behind
+  ## a bounded FIND_NODE probe (``lookupCheck``) that runs in the background.
+  ## In-flight probes count toward the IP-diversity caps, so a single reply
+  ## cannot make the node fan out many concurrent dials to one address.
+  let addressBook = kad.switch.peerStore[AddressBook]
+  let selfPid = kad.switch.peerInfo.peerId
+  for p in peerInfos:
+    if p.peerId == selfPid:
+      continue
+    let addrs = kad.switch.admissibleAddrs(
+      kad.config.addressPolicy,
+      rtable,
+      p,
+      kad.config.limits.maxPeersPerIp,
+      kad.config.limits.maxPeersPerIpv4Subnet,
+      kad.config.limits.maxPeersPerIpv6Subnet,
+      kad.admissionProbes.keys.toSeq(),
+    )
+    if addrs.len == 0:
+      continue
+    # Record addresses up front, independent of the probe outcome, so that an
+    # in-flight lookup can still dial the peer and ``findPeer`` can resolve it
+    # even while its admission probe is pending or ultimately fails.
+    addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
+    if p.peerId.toKey() in rtable:
+      # Already admitted: refresh recency without re-probing.
+      discard rtable.insert(p.peerId)
+      continue
+    if kad.admissionProbes.hasKey(p.peerId):
+      continue
+    # ``admitPeer`` suspends on ``probeSem.acquire`` before its cleanup ``defer``
+    # runs, so it cannot delete this entry before we insert it below.
+    kad.admissionProbes[p.peerId] = kad.admitPeer(rtable, p.peerId, addrs)
+
+proc admitPeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
+  kad.admitPeers(kad.rtable, peerInfos)
 
 proc noopReply*(
     peerId: PeerId, msgOpt: Opt[Message], state: LookupState
@@ -416,10 +534,7 @@ proc lookOnce*(
     let reply = res.valueOr:
       continue
     let newPeerInfos = state.updateShortlist(reply)
-    kad.switch.updatePeers(
-      kad.config.addressPolicy, rtable, newPeerInfos, kad.config.limits.maxPeersPerIp,
-      kad.config.limits.maxPeersPerIpv4Subnet, kad.config.limits.maxPeersPerIpv6Subnet,
-    )
+    kad.admitPeers(rtable, newPeerInfos)
     await onReply(peerId, Opt.some(reply), state)
 
   # Evicted peers are no longer eligible for retries, so cancel any abandoned RPCs.
@@ -552,4 +667,4 @@ method handleFindNode*(
   # may use an ephemeral source port.
   let addrs = kad.switch.peerStore[AddressBook][stream.peerId]
   if addrs.len > 0:
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])
+    kad.admitPeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])

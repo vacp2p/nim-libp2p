@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../utils/heartbeat
+import ../utils/future
 import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
@@ -74,6 +76,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
+    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -151,6 +154,9 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
     return
 
   kad.started = false
+
+  let admissionProbes = move kad.admissionProbes
+  await noCancel admissionProbes.values.toSeq().cancelAndWait()
 
   kad.maintenanceLoop.cancelSoon()
   kad.maintenanceLoop = nil

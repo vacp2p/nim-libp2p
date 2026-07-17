@@ -90,7 +90,7 @@ proc processResponse(
     found: var HashSet[Advertisement],
     limit: int,
 ) =
-  disco.updatePeers(response.closerPeers)
+  disco.admitPeers(response.closerPeers)
 
   disco.insertCloserPeers(serviceId, response.closerPeers)
   for ad in response.ads:
