@@ -277,6 +277,9 @@ method handleAddProvider*(
 
   if not atCap:
     for peer in validPeers:
+      let providerId = PeerId.init(peer.id.get()).valueOr:
+        continue
+      kad.updatePeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
       kad.providerManager.addProviderRecord(
         ProviderRecord(
           provider: peer,
@@ -334,9 +337,6 @@ proc dispatchGetProviders*(
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
-
-  stream.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
   return ok(reply)
 

@@ -720,7 +720,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     check w >= ZeroDuration
 
-  test "waitingTime with IPv6 addresses only (ignored in IP tree)":
+  test "waitingTime with IPv6 addresses only, tree empty":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -731,6 +731,26 @@ suite "Service Discovery Registrar - Edge Cases":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= ZeroDuration
+
+  test "waitingTime with IPv6 addresses contributes IP similarity":
+    let registrar = Registrar.new()
+    let discoConfig = ServiceDiscoveryConfig.new()
+    let serviceId = makeServiceId()
+
+    registrar.ipTree.insertIp(
+      IpAddress(
+        family: IpAddressFamily.IPv6,
+        address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      )
+    )
+
+    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ad = makeAdvertisement(addrs = @[ipv6Addr])
+    let now = Moment.now()
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    check w > ZeroDuration
 
   test "waitingTime with mixed IPv4 and IPv6 addresses":
     let registrar = Registrar.new()

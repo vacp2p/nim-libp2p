@@ -48,9 +48,6 @@ proc dispatchGetVal*(
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
-  stream.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
-
   return ok(reply)
 
 proc bestValidRecord(

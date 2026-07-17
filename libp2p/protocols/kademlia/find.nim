@@ -530,12 +530,8 @@ method handleFindNode*(
       stream = stream, err = exc.msg
     return
 
-  # Prefer address-aware admission so inbound FIND_NODE senders go through the
-  # same diversity checks as peers learned from DHT responses. observedAddr may
-  # be the only address known before Identify has populated the peerstore.
-  var addrs = kad.switch.peerStore[AddressBook][stream.peerId]
-  stream.observedAddr.withValue(observedAddr):
-    if observedAddr notin addrs:
-      addrs.add(observedAddr)
+  # Only admit senders with known dialable addresses; an inbound connection
+  # may use an ephemeral source port.
+  let addrs = kad.switch.peerStore[AddressBook][stream.peerId]
   if addrs.len > 0:
     kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])

@@ -169,6 +169,33 @@ suite "KadDHT Routing Table":
       idx == TargetBucket
       rid != selfId
 
+  test "bucketIndex is the prefix length, not a rescale of it":
+    let selfId = testKey(0)
+    var rt =
+      RoutingTable.new(selfId, RoutingTableConfig.new(hasher = Opt.some(noOpHasher)))
+
+    for lz in 0 .. 8:
+      let key = randomKeyInBucket(selfId, lz, rng())
+      check rt.bucketIndex(key) == lz
+
+  test "small maxBuckets keeps prefix resolution and saturates the last bucket":
+    let selfId = testKey(0)
+    const MaxBuckets = 16
+    var rt = RoutingTable.new(
+      selfId,
+      RoutingTableConfig.new(hasher = Opt.some(noOpHasher), maxBuckets = MaxBuckets),
+    )
+
+    # Prefix lengths below the cap each get their own bucket.
+    for lz in 0 ..< MaxBuckets - 1:
+      let key = randomKeyInBucket(selfId, lz, rng(), MaxBuckets)
+      check rt.bucketIndex(key) == lz
+
+    # Deeper prefixes all fall into the last bucket.
+    for lz in MaxBuckets - 1 .. MaxBuckets + 8:
+      let key = randomKeyInBucket(selfId, lz, rng(), DefaultMaxBuckets)
+      check rt.bucketIndex(key) == MaxBuckets - 1
+
   test "randomKey returns none for empty bucket":
     var bucket: Bucket
     check randomKey(bucket, rng()).isNone()

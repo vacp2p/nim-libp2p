@@ -391,22 +391,24 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       lateRegistrar.countAdsInCache(serviceId) == 1
 
-  asyncTest "an IPv6 node registers three services one after another":
-    # TODO: vacp2p/nim-libp2p#2756
-    # A node listening only on IPv6 advertises only IPv6 addresses, which never
-    # enter the IPv4-only IP tree, so its advertisements draw no IP-similarity
-    # waiting time: each is Confirmed and cached, even under default settings.
+  asyncTest "an IPv6-only node is subject to IP-similarity throttling like an IPv4 node":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode(addresses = @[TcpAutoAddressIP6()])
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
-    for i in 1 .. 3:
-      let service = makeServiceInfo("ipv6-service-" & $i)
-      let serviceId = service.id.hashServiceId()
-      advertiserNode.addProvidedService(service)
-      checkUntilTimeout:
-        registrarNode.countAdsInCache(serviceId) == 1
+    let firstService = makeServiceInfo("ipv6-service-1")
+    let firstServiceId = firstService.id.hashServiceId()
+    advertiserNode.addProvidedService(firstService)
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(firstServiceId) == 1
+
+    let secondService = makeServiceInfo("ipv6-service-2")
+    let secondServiceId = secondService.id.hashServiceId()
+    advertiserNode.addProvidedService(secondService)
+    checkUntilTimeout:
+      registrarNode.registrar.boundService.hasKey(secondServiceId)
+    check registrarNode.countAdsInCache(secondServiceId) == 0
 
   asyncTest "a dual-stack node follows the normal path and is told to Wait":
     let registrarNode = setupServiceDiscoveryNode()

@@ -11,7 +11,9 @@ import ./protobuf
 const
   IdLength* = 32 # 256-bit IDs
 
-  DefaultMaxBuckets* = 256
+  MaxBucketsLimit* = IdLength * 8
+    ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
+  DefaultMaxBuckets* = MaxBucketsLimit
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes
