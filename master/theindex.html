@@ -3073,7 +3073,7 @@
           </ul></dd>
 <dt><a name="findClosestPeers" href="#findClosestPeers"><span>findClosestPeers:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="find: proc findClosestPeers(kad: KadDHT; target: Key): seq[Peer]" href="libp2p/protocols/kademlia/find.html#findClosestPeers%2CKadDHT%2CKey">find: proc findClosestPeers(kad: KadDHT; target: Key): seq[Peer]</a></li>
+          data-doc-search-tag="find: proc findClosestPeers(kad: KadDHT; target: Key; requester: PeerId): seq[Peer]" href="libp2p/protocols/kademlia/find.html#findClosestPeers%2CKadDHT%2CKey%2CPeerId">find: proc findClosestPeers(kad: KadDHT; target: Key; requester: PeerId): seq[Peer]</a></li>
           </ul></dd>
 <dt><a name="findNode" href="#findNode"><span>findNode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -5393,6 +5393,10 @@
 <li><a class="reference external"
           data-doc-search-tag="types: const MaxProviderKeyLen" href="libp2p/protocols/kademlia/types.html#MaxProviderKeyLen">types: const MaxProviderKeyLen</a></li>
           </ul></dd>
+<dt><a name="MaxRefreshLeadingZeros" href="#MaxRefreshLeadingZeros"><span>MaxRefreshLeadingZeros:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="types: const MaxRefreshLeadingZeros" href="libp2p/protocols/kademlia/types.html#MaxRefreshLeadingZeros">types: const MaxRefreshLeadingZeros</a></li>
+          </ul></dd>
 <dt><a name="MaxSizeError" href="#MaxSizeError"><span>MaxSizeError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lpstream: object MaxSizeError" href="libp2p/stream/lpstream.html#MaxSizeError">lpstream: object MaxSizeError</a></li>
@@ -7193,9 +7197,7 @@
           </ul></dd>
 <dt><a name="randomKeyInBucket" href="#randomKeyInBucket"><span>randomKeyInBucket:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="routing_table: proc randomKeyInBucket(selfId: Key; bucketIndex: int; rng: Rng;
-                  maxBuckets: int = DefaultMaxBuckets): Key" href="libp2p/protocols/kademlia/routing_table.html#randomKeyInBucket%2CKey%2Cint%2CRng%2Cint">routing_table: proc randomKeyInBucket(selfId: Key; bucketIndex: int; rng: Rng;
-                  maxBuckets: int = DefaultMaxBuckets): Key</a></li>
+          data-doc-search-tag="routing_table: proc randomKeyInBucket(rtable: RoutingTable; bucketIndex: int; rng: Rng): Opt[Key]" href="libp2p/protocols/kademlia/routing_table.html#randomKeyInBucket%2CRoutingTable%2Cint%2CRng">routing_table: proc randomKeyInBucket(rtable: RoutingTable; bucketIndex: int; rng: Rng): Opt[Key]</a></li>
           </ul></dd>
 <dt><a name="randomPeersClosestFirst" href="#randomPeersClosestFirst"><span>randomPeersClosestFirst:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -7392,6 +7394,10 @@
           data-doc-search-tag="kademlia: proc refreshTable(kad: KadDHT; rtable: RoutingTable; forceRefresh = false): InternalRaisesFuture[
     void, (CancelledError,)]" href="libp2p/protocols/kademlia.html#refreshTable%2CKadDHT%2CRoutingTable">kademlia: proc refreshTable(kad: KadDHT; rtable: RoutingTable; forceRefresh = false): InternalRaisesFuture[
     void, (CancelledError,)]</a></li>
+          </ul></dd>
+<dt><a name="refreshTarget" href="#refreshTarget"><span>refreshTarget:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="routing_table: proc refreshTarget(rtable: RoutingTable; bucketIndex: int; rng: Rng): Opt[Key]" href="libp2p/protocols/kademlia/routing_table.html#refreshTarget%2CRoutingTable%2Cint%2CRng">routing_table: proc refreshTarget(rtable: RoutingTable; bucketIndex: int; rng: Rng): Opt[Key]</a></li>
           </ul></dd>
 <dt><a name="register" href="#register"><span>register:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -10103,7 +10109,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-17 05:55:14 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-18 05:46:57 UTC</small>
       </div>
     </div>
   </div>

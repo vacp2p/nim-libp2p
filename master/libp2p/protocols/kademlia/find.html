@@ -198,7 +198,7 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">findClosestPeers
-  <li><a class="reference" href="#findClosestPeers%2CKadDHT%2CKey" title="findClosestPeers(kad: KadDHT; target: Key): seq[Peer]">findClosestPeers(kad: KadDHT; target: Key): seq[Peer]</a></li>
+  <li><a class="reference" href="#findClosestPeers%2CKadDHT%2CKey%2CPeerId" title="findClosestPeers(kad: KadDHT; target: Key; requester: PeerId): seq[Peer]">findClosestPeers(kad: KadDHT; target: Key; requester: PeerId): seq[Peer]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">findNodeDispatch
@@ -431,12 +431,12 @@ Returns all peers discovered during lookup sorted by XOR distance to target (clo
 
 </div>
 <div id="findClosestPeers-procs-all">
-  <div id="findClosestPeers,KadDHT,Key" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#findClosestPeers%2CKadDHT%2CKey"><span class="Identifier">findClosestPeers</span></a><span class="Other">(</span><span class="Identifier">kad</span><span class="Other">:</span> <a href="types.html#KadDHT"><span class="Identifier">KadDHT</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <a href="types.html#Key"><span class="Identifier">Key</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="protobuf.html#Peer"><span class="Identifier">Peer</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <div id="findClosestPeers,KadDHT,Key,PeerId" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#findClosestPeers%2CKadDHT%2CKey%2CPeerId"><span class="Identifier">findClosestPeers</span></a><span class="Other">(</span><span class="Identifier">kad</span><span class="Other">:</span> <a href="types.html#KadDHT"><span class="Identifier">KadDHT</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <a href="types.html#Key"><span class="Identifier">Key</span></a><span class="Other">;</span> <span class="Identifier">requester</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="protobuf.html#Peer"><span class="Identifier">Peer</span></a><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-
+Over-fetches by <tt class="docutils literal"><span class="pre"><span class="Identifier">excluded</span><span class="Operator">.</span><span class="Identifier">len</span></span></tt> so dropping self and <tt class="docutils literal"><span class="pre"><span class="Identifier">requester</span></span></tt> still fills the reply.
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/find.nim#L507" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/find.nim#L507" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
@@ -672,8 +672,8 @@ Iteratively search for the k closest peers to a <tt class="docutils literal"><sp
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/find.nim#L516" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/find.nim#L516" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/find.nim#L534" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/find.nim#L534" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -689,7 +689,7 @@ Iteratively search for the k closest peers to a <tt class="docutils literal"><sp
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-17 05:55:09 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-18 05:46:54 UTC</small>
       </div>
     </div>
   </div>
