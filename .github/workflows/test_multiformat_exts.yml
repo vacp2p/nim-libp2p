@@ -57,9 +57,7 @@ jobs:
         shell: ${{ needs.pick-platform.outputs.shell }}
     steps:
       - name: selected platform
-        # The job-default shell is msys2 on Windows, but msys2 is only installed
-        # later by "Setup Nim"; use bash here so this pre-setup step never runs
-        # under an unavailable shell.
+        # msys2 is only installed by Setup Nim below, so it cannot be the shell here.
         shell: bash
         run: echo "(${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
 

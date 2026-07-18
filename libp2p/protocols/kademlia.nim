@@ -155,17 +155,18 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
 
   kad.started = false
 
-  let admissionProbes = move kad.admissionProbes
-  await noCancel admissionProbes.values.toSeq().cancelAndWait()
-
-  kad.maintenanceLoop.cancelSoon()
+  await noCancel allFutures(
+    kad.maintenanceLoop.cancelAndWait(),
+    kad.republishLoop.cancelAndWait(),
+    kad.expiredLoop.cancelAndWait(),
+    kad.recordExpirationLoop.cancelAndWait(),
+  )
   kad.maintenanceLoop = nil
-
-  kad.republishLoop.cancelSoon()
   kad.republishLoop = nil
-
-  kad.expiredLoop.cancelSoon()
   kad.expiredLoop = nil
-
-  kad.recordExpirationLoop.cancelSoon()
   kad.recordExpirationLoop = nil
+
+  # loop: a handler racing shutdown can register a probe while we await a batch
+  while kad.admissionProbes.len > 0:
+    let admissionProbes = move kad.admissionProbes
+    await noCancel admissionProbes.values.toSeq().cancelAndWait()

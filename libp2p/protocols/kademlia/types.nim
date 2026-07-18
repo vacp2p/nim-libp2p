@@ -365,11 +365,7 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
-  maxConcurrentProbes*: int
-    ## Maximum number of concurrent FIND_NODE admission probes. A discovered
-    ## peer is only inserted into the routing table once such a probe confirms
-    ## it is reachable and speaks the DHT protocol. Excess probes wait on a
-    ## dedicated semaphore so admission does not amplify RPC load.
+  maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
   maxPeersPerIp*: int
     ## Maximum number of Kademlia routing-table peers sharing one exact IP.
   maxPeersPerIpv4Subnet*: int
@@ -488,6 +484,10 @@ proc new*(
     limits: actualLimits,
   )
 
+type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
+
+type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
+
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: Rng
@@ -502,11 +502,9 @@ type KadDHT* = ref object of LPProtocol
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
   probeSem*: AsyncSemaphore
-    ## Bounds concurrent routing-table admission probes to
-    ## ``config.limits.maxConcurrentProbes``.
-  admissionProbes*: Table[PeerId, Future[void]]
-    ## In-flight admission probes keyed by candidate. Dedupes concurrent probes
-    ## for the same peer and lets ``stop`` cancel any that are still running.
+    ## Bounds admission probes to ``config.limits.maxConcurrentProbes``.
+  admissionProbes*: Table[ProbeKey, Future[void]]
+    ## In-flight admission probes, keyed by target table and candidate peer.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is

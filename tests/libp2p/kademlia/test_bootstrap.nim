@@ -117,8 +117,7 @@ suite "KadDHT Bootstrap Component":
     )
     startAndDeferStop(kads)
 
-    # All nodes should know about all other nodes after bootstrap. Admission
-    # is gated behind background probes, so poll until the tables converge.
+    # All nodes should know about all other nodes after bootstrap
     proc allPeersKnowEachOther(): bool =
       for i, kad in kads:
         for j, otherKad in kads:

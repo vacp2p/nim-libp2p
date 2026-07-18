@@ -3,14 +3,33 @@
 
 {.used.}
 
-import chronos, results, tables
+import chronos, results, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/utils/future
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
 suite "KadDHT - Limits":
   teardown:
     checkTrackers()
+
+  asyncTest "admitPeers spawns at most maxConcurrentProbes probes":
+    let kad = setupKad()
+    kad.probeSem = newAsyncSemaphore(2)
+
+    let peers = (0 ..< 5).mapIt(
+      PeerInfo(
+        peerId: randomPeerId(),
+        addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
+      )
+    )
+    kad.admitPeers(peers)
+
+    # candidates beyond the semaphore are dropped, never queued
+    check kad.admissionProbes.len == 2
+
+    let probes = move kad.admissionProbes
+    await noCancel probes.values.toSeq().cancelAndWait()
 
   test "updateShortlist caps shortlist at maxShortlistSize":
     let kad = setupKad()

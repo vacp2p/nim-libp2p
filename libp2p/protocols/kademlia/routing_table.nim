@@ -133,7 +133,7 @@ proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc contains*(rtable: RoutingTable, nodeId: Key): bool =
-  ## Membership test that scans only the node's bucket, not the whole table.
+  ## Scans only the node's bucket, not the whole table.
   let idx = rtable.bucketIndex(nodeId)
   if idx >= rtable.buckets.len:
     return false

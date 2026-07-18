@@ -157,7 +157,6 @@ suite "KadDHT Get":
 
     # kads[2] should discover kads[1] through the closerPeers in the response
     check record.isErr()
-    # discovered via closerPeers, inserted once the background probe succeeds
     checkUntilTimeout:
       kads[2].hasKey(kads[1].rtable.selfId)
 
@@ -185,7 +184,6 @@ suite "KadDHT Get":
 
     # kads[2] should discover kads[1] through the closerPeers in the response.
     check record.get().value == value
-    # discovered via closerPeers, inserted once the background probe succeeds
     checkUntilTimeout:
       kads[2].hasKey(kads[1].rtable.selfId)
 

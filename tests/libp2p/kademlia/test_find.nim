@@ -25,8 +25,7 @@ suite "KadDHT Find":
 
     discard await kads[1].findNode(kads[2].rtable.selfId)
 
-    # After findNode, kads[1] discovers kads[2] through kad[0].
-    # Admission is gated behind a background probe, so poll until inserted.
+    # After findNode, kads[1] discovers kads[2] through kad[0]
     checkUntilTimeout:
       kads[1].hasKey(kads[2].rtable.selfId)
 
@@ -77,9 +76,7 @@ suite "KadDHT Find":
     # Round 2: kads[0] -> kads[2], learns kads[3]
     discard await kads[0].findNode(kads[3].rtable.selfId)
 
-    # kads[0] accumulated kads[2] and kads[3] from iterative responses,
-    # and the queried nodes learned about kads[0]. Admission runs behind a
-    # background probe, so poll until the tables settle.
+    # kads[0] accumulated kads[2] and kads[3], and they learned about kads[0]
     checkUntilTimeout:
       kads[0].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
       kads[2].hasKey(kads[0].rtable.selfId)
@@ -119,7 +116,6 @@ suite "KadDHT Find":
     check foundPeers ==
       kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
 
-    # Discovered peers are inserted once their background probe succeeds.
     checkUntilTimeout:
       kads[0].hasKey(kads[3].rtable.selfId)
       kads[0].hasKey(kads[4].rtable.selfId)
@@ -198,6 +194,28 @@ suite "KadDHT Find":
     let res2 = await kads[1].findPeer(randomPeerId())
     check res2.isErr()
 
+  asyncTest "Discovered peer failing its admission probe is not admitted":
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    # kads[1] vouches for a peer nothing is listening for
+    let deadPeerId = randomPeerId()
+    let deadAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").tryGet()]
+    kads[1].updatePeers(@[(deadPeerId, deadAddrs)])
+
+    discard await kads[0].findNode(deadPeerId.toKey())
+
+    # once no probe is in flight the admission decision is final
+    checkUntilTimeout:
+      kads[0].admissionProbes.len == 0
+
+    check:
+      not kads[0].hasKey(deadPeerId.toKey())
+      # still dialable by lookups and findPeer
+      kads[0].switch.peerStore[AddressBook][deadPeerId] == deadAddrs
+
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
     let kads = setupKadSwitches(3)
@@ -216,7 +234,7 @@ suite "KadDHT Find":
 
     await kads[0].bootstrap()
 
-    # kads[0] discovers kads[2] via kads[1] (inserted after a background probe)
+    # kads[0] discovers kads[2] via kads[1]
     checkUntilTimeout:
       kads[0].hasKey(kads[2].rtable.selfId)
 
