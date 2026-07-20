@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        install_pinned pin unpin gen_multicodec format clean-nim
+        install_pinned lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -41,17 +41,17 @@ TEST_PATH ?=
 
 all: build
 
-nimble.lock:
+nimble.lock: libp2p.nimble
 	nimble lock
 
 nix/deps.nix: nimble.lock
 	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
-tests/nimble.lock: tests/tests.nimble
+tests/nimble.lock: tests/tests.nimble libp2p.nimble
 	cd tests && nimble lock
 
 nix/tests-deps.nix: tests/nimble.lock
-	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix libbacktrace unittest2
 
 deps: nix/deps.nix nix/tests-deps.nix
 
@@ -62,7 +62,7 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock tests/nimble.lock nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
+	$(RM) nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
 # Generate nimble.paths so config.nims can include it.
@@ -140,14 +140,13 @@ test_integration: nimble.paths tests/nimble.paths
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
 install_pinned:
-	nimble install_pinned
-	cd tests && nimble install_pinned
+	nimble --useSystemNim -l install -dy
+	cd tests && nimble --useSystemNim -l install -dy
 
-pin:
-	nimble pin
-
-unpin:
-	nimble unpin
+lock:
+	nimble lock
+	cd tests && nimble lock
+	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:
 	nimble gen_multicodec
@@ -158,4 +157,4 @@ format:
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
 	[ ! -d tests/nimbledeps ] || rm -rf tests/nimbledeps
-	rm nimble.locks nimble.paths tests/nimble.paths 2>/dev/null || true
+	rm nimble.paths tests/nimble.paths 2>/dev/null || true

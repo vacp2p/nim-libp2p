@@ -45,13 +45,14 @@ jobs:
           path: nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('nimble.lock') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble --useSystemNim -l install -dy
 
       - name: Run runnableExamples check
         run: |
+          nimble --useSystemNim -l setup
           nim c -r ./tools/check_code_examples.nim

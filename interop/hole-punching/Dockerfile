@@ -3,12 +3,12 @@ FROM nimlang/nim:2.2.10 as builder
 
 WORKDIR /app
 
-COPY .pinned libp2p.nimble nim-libp2p/
+COPY libp2p.nimble nimble.lock nim-libp2p/
 
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd nim-libp2p && nimble install -y redis && nimble install_pinned
+RUN cd nim-libp2p && nimble --useSystemNim -l install -dy && nimble --useSystemNim -l --noLockfile install -y redis
 
 COPY . nim-libp2p/
 

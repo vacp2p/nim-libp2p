@@ -10,11 +10,11 @@ genbindings:
 	nimble genbindings_c
 	nimble genbindings_cddl
 
-nimble.lock:
+nimble.lock: cbind.nimble
 	nimble lock
 
 ../nix/cbind-deps.nix: nimble.lock
-	../tools/gen-deps.sh nimble.lock ../nix/cbind-deps.nix
+	../tools/gen-deps.sh nimble.lock ../nix/cbind-deps.nix taskpools cbor_serialization ffi
 
 deps: ../nix/cbind-deps.nix
 
@@ -22,5 +22,4 @@ nixbuild: deps
 	nix build .#cbind
 
 clean:
-	$(RM) nimble.lock ../nix/cbind-deps.nix
 	$(RM) -r c_bindings cddl_bindings nimcache nimcache_c nimcache_cddl

@@ -81,7 +81,7 @@ jobs:
           path: |
             nimbledeps
             tests/nimbledeps
-          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('nimble.lock', 'tests/nimble.lock') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
@@ -128,8 +128,8 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
+          nimble --useSystemNim -l install -dy
+          cd tests && nimble --useSystemNim -l install -dy
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

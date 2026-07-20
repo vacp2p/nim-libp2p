@@ -11,7 +11,7 @@
   };
 
   unittest2 = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-unittest2.git";
+    url = "https://github.com/status-im/nim-unittest2";
     rev = "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189";
     sha256 = "1n8n36kad50m97b64y7bzzknz9n7szffxhp0bqpk3g2v7zpda8sw";
     fetchSubmodules = true;

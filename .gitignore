@@ -30,4 +30,3 @@ tests/nimble.paths
 
 # nix builds
 result
-nimble.lock

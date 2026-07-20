@@ -44,15 +44,18 @@ jobs:
         id: deps-cache
         uses: actions/cache@v5
         with:
-          path: nimbledeps
+          path: |
+            nimbledeps
+            cbind/nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble --useSystemNim -l install -dy
+          cd cbind && nimble --useSystemNim -l install -dy
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -60,10 +63,9 @@ jobs:
           nimble --version
           gcc --version
 
-          nimble setup
+          nimble --useSystemNim -l setup
           cd cbind
-          nimble install_pinned
-          nimble setup
+          nimble --useSystemNim -l setup
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl
@@ -106,13 +108,16 @@ jobs:
         id: deps-cache
         uses: actions/cache@v5
         with:
-          path: nimbledeps
-          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('.pinned', 'cbind/.pinned') }}
+          path: |
+            nimbledeps
+            cbind/nimbledeps
+          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
+          nimble --useSystemNim -l install -dy
+          cd cbind && nimble --useSystemNim -l install -dy
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -120,10 +125,9 @@ jobs:
           nimble --version
           clang --version
 
-          nimble setup
+          nimble --useSystemNim -l setup
           cd cbind
-          nimble install_pinned
-          nimble setup
+          nimble --useSystemNim -l setup
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl

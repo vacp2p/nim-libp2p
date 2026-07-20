@@ -42,11 +42,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          if ! DEPS=$(python3 tools/resolve_newest_deps.py .pinned 2>"$RUNNER_TEMP/resolve_deps.log"); then
+          if ! DEPS=$(python3 tools/resolve_newest_deps.py nimble.lock 2>"$RUNNER_TEMP/resolve_deps.log"); then
             cat "$RUNNER_TEMP/resolve_deps.log"
             exit 1
           fi
-          if ! TEST_DEPS=$(python3 tools/resolve_newest_deps.py tests/.pinned 2>"$RUNNER_TEMP/resolve_test_deps.log"); then
+          if ! TEST_DEPS=$(python3 tools/resolve_newest_deps.py tests/nimble.lock 2>"$RUNNER_TEMP/resolve_test_deps.log"); then
             cat "$RUNNER_TEMP/resolve_test_deps.log"
             exit 1
           fi
@@ -181,14 +181,14 @@ jobs:
             exit 1
           fi
           echo "=== Installing resolved newest dependencies ==="
-          # nimbledeps/ switches nimble to local-dep mode for the pinned build.
+          # nimbledeps/ switches nimble to local-dep mode for the latest-deps build.
           rm -rf nimbledeps tests/nimbledeps
           mkdir nimbledeps
-          echo "nimble install -y $DEPS"
-          nimble install -y $DEPS
+          echo "nimble --useSystemNim -l --noLockfile install -y $DEPS"
+          nimble --useSystemNim -l --noLockfile install -y $DEPS
           mkdir tests/nimbledeps
-          echo "cd tests && nimble install -y $TEST_DEPS"
-          (cd tests && nimble install -y $TEST_DEPS)
+          echo "cd tests && nimble --useSystemNim -l --noLockfile install -y $TEST_DEPS"
+          (cd tests && nimble --useSystemNim -l --noLockfile install -y $TEST_DEPS)
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

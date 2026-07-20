@@ -115,7 +115,7 @@ jobs:
           # artifacts across mismatched toolchains (linux<->windows,
           # gcc<->clang). Keep this key in sync with the other workflows that
           # cache nimbledeps so cache entries are reusable across them.
-          key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('nimble.lock', 'tests/nimble.lock') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
@@ -162,8 +162,8 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
+          nimble --useSystemNim -l install -dy
+          cd tests && nimble --useSystemNim -l install -dy
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths
