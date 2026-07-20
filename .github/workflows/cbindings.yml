@@ -66,14 +66,14 @@ jobs:
           nimble --useSystemNim -l setup
           cd cbind
           nimble --useSystemNim -l setup
-          nimble buildffi
-          nimble genbindings_c
-          nimble genbindings_cddl
+          nimble --useSystemNim -l buildffi
+          nimble --useSystemNim -l genbindings_c
+          nimble --useSystemNim -l genbindings_cddl
 
       - name: Build and run C bindings examples
         run: |
           cd cbind
-          nimble examples
+          nimble --useSystemNim -l examples
 
   # macOS coverage for the FFI library build + C/CDDL binding generation; the
   # main c-bindings job above covers linux.
@@ -128,6 +128,6 @@ jobs:
           nimble --useSystemNim -l setup
           cd cbind
           nimble --useSystemNim -l setup
-          nimble buildffi
-          nimble genbindings_c
-          nimble genbindings_cddl
+          nimble --useSystemNim -l buildffi
+          nimble --useSystemNim -l genbindings_c
+          nimble --useSystemNim -l genbindings_cddl

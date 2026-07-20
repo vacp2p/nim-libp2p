@@ -8,19 +8,7 @@
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "17ec440fdb89f8903db29a17898af590087d2b64"
-      }
-    },
-    "libbacktrace": {
-      "version": "0.2.0",
-      "vcsRevision": "af60500cb0383231065f1d6624beeeefa308d085",
-      "url": "https://github.com/status-im/nim-libbacktrace",
-      "downloadMethod": "git",
-      "dependencies": [
-        "nim"
-      ],
-      "checksums": {
-        "sha1": "03deb5b6d5eb047f468b9c31ea1db640f8096bfd"
+        "sha1": "19c7dc767547c8c8252f4f26f5853ca574f41eb7"
       }
     },
     "unittest2": {
