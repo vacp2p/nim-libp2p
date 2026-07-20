@@ -100,8 +100,7 @@ proc sortedShortlist(
     if pid == selfPid:
       # do not return self
       continue
-    if excludeResponded and state.responded.contains(pid):
-      # already responded, do not query again
+    if excludeResponded and state.responded.getOrDefault(pid) == Success:
       continue
     if state.attempts.getOrDefault(pid, 0) > state.kad.config.retries:
       # depleted retries, do not query again
