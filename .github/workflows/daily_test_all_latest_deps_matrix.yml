@@ -167,6 +167,15 @@ jobs:
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Prepare short paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          New-Item -ItemType Directory -Force -Path D:\t | Out-Null
+          "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Install dependencies (newest used across projects)
         env:
           DEPS: ${{ needs.resolve_deps.outputs.deps }}
