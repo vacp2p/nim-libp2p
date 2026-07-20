@@ -14,6 +14,7 @@
 
 import boringssl
 import results
+import ./mlkem768layout
 export results
 
 const
@@ -23,13 +24,6 @@ const
     ## ML-KEM-768 ciphertext size, in bytes.
   MLKEM768SharedSecretLen* = 32
     ## ML-KEM-768 shared secret size, in bytes.
-
-  # Opaque struct sizes copied from BoringSSL's `include/openssl/mlkem.h`.
-  # These layouts are BoringSSL-internal and unstable across versions; they
-  # must never be serialized, only ever passed back into the MLKEM768_* C
-  # API by pointer.
-  mlkem768PublicKeyOpaqueLen = 512 * (3 + 9) + 32 + 32 # 6208
-  mlkem768PrivateKeyOpaqueLen = 512 * (3 + 3 + 9) + 32 + 32 + 32 # 7776
 
 type
   MLKEM768PublicKeyBytes* = array[MLKEM768PublicKeyLen, byte]

@@ -106,9 +106,10 @@ proc handshakeXXHFSOutbound(
       let ciphertext = hs.ss.decryptAndHash(msg.toOpenArray(0, ekem1Len - 1))
       msg.consume(ekem1Len)
 
-      let sharedSecret = mlkem768.decapsulate(ciphertext, hs.e1).valueOr:
+      var sharedSecret = mlkem768.decapsulate(ciphertext, hs.e1).valueOr:
         raise (ref NoiseHFSHandshakeError)(msg: "NoiseHFS ekem1, invalid ciphertext")
       hs.ss.mixKey(sharedSecret) # after decrypt, mirroring the sender's order
+      burnMem(sharedSecret)
 
       let rsLen =
         if hs.ss.cs.hasKey:
@@ -171,10 +172,11 @@ proc handshakeXXHFSInbound(
 
       hs.ss.mixKey(dh(hs.e.privateKey, hs.re)) # ee
 
-      let encapRes = mlkem768.encapsulate(hs.re1).valueOr:
+      var encapRes = mlkem768.encapsulate(hs.re1).valueOr:
         raise (ref NoiseHFSHandshakeError)(msg: "NoiseHFS ekem1, invalid remote e1")
       let ekem1bytes = hs.ss.encryptAndHash(encapRes.ciphertext)
       hs.ss.mixKey(encapRes.sharedSecret) # after encrypt, per the wire spec
+      burnMem(encapRes.sharedSecret)
 
       let sbytes = hs.ss.encryptAndHash(hs.s.publicKey)
       hs.ss.mixKey(dh(hs.s.privateKey, hs.re)) # es (responder)
