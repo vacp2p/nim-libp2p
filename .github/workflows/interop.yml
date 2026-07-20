@@ -68,8 +68,8 @@ jobs:
 
       - name: Run Go and Nim together
         run: |
-          nimble install_pinned
-          nimble setup
+          nimble --useSystemNim -l install -dy
+          nimble --useSystemNim -l setup
           cd interop/autonatv2/go-peer
           go mod tidy
           go run testautonatv2.go &
@@ -94,8 +94,8 @@ jobs:
 
       - name: Run Nim and Rust together
         run: |
-          nimble install_pinned
-          nimble setup
+          nimble --useSystemNim -l install -dy
+          nimble --useSystemNim -l setup
           cd interop/kad/rust-peer
           cargo run &
 
@@ -122,8 +122,8 @@ jobs:
       # the go peer runs in the background because the interop test logic is implemented in the nim peer.
       - name: Run Interop
         run: |
-          nimble install_pinned
-          nimble setup
+          nimble --useSystemNim -l install -dy
+          nimble --useSystemNim -l setup
           cd interop/partial-message
           nim c ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go

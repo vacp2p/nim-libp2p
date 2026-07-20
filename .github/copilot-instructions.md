@@ -561,7 +561,6 @@ nimble testpath protocols/pubsub
 nimble format
 
 # Install/lock dependencies
-nimble install -dy              # fresh install
-nimble pin                      # create lockfile
-nimble install_pinned           # install from lockfile
+make install_pinned                  # install from committed lockfiles
+make lock                            # update app/tool lockfiles
 ```
