@@ -11,7 +11,10 @@ import ./protobuf
 const
   IdLength* = 32 # 256-bit IDs
 
-  DefaultMaxBuckets* = 256
+  MaxBucketsLimit* = IdLength * 8
+    ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
+  DefaultMaxBuckets* = MaxBucketsLimit
+  MaxRefreshLeadingZeros* = 12
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes
@@ -47,6 +50,8 @@ const
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
     ## upper bound on Kademlia routing-table peers sharing one IP subnet
+
+  MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
 type Key* = seq[byte]
 

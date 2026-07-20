@@ -568,7 +568,7 @@ proc drainChannelTasks(channels: seq[YamuxChannel]) {.async: (raises: []).} =
       futs.add(channel.handlerFut)
     if not channel.sendLoopFut.isNil():
       futs.add(channel.sendLoopFut)
-  discard await noCancel allFinished(futs)
+  await noCancel allFutures(futs)
 
 method close*(m: Yamux) {.async: (raises: []).} =
   if m.isClosed == true:

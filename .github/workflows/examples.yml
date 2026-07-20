@@ -55,7 +55,7 @@ jobs:
           nimble install_pinned
 
       - name: Build prerequisites
-        run: make nimble.paths nat_libs
+        run: make nimble.paths
         
       - name: Build and run examples
         run: |

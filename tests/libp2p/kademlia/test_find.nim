@@ -217,10 +217,11 @@ suite "KadDHT Find":
     check kads[0].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
-    let kads = setupKadSwitches(2)
+    let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
-    await connect(kads[0], kads[1])
+    # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     # Send FIND_NODE with empty key directly
     let emptyKey: Key = @[]
@@ -231,9 +232,9 @@ suite "KadDHT Find":
     check:
       response.msgType == MessageType.findNode
       response.closerPeers.len == 1
-      response.closerPeers[0].id.get() == kads[1].rtable.selfId
+      response.closerPeers[0].id.get() == kads[2].rtable.selfId
 
-  asyncTest "Find node for own PeerID returns closest peers":
+  asyncTest "Find node for own PeerID excludes the requester":
     let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
@@ -248,9 +249,78 @@ suite "KadDHT Find":
     let closerPeersIds = response.closerPeers.mapIt(it.id.get())
     check:
       response.msgType == MessageType.findNode
-      # kads[0] knows kads[1] and kads[2], should return both as closest peers
-      response.closerPeers.len == 2
-      kads[1].rtable.selfId in closerPeersIds
+      response.closerPeers.len == 1
+      kads[1].rtable.selfId notin closerPeersIds
+      kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node for a known target returns it once":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    let response = (
+      await kads[1].dispatchFindNode(
+        kads[0].switch.peerInfo.peerId, kads[2].rtable.selfId
+      )
+    ).value()
+
+    check:
+      response.closerPeers.len == 1
+      response.closerPeers[0].id.get() == kads[2].rtable.selfId
+
+  asyncTest "Find node for an unknown target omits it":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    let unknownTarget = randomPeerId().toKey()
+    let response = (
+      await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, unknownTarget)
+    ).value()
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id.get())
+    check:
+      unknownTarget notin closerPeersIds
+      kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node returns a target known only from the address book":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    # A client-mode peer is in nobody's routing table, but its addresses are known.
+    let client = randomPeerId()
+    kads[0].switch.peerStore[AddressBook][client] =
+      @[MultiAddress.init("/ip4/127.0.0.1/tcp/9999").tryGet()]
+
+    let response = (
+      await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, client.toKey())
+    ).value()
+
+    check:
+      not kads[0].hasKey(client.toKey())
+      response.closerPeers[0].id.get() == client.toKey()
+
+  asyncTest "Find node excludes the requester for an unrelated target":
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
+
+    await connectHub(kads[0], kads[1 ..^ 1])
+
+    # kads[0] knows kads[1] and kads[2], and both fit in a reply, so pre-filter
+    # kads[1] would get itself back even though the target is unrelated to it.
+    let response = (
+      await kads[1].dispatchFindNode(
+        kads[0].switch.peerInfo.peerId, randomPeerId().toKey()
+      )
+    ).value()
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id.get())
+    check:
+      kads[1].rtable.selfId notin closerPeersIds
       kads[2].rtable.selfId in closerPeersIds
 
   asyncTest "Find node with empty routing table returns empty result":
@@ -308,3 +378,27 @@ suite "KadDHT Find":
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
+
+  asyncTest "closerPeers does not advertise an observed inbound address":
+    let kads = setupKadSwitches(3)
+    let (a, b, c) = (kads[0], kads[1], kads[2])
+    startAndDeferStop(kads)
+
+    let
+      bId = b.switch.peerInfo.peerId
+      bKey = bId.toKey()
+      bListenAddrs = b.switch.peerInfo.addrs
+
+    # B's inbound connection to A uses an ephemeral source port.
+    await b.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    discard (await b.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).expect(
+      "FIND_NODE reply"
+    )
+
+    check a.switch.peerStore[AddressBook][bId].allIt(it in bListenAddrs)
+
+    await c.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    let reply = (await c.dispatchFindNode(a.switch.peerInfo.peerId, bKey)).value()
+    let bCloser =
+      reply.closerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    check bCloser.mapIt(it.addrs).concat().allIt(it in bListenAddrs)
