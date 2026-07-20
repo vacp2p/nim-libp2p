@@ -81,6 +81,7 @@
       "downloadMethod": "git",
       "dependencies": [
         "nim",
+        "results",
         "stew",
         "unittest2"
       ],
