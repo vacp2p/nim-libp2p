@@ -84,12 +84,8 @@ template basicTransportTest*(
       let acceptFut = server.accept()
       await server.stop()
 
-      # quic resolves the parked accept to nil, the rest raise a stopped error
-      if isQuicTransport(ma[0]):
-        check (await acceptFut).isNil
-      else:
-        expect TransportClosedError:
-          discard await acceptFut
+      expect TransportClosedError:
+        discard await acceptFut
 
     asyncTest "transport start/stop events":
       let ma = @[MultiAddress.init(address).tryGet()]

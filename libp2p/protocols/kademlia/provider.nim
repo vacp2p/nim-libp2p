@@ -247,9 +247,9 @@ method handleAddProvider*(
     error "Key not set: handleAddProvider", msg = msg, stream = stream
     return
 
-  if not MultiHash.validate(msgKey):
-    error "Received key is an invalid Multihash",
-      msg = msg, stream = stream, key = msgKey
+  if msgKey.len == 0 or msgKey.len > MaxProviderKeyLen:
+    error "ADD_PROVIDER key length out of bounds",
+      msg = msg, stream = stream, keyLen = msgKey.len, maxLen = MaxProviderKeyLen
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
@@ -277,6 +277,9 @@ method handleAddProvider*(
 
   if not atCap:
     for peer in validPeers:
+      let providerId = PeerId.init(peer.id.get()).valueOr:
+        continue
+      kad.updatePeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
       kad.providerManager.addProviderRecord(
         ProviderRecord(
           provider: peer,
@@ -335,9 +338,6 @@ proc dispatchGetProviders*(
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
-  stream.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
-
   return ok(reply)
 
 proc getProviders*(
@@ -391,7 +391,7 @@ proc handleGetProviders*(
   let response = Message(
     msgType: Opt.some(MessageType.getProviders),
     key: msg.key,
-    closerPeers: kad.findClosestPeers(msgKey),
+    closerPeers: kad.findClosestPeers(msgKey, stream.peerId),
     providerPeers: providers.toSeq(),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)

@@ -97,6 +97,7 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   try:
     let listener = getInstance().dial($ma)

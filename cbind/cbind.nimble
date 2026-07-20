@@ -3,7 +3,7 @@ mode = ScriptMode.Verbose
 packageName = "cbind"
 version = "0.1.0"
 author = "Status Research & Development GmbH"
-description = "C bindings for LibP2P implementation"
+description = "C bindings for nim-libp2p, generated via nim-ffi"
 license = "MIT"
 
 import os, strutils, sequtils
@@ -20,43 +20,6 @@ task install_pinned,
     mkDir("nimbledeps")
   let deps = readFile(".pinned").splitWhitespace().mapIt(it.split(";", 1)[1])
   exec "nimble install -y " & deps.join(" ")
-
-proc getLibExt(libType: string): string =
-  if libType == "static":
-    "a"
-  else:
-    when defined(windows):
-      "dll"
-    elif defined(macosx):
-      "dylib"
-    else:
-      "so"
-
-proc buildCBindings(libType: string, params = "") =
-  let buildDir = "../build"
-
-  if not dirExists buildDir:
-    mkDir buildDir
-
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
-
-  let ext = getLibExt(libType)
-  let app = if libType == "static": "staticlib" else: "lib"
-
-  exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header -d:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
-
-task libDynamic, "Generate dynamic bindings":
-  buildCBindings "dynamic", ""
-
-task libStatic, "Generate static bindings":
-  buildCBindings "static", ""
-
-# nim-ffi library, built in parallel to the legacy cbind above (see libp2p_ffi.nim).
-# Renamed over libp2p.nim at the flip PR, which drops everything above this line.
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). install_pinned
@@ -98,9 +61,8 @@ proc buildFfiLib() =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
-  # liblibp2p.so transitively references miniupnpc and libnatpmp via
-  # nat_traversal's {.passL.} of their vendored .a's; build them first.
-  exec "make -C .. nat_libs"
+  # libplum's vendored C is pulled in via Nim `{.compile.}`, so no separate
+  # native-library build step is needed here.
   # Name the output `lib<name>` so the file matches the soname nim derives from
   # the module; `--nimMainPrefix:liblibp2p` matches the `liblibp2pNimMain` symbol
   # nim-ffi's `declareLibrary` imports.
@@ -109,7 +71,7 @@ proc buildFfiLib() =
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
     " -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
-    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p_ffi.nim"
+    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
   buildFfiLib()
@@ -117,8 +79,8 @@ task buildffi, "Build the FFI shared library":
 proc genBindingsFor(lang, outDir: string) =
   exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
     " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
-    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p_ffi.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p_ffi.nim"
+    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
+    " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")
@@ -152,7 +114,7 @@ task examples, "Build and run the C bindings examples":
     cborObjs.add obj
   let cborObjsStr = cborObjs.join(" ")
 
-  for example in ["echo", "gossipsub"]:
+  for example in ["echo", "gossipsub", "kad", "relay", "peerstore", "metrics"]:
     let outBin = "../build/" & example
     exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
       cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin

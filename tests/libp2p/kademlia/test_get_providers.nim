@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, tables
+import chronos, results, sequtils, sets, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
 import ../../tools/[lifecycle, topology, unittest]
@@ -278,3 +278,40 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[2])
       providers.containsPeer(kads[3])
       providers.containsPeer(kads[4])
+
+  asyncTest "provider listen addresses are advertised in closerPeers":
+    let
+      a = setupKad(config = testKadConfig(providerRejection = true))
+      b = setupKad()
+      c = setupKad()
+    startAndDeferStop(@[a, b, c])
+
+    let
+      bId = b.switch.peerInfo.peerId
+      bListenAddrs = b.switch.peerInfo.addrs
+      providerKey = @[1.byte, 2, 3, 4, 5]
+
+    await b.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    discard (await b.dispatchFindNode(a.switch.peerInfo.peerId, bId.toKey())).expect(
+      "FIND_NODE reply"
+    )
+    check a.switch.peerStore[AddressBook][bId].allIt(it in bListenAddrs)
+
+    discard (await sendAddProviderAndGetStatus(b, a, providerKey)).expect(
+      "add provider accepted"
+    )
+    checkUntilTimeout:
+      bListenAddrs.allIt(it in a.switch.peerStore[AddressBook][bId])
+
+    await c.switch.connect(a.switch.peerInfo.peerId, a.switch.peerInfo.addrs)
+    let reply =
+      (await c.dispatchGetProviders(a.switch.peerInfo.peerId, providerKey)).value()
+    let bProvider =
+      reply.providerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    let bCloser =
+      reply.closerPeers.filterIt(it.id.isSome and it.id.get() == bId.getBytes())
+    check:
+      bProvider.len == 1
+      bCloser.len == 1
+      bProvider[0].addrs.anyIt(it in bListenAddrs)
+      bCloser.mapIt(it.addrs).concat().allIt(it in bListenAddrs)

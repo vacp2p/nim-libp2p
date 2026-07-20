@@ -1,0 +1,99 @@
+name: Mobile Android
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cbind-ffi-android:
+    timeout-minutes: 60
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            attr: cbind-ffi-android-arm64-v8a
+            machine: AArch64
+          - abi: x86_64
+            attr: cbind-ffi-android-x86_64
+            machine: Advanced Micro Devices X86-64
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "Android ${{ matrix.abi }} FFI check build"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Build Android C ABI package
+        run: |
+          nix --extra-experimental-features "nix-command flakes" \
+            build ".#${{ matrix.attr }}" \
+            -o "result-${{ matrix.abi }}"
+
+      - name: Verify Android artifacts
+        run: |
+          out="result-${{ matrix.abi }}"
+
+          test -f "$out/lib/liblibp2p.so"
+          test -f "$out/lib/liblibp2p.a"
+          test -f "$out/lib/libc++_shared.so"
+          test -f "$out/include/libp2p.h"
+          test -f "$out/include/nim_ffi_cbor.h"
+          test -f "$out/include/nim_ffi_prelude.h"
+          test -f "$out/include/tinycbor/cbor.h"
+          test -f "$out/include/cddl_bindings/libp2p.cddl"
+          test -x "$out/bin/libp2p_android_check"
+
+          readelf -h "$out/lib/liblibp2p.so" | tee liblibp2p.readelf
+          readelf -h "$out/bin/libp2p_android_check" | tee check.readelf
+
+          grep -q "Machine:[[:space:]]*${{ matrix.machine }}" liblibp2p.readelf
+          grep -q "Machine:[[:space:]]*${{ matrix.machine }}" check.readelf
+
+          file "$out/lib/liblibp2p.so"
+          file "$out/bin/libp2p_android_check"
+
+      - name: Enable KVM for Android emulator
+        if: matrix.abi == 'x86_64'
+        run: |
+          sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null <<'EOF'
+          KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+          EOF
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run FFI check on Android emulator
+        if: matrix.abi == 'x86_64'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: default
+          force-avd-creation: false
+          emulator-options: -no-window -no-audio -no-boot-anim -no-metrics -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb shell "mkdir -p /data/local/tmp/nim-libp2p"
+            adb push "result-x86_64/lib/liblibp2p.so" "/data/local/tmp/nim-libp2p/"
+            adb push "result-x86_64/lib/libc++_shared.so" "/data/local/tmp/nim-libp2p/"
+            adb push "result-x86_64/bin/libp2p_android_check" "/data/local/tmp/nim-libp2p/"
+            adb shell "chmod 755 /data/local/tmp/nim-libp2p/libp2p_android_check"
+            adb shell "cd /data/local/tmp/nim-libp2p && LD_LIBRARY_PATH=/data/local/tmp/nim-libp2p ./libp2p_android_check; echo RC=\$?" | tee run.log
+            grep -q '^RC=0' run.log
