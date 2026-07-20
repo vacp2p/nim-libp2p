@@ -203,7 +203,6 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    # See the equivalent comment in "FloodSub multiple peers, no self trigger".
     waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
@@ -216,16 +215,11 @@ suite "FloodSub Component":
 
     # test calling unsubscribeAll for coverage
     #
-    # This assertion must run synchronously, immediately after unsubscribeAll
-    # and without any intervening `await`. `unsubscribeAll` broadcasts a real
-    # "unsubscribe" RPC to every connected peer, and `PeerTable.removePeer`
-    # deletes a topic's table entry entirely once its peer set becomes empty.
-    # If we polled/awaited here (e.g. via checkUntilTimeout), earlier nodes'
-    # broadcasts could reach later nodes in this loop before they're checked,
-    # draining - and eventually removing - their `floodsub[topic]` entry and
-    # crashing with an unhandled KeyError instead of a normal check failure.
-    # `getOrDefault` is used defensively so any regression here surfaces as a
-    # failed check rather than an unhandled exception that aborts the suite.
+    # This assertion must run synchronously, immediately after unsubscribeAll.
+    # `unsubscribeAll` broadcasts "unsubscribe" RPC messages to every connected 
+    # peer. If we polled/awaited here (e.g. via checkUntilTimeout), earlier nodes'
+    # broadcasts could reach later nodes before they're checked, eventually removing
+    #  their `floodsub[topic]` entry and crashing with an unhandled KeyError.
     for node in nodes:
       node.unsubscribeAll(topic)
       check:

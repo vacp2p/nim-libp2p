@@ -353,12 +353,6 @@ template waitSubscribeStar*[T: PubSub](
     nodes: seq[T], topic: string, timeout: Duration = 30.seconds
 ): untyped =
   ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
-  ##
-  ## `timeout` defaults to the same 30s used by `checkUntilTimeout`. Larger
-  ## meshes (e.g. a full star of 10+ nodes) need every peer to dial and
-  ## negotiate a pubsub stream with every other peer before this converges,
-  ## which can occasionally exceed 30s on a loaded CI runner - callers with
-  ## many nodes should pass a larger `timeout`.
   when T is GossipSub:
     checkUntilTimeoutCustom(timeout, 50.milliseconds):
       nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
