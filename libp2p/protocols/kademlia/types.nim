@@ -14,6 +14,7 @@ const
   MaxBucketsLimit* = IdLength * 8
     ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
   DefaultMaxBuckets* = MaxBucketsLimit
+  MaxRefreshLeadingZeros* = 12
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes

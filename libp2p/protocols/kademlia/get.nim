@@ -177,7 +177,7 @@ method handleGetValue*(
     let response = Message(
       msgType: Opt.some(MessageType.getValue),
       key: Opt.some(key),
-      closerPeers: kad.findClosestPeers(key),
+      closerPeers: kad.findClosestPeers(key, stream.peerId),
     )
     let encoded = response.encode(kad.config.hideConnectionStatus)
     kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
@@ -197,7 +197,7 @@ method handleGetValue*(
         timeReceived: Opt.some(entryRecord.time),
       )
     ),
-    closerPeers: kad.findClosestPeers(key),
+    closerPeers: kad.findClosestPeers(key, stream.peerId),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
