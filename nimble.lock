@@ -151,7 +151,7 @@
       }
     },
     "libplum": {
-      "version": "#acefbe424cf9d1f05f2d93533790c9ac4e034df8",
+      "version": "0.6.0",
       "vcsRevision": "acefbe424cf9d1f05f2d93533790c9ac4e034df8",
       "url": "https://github.com/logos-storage/nim-libplum",
       "downloadMethod": "git",
