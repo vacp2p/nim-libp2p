@@ -7,6 +7,7 @@ import
   ../../../../libp2p/[
     crypto/crypto,
     peerid,
+    peerinfo,
     protocols/kademlia/types,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
@@ -383,8 +384,12 @@ suite "Service Discovery Component - Advertise Discover":
 
     # Simulate a peer discovered after the initial task spawn
     await connect(lateRegistrar, advertiserNode)
-    advertiserNode.rtManager.insertPeer(
-      serviceId, lateRegistrar.switch.peerInfo.peerId.toKey()
+    advertiserNode.insertPeer(
+      serviceId,
+      PeerInfo(
+        peerId: lateRegistrar.switch.peerInfo.peerId,
+        addrs: lateRegistrar.switch.peerInfo.addrs,
+      ),
     )
 
     # The maintenance loop rotates the new bucket peer in and registers with it.

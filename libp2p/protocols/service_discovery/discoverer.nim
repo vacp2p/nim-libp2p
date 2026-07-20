@@ -78,10 +78,10 @@ proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
     return @[]
 
 proc insertCloserPeers(
-    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId]
+    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerInfo]
 ) =
-  for nodeId in peers:
-    disco.rtManager.insertPeer(serviceId, nodeId.toKey())
+  for peerInfo in peers:
+    disco.insertPeer(serviceId, peerInfo)
 
 proc processResponse(
     disco: ServiceDiscovery,
@@ -92,7 +92,7 @@ proc processResponse(
 ) =
   disco.updatePeers(response.closerPeers)
 
-  disco.insertCloserPeers(serviceId, response.closerPeers.mapIt(it.peerId))
+  disco.insertCloserPeers(serviceId, response.closerPeers)
   for ad in response.ads:
     if found.len >= limit:
       break
@@ -106,7 +106,7 @@ proc drainCompletedPeers(
   for fut in pending.filterIt(it.completed()):
     let res = fut.value()
     if res.isOk():
-      disco.insertCloserPeers(serviceId, res.value().closerPeers.mapIt(it.peerId))
+      disco.insertCloserPeers(serviceId, res.value().closerPeers)
 
 proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int

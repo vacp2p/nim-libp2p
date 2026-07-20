@@ -256,7 +256,7 @@ proc advertiseToRegistrar*(
     disco.updatePeers(response.closerPeers)
 
     for p in response.closerPeers:
-      disco.rtManager.insertPeer(serviceId, p.peerId.toKey())
+      disco.insertPeer(serviceId, p)
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:

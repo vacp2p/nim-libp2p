@@ -5,10 +5,12 @@
 
 import chronos, results, sets, tables, sequtils
 import
+  ../../../libp2p/[peerinfo],
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
+import ./utils except randomPeerId
 
 proc makeKey(x: byte): Key =
   var buf: array[IdLength, byte]
@@ -223,30 +225,45 @@ suite "ServiceRoutingTableManager":
 
     check manager.getTable(serviceId).isNone()
 
-  test "insertPeer adds peer to the service routing table":
-    let selfId = makeKey(0)
-    let manager = ServiceRoutingTableManager.new()
+  test "insertPeer admits a peer with a valid address to the service routing table":
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-    let mainRt = RoutingTable.new(selfId)
 
-    check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peerKey = makeKey(2)
-    manager.insertPeer(serviceId, peerKey)
+    let peer = randomPeerId()
+    let peerInfo = PeerInfo(peerId: peer, addrs: @[makeMultiAddress("10.0.0.1")])
+    disco.insertPeer(serviceId, peerInfo)
 
-    let table = manager.getTable(serviceId).get()
+    let table = disco.rtManager.getTable(serviceId).get()
 
-    check peerKey in table.allKeys()
+    check peer.toKey() in table.allKeys()
+
+  test "insertPeer rejects a peer with no addresses":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId(1)
+
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let peer = randomPeerId()
+    disco.insertPeer(serviceId, PeerInfo(peerId: peer, addrs: @[]))
+
+    let table = disco.rtManager.getTable(serviceId).get()
+
+    check peer.toKey() notin table.allKeys()
 
   test "insertPeer on non-existent service is a no-op":
-    let manager = ServiceRoutingTableManager.new()
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-    let peerKey = makeKey(2)
+    let peerInfo =
+      PeerInfo(peerId: randomPeerId(), addrs: @[makeMultiAddress("10.0.0.1")])
 
-    manager.insertPeer(serviceId, peerKey)
-    check manager.count() == 0
+    disco.insertPeer(serviceId, peerInfo)
+    check disco.rtManager.count() == 0
 
   test "hasService returns false for unknown service":
     let manager = ServiceRoutingTableManager.new()
@@ -400,9 +417,9 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    manager.insertPeer(serviceId, selfId)
-
     let table = manager.getTable(serviceId).get()
+    discard table.insert(selfId)
+
     let peers = table.allKeys()
 
     check:
@@ -419,11 +436,10 @@ suite "ServiceRoutingTableManager - service id hashing":
       mainRt = RoutingTable.new(makeKey(0))
     check manager.addService(serviceId, mainRt, 100, DefaultMaxBuckets, Interest)
 
-    manager.insertPeer(serviceId, peer)
+    let serviceTable = manager.getTable(serviceId).get()
+    discard serviceTable.insert(peer)
 
-    let
-      serviceTable = manager.getTable(serviceId).get()
-      preHashBucket = serviceTable.bucketIndex(peer)
+    let preHashBucket = serviceTable.bucketIndex(peer)
 
     var nonServiceTable = serviceTable
 
@@ -445,9 +461,9 @@ suite "ServiceRoutingTableManager - service id hashing":
       mainRt = RoutingTable.new(makeKey(0))
     check manager.addService(serviceId, mainRt, 20, 16, Interest)
 
-    manager.insertPeer(serviceId, peer)
-
     let table = manager.getTable(serviceId).get()
+    discard table.insert(peer)
+
     let expectedScaled = table.bucketIndex(peer)
 
     check:

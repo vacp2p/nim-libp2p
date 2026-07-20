@@ -6,6 +6,7 @@ import chronos, results, sequtils
 import
   ../../../../libp2p/[
     peerid,
+    peerinfo,
     protocols/kademlia/types,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
@@ -44,8 +45,12 @@ suite "Service Discovery Component - Registrar Closer Peers":
       serviceId, registrarNode.rtable, registrarNode.config.replication,
       conf.bucketsCount, Interest,
     )
-    registrarNode.rtManager.insertPeer(
-      serviceId, serviceOnlyNode.switch.peerInfo.peerId.toKey()
+    registrarNode.insertPeer(
+      serviceId,
+      PeerInfo(
+        peerId: serviceOnlyNode.switch.peerInfo.peerId,
+        addrs: serviceOnlyNode.switch.peerInfo.addrs,
+      ),
     )
 
     let adBytes = makeAdvertisement(serviceName).encode().get()
@@ -84,8 +89,12 @@ suite "Service Discovery Component - Registrar Closer Peers":
       serviceId, registrarNode.rtable, registrarNode.config.replication,
       conf.bucketsCount, Interest,
     )
-    registrarNode.rtManager.insertPeer(
-      serviceId, serviceOnlyNode.switch.peerInfo.peerId.toKey()
+    registrarNode.insertPeer(
+      serviceId,
+      PeerInfo(
+        peerId: serviceOnlyNode.switch.peerInfo.peerId,
+        addrs: serviceOnlyNode.switch.peerInfo.addrs,
+      ),
     )
 
     let serviceOnlyKey = serviceOnlyNode.switch.peerInfo.peerId.toKey()

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, math]
+import std/[tables, math, sequtils]
 import chronos, chronicles, results
 import
   ../../[
-    peerid, switch, multihash, cid, multicodec, multiaddress, routing_record,
+    peerid, peerinfo, switch, multihash, cid, multicodec, multiaddress, routing_record,
     extended_peer_record,
   ]
 import ../../utils/iptree
@@ -390,7 +390,10 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
+  disco.insertPeer(
+    serviceId,
+    PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
+  )
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
 
@@ -423,9 +426,10 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     error "Key not set: registration", msg = inMsg
     return
 
-  # Add peer to both tables
   discard disco.rtable.insert(peerId)
-  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len > 0:
+    disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -529,9 +533,10 @@ proc getAdvertisements*(
     error "Key not set: getAdvertisements", msg = msg
     return
 
-  # Add peer to both tables
   discard disco.rtable.insert(peerId)
-  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len > 0:
+    disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
