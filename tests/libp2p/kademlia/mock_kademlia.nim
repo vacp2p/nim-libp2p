@@ -56,6 +56,7 @@ method handleFindNode*(
     try:
       await stream.writeLp(@[0xFF'u8, 0xFF, 0xFF])
     except LPStreamError as exc:
-      debug "Failed to send malformed find-node response", stream = stream, err = exc.msg
+      debug "Failed to send malformed find-node response",
+        stream = stream, err = exc.msg
     return
   await procCall handleFindNode(KadDHT(kad), stream, msg)
