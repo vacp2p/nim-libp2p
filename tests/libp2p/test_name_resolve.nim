@@ -59,15 +59,15 @@ suite "Name resolving":
   suite "Generic Resolving":
     var resolver {.threadvar.}: MockResolver
 
-    proc testOne(input: string, output: seq[MultiAddress]) =
-      let resolved = waitFor resolver.resolveMAddress(MultiAddress.init(input).tryGet())
+    proc testOne(input: string, output: seq[MultiAddress]) {.async.} =
+      let resolved = await resolver.resolveMAddress(MultiAddress.init(input).tryGet())
       check resolved == output
 
-    proc testOne(input: string, output: seq[string]) =
-      testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
+    proc testOne(input: string, output: seq[string]) {.async.} =
+      await testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
 
-    proc testOne(input, output: string) =
-      testOne(input, @[MultiAddress.init(output).tryGet()])
+    proc testOne(input, output: string) {.async.} =
+      await testOne(input, @[MultiAddress.init(output).tryGet()])
 
     asyncSetup:
       resolver = MockResolver.new()
@@ -76,10 +76,10 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
-      testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
-      testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
-      testOne(
+      await testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
+      await testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
+      await testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
+      await testOne(
         "/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
       )
@@ -88,7 +88,7 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
+      await testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
@@ -106,7 +106,7 @@ suite "Name resolving":
         "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
       ]
 
-      testOne(
+      await testOne(
         "/dnsaddr/bootstrap.libp2p.io/",
         @[
           "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -134,7 +134,7 @@ suite "Name resolving":
         "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
       ]
 
-      testOne(
+      await testOne(
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         @[
           "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -146,7 +146,7 @@ suite "Name resolving":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
         @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
-      testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
+      await testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
 
     test "getHostname":
       check:

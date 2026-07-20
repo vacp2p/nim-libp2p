@@ -170,7 +170,7 @@ suite "RendezVous":
     await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
-    waitFor peerNodes[0].advertise(namespace)
+    await peerNodes[0].advertise(namespace)
     let peerRecords = await rendezvous.request(
       peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
     )
@@ -235,7 +235,7 @@ suite "RendezVous":
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
 
     var data = peerNodes.mapIt(it.switch.peerInfo.signedPeerRecord.data)
-    var peerRecords = waitFor rendezvous.request(
+    var peerRecords = await rendezvous.request(
       peerNodes[0], Opt.some(namespace), Opt.some(5), Opt.none(seq[PeerId])
     )
     check:
@@ -442,13 +442,13 @@ suite "RendezVous":
       rendezvousNode.registered.s.len == 0
 
       (
-        waitFor rendezvous.request(
+        await rendezvous.request(
           peerNodes[0], Opt.some(namespaceFoo), Opt.none(int), Opt.none(seq[PeerId])
         )
       ).len == 0
 
       (
-        waitFor rendezvous.request(
+        await rendezvous.request(
           peerNodes[0], Opt.some(namespaceBar), Opt.none(int), Opt.none(seq[PeerId])
         )
       ).len == 0
@@ -499,7 +499,7 @@ suite "RendezVous":
 
     # Advertise a new peer, next request should return only the new one
     await peerNodes[2].advertise(namespace)
-    let peerRecords = waitFor rendezvous.request(
+    let peerRecords = await rendezvous.request(
       peerNodes[0], Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
     )
     check:
@@ -769,7 +769,7 @@ suite "RendezVous":
 
     const namespace = "foo"
     let custRecord = CustomPeerRecord.init(peerNode.switch.peerInfo.peerId, 1)
-    waitFor peerNode.advertise(namespace, custRecord)
+    await peerNode.advertise(namespace, custRecord)
     let peerRecords = await rendezvous.request[CustomPeerRecord](
       peerNode, Opt.some(namespace), Opt.none(int), Opt.none(seq[PeerId])
     )
