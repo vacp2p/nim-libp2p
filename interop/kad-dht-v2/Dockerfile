@@ -14,7 +14,9 @@ COPY . nim-libp2p/
 
 RUN \
   cd nim-libp2p && \
-  nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 \
+  nimble --useSystemNim -l setup && \
+  REDIS_PATH="$(nimble --useSystemNim -l --noLockfile path redis)" && \
+  nim c -d:release --path:"$REDIS_PATH/src" \
   --mm:refc --threads:on \
   -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
   -o:/app/peer ./interop/kad-dht-v2/peer.nim

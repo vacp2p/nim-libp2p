@@ -53,9 +53,9 @@ jobs:
           nimble --version
           gcc --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble setup
+          nimble -l setup -y
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl
@@ -107,9 +107,9 @@ jobs:
           nimble --version
           clang --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble setup
+          nimble -l setup -y
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl

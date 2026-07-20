@@ -51,7 +51,7 @@ tests/nimble.lock: tests/tests.nimble libp2p.nimble
 	cd tests && nimble lock
 
 nix/tests-deps.nix: tests/nimble.lock
-	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix libbacktrace unittest2
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix unittest2
 
 deps: nix/deps.nix nix/tests-deps.nix
 
