@@ -139,7 +139,7 @@
       }
     },
     "cbor_serialization": {
-      "version": "#1664160e04d153573373afddc552b9cbf6fbe4dc",
+      "version": "0.3.0",
       "vcsRevision": "1664160e04d153573373afddc552b9cbf6fbe4dc",
       "url": "https://github.com/vacp2p/nim-cbor-serialization",
       "downloadMethod": "git",
@@ -198,7 +198,7 @@
       }
     },
     "ffi": {
-      "version": "#7ef58f4bf5cf683cfdf2abbdb3d7688727763d65",
+      "version": "0.2.0",
       "vcsRevision": "7ef58f4bf5cf683cfdf2abbdb3d7688727763d65",
       "url": "https://github.com/logos-messaging/nim-ffi",
       "downloadMethod": "git",
