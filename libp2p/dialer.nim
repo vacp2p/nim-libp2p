@@ -56,7 +56,7 @@ proc dialAndUpgrade*(
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          await transport.dial(hostname, addrs, peerId)
+          await transport.dial(hostname, addrs, peerId, dir)
         except CancelledError as exc:
           trace "Dialing canceled", description = exc.msg, peerId
           raise exc
@@ -315,7 +315,7 @@ proc negotiateStream*(
   trace "Negotiating stream", stream, protos
   let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
-    await stream.closeWithEOF()
+    await stream.reset()
     raise newException(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
@@ -323,7 +323,7 @@ proc negotiateStream*(
 
   self.ms.lookupProtocol(selected).withValue(protocol):
     if not protocol.reserveOutgoing(stream.peerId):
-      await stream.closeWithEOF()
+      await stream.reset()
       raise newException(
         DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
       )

@@ -1,0 +1,214 @@
+name: Daily test all latest dependencies matrix
+
+on:
+  workflow_call:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  delete_cache:
+    name: Delete github action cache
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      actions: write
+    steps:
+      - name: Delete caches for this ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          gh cache list -R "$REPO" --ref "$REF" --limit 100 --json id --jq '.[].id' \
+            | while read -r id; do
+                gh cache delete -R "$REPO" "$id" || echo "skipped $id (already gone)"
+              done
+
+  resolve_deps:
+    name: Resolve newest dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      deps: ${{ steps.resolve.outputs.deps }}
+      test_deps: ${{ steps.resolve.outputs.test_deps }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve dependencies
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if ! DEPS=$(python3 tools/resolve_newest_deps.py .pinned 2>"$RUNNER_TEMP/resolve_deps.log"); then
+            cat "$RUNNER_TEMP/resolve_deps.log"
+            exit 1
+          fi
+          if ! TEST_DEPS=$(python3 tools/resolve_newest_deps.py tests/.pinned 2>"$RUNNER_TEMP/resolve_test_deps.log"); then
+            cat "$RUNNER_TEMP/resolve_test_deps.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/resolve_deps.log"
+          cat "$RUNNER_TEMP/resolve_test_deps.log"
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output" >&2
+            exit 1
+          fi
+          if [ -z "$TEST_DEPS" ]; then
+            echo "ERROR: test dependency resolver produced no output" >&2
+            exit 1
+          fi
+          printf 'deps=%s\n' "$DEPS" >> "$GITHUB_OUTPUT"
+          printf 'test_deps=%s\n' "$TEST_DEPS" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: [delete_cache, resolve_deps]
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: linux
+            cpu: amd64
+            cc: gcc
+            builder: ubuntu-22.04
+            shell: bash
+          - os: linux-gcc-14
+            cpu: amd64
+            cc: gcc
+            builder: ubuntu-24.04
+            shell: bash
+          - os: windows
+            cpu: amd64
+            cc: clang
+            builder: windows-2022
+            shell: bash
+          - os: windows
+            cpu: amd64
+            cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
+          - os: linux
+            cpu: i386
+            cc: gcc
+            builder: ubuntu-22.04
+            shell: bash
+        nim:
+          - ref: v2.2.4
+            memory_management: refc
+          - ref: v2.2.10
+            memory_management: refc
+          - ref: devel
+            memory_management: refc
+
+    defaults:
+      run:
+        shell: ${{ matrix.config.shell }}
+
+    name: "${{ matrix.config.os }}-${{ matrix.config.cpu }} (Nim ${{ matrix.nim.ref }}; ${{ matrix.config.cc }}; ${{ matrix.nim.memory_management }})"
+    runs-on: ${{ matrix.config.builder }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: ${{ matrix.config.os }}
+          shell: ${{ matrix.config.shell }}
+          nim_ref: ${{ matrix.nim.ref }}
+          cpu: ${{ matrix.config.cpu }}
+
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && matrix.config.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v5
+        with:
+          path: external/mingw-${{ matrix.config.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.config.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        run: |
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.config.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.config.cpu }}.zip" -oexternal/mingw-${{ matrix.config.cpu }}/
+          mv external/mingw-${{ matrix.config.cpu }}/**/* ./external/mingw-${{ matrix.config.cpu }}
+
+      - name: Use gcc 14
+        if: ${{ matrix.config.os == 'linux-gcc-14'}}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.config.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install dependencies (newest used across projects)
+        env:
+          DEPS: ${{ needs.resolve_deps.outputs.deps }}
+          TEST_DEPS: ${{ needs.resolve_deps.outputs.test_deps }}
+        run: |
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output for this workflow run" >&2
+            exit 1
+          fi
+          if [ -z "$TEST_DEPS" ]; then
+            echo "ERROR: test dependency resolver produced no output for this workflow run" >&2
+            exit 1
+          fi
+          echo "=== Installing resolved newest dependencies ==="
+          # nimbledeps/ switches nimble to local-dep mode for the pinned build.
+          rm -rf nimbledeps tests/nimbledeps
+          mkdir nimbledeps
+          echo "nimble install -y $DEPS"
+          nimble install -y $DEPS
+          mkdir tests/nimbledeps
+          echo "cd tests && nimble install -y $TEST_DEPS"
+          (cd tests && nimble install -y $TEST_DEPS)
+
+      - name: Build prerequisites
+        run: make nimble.paths tests/nimble.paths
+
+      - name: Build test_all
+        run: |
+          NIMFLAGS="--mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=DEBUG"
+          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
+          if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
+            NIMFLAGS="$NIMFLAGS --cc:clang"
+          fi
+          nim c $NIMFLAGS ./tests/test_all
+
+      - name: Run tests
+        run: |
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
+
+      - name: Run integration tests
+        if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
+        run: |
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make test_integration
