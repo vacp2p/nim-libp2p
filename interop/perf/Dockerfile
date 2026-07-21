@@ -15,8 +15,8 @@ COPY . nim-libp2p/
 RUN \
   cd nim-libp2p && \
   nimble --useSystemNim -l setup && \
-  REDIS_PATH="$(nimble --useSystemNim -l --noLockfile path redis)" && \
-  nim c -d:release --path:"$REDIS_PATH/src" --mm:refc -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None --threads:on -o:/app/perf-interop ./interop/perf/main.nim
+  REDIS_PATH="$(nimble --useSystemNim --noLockfile path redis | tail -n 1)" && \
+  nim c -d:release --path:"$REDIS_PATH" --mm:refc -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None --threads:on -o:/app/perf-interop ./interop/perf/main.nim
 
 FROM debian:trixie-slim AS runtime
 
