@@ -497,12 +497,16 @@ proc dropDonePeers(
     state: LookupState, pending: var seq[Attempt]
 ): seq[RpcFuture] {.raises: [].} =
   ## Remove attempts whose peer is finished with — it responded (no duplicate
-  ## retry) or a closer peer evicted it from the shortlist — and return their
-  ## still-live RPCs so the caller can cancel them.
+  ## retry), a closer peer evicted it from the shortlist, or it was abandoned
+  ## with its retries depleted (never re-dispatched, so its RPC is pure waste) —
+  ## and return their still-live RPCs so the caller can cancel them.
   var keep: seq[Attempt]
   var stale: seq[RpcFuture]
   for a in pending:
-    if state.responded.hasKey(a.peer) or not state.shortlist.hasKey(a.peer):
+    let retriesDepleted =
+      a.abandoned and state.attempts.getOrDefault(a.peer, 0) > state.kad.config.retries
+    if state.responded.hasKey(a.peer) or not state.shortlist.hasKey(a.peer) or
+        retriesDepleted:
       stale.add(a.fut)
     else:
       keep.add(a)
@@ -517,11 +521,9 @@ proc iterativeLookup*(
     onReply: ReplyHandler,
     stopCond: StopCond,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
-  ## Drive an iterative lookup as a continuous ``alpha``-concurrency pipeline:
-  ## keep up to ``alpha`` RPCs in flight and re-dispatch the next-closest
-  ## unqueried peer as soon as any slot frees, so wall-clock tracks throughput
-  ## rather than the slowest peer in a synchronized round. A slow peer only
-  ## stalls its own slot for ``timeout`` before it is abandoned and retried.
+  ## Drive lookup with continuous ``alpha`` concurrency instead of synchronized
+  ## rounds. Timed-out RPCs free their slot and may be retried; late replies are
+  ## ignored.
   let state = LookupState.init(kad, target)
   var pending: seq[Attempt]
 
