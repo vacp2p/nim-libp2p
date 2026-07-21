@@ -13,6 +13,7 @@ type MockKadDHT* = ref object of KadDHT
   handleAddProviderMessage*: Opt[Message]
   handleFindNodeDelay*: Duration
   handleFindNodeCalls*: int
+  handleFindNodeMalformedResponse*: bool
 
 method findNode*(
     kad: MockKadDHT, target: Key, rtable: RoutingTable
@@ -51,4 +52,11 @@ method handleFindNode*(
   kad.handleFindNodeCalls.inc()
   if kad.handleFindNodeDelay > ZeroDuration:
     await sleepAsync(kad.handleFindNodeDelay)
+  if kad.handleFindNodeMalformedResponse:
+    try:
+      await stream.writeLp(@[0xFF'u8, 0xFF, 0xFF])
+    except LPStreamError as exc:
+      debug "Failed to send malformed find-node response",
+        stream = stream, err = exc.msg
+    return
   await procCall handleFindNode(KadDHT(kad), stream, msg)

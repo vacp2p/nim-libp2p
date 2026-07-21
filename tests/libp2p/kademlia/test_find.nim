@@ -85,8 +85,8 @@ suite "KadDHT Find":
       kads[3].hasKey(kads[0].rtable.selfId)
 
   asyncTest "Find node merges results from parallel queries":
-    #         node[1] - node[3] 
-    #        /                 \ 
+    #         node[1] - node[3]
+    #        /                 \
     # node[0]                   node[5]
     #        \                 /
     #         node[2] - node[4]
@@ -346,7 +346,9 @@ suite "KadDHT Find":
     await connect(kads[2], kads[3])
 
     # Stop kads[1] - dial will fail immediately with DialFailedError
-    # This is marked as RespondedStatus.Failed and NOT retried
+    # This is marked as RespondedStatus.Failed; kads[1] stays eligible for
+    # retry (gated by attempts/retries) but every retry fails the same way
+    # since the switch is stopped, so the lookup still proceeds via kads[2].
     await kads[1].switch.stop()
 
     check not kads[0].hasKey(kads[3].rtable.selfId)
@@ -375,6 +377,24 @@ suite "KadDHT Find":
     let peerIds = await kad.findNode(mockKad.rtable.selfId)
 
     # Lookup terminates gracefully after retry exhaustion
+    check:
+      responsiveKad.switch.peerInfo.peerId in peerIds
+      mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
+
+  asyncTest "Find node retries a peer that responded with an error, not just silent peers":
+    const retries = 3
+    let kad = setupKad(config = testKadConfig(retries = retries))
+    let mockKad = setupMockKad(handleFindNodeMalformedResponse = true)
+    let responsiveKad = setupKad()
+    startAndDeferStop(@[kad, mockKad, responsiveKad])
+
+    await connect(kad, mockKad)
+    await connect(kad, responsiveKad)
+
+    check mockKad.handleFindNodeCalls == 0
+
+    let peerIds = await kad.findNode(mockKad.rtable.selfId)
+
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)

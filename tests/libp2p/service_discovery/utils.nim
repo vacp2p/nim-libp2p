@@ -10,6 +10,7 @@ import
     extended_peer_record,
     multiaddress,
     peerid,
+    peerinfo,
     protocols/kademlia,
     protocols/kademlia/protobuf,
     protocols/service_discovery,
@@ -39,6 +40,11 @@ proc randomKey*(): PrivateKey =
 
 proc randomPeerId*(): PeerId =
   PeerId.init(randomKey()).get()
+
+proc makePeerInfo*(
+    peerId: PeerId = randomPeerId(), addrs: seq[MultiAddress] = @[]
+): PeerInfo =
+  PeerInfo(peerId: peerId, addrs: addrs)
 
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   var buf = newSeq[byte](IdLength)
