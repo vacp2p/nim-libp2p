@@ -384,7 +384,7 @@ suite "Service Discovery Component - Advertise Discover":
 
     # Simulate a peer discovered after the initial task spawn
     await connect(lateRegistrar, advertiserNode)
-    advertiserNode.insertPeer(
+    check advertiserNode.insertPeer(
       serviceId,
       PeerInfo(
         peerId: lateRegistrar.switch.peerInfo.peerId,

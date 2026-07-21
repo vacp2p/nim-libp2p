@@ -93,22 +93,24 @@ proc getTable*(
 
   return Opt.some(table)
 
-proc insertPeer*(disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerInfo) =
+proc insertPeer*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerInfo
+): bool =
   let table = disco.rtManager.getTable(serviceId).valueOr:
-    return
+    return false
 
   let addressBook = disco.switch.peerStore[AddressBook]
   let addrs = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
   if addrs.len == 0:
-    return
+    return false
   if not addressBook.hasIpDiversity(
     table, peerInfo.peerId, addrs, disco.config.limits.maxPeersPerIp,
     disco.config.limits.maxPeersPerIpv4Subnet, disco.config.limits.maxPeersPerIpv6Subnet,
   ):
-    return
+    return false
 
-  let inserted = table.insert(peerInfo.peerId)
-  if inserted:
+  result = table.insert(peerInfo.peerId)
+  if result:
     addressBook.extend(peerInfo.peerId, addrs, AddressConfidence.Low)
     cd_service_table_insertions.inc()
     disco.rtManager.updateServiceTablesMetrics()
@@ -116,6 +118,13 @@ proc insertPeer*(disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerIn
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service
   serviceId in manager.tables
+
+proc hasPeerInServiceTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId
+): bool =
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    return false
+  peerId.toKey() in table.allKeys()
 
 proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT

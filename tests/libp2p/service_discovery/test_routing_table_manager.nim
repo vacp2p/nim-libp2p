@@ -228,41 +228,31 @@ suite "ServiceRoutingTableManager":
   test "insertPeer admits a peer with a valid address to the service routing table":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-
     check disco.rtManager.addService(
       serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peer = randomPeerId()
-    let peerInfo = PeerInfo(peerId: peer, addrs: @[makeMultiAddress("10.0.0.1")])
-    disco.insertPeer(serviceId, peerInfo)
-
-    let table = disco.rtManager.getTable(serviceId).get()
-
-    check peer.toKey() in table.allKeys()
+    let peerInfo = makePeerInfo(addrs = @[makeMultiAddress("10.0.0.1")])
+    check disco.insertPeer(serviceId, peerInfo)
+    check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
   test "insertPeer rejects a peer with no addresses":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-
     check disco.rtManager.addService(
       serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peer = randomPeerId()
-    disco.insertPeer(serviceId, PeerInfo(peerId: peer, addrs: @[]))
-
-    let table = disco.rtManager.getTable(serviceId).get()
-
-    check peer.toKey() notin table.allKeys()
+    let peerInfo = makePeerInfo()
+    check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
   test "insertPeer on non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-    let peerInfo =
-      PeerInfo(peerId: randomPeerId(), addrs: @[makeMultiAddress("10.0.0.1")])
+    let peerInfo = makePeerInfo(addrs = @[makeMultiAddress("10.0.0.1")])
 
-    disco.insertPeer(serviceId, peerInfo)
+    check not disco.insertPeer(serviceId, peerInfo)
     check disco.rtManager.count() == 0
 
   test "hasService returns false for unknown service":
@@ -418,12 +408,12 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     )
 
     let table = manager.getTable(serviceId).get()
-    discard table.insert(selfId)
+    check not table.insert(selfId) # local node must be rejected
 
     let peers = table.allKeys()
 
     check:
-      selfId notin peers # local node must be rejected
+      selfId notin peers
       peer1 in peers
       peer2 in peers
 
@@ -437,7 +427,7 @@ suite "ServiceRoutingTableManager - service id hashing":
     check manager.addService(serviceId, mainRt, 100, DefaultMaxBuckets, Interest)
 
     let serviceTable = manager.getTable(serviceId).get()
-    discard serviceTable.insert(peer)
+    check serviceTable.insert(peer)
 
     let preHashBucket = serviceTable.bucketIndex(peer)
 
@@ -462,7 +452,7 @@ suite "ServiceRoutingTableManager - service id hashing":
     check manager.addService(serviceId, mainRt, 20, 16, Interest)
 
     let table = manager.getTable(serviceId).get()
-    discard table.insert(peer)
+    check table.insert(peer)
 
     let expectedScaled = table.bucketIndex(peer)
 

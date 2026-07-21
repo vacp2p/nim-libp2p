@@ -45,7 +45,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
       serviceId, registrarNode.rtable, registrarNode.config.replication,
       conf.bucketsCount, Interest,
     )
-    registrarNode.insertPeer(
+    check registrarNode.insertPeer(
       serviceId,
       PeerInfo(
         peerId: serviceOnlyNode.switch.peerInfo.peerId,
@@ -89,7 +89,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
       serviceId, registrarNode.rtable, registrarNode.config.replication,
       conf.bucketsCount, Interest,
     )
-    registrarNode.insertPeer(
+    check registrarNode.insertPeer(
       serviceId,
       PeerInfo(
         peerId: serviceOnlyNode.switch.peerInfo.peerId,

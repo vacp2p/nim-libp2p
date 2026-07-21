@@ -81,7 +81,7 @@ proc insertCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerInfo]
 ) =
   for peerInfo in peers:
-    disco.insertPeer(serviceId, peerInfo)
+    discard disco.insertPeer(serviceId, peerInfo)
 
 proc processResponse(
     disco: ServiceDiscovery,

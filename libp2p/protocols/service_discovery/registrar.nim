@@ -390,7 +390,7 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  disco.insertPeer(
+  discard disco.insertPeer(
     serviceId,
     PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
   )
@@ -429,7 +429,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
   discard disco.rtable.insert(peerId)
   let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
   if senderAddrs.len > 0:
-    disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -536,7 +536,7 @@ proc getAdvertisements*(
   discard disco.rtable.insert(peerId)
   let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
   if senderAddrs.len > 0:
-    disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
