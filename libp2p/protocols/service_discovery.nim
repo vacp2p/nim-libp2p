@@ -36,7 +36,9 @@ proc maintainSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
-    await disco.refreshSelfSignedPeerRecord()
+    await disco.refreshSelfSignedPeerRecord().withTimeout(
+      disco.config.bucketRefreshTime
+    )
 
 proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
@@ -48,7 +50,9 @@ proc maintainServiceTables(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh service routing tables",
     disco.config.bucketRefreshTime, sleepFirst = true:
-    await disco.rtManager.refreshAllTables(disco)
+    await disco.rtManager.refreshAllTables(disco).withTimeout(
+      disco.config.bucketRefreshTime
+    )
 
 proc bootstrapServiceTable*(
     disco: ServiceDiscovery, serviceId: ServiceId

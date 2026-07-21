@@ -113,9 +113,8 @@ proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT
 ) {.async: (raises: [CancelledError]).} =
   let tables = manager.tables.values.toSeq()
-
-  for rtable in tables:
-    await kad.refreshTable(rtable)
+  let futs = tables.mapIt(kad.refreshTable(it))
+  await allFutures(futs)
 
 proc count*(manager: ServiceRoutingTableManager): int =
   return manager.tables.len

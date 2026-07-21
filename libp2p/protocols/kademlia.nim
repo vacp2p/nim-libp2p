@@ -23,7 +23,8 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  discard await kad.findNode(rtable.selfId, rtable)
+  var futs: seq[Future[seq[PeerId]]]
+  futs.add(kad.findNode(rtable.selfId, rtable))
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
   # If it changes mid-iteration, Nim triggers an assertion defect.
@@ -39,7 +40,9 @@ proc refreshTable*(
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
       trace "No refresh target for bucket", bucket = i
       continue
-    discard await kad.findNode(target, rtable)
+    futs.add(kad.findNode(target, rtable))
+
+  await allFutures(futs)
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
@@ -49,7 +52,9 @@ proc bootstrap*(
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
-    await kad.refreshTable(kad.rtable, false)
+    discard await kad.refreshTable(kad.rtable, false).withTimeout(
+      kad.config.bucketRefreshTime
+    )
 
 # K instead of T to avoid clashing with the T type param in withValue[T] when
 # called inside a withValue block, which causes a compiler error under --lineDir:on
@@ -135,7 +140,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   if not kad.config.disableBootstrapping:
-    await kad.bootstrap(forceRefresh = true)
+    discard
+      await kad.bootstrap(forceRefresh = true).withTimeout(kad.config.bucketRefreshTime)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
