@@ -1019,7 +1019,7 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
     check reply.ticket.isNone()
     check disco.countAdsInCache(serviceId) == 0
 
-suite "Service Discovery Registrar - acceptAdvertisement append-only":
+suite "Service Discovery Registrar - acceptAdvertisement":
   test "new peer ad is added to cache":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
@@ -1032,18 +1032,20 @@ suite "Service Discovery Registrar - acceptAdvertisement append-only":
     check disco.registrar.ads.serviceAdCount(serviceId) == 1
     check disco.registrar.ads.adsForService(serviceId)[0].data.peerId == ad.data.peerId
 
-  test "same peer same seqNo is stored again as a new slot":
+  test "identical ad acceptance refreshes timestamp without a new slot":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now = Moment.now()
+    let oldTime = initMoment(1000)
+    let newTime = initMoment(2000)
 
-    disco.acceptAdvertisement(now, serviceId, ad)
-    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(oldTime, serviceId, ad)
+    disco.acceptAdvertisement(newTime, serviceId, ad)
 
-    check disco.registrar.ads.serviceAdCount(serviceId) == 2
-    check disco.registrar.ads.len == 2
+    check disco.registrar.ads.serviceAdCount(serviceId) == 1
+    check disco.registrar.ads.len == 1
+    check disco.registrar.ads.byService[serviceId][0].timestamp == newTime
 
   test "same peer higher seqNo is stored alongside existing ad":
     let disco =
@@ -1160,7 +1162,7 @@ suite "Service Discovery Registrar - waitingTime never negative":
     check w >= ZeroDuration
 
 suite "Service Discovery Registrar - AdvertisementCache put":
-  test "put always appends even for the same ad":
+  test "put refreshes timestamp when ads are identical":
     let ads = AdvertisementCache.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
@@ -1171,11 +1173,59 @@ suite "Service Discovery Registrar - AdvertisementCache put":
     let counterBefore = ads.ipTotal
 
     ads.put(serviceId, ad, newTime)
+    check ads.serviceAdCount(serviceId) == 1
+    check ads.len == 1
+    check ads.ipTotal == counterBefore
+    check ads.byService[serviceId][0].timestamp == newTime
+    check ads.byService[serviceId][0].ad.envelope.signature.data ==
+      ad.envelope.signature.data
+
+  test "put appends when ads share peer/seqNo but are not identical":
+    let ads = AdvertisementCache.new()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let ad1 = makeAdvertisement(
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
+    )
+    let ad2 = makeAdvertisement(
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.2")],
+    )
+    let oldTime = initMoment(1000)
+    let newTime = initMoment(2000)
+
+    ads.put(serviceId, ad1, oldTime)
+    ads.put(serviceId, ad2, newTime)
+
     check ads.serviceAdCount(serviceId) == 2
     check ads.len == 2
-    check ads.ipTotal == counterBefore * 2
     check ads.byService[serviceId][0].timestamp == oldTime
     check ads.byService[serviceId][1].timestamp == newTime
+
+  test "put refreshes identical ad without eviction when cache is full":
+    let cap = 2'u64
+    let ads = AdvertisementCache.new(cap)
+    let serviceId1 = makeServiceId(1)
+    let serviceId2 = makeServiceId(2)
+    let ad1 = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let ad2 = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.2")])
+
+    ads.put(serviceId1, ad1, initMoment(100))
+    ads.put(serviceId2, ad2, initMoment(200))
+    check ads.len == 2
+
+    ads.put(serviceId1, ad1, initMoment(300))
+
+    check ads.len == 2
+    check ads.byService[serviceId1][0].timestamp == initMoment(300)
+    check ad1 in ads.adsForService(serviceId1)
+    check ad2 in ads.adsForService(serviceId2)
 
   test "higher and lower seqNo ads are both stored":
     let ads = AdvertisementCache.new()

@@ -128,7 +128,16 @@ suite "Service Discovery Component - Register":
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].data.addresses[0].address == addrA
 
-    # Same peer/seqNo still appends a new slot (no dedup / no refresh).
+    # Identical ad re-registration refreshes the existing slot (no new slot).
+    registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, originalAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].envelope.signature.data ==
+      originalAd.envelope.signature.data
+
+    # Same peer/seqNo with different payload still appends a new slot.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, duplicateSameSeqAd.encode().get()
     )

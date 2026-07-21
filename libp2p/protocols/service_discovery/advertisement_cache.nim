@@ -93,15 +93,22 @@ proc evictOldest(c: AdvertisementCache) =
     c.removeSlot(oldestService, oldestIndex)
 
 proc put*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement, now: Moment) =
-  ## Append a new ad slot for `serviceId`. Evicts the oldest slot when full.
-  if c.len.uint64 >= c.capacity:
-    c.evictOldest()
-
+  ## Admit `ad` under `serviceId`.
   if serviceId notin c.byService:
     c.byService[serviceId] = @[]
+
   c.byService.withValue(serviceId, slots):
+    for i in 0 ..< slots[].len:
+      # Match the identity used by Advertisement.hash (signature bytes).
+      if slots[][i].ad.envelope.signature.data == ad.envelope.signature.data:
+        slots[][i].timestamp = now
+        return
+
+    if c.len.uint64 >= c.capacity:
+      c.evictOldest()
+
     slots[].add(CachedAd(ad: ad, timestamp: now))
-  c.ipTree.insertAd(ad)
+    c.ipTree.insertAd(ad)
 
 proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   ## Remove slots whose timestamp is older than `expiry`. Returns how many
