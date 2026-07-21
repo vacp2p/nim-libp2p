@@ -26,11 +26,11 @@ proc refreshTable*(
   var targets = @[rtable.selfId]
   for i in 0 ..< rtable.buckets.len:
     let bucket = rtable.buckets[i]
-    
+
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
-    
+
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
