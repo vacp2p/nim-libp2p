@@ -48,9 +48,6 @@ proc createServerAcceptConn*(
         (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
   .} =
     let conn = await server.accept()
-    if conn == nil:
-      return
-
     let muxer = QuicMuxer.new(conn)
     let stream = await muxer.newStream()
     defer:
@@ -90,9 +87,9 @@ proc createQuicTransport*(
 
   let trans =
     if withInvalidCert:
-      QuicTransport.new(Upgrade(), key, invalidCertGenerator)
+      QuicTransport.new(Upgrade(), key, rng(), invalidCertGenerator)
     else:
-      QuicTransport.new(Upgrade(), key)
+      QuicTransport.new(Upgrade(), key, rng())
 
   if isServer: # servers are started because they need to listen
     await trans.start(addresses)

@@ -389,7 +389,7 @@ proc new*(
     if r.isCircuitRelayV1:
       @[RelayV1Codec]
     else:
-      @[RelayV2HopCodec, RelayV1Codec]
+      @[RelayV2HopCodec]
   r.handler = handleStream
   r
 

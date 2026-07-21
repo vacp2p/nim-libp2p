@@ -17,7 +17,7 @@ proc sendDial(
     stream: Stream, pid: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = AutonatMsg(
-    msgType: MsgType.Dial,
+    msgType: Opt.some(MsgType.Dial),
     dial: Opt.some(
       AutonatDial(peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs)))
     ),
@@ -35,9 +35,9 @@ method dialMe*(
   proc getResponseOrRaise(
       msg: AutonatMsg
   ): AutonatDialResponse {.raises: [AutonatError].} =
-    if msg.msgType == MsgType.DialResponse:
+    if msg.msgType.get(MsgType.Dial) == MsgType.DialResponse:
       msg.response.withValue(res):
-        if not (res.status == Ok and res.ma.isNone()):
+        if not (res.status.get(Ok) == Ok and res.ma.isNone()):
           return res
     raise newException(AutonatError, "Unexpected response")
 
@@ -90,7 +90,7 @@ method dialMe*(
   let response = getResponseOrRaise(msg)
 
   return
-    case response.status
+    case response.status.get(Ok)
     of ResponseStatus.Ok:
       try:
         response.ma.tryGet()

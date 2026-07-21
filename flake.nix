@@ -20,10 +20,59 @@
         "x86_64-windows"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+      pkgsFor = system: import nixpkgs {
+        inherit system;
+        config = {
+          android_sdk.accept_license = true;
+          allowUnfreePredicate = pkg:
+            let name = nixpkgs.lib.getName pkg;
+            in nixpkgs.lib.any (prefix: nixpkgs.lib.hasPrefix prefix name) [
+              "android"
+              "build-tools"
+              "cmdline-tools"
+              "ndk"
+              "platform-tools"
+              "platforms"
+              "tools"
+            ];
+        };
+      };
     in {
       packages = forAllSystems (system:
         let
-          pkgs = import nixpkgs { inherit system; };
+          pkgs = pkgsFor system;
+          androidSupported = pkgs.stdenv.hostPlatform.isLinux || pkgs.stdenv.hostPlatform.isDarwin;
+          iosSupported = pkgs.stdenv.hostPlatform.isDarwin;
+          androidArm64 = import ./nix/cbind-ffi-android.nix {
+            inherit pkgs;
+            src = ./.;
+            abi = "arm64-v8a";
+            androidTriple = "aarch64-linux-android";
+            nimCpu = "arm64";
+          };
+          androidX86 = import ./nix/cbind-ffi-android.nix {
+            inherit pkgs;
+            src = ./.;
+            abi = "x86_64";
+            androidTriple = "x86_64-linux-android";
+            nimCpu = "amd64";
+          };
+          iosArm64 = import ./nix/cbind-ffi-ios.nix {
+            inherit pkgs;
+            src = ./.;
+            targetName = "arm64";
+            sdk = "iphoneos";
+            platformName = "IOS";
+            targetTriple = "arm64-apple-ios13.0";
+          };
+          iosSimulatorArm64 = import ./nix/cbind-ffi-ios.nix {
+            inherit pkgs;
+            src = ./.;
+            targetName = "simulator-arm64";
+            sdk = "iphonesimulator";
+            platformName = "IOSSIMULATOR";
+            targetTriple = "arm64-apple-ios13.0-simulator";
+          };
         in {
           default = import ./nix/default.nix {
             inherit pkgs;
@@ -34,30 +83,38 @@
             inherit pkgs;
             src = ./.;
           };
+        } // pkgs.lib.optionalAttrs androidSupported {
+          cbind-ffi-android-arm64-v8a = androidArm64;
 
-          # Temporary target for the nim-ffi library (cbind/libp2p_ffi.nim),
-          # built in parallel to `.#cbind` during the PR-train migration.
-          # Removed at the flip PR, when libp2p_ffi.nim replaces libp2p.nim.
-          cbind-ffi = import ./nix/cbind-ffi.nix {
-            inherit pkgs;
-            src = ./.;
-          };
+          cbind-ffi-android-x86_64 = androidX86;
+
+          cbind-ffi-android = pkgs.runCommand "nim-libp2p-cbind-ffi-android" { } ''
+            mkdir -p $out/android/arm64-v8a $out/android/x86_64
+            cp -R ${androidArm64}/. $out/android/arm64-v8a/
+            cp -R ${androidX86}/.   $out/android/x86_64/
+          '';
+        } // pkgs.lib.optionalAttrs iosSupported {
+          cbind-ffi-ios-arm64 = iosArm64;
+
+          cbind-ffi-ios-simulator-arm64 = iosSimulatorArm64;
+
+          cbind-ffi-ios = pkgs.runCommand "nim-libp2p-cbind-ffi-ios" { } ''
+            mkdir -p $out/ios/arm64 $out/ios/simulator-arm64
+            cp -R ${iosArm64}/.          $out/ios/arm64/
+            cp -R ${iosSimulatorArm64}/. $out/ios/simulator-arm64/
+          '';
         }
       );
 
       devShells = forAllSystems (system:
         let
-          pkgs = import nixpkgs { inherit system; };
+          pkgs = pkgsFor system;
         in {
           default = pkgs.mkShell {
             nativeBuildInputs = [
               pkgs.nim-2_2
               pkgs.nimble
               pkgs.makeWrapper
-            ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-              # cbind's nat_traversal build needs Apple's `libtool` (cctools), resolved via `$(shell which libtool)`.
-              pkgs.cctools
-              pkgs.which
             ];
           };
         }

@@ -7,18 +7,25 @@ import chronos, chronicles, protobuf_serialization, sets
 import
   ../../../libp2p/[
     protocols/identify,
+    protocols/ping,
+    protocols/protocol,
     multiaddress,
     peerinfo,
     peerid,
     stream/connection,
     multistream,
     transports/transport,
+    connmanager,
+    dialer,
     switch,
     builders,
     transports/tcptransport,
     transports/quictransport,
     crypto/crypto,
     upgrademngrs/upgrade,
+    peerstore,
+    muxers/mplex/mplex,
+    stream/bridgestream,
   ]
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
@@ -337,3 +344,113 @@ suite "Identify":
     # The client's peerStore should now have the server's info including addresses via identify
     let storedAddrs = client.peerStore[AddressBook][server.peerInfo.peerId]
     check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1
+
+  asyncTest "outgoing identify resets when the peer answers `na`":
+    let (connDialer, connListener) = bridgedConnections(
+      closeTogether = false, dirA = Direction.Out, dirB = Direction.In
+    )
+    let
+      muxDialer = Mplex.new(connDialer)
+      muxListener = Mplex.new(connListener)
+      handleDialer = muxDialer.handle()
+      handleListener = muxListener.handle()
+    defer:
+      await allFutures(
+        connDialer.close(),
+        connListener.close(),
+        muxDialer.close(),
+        muxListener.close(),
+        handleDialer,
+        handleListener,
+      )
+
+    # Listener serves ping only, so identify is answered with `na`. It blocks
+    # before closing to model a peer that leaves the stream open after `na`.
+    let blocker = newFuture[void]()
+    muxListener.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+      try:
+        discard await MultistreamSelect.handle(stream, @[PingCodec])
+      except CancelledError, LPStreamError, MultiStreamError:
+        discard
+      try:
+        await blocker
+      except CatchableError:
+        discard
+      await noCancel stream.close()
+
+    let
+      remoteInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
+      peerStore = PeerStore.new(Identify.new(remoteInfo))
+    let identifyFut = peerStore.identify(muxDialer, Direction.Out)
+
+    check await identifyFut.withTimeout(1.seconds)
+    await identifyFut
+
+    # Let the listener handler finish so the test cleans up deterministically.
+    blocker.complete()
+
+  asyncTest "failed protocol negotiations reset the stream":
+    let (connDialer, connListener) = bridgedConnections(
+      closeTogether = false, dirA = Direction.Out, dirB = Direction.In
+    )
+    let
+      muxDialer = Mplex.new(connDialer)
+      muxListener = Mplex.new(connListener)
+      handleDialer = muxDialer.handle()
+      handleListener = muxListener.handle()
+    defer:
+      await allFutures(
+        connDialer.close(),
+        connListener.close(),
+        muxDialer.close(),
+        muxListener.close(),
+        handleDialer,
+        handleListener,
+      )
+
+    # Leave the stream open after rejecting the requested protocol. A
+    # multistream responder may continue waiting for another protocol token.
+    let blocker = newFuture[void]()
+    muxListener.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+      try:
+        discard await MultistreamSelect.handle(stream, @[PingCodec])
+      except CancelledError, LPStreamError, MultiStreamError:
+        discard
+      try:
+        await blocker
+      except CatchableError:
+        discard
+      await noCancel stream.close()
+
+    let
+      localInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
+      peerStore = PeerStore.new(Identify.new(localInfo))
+      ms = MultistreamSelect.new()
+
+    proc unusedHandler(
+        stream: Stream, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      discard
+
+    let limitedPing =
+      LPProtocol.new(@[PingCodec], unusedHandler, maxOutgoingStreamsTotal = 0)
+    ms.addHandler(limitedPing)
+
+    let
+      dialer = Dialer.new(localInfo.peerId, ConnManager.new(), peerStore, @[], ms, nil)
+      stream = await muxDialer.newStream()
+      negotiateFut = dialer.negotiateStream(stream, @[IdentifyCodec])
+
+    check await negotiateFut.withTimeout(1.seconds)
+    expect DialFailedError:
+      discard await negotiateFut
+
+    let
+      budgetStream = await muxDialer.newStream()
+      budgetFut = dialer.negotiateStream(budgetStream, @[PingCodec])
+    check await budgetFut.withTimeout(1.seconds)
+    expect DialFailedError:
+      discard await budgetFut
+
+    # Let the listener handler finish so the test cleans up deterministically.
+    blocker.complete()

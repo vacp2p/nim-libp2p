@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        install_pinned pin unpin gen_multicodec format clean-nim nat_libs nat_pkg_dir_check
+        install_pinned pin unpin gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -103,56 +103,11 @@ tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tes
 	  done; \
 	done
 
-# nim-nat-traversal vendors miniupnpc and libnatpmp as C sources. The package's
-# `before install` hook builds them, but the resulting .a files are not always
-# preserved alongside the package dir (cross-OS cache reuse, different gcc
-# versions). Rebuild them up-front against the host's toolchain.
-NAT_PKG_DIR := $(firstword $(wildcard nimbledeps/pkgs2/nat_traversal-*) $(wildcard nimbledeps/pkgs/nat_traversal-*))
-NAT_PMP_LIB := $(NAT_PKG_DIR)/vendor/libnatpmp-upstream/libnatpmp.a
+# nim-libplum vendors libplum (PCP / NAT-PMP / UPnP-IGD) as a git submodule and
+# compiles its C sources into libp2p via nim's {.compile.} pragmas, so there is
+# no separate NAT library to build or link here.
 
-# Use gcc rather than `cc` so the linux-i386 wrapper (external/bin/gcc, which
-# injects -m32) is picked up. On macOS and llvm-mingw, `gcc` is a clang
-# compatibility shim, so this stays ABI-compatible with nim's choice.
-NAT_CC ?= gcc
-
-# miniupnpc's unix Makefile drops the .a under `build/`, but its Windows
-# Makefile.mingw drops it at the package root. Match each one.
-ifeq ($(OS),Windows_NT)
-  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
-  NAT_UPNP_MAKE_ARGS := -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
-  NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
-  # libnatpmp's Makefile only appends wingettimeofday.o to LIBOBJS when $(OS)
-  # contains mingw/cygwin/msys. The CI Windows runner passes through Windows_NT
-  # (the host env var), so that branch never matches — leaving
-  # natpmp_gettimeofday undefined at link time. Pass LIBOBJS explicitly.
-  NAT_PMP_MAKE_ARGS := LIBOBJS="natpmp.o getgateway.o wingettimeofday.o" libnatpmp.a
-else
-  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
-  NAT_UPNP_MAKE_ARGS := CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
-  NAT_PMP_CFLAGS := -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
-  NAT_PMP_MAKE_ARGS := libnatpmp.a
-endif
-
-# Stamp-based rebuild: the stamp records "the .a files in this package dir were
-# built by our recipe with the right compiler". Re-running install_pinned wipes
-# the package dir (and thus the stamp), forcing a rebuild.
-NAT_LIBS_STAMP := $(NAT_PKG_DIR)/.libp2p-nat-libs.stamp
-
-nat_libs: $(NAT_LIBS_STAMP)
-
-nat_pkg_dir_check:
-	@test -n "$(NAT_PKG_DIR)" || \
-	  (echo "Error: nat_traversal package not found under nimbledeps/pkgs2/ or nimbledeps/pkgs/. Run 'nimble install_pinned' first." && exit 1)
-
-$(NAT_LIBS_STAMP): | nat_pkg_dir_check
-	rm -f "$(NAT_UPNP_LIB)" "$(NAT_PMP_LIB)"
-	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
-	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
-	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
-	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" $(NAT_PMP_MAKE_ARGS)
-	touch "$@"
-
-test: nimble.paths tests/nimble.paths nat_libs
+test: nimble.paths tests/nimble.paths
 ifeq ($(TEST_PATH),)
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
@@ -167,7 +122,7 @@ else
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 endif
 
-test_multiformat_exts: nimble.paths tests/nimble.paths nat_libs
+test_multiformat_exts: nimble.paths tests/nimble.paths
 	$(NIMC) c $(NIM_FLAGS) \
 	  --nimcache:nimcache/test_all_multiformat \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
@@ -179,7 +134,7 @@ test_multiformat_exts: nimble.paths tests/nimble.paths nat_libs
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
 
-test_integration: nimble.paths tests/nimble.paths nat_libs
+test_integration: nimble.paths tests/nimble.paths
 	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/integration,) \
 	  tests/integration/test_all.nim

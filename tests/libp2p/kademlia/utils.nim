@@ -91,12 +91,14 @@ proc setupMockKad*(
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
     handleFindNodeDelay: Duration = ZeroDuration,
+    handleFindNodeMalformedResponse: bool = false,
 ): MockKadDHT =
   let switch = makeStandardSwitch(TcpAutoAddress)
   let kad = MockKadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
   kad.handleFindNodeDelay = handleFindNodeDelay
+  kad.handleFindNodeMalformedResponse = handleFindNodeMalformedResponse
   kad.switch.mount(kad)
   kad
 

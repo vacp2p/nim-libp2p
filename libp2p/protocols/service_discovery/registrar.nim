@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, math]
+import std/[tables, math, sequtils]
 import chronos, chronicles, results
 import
   ../../[
-    peerid, switch, multihash, cid, multicodec, multiaddress, routing_record,
+    peerid, peerinfo, switch, multihash, cid, multicodec, multiaddress, routing_record,
     extended_peer_record,
   ]
 import ../../utils/iptree
@@ -21,22 +21,23 @@ logScope:
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.cacheTimestamps.len.float64)
   cd_registrar_cache_services.set(registrar.cache.len.float64)
-  cd_iptree_unique_ips.set(registrar.ipTree.root.counter.float64)
+  cd_iptree_total_ips.set(
+    registrar.ipTree.root.counter.float64 + registrar.ipTree.root6.counter.float64
+  )
 
-proc filterIPv4(addrsInfos: seq[AddressInfo]): seq[IpAddress] {.raises: [].} =
+proc getIPs(addrsInfos: seq[AddressInfo]): seq[IpAddress] {.raises: [].} =
   var ips: seq[IpAddress]
   for addrInfo in addrsInfos:
     let multiAddr = addrInfo.address
     multiAddr.getIp().withValue(ip):
-      if ip.family == IpAddressFamily.IPv4:
-        ips.add(ip)
+      ips.add(ip)
   return ips
 
 proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   ## Return the max score for this advertisement
 
   var maxScore = 0.0
-  for ip in ad.data.addresses.filterIPv4():
+  for ip in ad.data.addresses.getIPs():
     let score = ipTree.ipScore(ip)
     if score > maxScore:
       maxScore = score
@@ -44,11 +45,11 @@ proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   return maxScore
 
 proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
-  for ip in ad.data.addresses.filterIPv4():
+  for ip in ad.data.addresses.getIPs():
     ipTree.insertIp(ip)
 
 proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
-  for ip in ad.data.addresses.filterIPv4():
+  for ip in ad.data.addresses.getIPs():
     ipTree.removeIp(ip)
 
 proc isExpired(now, ts: Moment, expiry: Duration): bool =
@@ -101,7 +102,8 @@ proc pruneExpiredEntries[K](
     bounds.del(k)
 
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   var expiredCount = 0
 
@@ -156,8 +158,7 @@ proc waitingTime*(
     (serviceSim + discoConfig.ipSimCoefficient * ipSim + discoConfig.safetyParam)
 
   # Bound & Quantize W
-  w = max(0.0, w)
-  w = min(w, float64(uint32.high))
+  w = w.clamp(0.0, float64(uint32.high))
   w = round(w)
 
   var waitDuration = w.int64.secs
@@ -389,7 +390,10 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
+  discard disco.insertPeer(
+    serviceId,
+    PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
+  )
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
 
@@ -422,9 +426,10 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     error "Key not set: registration", msg = inMsg
     return
 
-  # Add peer to both tables
   discard disco.rtable.insert(peerId)
-  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len > 0:
+    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -458,7 +463,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  let now = Moment.now()
+  #Always use seconds granularity
+  let now = Moment.init(Moment.now().epochSeconds, Second)
 
   let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
     error "invalid ticket", error
@@ -485,6 +491,8 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     )
 
     return msg
+
+  tWait = min(disco.discoConfig.advertExpiry, tWait)
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
@@ -525,9 +533,10 @@ proc getAdvertisements*(
     error "Key not set: getAdvertisements", msg = msg
     return
 
-  # Add peer to both tables
   discard disco.rtable.insert(peerId)
-  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len > 0:
+    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 

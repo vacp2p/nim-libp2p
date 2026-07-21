@@ -31,10 +31,10 @@
     fetchSubmodules = true;
   };
 
-  nat_traversal = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-nat-traversal";
-    rev = "860e18c37667b5dd005b94c63264560c35d88004";
-    sha256 = "0319k5bbl468phwfnvlrh7725sc80rnf7m9gyj0i3cb5hb9q78bs";
+  libplum = pkgs.fetchgit {
+    url = "https://github.com/logos-storage/nim-libplum";
+    rev = "acefbe424cf9d1f05f2d93533790c9ac4e034df8";
+    sha256 = "0j6rc96cznsh90pvs27i1qgpby3ib04a2xqihps3jwlnlng2nrkb";
     fetchSubmodules = true;
   };
 
@@ -138,8 +138,8 @@
 
   lsquic = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-lsquic";
-    rev = "3813b849d70edbef24dac3926b32949029721fdc";
-    sha256 = "016r3i7xj5mriaf199xr91j1f8312s89zgp66fiy9bj1j1i22yp7";
+    rev = "079768948ac03d8f2384e03045a090cb88aeb7d9";
+    sha256 = "0vpmwmin1vydm7lrs98vqkwm4ja3y8h4gzv8mz9spnvi450jwam1";
     fetchSubmodules = true;
   };
 

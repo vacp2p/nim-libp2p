@@ -8,8 +8,7 @@ import chronos, chronicles, results
 import ../[multiaddress, multicodec, wire]
 import ../switch
 import ../crypto/crypto
-import ../utils/heartbeat
-import ./nat/[portmapper, upnp_mapper, natpmp_mapper]
+import ./nat/[portmapper, plum_mapper]
 import ../protocols/connectivity/autonat/[client, service]
 import ../protocols/connectivity/autonatv2/[client, service]
 import ../protocols/connectivity/relay/client as relayclient
@@ -28,17 +27,17 @@ type
 
   PortMappingMode* = enum
     ExplicitIp # static external IP
-    Upnp
-    NatPmp
+    Upnp # libplum restricted to UPnP-IGD
+    NatPmp # libplum restricted to PCP / NAT-PMP
+    Auto # libplum tries all protocols (PCP -> NAT-PMP -> UPnP)
 
   PortMappingConfig* = object
     case mode*: PortMappingMode
     of ExplicitIp:
       explicitIp*: IpAddress
-    of Upnp, NatPmp:
-      refreshInterval*: Duration
-      discoveryTimeout*: Duration
-      leaseDuration*: Duration
+    of Upnp, NatPmp, Auto:
+      discoveryTimeout*: Duration ## how long libplum probes for a gateway
+      mappingTimeout*: Duration ## how long libplum waits for a mapping reply
 
   ReachabilityConfig* = object
     ## AutoNAT reachability probing. ``scheduleInterval`` tunes the v1 cadence;
@@ -69,30 +68,20 @@ type
     addressMapper: AddressMapper
     portMapperFactory: PortMapperFactory
     mapper: PortMapper
-    refreshLoopFut: Future[void]
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
     reachability: Service # active AutoNAT v1 / v2 / HP, started/stopped polymorphically
 
 const
-  DefaultRefreshInterval* = 30.minutes
   DefaultDiscoveryTimeout* = 10.seconds
-  DefaultLeaseDuration* = 1.hours
+  DefaultMappingTimeout* = 10.seconds
 
-proc defaultPortMapperFactory(
-    mode: PortMappingMode
-): Opt[PortMapper] {.gcsafe, raises: [].} =
-  try:
-    case mode
-    of Upnp:
-      Opt.some(PortMapper(UpnpMapper.new()))
-    of NatPmp:
-      Opt.some(PortMapper(NatPmpMapper.new()))
-    of ExplicitIp:
-      Opt.none(PortMapper)
-  except ResourceExhaustedError as e:
-    error "Failed to construct port mapper", mode, err = e.msg
-    Opt.none(PortMapper)
+func toProtocolFilter(mode: PortMappingMode): ProtocolFilter =
+  case mode
+  of Upnp: ProtocolFilter.UPnP
+  of NatPmp: ProtocolFilter.PCP
+  else: ProtocolFilter.Any
+    # Auto; ExplicitIp never builds a mapper
 
 proc new*(
     T: typedesc[NATService],
@@ -115,37 +104,39 @@ proc natService*(switch: Switch): Opt[NATService] =
       return Opt.some(NATService(s))
   Opt.none(NATService)
 
-proc upnpConfig*(
-    refreshInterval = DefaultRefreshInterval,
-    discoveryTimeout = DefaultDiscoveryTimeout,
-    leaseDuration = DefaultLeaseDuration,
+proc portMappingConfig(
+    mode: PortMappingMode, discoveryTimeout, mappingTimeout: Duration
 ): NATConfig =
-  NATConfig(
-    portMapping: Opt.some(
-      PortMappingConfig(
-        mode: Upnp,
-        refreshInterval: refreshInterval,
-        discoveryTimeout: discoveryTimeout,
-        leaseDuration: leaseDuration,
+  case mode
+  of ExplicitIp:
+    raiseAssert "portMappingConfig requires a port-mapping mode, not ExplicitIp"
+  of Upnp, NatPmp, Auto:
+    NATConfig(
+      portMapping: Opt.some(
+        PortMappingConfig(
+          mode: mode, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
+        )
       )
     )
-  )
+
+proc natConfig*(
+    discoveryTimeout = DefaultDiscoveryTimeout, mappingTimeout = DefaultMappingTimeout
+): NATConfig =
+  ## Recommended default: let libplum try every protocol (PCP -> NAT-PMP ->
+  ## UPnP-IGD) and use whichever the gateway answers.
+  portMappingConfig(Auto, discoveryTimeout, mappingTimeout)
+
+proc upnpConfig*(
+    discoveryTimeout = DefaultDiscoveryTimeout, mappingTimeout = DefaultMappingTimeout
+): NATConfig =
+  ## Restrict libplum to UPnP-IGD.
+  portMappingConfig(Upnp, discoveryTimeout, mappingTimeout)
 
 proc natPmpConfig*(
-    refreshInterval = DefaultRefreshInterval,
-    discoveryTimeout = DefaultDiscoveryTimeout,
-    leaseDuration = DefaultLeaseDuration,
+    discoveryTimeout = DefaultDiscoveryTimeout, mappingTimeout = DefaultMappingTimeout
 ): NATConfig =
-  NATConfig(
-    portMapping: Opt.some(
-      PortMappingConfig(
-        mode: NatPmp,
-        refreshInterval: refreshInterval,
-        discoveryTimeout: discoveryTimeout,
-        leaseDuration: leaseDuration,
-      )
-    )
-  )
+  ## Restrict libplum to PCP / NAT-PMP.
+  portMappingConfig(NatPmp, discoveryTimeout, mappingTimeout)
 
 proc explicitIpConfig*(explicitIp: IpAddress): NATConfig =
   ## Announce ``explicitIp`` as the external IP; no port-mapping is performed.
@@ -258,8 +249,7 @@ proc replaceTransportPort(ma: MultiAddress, port: Port): Opt[MultiAddress] =
   Opt.some(res)
 
 proc extractListenPort(ma: MultiAddress): Opt[ListenPort] =
-  # NAT-PMP only supports IPv4 and nim-nat-traversal's UPnP backend does not
-  # yet support IPv6 mappings either, so drop non-IPv4 listen addresses early.
+  # libplum maps IPv4 only, so drop non-IPv4 listen addresses early.
   let ta = initTAddress(ma).valueOr:
     return Opt.none(ListenPort)
   if ta.family != AddressFamily.IPv4:
@@ -288,34 +278,23 @@ proc findMappableListenPorts(listenAddrs: seq[MultiAddress]): seq[ListenPort] =
     .filterIt(it.isSome)
     .mapIt(it.get())
 
-proc discoverExternalIp(
-    self: NATService
-): Future[Opt[IpAddress]] {.async: (raises: [CancelledError]).} =
-  self.externalIp.withValue(externalIp):
-    return Opt.some(externalIp)
-
-  let discover = (await self.mapper.discover(self.portMapping().discoveryTimeout)).valueOr:
-    warn "NAT discovery failed; not announcing mapped addresses", err = error
-    self.externalIp = Opt.none(IpAddress)
-    return Opt.none(IpAddress)
-  self.externalIp = Opt.some(discover)
-  info "NAT discovery succeeded", externalIp = discover
-  Opt.some(discover)
-
-type MappedEntry = tuple[entry: (Port, MapProto), announced: Opt[MultiAddress]]
+type MappedEntry =
+  tuple[entry: (Port, MapProto), externalIp: IpAddress, announced: Opt[MultiAddress]]
 
 proc mapOnePort(
-    self: NATService, lp: ListenPort, externalIp: IpAddress
+    self: NATService, lp: ListenPort
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
-  let lease = uint32(self.portMapping().leaseDuration.seconds)
-  let extPort = (await self.mapper.map(lp.port, lp.port, lp.proto, lease)).valueOr:
+  # libplum returns the external address with the mapping; no separate discovery.
+  let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
     warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
     return Opt.none(MappedEntry)
 
   Opt.some(
     (
-      entry: (extPort, lp.proto),
-      announced: buildAnnouncedAddr(lp.multiAddr, externalIp, extPort),
+      entry: (mapped.externalPort, lp.proto),
+      externalIp: mapped.externalIp,
+      announced:
+        buildAnnouncedAddr(lp.multiAddr, mapped.externalIp, mapped.externalPort),
     )
   )
 
@@ -354,17 +333,14 @@ proc setupMappings*(
     await self.unmapAll()
     return @[]
 
-  let externalIp = (await self.discoverExternalIp()).valueOr:
-    debug "Could not find external IP; releasing any prior mappings"
-    await self.unmapAll()
-    return @[]
-
   var
     nextMapped: seq[(Port, MapProto)]
     announced: seq[MultiAddress] = listenAddrs.filterIt(not it.isPrivateMA)
+    externalIp = Opt.none(IpAddress)
 
   for lp in listenPorts:
-    (await self.mapOnePort(lp, externalIp)).withValue(res):
+    (await self.mapOnePort(lp)).withValue(res):
+      externalIp = Opt.some(res.externalIp)
       if res.entry notin nextMapped:
         nextMapped.add(res.entry)
 
@@ -372,41 +348,22 @@ proc setupMappings*(
         if annAddr notin announced:
           announced.add(annAddr)
 
+  self.externalIp = externalIp
   await self.unmapStale(nextMapped)
   self.mappedPorts = nextMapped
   announced
 
-proc refreshLoop(
-    self: NATService, switch: Switch
-) {.async: (raises: [CancelledError]).} =
-  ## Trigger ``peerInfo.update()`` periodically so the addressMapper re-runs
-  ## and reissues mappings before the lease expires. Invalidates the cached
-  ## external IP first so DHCP renewals / failovers are picked up.
-  heartbeat "NATService refresh", self.portMapping().refreshInterval, sleepFirst = true:
-    self.externalIp = Opt.none(IpAddress)
-    await switch.peerInfo.update()
-
 proc validatePortMapperConfig(cfg: PortMappingConfig) {.raises: [ServiceSetupError].} =
-  if cfg.refreshInterval <= 0.seconds:
-    raise newException(
-      ServiceSetupError,
-      "NATService: refreshInterval must be > 0; use upnpConfig/natPmpConfig",
-    )
+  # libplum refreshes mappings itself; only the discovery/mapping waits need checking.
   if cfg.discoveryTimeout <= 0.seconds:
     raise newException(
       ServiceSetupError,
-      "NATService: discoveryTimeout must be > 0; use upnpConfig/natPmpConfig",
+      "NATService: discoveryTimeout must be > 0; use natConfig/upnpConfig/natPmpConfig",
     )
-  # NAT-PMP treats lease=0 as a delete; sub-second leases truncate to 0 seconds.
-  if cfg.leaseDuration < 1.seconds:
+  if cfg.mappingTimeout <= 0.seconds:
     raise newException(
       ServiceSetupError,
-      "NATService: leaseDuration must be >= 1s; use upnpConfig/natPmpConfig",
-    )
-  if cfg.refreshInterval >= cfg.leaseDuration:
-    raise newException(
-      ServiceSetupError,
-      "NATService: refreshInterval must be < leaseDuration so mappings refresh before expiry",
+      "NATService: mappingTimeout must be > 0; use natConfig/upnpConfig/natPmpConfig",
     )
 
 proc setupHolePunching(
@@ -484,7 +441,7 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
     holePunching = self.config.holePunching.isSome()
 
   self.config.portMapping.withValue(pm):
-    if pm.mode in {Upnp, NatPmp}:
+    if pm.mode in {Upnp, NatPmp, Auto}:
       validatePortMapperConfig(pm)
 
   self.setupReachability(switch)
@@ -506,9 +463,16 @@ proc portMappingMapper(self: NATService): AddressMapper =
     announced
 
 proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
-  if self.portMapperFactory.isNil():
-    return defaultPortMapperFactory(mode)
-  self.portMapperFactory(mode)
+  if not self.portMapperFactory.isNil():
+    return self.portMapperFactory(mode)
+
+  let pm = self.portMapping()
+  let mapper = PlumMapper.new(
+    mode.toProtocolFilter(), pm.discoveryTimeout, pm.mappingTimeout
+  ).valueOr:
+    error "Failed to construct libplum port mapper", mode, err = error
+    return Opt.none(PortMapper)
+  Opt.some(PortMapper(mapper))
 
 proc startPortMapping(self: NATService, switch: Switch) =
   ## (Re)build the addressMapper here, not in setup, so a stop/start cycle
@@ -517,12 +481,11 @@ proc startPortMapping(self: NATService, switch: Switch) =
     case pm.mode
     of ExplicitIp:
       self.addressMapper = explicitIpMapper(pm.explicitIp)
-    of Upnp, NatPmp:
+    of Upnp, NatPmp, Auto:
       self.mapper = self.buildPortMapper(pm.mode).valueOr:
         warn "Could not build port mapper; port mapping inactive", mode = pm.mode
         return
       self.addressMapper = self.portMappingMapper()
-      self.refreshLoopFut = self.refreshLoop(switch)
 
   if not self.addressMapper.isNil():
     switch.peerInfo.addressMappers.add(self.addressMapper)
@@ -549,10 +512,7 @@ proc stopPortMapping(
       if not self.addressMapper.isNil():
         switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
         self.addressMapper = nil
-    of Upnp, NatPmp:
-      if not self.refreshLoopFut.isNil():
-        await self.refreshLoopFut.cancelAndWait()
-        self.refreshLoopFut = nil
+    of Upnp, NatPmp, Auto:
       if not self.addressMapper.isNil():
         switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
         self.addressMapper = nil

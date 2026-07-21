@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Config crossing the FFI boundary and its parsing, `include`d into
-## `../libp2p_ffi.nim`.
+## `../libp2p.nim`.
 ##
 ## `Libp2pConfig` is the raw, wire-friendly shape the host fills in; `parse`
 ## validates it once and returns a `ParsedConfig` of ready-to-use Nim values, so
@@ -101,6 +101,14 @@ func parseMuxer(v: int): Result[MuxerType, string] =
   else:
     err("invalid muxer ordinal: " & $v)
 
+proc parseMultiaddrs(raw: openArray[string]): Result[seq[MultiAddress], string] =
+  var addrs: seq[MultiAddress]
+  for a in raw:
+    let ma = MultiAddress.init(a).valueOr:
+      return err("invalid multiaddress '" & a & "': " & $error)
+    addrs.add(ma)
+  ok(addrs)
+
 proc parseBootstrapNodes(
     nodes: openArray[BootstrapNode]
 ): Result[seq[(PeerId, seq[MultiAddress])], string] =
@@ -108,11 +116,7 @@ proc parseBootstrapNodes(
   for node in nodes:
     let peerId = PeerId.init(node.peerId).valueOr:
       return err("invalid bootstrap peer id: " & $error)
-    var addrs: seq[MultiAddress]
-    for a in node.multiaddrs:
-      let ma = MultiAddress.init(a).valueOr:
-        return err("invalid bootstrap multiaddr: " & $error)
-      addrs.add(ma)
+    let addrs = ?parseMultiaddrs(node.multiaddrs)
     parsed.add((peerId, addrs))
   ok(parsed)
 
@@ -131,14 +135,6 @@ proc parsePrivateKey(raw: seq[byte]): Result[Opt[PrivateKey], string] =
     return err("invalid private key: " & $error)
   ok(Opt.some(key))
 
-proc parseListenAddrs(raw: openArray[string]): Result[seq[MultiAddress], string] =
-  var addrs: seq[MultiAddress]
-  for a in raw:
-    let address = MultiAddress.init(a).valueOr:
-      return err("invalid listen address: " & $error)
-    addrs.add(address)
-  ok(addrs)
-
 func parseTransportConfig(config: Libp2pConfig): Result[ParsedTransport, string] =
   # A muxer is only used with TCP; a QUIC config's `muxer` ordinal is left
   # unvalidated, matching the transport it applies to.
@@ -153,7 +149,7 @@ func parseTransportConfig(config: Libp2pConfig): Result[ParsedTransport, string]
 proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
   let transport = ?parseTransportConfig(config)
   let dnsServers = ?resolveDnsServers(config.dnsResolver)
-  let addrs = ?parseListenAddrs(config.addrs)
+  let addrs = ?parseMultiaddrs(config.addrs)
   let privKey = ?parsePrivateKey(config.privKey)
   let bootstrapNodes = ?parseBootstrapNodes(config.bootstrapNodes)
 

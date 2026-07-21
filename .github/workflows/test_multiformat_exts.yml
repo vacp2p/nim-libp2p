@@ -48,14 +48,19 @@ jobs:
   test:
     needs: pick-platform
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+      NIMBLE_COMMIT: a399f502dec7ffcd905c1cf54b13274ad990bada # v0.24.1
     timeout-minutes: 55
     runs-on: ${{ needs.pick-platform.outputs.builder }}
-    name: "test_multiformat_exts (${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
+    name: "test_multiformat_exts"
     defaults:
       run:
         shell: ${{ needs.pick-platform.outputs.shell }}
     steps:
+      - name: selected platform
+        # msys2 is only installed by Setup Nim below, so it cannot be the shell here.
+        shell: bash
+        run: echo "(${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }} / ${{ needs.pick-platform.outputs.cc }} / Nim ${{ needs.pick-platform.outputs.nim_ref }} / ${{ needs.pick-platform.outputs.nim_mm }})"
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -127,7 +132,7 @@ jobs:
           cd tests && nimble install_pinned
 
       - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths nat_libs
+        run: make nimble.paths tests/nimble.paths
 
       - name: Build test_multiformat_exts
         id: build-test

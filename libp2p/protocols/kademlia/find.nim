@@ -100,8 +100,7 @@ proc sortedShortlist(
     if pid == selfPid:
       # do not return self
       continue
-    if excludeResponded and state.responded.contains(pid):
-      # already responded, do not query again
+    if excludeResponded and state.responded.getOrDefault(pid) == Success:
       continue
     if state.attempts.getOrDefault(pid, 0) > state.kad.config.retries:
       # depleted retries, do not query again
@@ -255,7 +254,7 @@ proc sharesSubnet64(addrs: seq[Ipv6Address], subnet: Ipv6Subnet64): bool =
       return true
   false
 
-proc hasIpDiversity(
+proc hasIpDiversity*(
     addressBook: AddressBook,
     rtable: RoutingTable,
     peerId: PeerId,
@@ -504,12 +503,30 @@ proc findPeer*(
 
   return ok(PeerInfo(peerId: target, addrs: kad.switch.peerStore[AddressBook][target]))
 
-proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
-  let closestPeerKeys = kad.rtable.findClosest(target, kad.config.replication).filterIt(
-      it != kad.switch.peerInfo.peerId.toKey()
-    )
+proc findClosestPeers*(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
+  ## Over-fetches by `excluded.len` so dropping self and `requester` still fills the reply.
+  let excluded = [kad.switch.peerInfo.peerId.toKey(), requester.toKey()]
+  let closestPeerKeys = kad.rtable
+    .findClosest(target, kad.config.replication + excluded.len)
+    .filterIt(it notin excluded)
 
-  return kad.switch.toPeers(closestPeerKeys)
+  return kad.switch.toPeers(
+    closestPeerKeys[0 ..< min(kad.config.replication, closestPeerKeys.len)]
+  )
+
+proc findNodeCloserPeers(kad: KadDHT, target: Key, requester: PeerId): seq[Peer] =
+  ## Also returns the target itself, which keeps client-mode peers resolvable.
+  let closest = kad.findClosestPeers(target, requester)
+  if target == requester.toKey():
+    return closest
+
+  let targetPeer = target.toPeer(kad.switch).valueOr:
+    return closest
+
+  if closest.len > 0 and closest[0].id == targetPeer.id:
+    return closest
+
+  return @[targetPeer] & closest
 
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
@@ -519,7 +536,8 @@ method handleFindNode*(
     return
 
   let response = Message(
-    msgType: Opt.some(MessageType.findNode), closerPeers: kad.findClosestPeers(msgKey)
+    msgType: Opt.some(MessageType.findNode),
+    closerPeers: kad.findNodeCloserPeers(msgKey, stream.peerId),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
@@ -530,12 +548,8 @@ method handleFindNode*(
       stream = stream, err = exc.msg
     return
 
-  # Prefer address-aware admission so inbound FIND_NODE senders go through the
-  # same diversity checks as peers learned from DHT responses. observedAddr may
-  # be the only address known before Identify has populated the peerstore.
-  var addrs = kad.switch.peerStore[AddressBook][stream.peerId]
-  stream.observedAddr.withValue(observedAddr):
-    if observedAddr notin addrs:
-      addrs.add(observedAddr)
+  # Only admit senders with known dialable addresses; an inbound connection
+  # may use an ephemeral source port.
+  let addrs = kad.switch.peerStore[AddressBook][stream.peerId]
   if addrs.len > 0:
     kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])

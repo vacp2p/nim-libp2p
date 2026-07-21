@@ -42,7 +42,8 @@ declarePublicCounter cd_service_table_insertions,
   "peer insertions into service routing tables"
 
 # IpTree metrics
-declarePublicGauge cd_iptree_unique_ips, "unique IPs tracked in the IP tree"
+declarePublicGauge cd_iptree_total_ips,
+  "total IP entries currently tracked in the IP tree (counts repeat inserts of the same address, not distinct addresses)"
 
 # Advertiser metrics
 declarePublicGauge cd_advertiser_pending_actions,

@@ -226,6 +226,87 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     # ipSim ≈ 0.97 for same /24; w should be in the hundreds of seconds
     check w > 500.seconds
 
+suite "Service Discovery Registrar - advertExpiry cap":
+  test "registration caps the offered tWaitFor at advertExpiry":
+    let advertExpiry = 100.secs
+    let conf = ServiceDiscoveryConfig.new(
+      advertExpiry = advertExpiry, safetyParam = 1.0, advertCacheCap = 10
+    )
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let advertiserKey = PrivateKey.random(rng()).get()
+    let advertiserId = PeerId.init(advertiserKey).get()
+    let adBytes = makeAdvertisement(serviceName, advertiserKey).encode().get()
+
+    # Saturate the cache: occupancy pins at 100.0, so w = 100*100*1.0 = 10000s.
+    for i in 0 ..< 10:
+      disco.registrar.cacheTimestamps[(peerId: randomPeerId(), seqNo: uint64(i))] =
+        Moment.now()
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+    let reply = disco.registration(advertiserId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.get().tWaitFor.get() == advertExpiry
+
+  test "sustained overload keeps offering advertExpiry-length waits across retries":
+    let advertExpiry = 100.secs
+    let registrationWindow = 10.secs
+    let conf = ServiceDiscoveryConfig.new(
+      advertExpiry = advertExpiry,
+      safetyParam = 1.0,
+      advertCacheCap = 10,
+      registrationWindow = registrationWindow,
+    )
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let advertiserKey = PrivateKey.random(rng()).get()
+    let advertiserId = PeerId.init(advertiserKey).get()
+    let adBytes = makeAdvertisement(serviceName, advertiserKey).encode().get()
+
+    for i in 0 ..< 10:
+      disco.registrar.cacheTimestamps[(peerId: randomPeerId(), seqNo: uint64(i))] =
+        Moment.now()
+
+    let firstAttemptTime =
+      Moment.init((Moment.now() - advertExpiry).epochSeconds, Second)
+    var retryTicket = Ticket(
+      advertisement: adBytes,
+      tInit: firstAttemptTime,
+      tMod: firstAttemptTime,
+      tWaitFor: advertExpiry,
+      signature: Opt.none(seq[byte]),
+    )
+    check retryTicket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.some(retryTicket),
+        )
+      ),
+    )
+    let reply = disco.registration(advertiserId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.get().tWaitFor.get() == advertExpiry
+
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":
     let registrar = Registrar.new()
@@ -278,7 +359,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
   test "waitingTime uses most restrictive lower bound":
     let registrar = Registrar.new()
-    let discoConfig = ServiceDiscoveryConfig.new()
+    let discoConfig = ServiceDiscoveryConfig.new(advertExpiry = 2500.secs)
     let serviceId = makeServiceId()
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
@@ -556,7 +637,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     check w >= ZeroDuration
 
-  test "waitingTime with IPv6 addresses only (ignored in IP tree)":
+  test "waitingTime with IPv6 addresses only, tree empty":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -567,6 +648,26 @@ suite "Service Discovery Registrar - Edge Cases":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= ZeroDuration
+
+  test "waitingTime with IPv6 addresses contributes IP similarity":
+    let registrar = Registrar.new()
+    let discoConfig = ServiceDiscoveryConfig.new()
+    let serviceId = makeServiceId()
+
+    registrar.ipTree.insertIp(
+      IpAddress(
+        family: IpAddressFamily.IPv6,
+        address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      )
+    )
+
+    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ad = makeAdvertisement(addrs = @[ipv6Addr])
+    let now = Moment.now()
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    check w > ZeroDuration
 
   test "waitingTime with mixed IPv4 and IPv6 addresses":
     let registrar = Registrar.new()
@@ -1290,6 +1391,49 @@ suite "Service Discovery Registrar - registration response":
       ticket.tWaitFor.isSome
       ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
+
+  test "registration quantizes now to whole-second granularity":
+    # `now` is read once in registration() and truncated to whole seconds, so
+    # every time value it emits — the ticket's tInit/tMod and the recorded
+    # service timestamp — must land exactly on a second boundary. Using the
+    # raw Moment.now() (sub-second nanoseconds) would break these checks.
+    let config = ServiceDiscoveryConfig.new(safetyParam = 1.0) # forces a Wait
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let adBytes = ad.encode().get()
+    let advertiserId = ad.data.peerId
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(advertiserId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+    check reply.ticket.isSome()
+
+    # Reconstructing a Moment from its own epochSeconds is a fixed point only
+    # when the moment already has no sub-second part.
+    let ticket = reply.ticket.get()
+    let tInit = ticket.tInit.get()
+    let tMod = ticket.tMod.get()
+    check tInit == Moment.init(tInit.epochSeconds, Second)
+    check tMod == Moment.init(tMod.epochSeconds, Second)
+
+    # The recorded service timestamp mirrors the same truncated `now`.
+    check serviceId in disco.registrar.timestampService
+    let ts = disco.registrar.timestampService[serviceId]
+    check ts == Moment.init(ts.epochSeconds, Second)
 
   test "retrying with a valid ticket inside the window caches the ad":
     let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)

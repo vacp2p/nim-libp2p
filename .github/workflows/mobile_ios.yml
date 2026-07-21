@@ -1,0 +1,146 @@
+name: Mobile iOS
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cbind-ffi-ios:
+    timeout-minutes: 90
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: arm64
+            attr: cbind-ffi-ios-arm64
+            sdk: iphoneos
+            platform: IOS
+            platform_id: 2
+          - target: simulator-arm64
+            attr: cbind-ffi-ios-simulator-arm64
+            sdk: iphonesimulator
+            platform: IOSSIMULATOR
+            platform_id: 7
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "iOS ${{ matrix.target }} FFI check build"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            sandbox = false
+
+      - name: Show Xcode SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk "${{ matrix.sdk }}" --show-sdk-path
+          xcrun --sdk "${{ matrix.sdk }}" --find clang
+
+      - name: Build iOS C ABI package
+        run: |
+          nix --extra-experimental-features "nix-command flakes" \
+            build ".#${{ matrix.attr }}" \
+            -o "result-${{ matrix.target }}"
+
+      - name: Verify iOS artifacts
+        run: |
+          out="result-${{ matrix.target }}"
+
+          test -f "$out/lib/liblibp2p.dylib"
+          test -f "$out/lib/liblibp2p.a"
+          test -f "$out/include/libp2p.h"
+          test -f "$out/include/nim_ffi_cbor.h"
+          test -f "$out/include/nim_ffi_prelude.h"
+          test -f "$out/include/tinycbor/cbor.h"
+          test -f "$out/include/cddl_bindings/libp2p.cddl"
+          test -x "$out/bin/libp2p_ios_check"
+
+          otool -l "$out/lib/liblibp2p.dylib" | tee liblibp2p.otool
+          otool -l "$out/bin/libp2p_ios_check" | tee check.otool
+          lipo -info "$out/lib/liblibp2p.dylib" | tee liblibp2p.lipo
+          lipo -info "$out/lib/liblibp2p.a" | tee liblibp2p_static.lipo
+
+          grep -Eq "platform (${{ matrix.platform }}|${{ matrix.platform_id }})|LC_VERSION_MIN_IPHONEOS" liblibp2p.otool
+          grep -Eq "platform (${{ matrix.platform }}|${{ matrix.platform_id }})|LC_VERSION_MIN_IPHONEOS" check.otool
+          grep -q "arm64" liblibp2p.lipo
+          grep -q "arm64" liblibp2p_static.lipo
+
+          file "$out/lib/liblibp2p.dylib"
+          file "$out/bin/libp2p_ios_check"
+
+      - name: Run FFI check on iOS simulator
+        if: matrix.target == 'simulator-arm64'
+        run: |
+          out="$PWD/result-${{ matrix.target }}"
+          run_dir="$RUNNER_TEMP/nim-libp2p-ios-sim"
+          rm -rf "$run_dir"
+          mkdir -p "$run_dir/bin" "$run_dir/lib"
+          cp "$out/bin/libp2p_ios_check" "$run_dir/bin/"
+          cp "$out/lib/liblibp2p.dylib" "$run_dir/lib/"
+          chmod -R u+w "$run_dir"
+
+          install_name="$(otool -L "$run_dir/bin/libp2p_ios_check" | awk '/liblibp2p\.dylib/{print $1; exit}')"
+          test -n "$install_name"
+          install_name_tool -change "$install_name" "@executable_path/../lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
+          install_name_tool -id "@rpath/liblibp2p.dylib" "$run_dir/lib/liblibp2p.dylib"
+          codesign --force --sign - "$run_dir/lib/liblibp2p.dylib" "$run_dir/bin/libp2p_ios_check"
+
+          device_udid="$(
+            xcrun simctl list devices --json | /usr/bin/python3 -c '
+          import json
+          import re
+          import sys
+
+          def runtime_version(runtime):
+              match = re.search(r"iOS-(\d+(?:[-.]\d+)*)", runtime)
+              if not match:
+                  return ()
+              return tuple(int(part) for part in re.split(r"[-.]", match.group(1)))
+
+          candidates = []
+          for runtime, devices in json.load(sys.stdin)["devices"].items():
+              if ".iOS-" not in runtime:
+                  continue
+              for device in devices:
+                  availability = device.get("availability", "")
+                  if device.get("isAvailable") is False or "unavailable" in availability.lower():
+                      continue
+                  if not device.get("name", "").startswith("iPhone"):
+                      continue
+                  candidates.append((
+                      runtime_version(runtime),
+                      device.get("state") == "Shutdown",
+                      device.get("name", ""),
+                      device["udid"],
+                  ))
+          if not candidates:
+              raise SystemExit("no available iPhone simulator device")
+          print(max(candidates)[3])
+          '
+          )"
+          cleanup() {
+            xcrun simctl shutdown "$device_udid" || true
+          }
+          trap cleanup EXIT
+
+          xcrun simctl boot "$device_udid" || true
+          xcrun simctl bootstatus "$device_udid" -b
+          xcrun simctl spawn "$device_udid" "$run_dir/bin/libp2p_ios_check"
