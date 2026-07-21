@@ -77,14 +77,13 @@ proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
   (oldest, oldestIdx)
 
 func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
-  ## A peer is replaceable once it has spent longer than `gracePeriod` in the
-  ## table without proving useful. A peer that answered a query within the grace
-  ## period — or that was only just added — is retained.
+  ## Replaceable once past `gracePeriod` in the table without proving useful; a
+  ## peer that answered recently or was just added is retained.
   now - entry.lastUsefulAt.get(entry.addedAt) > gracePeriod
 
 proc replaceableCandidate(bucket: Bucket, gracePeriod: Duration): Opt[int] =
-  ## Least-recently-seen peer that is past the usefulness grace period, i.e. the
-  ## best candidate to evict. `Opt.none` when every peer is still useful/fresh.
+  ## Least-recently-seen peer past the grace period, i.e. the best eviction
+  ## candidate. `Opt.none` when every peer is still useful/fresh.
   let now = Moment.now()
   var candidateIdx = -1
   var oldestSeen: Moment
@@ -145,8 +144,7 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: now, addedAt: now))
     kad_routing_table_insertions.inc()
   else:
-    # A full bucket with no replaceable peer rejects the newcomer rather than
-    # evicting a still-useful one.
+    # Full bucket with no replaceable peer: reject rather than evict a useful one.
     if not bucket.tryReplaceStalePeer(nodeId, rtable.config):
       debug "Cannot insert, no replaceable peer in bucket",
         bucket = idx, nodeId = nodeId
@@ -161,9 +159,8 @@ proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc markUseful*(rtable: RoutingTable, nodeId: Key) =
-  ## Records that `nodeId` answered a query: refreshes its usefulness and
-  ## last-seen timestamps so it is retained through bucket eviction. No-op when
-  ## the peer is not in the table.
+  ## Records that `nodeId` answered a query, refreshing its usefulness so it
+  ## survives eviction. No-op when the peer is not in the table.
   let idx = rtable.bucketIndex(nodeId)
   if idx >= rtable.buckets.len:
     return

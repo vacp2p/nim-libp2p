@@ -78,11 +78,9 @@ suite "KadDHT Routing Table":
 
     check rt.buckets[TargetBucket].peers.len == config.replication
 
-    # Fresh peers are protected by the grace period; age them so they are
-    # eligible for eviction.
+    # Age fresh peers past the grace period so they become evictable.
     rt.agePastGrace(TargetBucket)
 
-    # new entry should evict oldest entry
     let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
 
     check rt.insert(rt.keyInBucket(TargetBucket))
@@ -96,13 +94,12 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication:
-      discard rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+      discard rt.insert(rt.keyInBucket(TargetBucket))
 
     let before = rt.buckets[TargetBucket].allKeys()
-    let newcomer = randomKeyInBucket(selfId, TargetBucket, rng())
+    let newcomer = rt.keyInBucket(TargetBucket)
 
-    # Bucket is full of fresh, unproven peers: the newcomer is rejected rather
-    # than blindly evicting one of them.
+    # Full of fresh, unproven peers: the newcomer is rejected, none evicted.
     check:
       not rt.insert(newcomer)
       rt.buckets[TargetBucket].allKeys() == before
@@ -113,16 +110,15 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication:
-      discard rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+      discard rt.insert(rt.keyInBucket(TargetBucket))
 
     rt.agePastGrace(TargetBucket)
 
-    # The oldest-seen peer would be evicted first, but marking it useful keeps
-    # it and forces a different peer out.
+    # Marking the oldest-seen peer useful spares it and evicts a different one.
     let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
     rt.markUseful(oldest.nodeId)
 
-    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng()))
+    check rt.insert(rt.keyInBucket(TargetBucket))
     check rt.buckets[TargetBucket].allKeys().contains(oldest.nodeId)
 
   test "re-insert existing key updates lastSeen":
