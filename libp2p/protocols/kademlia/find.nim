@@ -254,7 +254,7 @@ proc sharesSubnet64(addrs: seq[Ipv6Address], subnet: Ipv6Subnet64): bool =
       return true
   false
 
-proc hasIpDiversity(
+proc hasIpDiversity*(
     addressBook: AddressBook,
     rtable: RoutingTable,
     peerId: PeerId,
