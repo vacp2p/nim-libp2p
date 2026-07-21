@@ -51,7 +51,7 @@ tests/nimble.lock: tests/tests.nimble libp2p.nimble
 	cd tests && nimble lock
 
 nix/tests-deps.nix: tests/nimble.lock
-	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix unittest2
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix libbacktrace unittest2
 
 deps: nix/deps.nix nix/tests-deps.nix
 
@@ -92,6 +92,7 @@ tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tes
 	  for f in "$$pkgdir"/*/*.nimble; do \
 	    [ -f "$$f" ] || continue; \
 	    pkg=$$(dirname "$$f"); \
+	    pkg=$${pkg#tests/}; \
 	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
 	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
 	      path="$$pkg/$$src"; \
