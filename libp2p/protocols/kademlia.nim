@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results
+import chronos, chronicles, results, sequtils
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
@@ -23,16 +23,14 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  var futs: seq[Future[seq[PeerId]]]
-  futs.add(kad.findNode(rtable.selfId, rtable))
-
-  # Snapshot bucket count. findNode() can grow buckets and mutate length.
-  # If it changes mid-iteration, Nim triggers an assertion defect.
+  var targets = @[rtable.selfId]
   for i in 0 ..< rtable.buckets.len:
     let bucket = rtable.buckets[i]
+    
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
+    
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
@@ -40,7 +38,10 @@ proc refreshTable*(
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
       trace "No refresh target for bucket", bucket = i
       continue
-    futs.add(kad.findNode(target, rtable))
+
+    targets.add(target)
+
+  let futs = targets.mapIt(kad.findNode(it, rtable))
 
   await allFutures(futs)
 
