@@ -3,6 +3,7 @@
 
 import std/[tables, sequtils]
 import chronos, chronicles, results
+import ../../[switch, peerinfo, peeraddrpolicy]
 import ../kademlia
 import ../kademlia/[types, routing_table]
 import ./[types, service_discovery_metrics]
@@ -93,21 +94,37 @@ proc getTable*(
   return Opt.some(table)
 
 proc insertPeer*(
-    manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
-) =
-  let res = catch:
-    manager.tables[serviceId]
-  var table = res.valueOr:
-    return
+    disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerInfo
+): bool =
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    return false
 
-  let inserted = table.insert(peerKey)
-  if inserted:
+  let addressBook = disco.switch.peerStore[AddressBook]
+  let addrs = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
+  if addrs.len == 0:
+    return false
+  if not addressBook.hasIpDiversity(
+    table, peerInfo.peerId, addrs, disco.config.limits.maxPeersPerIp,
+    disco.config.limits.maxPeersPerIpv4Subnet, disco.config.limits.maxPeersPerIpv6Subnet,
+  ):
+    return false
+
+  result = table.insert(peerInfo.peerId)
+  if result:
+    addressBook.extend(peerInfo.peerId, addrs, AddressConfidence.Low)
     cd_service_table_insertions.inc()
-    manager.updateServiceTablesMetrics()
+    disco.rtManager.updateServiceTablesMetrics()
 
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service
   serviceId in manager.tables
+
+proc hasPeerInServiceTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId
+): bool =
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    return false
+  peerId.toKey() in table.allKeys()
 
 proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT
