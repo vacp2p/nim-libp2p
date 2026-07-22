@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
 
     defaults:
       run:
@@ -47,15 +47,15 @@ jobs:
           path: |
             nimbledeps
             cbind/nimbledeps
-          # Keep this in sync with ci.yml's cache key so entries are
-          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
+          # cbind is app-like: cache the lockfile dependency universe separately
+          # from library min-version CI.
+          key: nimbledeps-linux-amd64-gcc-v2.2.10-lockfile-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble --useSystemNim -l install -dy
-          cd cbind && nimble --useSystemNim -l install -dy
+          nimble -l install -dy
+          cd cbind && nimble -l install -dy
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -63,17 +63,17 @@ jobs:
           nimble --version
           gcc --version
 
-          nimble --useSystemNim -l setup
+          nimble -l setup
           cd cbind
-          nimble --useSystemNim -l setup
-          nimble --useSystemNim -l buildffi
-          nimble --useSystemNim -l genbindings_c
-          nimble --useSystemNim -l genbindings_cddl
+          nimble -l setup
+          nimble -l buildffi
+          nimble -l genbindings_c
+          nimble -l genbindings_cddl
 
       - name: Build and run C bindings examples
         run: |
           cd cbind
-          nimble --useSystemNim -l examples
+          nimble -l examples
 
   # macOS coverage for the FFI library build + C/CDDL binding generation; the
   # main c-bindings job above covers linux.
@@ -82,7 +82,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
 
     defaults:
       run:
@@ -111,13 +111,13 @@ jobs:
           path: |
             nimbledeps
             cbind/nimbledeps
-          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
+          key: nimbledeps-macos-15-arm64-clang-v2.2.10-lockfile-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble --useSystemNim -l install -dy
-          cd cbind && nimble --useSystemNim -l install -dy
+          nimble -l install -dy
+          cd cbind && nimble -l install -dy
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -125,9 +125,9 @@ jobs:
           nimble --version
           clang --version
 
-          nimble --useSystemNim -l setup
+          nimble -l setup
           cd cbind
-          nimble --useSystemNim -l setup
-          nimble --useSystemNim -l buildffi
-          nimble --useSystemNim -l genbindings_c
-          nimble --useSystemNim -l genbindings_cddl
+          nimble -l setup
+          nimble -l buildffi
+          nimble -l genbindings_c
+          nimble -l genbindings_cddl

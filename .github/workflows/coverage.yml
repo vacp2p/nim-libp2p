@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
       CICOV: YES
     steps:
       - uses: actions/checkout@v6
@@ -43,13 +43,13 @@ jobs:
             tests/nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('nimble.lock', 'tests/nimble.lock') }}
+          key: nimbledeps-linux-amd64-gcc-v2.2.10-minver-${{ hashFiles('libp2p.nimble', 'tests/tests.nimble') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble --useSystemNim -l install -dy
-          cd tests && nimble --useSystemNim -l install -dy
+          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l install -dy
+          cd tests && nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l install -dy
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

@@ -48,7 +48,7 @@ jobs:
   test:
     needs: pick-platform
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
     timeout-minutes: 55
     runs-on: ${{ needs.pick-platform.outputs.builder }}
     name: "test_multiformat_exts"
@@ -81,7 +81,7 @@ jobs:
           path: |
             nimbledeps
             tests/nimbledeps
-          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('nimble.lock', 'tests/nimble.lock') }}
+          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ needs.pick-platform.outputs.nim_ref }}-minver-${{ hashFiles('libp2p.nimble', 'tests/tests.nimble') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
@@ -137,8 +137,10 @@ jobs:
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble --useSystemNim -l install -dy
-          cd tests && nimble --useSystemNim -l install -dy
+          NIM_VERSION="${{ needs.pick-platform.outputs.nim_ref }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
+          cd tests && nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

@@ -64,11 +64,11 @@ nim-libp2p/
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-nimble install -dy    # Install dependencies
+make install_minver   # Install lowest supported dependency set
 # Or: nix develop     # Nix-based dev environment
 ```
 
-> **Note**: nimble 0.20.1+ is required. If using `nix develop`, the nix environment may not have a sufficiently recent nimble — in that case, run `nimble install nimble` inside the nix shell to get a newer version (typically installed to `~/.nimble/bin/nimble`).
+> **Note**: nimble 0.24.0+ is required for the min-version resolver. If using `nix develop`, the nix environment may not have a sufficiently recent nimble — in that case, run `nimble install nimble` inside the nix shell to get a newer version (typically installed to `~/.nimble/bin/nimble`).
 
 ### Running Tests
 ```sh
@@ -561,6 +561,6 @@ nimble testpath protocols/pubsub
 nimble format
 
 # Install/lock dependencies
-make install_pinned                  # install from committed lockfiles
+make install_minver                  # install lowest supported library deps
 make lock                            # update app/tool lockfiles
 ```

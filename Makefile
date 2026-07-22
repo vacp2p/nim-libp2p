@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        install_pinned lock gen_multicodec format clean-nim
+        install_minver install_pinned lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -42,13 +42,13 @@ TEST_PATH ?=
 all: build
 
 nimble.lock: libp2p.nimble
-	nimble lock
+	nimble --requires:"nim == $(NIM_VERSION)" lock
 
 nix/deps.nix: nimble.lock
 	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
 tests/nimble.lock: tests/tests.nimble libp2p.nimble
-	cd tests && nimble lock
+	cd tests && nimble --requires:"nim == $(NIM_VERSION)" lock
 
 nix/tests-deps.nix: tests/nimble.lock
 	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix libbacktrace unittest2
@@ -140,13 +140,13 @@ test_integration: nimble.paths tests/nimble.paths
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-install_pinned:
-	nimble --useSystemNim -l install -dy
-	cd tests && nimble --useSystemNim -l install -dy
+install_minver:
+	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l install -dy
+	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l install -dy
+
+install_pinned: install_minver
 
 lock:
-	nimble lock
-	cd tests && nimble lock
 	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:

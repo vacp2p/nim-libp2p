@@ -18,6 +18,8 @@ jobs:
   runnable-examples:
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
+    env:
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
     defaults:
       run:
         shell: bash
@@ -45,14 +47,14 @@ jobs:
           path: nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('nimble.lock') }}
+          key: nimbledeps-linux-amd64-gcc-v2.2.10-minver-${{ hashFiles('libp2p.nimble') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
-          nimble --useSystemNim -l install -dy
+          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l install -dy
 
       - name: Run runnableExamples check
         run: |
-          nimble --useSystemNim -l setup
+          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l setup
           nim c -r ./tools/check_code_examples.nim
