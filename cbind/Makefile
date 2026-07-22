@@ -6,11 +6,11 @@ all: build genbindings
 
 # Builds ../build/liblibp2p.so plus the C/CDDL bindings. Run `nimble -l setup -y` once first.
 build:
-	nimble -l buildffi
+	nimble buildffi
 
 genbindings:
-	nimble -l genbindings_c
-	nimble -l genbindings_cddl
+	nimble genbindings_c
+	nimble genbindings_cddl
 
 nimble.lock: cbind.nimble
 	nimble --requires:"nim == $(NIM_VERSION)" lock

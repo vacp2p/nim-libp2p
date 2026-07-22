@@ -30,7 +30,7 @@ jobs:
   test:
     needs: [delete_cache]
     env:
-      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 70
     strategy:
       fail-fast: false
