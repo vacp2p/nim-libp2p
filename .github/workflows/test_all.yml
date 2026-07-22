@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     env:
-      NIMBLE_COMMIT: a399f502dec7ffcd905c1cf54b13274ad990bada # v0.24.1
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
     strategy:
       fail-fast: false
@@ -42,7 +42,7 @@ jobs:
         nim:
           - ref: v2.2.4
             memory_management: refc
-            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.22.3
           - ref: v2.2.10
             memory_management: refc
           - ref: v2.2.10
@@ -115,7 +115,7 @@ jobs:
           # artifacts across mismatched toolchains (linux<->windows,
           # gcc<->clang). Keep this key in sync with the other workflows that
           # cache nimbledeps so cache entries are reusable across them.
-          key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          key: nimbledeps-with-tests-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
