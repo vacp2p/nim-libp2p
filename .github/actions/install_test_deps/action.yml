@@ -1,5 +1,5 @@
-name: Install root and test dependencies
-description: Restore, install, and save root and test Nimble dependencies.
+name: Restore root and test dependencies
+description: Restore root and test Nimble dependency caches.
 
 inputs:
   os:
@@ -10,6 +10,9 @@ inputs:
     required: true
   cc:
     description: Platform cache compiler segment.
+    required: true
+  nim_ref:
+    description: Nim version cache segment.
     required: true
   shell:
     description: Shell used to run Nimble commands.
@@ -24,24 +27,12 @@ runs:
         os: ${{ inputs.os }}
         cpu: ${{ inputs.cpu }}
         cc: ${{ inputs.cc }}
+        nim_ref: ${{ inputs.nim_ref }}
         shell: ${{ inputs.shell }}
 
     - name: Restore test deps from cache
       id: test-deps-cache
-      uses: actions/cache/restore@v5
+      uses: actions/cache@v5
       with:
         path: tests/nimbledeps
-        key: nimbledeps-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ hashFiles('tests/.pinned') }}
-
-    - name: Install test deps
-      if: ${{ steps.test-deps-cache.outputs.cache-hit != 'true' }}
-      shell: ${{ inputs.shell }}
-      run: |
-        cd tests && nimble install_pinned
-
-    - name: Save test dependencies cache
-      uses: actions/cache/save@v5
-      if: github.event_name == 'merge_group' && steps.test-deps-cache.outputs.cache-hit != 'true'
-      with:
-        path: tests/nimbledeps
-        key: ${{ steps.test-deps-cache.outputs.cache-primary-key }}
+        key: nimbledeps-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ inputs.nim_ref }}-minver-${{ hashFiles('tests/tests.nimble') }}

@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 55
     strategy:
       fail-fast: false
@@ -42,7 +42,6 @@ jobs:
         nim:
           - ref: v2.2.4
             memory_management: refc
-            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.22.3
           - ref: v2.2.10
             memory_management: refc
           - ref: v2.2.10
@@ -90,11 +89,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: true
-
-      - name: Select Nimble version
-        if: matrix.nim.nimble_commit != ''
-        shell: bash
-        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
@@ -155,16 +149,20 @@ jobs:
           "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
           "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install dependencies
+      - name: Restore dependencies from cache
         uses: "./.github/actions/install_test_deps"
         with:
           os: ${{ matrix.platform.os }}
           cpu: ${{ matrix.platform.cpu }}
           cc: ${{ matrix.platform.cc }}
+          nim_ref: ${{ matrix.nim.ref }}
           shell: ${{ matrix.shell }}
 
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+      - name: Setup deps
+        run: |
+          NIM_VERSION="${{ matrix.nim.ref }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          make NIM_VERSION="$NIM_VERSION" setup
 
       - name: Restore build cache
         id: nimcache-restore
