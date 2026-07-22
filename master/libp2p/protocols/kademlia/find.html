@@ -213,6 +213,14 @@ window.addEventListener("DOMContentLoaded", main2);
     Result[PeerInfo, string], (CancelledError,)]</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">hasIpDiversity
+  <li><a class="reference" href="#hasIpDiversity%2CAddressBook%2CRoutingTable%2CPeerId%2Cseq%5BMultiAddress%5D%2Cint%2Cint%2Cint" title="hasIpDiversity(addressBook: AddressBook; rtable: RoutingTable; peerId: PeerId;
+               addrs: seq[MultiAddress]; maxPeersPerIp: int;
+               maxPeersPerIpv4Subnet: int; maxPeersPerIpv6Subnet: int): bool">hasIpDiversity(addressBook: AddressBook; rtable: RoutingTable; peerId: PeerId;
+               addrs: seq[MultiAddress]; maxPeersPerIp: int;
+               maxPeersPerIpv4Subnet: int; maxPeersPerIpv6Subnet: int): bool</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">hasResponsesFromClosestAvailable
   <li><a class="reference" href="#hasResponsesFromClosestAvailable%2CLookupState" title="hasResponsesFromClosestAvailable(state: LookupState): bool">hasResponsesFromClosestAvailable(state: LookupState): bool</a></li>
 
@@ -474,6 +482,23 @@ Walks the key space until it finds candidate addresses for a <tt class="docutils
 </div>
 
 </div>
+<div id="hasIpDiversity-procs-all">
+  <div id="hasIpDiversity,AddressBook,RoutingTable,PeerId,seq[MultiAddress],int,int,int" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#hasIpDiversity%2CAddressBook%2CRoutingTable%2CPeerId%2Cseq%5BMultiAddress%5D%2Cint%2Cint%2Cint"><span class="Identifier">hasIpDiversity</span></a><span class="Other">(</span><span class="Identifier">addressBook</span><span class="Other">:</span> <a href="../../peerstore.html#AddressBook"><span class="Identifier">AddressBook</span></a><span class="Other">;</span> <span class="Identifier">rtable</span><span class="Other">:</span> <a href="types.html#RoutingTable"><span class="Identifier">RoutingTable</span></a><span class="Other">;</span>
+                    <span class="Identifier">peerId</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">;</span>
+                    <span class="Identifier">maxPeersPerIp</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">maxPeersPerIpv4Subnet</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                    <span class="Identifier">maxPeersPerIpv6Subnet</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/find.nim#L257" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/find.nim#L257" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
 <div id="hasResponsesFromClosestAvailable-procs-all">
   <div id="hasResponsesFromClosestAvailable,LookupState" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#hasResponsesFromClosestAvailable%2CLookupState"><span class="Identifier">hasResponsesFromClosestAvailable</span></a><span class="Other">(</span><span class="Identifier">state</span><span class="Other">:</span> <a href="#LookupState"><span class="Identifier">LookupState</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
@@ -689,7 +714,7 @@ Iteratively search for the k closest peers to a <tt class="docutils literal"><sp
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-21 06:01:26 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-22 06:01:48 UTC</small>
       </div>
     </div>
   </div>
