@@ -33,8 +33,7 @@ jobs:
           nim --version
           nimble --version
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           # nim doc can "fail", but the doc is still generated
           nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 

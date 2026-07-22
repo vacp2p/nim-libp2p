@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        install_minver lock gen_multicodec format clean-nim
+        setup_minver lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -140,9 +140,9 @@ test_integration: nimble.paths tests/nimble.paths
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-install_minver:
-	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l install -dy
-	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l install -dy
+setup_minver:
+	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
+	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
 lock:
 	$(MAKE) -C cbind nimble.lock
