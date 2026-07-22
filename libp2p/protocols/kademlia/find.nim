@@ -170,8 +170,10 @@ proc dispatchFindNode*(
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
+  # `noCancel`: a cancelled RPC still has to close its stream, and a bare `await`
+  # here would itself be cancelled, leaking the channel.
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -527,13 +529,20 @@ proc iterativeLookup*(
   let state = LookupState.init(kad, target)
   var pending: seq[Attempt]
 
+  # `noCancel`: when the lookup itself is cancelled, still wait for every RPC to
+  # unwind, otherwise we return while their streams are still closing.
   defer:
-    await pending.mapIt(it.fut).cancelAndWait()
+    let inflight = pending.mapIt(it.fut)
+    await noCancel inflight.cancelAndWait()
 
   while true:
     let completed = pending.harvestInflight(Moment.now())
     await kad.applyReplies(state, rtable, completed, onReply)
-    await state.dropDonePeers(pending).cancelAndWait()
+    # `dropDonePeers` already removed these from `pending`, so the `defer` above
+    # no longer covers them: they must be awaited to completion here. Bind first:
+    # `cancelAndWait` is a template that would evaluate the call more than once.
+    let stale = state.dropDonePeers(pending)
+    await noCancel stale.cancelAndWait()
 
     # Once the stop condition holds, dispatch no new peers but keep draining the
     # replies already in flight, so the returned peer set stays complete.

@@ -21,7 +21,7 @@ proc dispatchGetVal*(
     return err(streamRes.error.msg)
   let stream = streamRes.value()
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
