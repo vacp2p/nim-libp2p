@@ -5,7 +5,7 @@ FROM nimlang/nim:2.2.10 AS build
 WORKDIR /node
 COPY . .
 
-# Install root libp2p deps, then the simulation-specific pinned deps.
+# Install root libp2p deps, then the simulation-specific deps.
 RUN nimble install -y --depsOnly && \
     cd simulation && nimble install -y --depsOnly
 
