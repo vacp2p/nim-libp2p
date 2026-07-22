@@ -76,7 +76,7 @@ jobs:
 
       - name: Restore dependencies from cache
         id: deps-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: |
             nimbledeps
@@ -130,6 +130,15 @@ jobs:
         run: |
           nimble install_pinned
           cd tests && nimble install_pinned
+
+      - name: Save dependencies cache
+        uses: actions/cache/save@v5
+        if: github.event_name == 'merge_group' && steps.deps-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            nimbledeps
+            tests/nimbledeps
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths
