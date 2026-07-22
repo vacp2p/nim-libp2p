@@ -115,6 +115,11 @@ suite "KadDHT Bootstrap Component":
       9,
       bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
+
+    # Nodes bootstrapping in the same instant can miss each other if
+    # the hub has not yet admitted the first arrivals when the next ones query it.
+    for kad in kads:
+      kad.config.bucketRefreshTime = 50.milliseconds
     startAndDeferStop(kads)
 
     # All nodes should know about all other nodes after bootstrap
