@@ -81,7 +81,7 @@ jobs:
           path: |
             nimbledeps
             tests/nimbledeps
-          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          key: nimbledeps-with-tests-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'

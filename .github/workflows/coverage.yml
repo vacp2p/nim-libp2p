@@ -43,7 +43,7 @@ jobs:
             tests/nimbledeps
           # Keep this in sync with ci.yml's cache key so entries are
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          key: nimbledeps-with-tests-linux-amd64-gcc-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
