@@ -216,10 +216,9 @@ proc stopProviding*(kad: KadDHT, c: Cid) =
 proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   let providedKeys = kad.providerManager.providedKeys.provided
 
-  var futs: seq[Future[void]]
+  var futs = newSeqOfCap[Future[void]](providedKeys.len)
   for key in providedKeys.keys():
-    let fut = kad.addProvider(key)
-    futs.add(fut)
+    futs.add(kad.addProvider(key))
 
   await allFutures(futs)
 
