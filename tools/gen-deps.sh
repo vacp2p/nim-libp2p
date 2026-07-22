@@ -15,7 +15,7 @@ Usage:
   $0 <lockfile> <output.nix> [package ...]
 
 Example:
-  $0 nimble.lock nix/deps.nix
+  $0 nix/libp2p.lock nix/deps.nix
   $0 cbind/nimble.lock nix/cbind-deps.nix taskpools cbor_serialization ffi
 EOF
 }
@@ -39,10 +39,14 @@ command -v nix-prefetch-git >/dev/null || { echo "error: nix-prefetch-git requir
 
 if [[ ! -f "$LOCKFILE" ]]; then
   echo "[!] $LOCKFILE not found"
-  echo "[*] Generating $LOCKFILE"
+  if [[ "$(basename "$LOCKFILE")" != "nimble.lock" ]]; then
+    echo "error: generate $LOCKFILE first"
+    exit 1
+  fi
 
+  echo "[*] Generating $LOCKFILE"
+  LOCKDIR="$(dirname "$LOCKFILE")"
   (
-    LOCKDIR="$(dirname "$LOCKFILE")"
     cd "$LOCKDIR" || { echo "error: $LOCKDIR does not exist"; exit 1; }
     nimble lock
   )

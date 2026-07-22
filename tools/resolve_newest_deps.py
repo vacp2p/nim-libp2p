@@ -246,7 +246,7 @@ def collect_nimble_lock_source(
     base_deps: "OrderedDict[str, Dict[str, str]]",
     candidates: Dict[str, "OrderedDict[str, List[Candidate]]"],
 ) -> None:
-    log(f"Fetching nimble.lock from {source['repo']}...")
+    log(f"Fetching {source['file']} from {source['repo']}...")
     lock_deps = fetch_nimble_lock(source["repo"], source["ref"], source["file"])
     matched = 0
     for norm_url, candidate in lock_deps.items():
@@ -317,7 +317,7 @@ def resolve(lockfile_path: str) -> List[str]:
 
 
 def main() -> int:
-    lockfile_path = sys.argv[1] if len(sys.argv) > 1 else "nimble.lock"
+    lockfile_path = sys.argv[1] if len(sys.argv) > 1 else "nix/libp2p.lock"
 
     try:
         resolved = resolve(lockfile_path)

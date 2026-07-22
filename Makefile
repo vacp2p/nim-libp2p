@@ -41,19 +41,13 @@ TEST_PATH ?=
 
 all: setup
 
-nimble.lock: libp2p.nimble
-	nimble --requires:"nim == $(NIM_VERSION)" lock
+nix/libp2p.lock: libp2p.nimble
+	nimble --lockFile:$@ --requires:"nim == $(NIM_VERSION)" lock
 
-nix/deps.nix: nimble.lock
-	./tools/gen-deps.sh nimble.lock nix/deps.nix
+nix/deps.nix: nix/libp2p.lock
+	./tools/gen-deps.sh nix/libp2p.lock nix/deps.nix
 
-tests/nimble.lock: tests/tests.nimble libp2p.nimble
-	cd tests && nimble --requires:"nim == $(NIM_VERSION)" lock
-
-nix/tests-deps.nix: tests/nimble.lock
-	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix libbacktrace unittest2
-
-deps: nix/deps.nix nix/tests-deps.nix
+deps: nix/deps.nix
 
 build: deps
 	nix build
@@ -62,7 +56,7 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
+	$(RM) nix/deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
 nimble.paths: libp2p.nimble
@@ -111,7 +105,7 @@ test_integration: nimble.paths tests/nimble.paths
 setup:
 	$(MAKE) nimble.paths tests/nimble.paths
 
-lock:
+lock: nix/libp2p.lock
 	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:

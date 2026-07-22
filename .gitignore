@@ -16,6 +16,8 @@ tests/pubsub/testgossipsub
 examples/*.md
 nimble.develop
 nimble.paths
+/nimble.lock
+/tests/nimble.lock
 go-libp2p-daemon/
 
 # Ignore all test build files in tests folder (auto generated when running tests).
