@@ -82,7 +82,7 @@ proc waitingTime*(
       1.0 / pow(base, exp)
 
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
-  let ipSim = registrar.ads.adScore(ad)
+  let ipSim = registrar.ads.adMaxScore(ad)
 
   var w: float64 =
     discoConfig.advertExpiry.seconds.float64 * occupancy *

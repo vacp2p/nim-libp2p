@@ -3,20 +3,13 @@
 
 {.push raises: [].}
 
-import std/[net, tables]
+import std/[tables]
 import chronos, results
 import ../../[multiaddress, routing_record]
 import ../../utils/iptree
 import ./types
 
 export types
-
-proc getIPs(addrsInfos: seq[AddressInfo]): seq[IpAddress] =
-  var ips: seq[IpAddress]
-  for addrInfo in addrsInfos:
-    addrInfo.address.getIp().withValue(ip):
-      ips.add(ip)
-  ips
 
 proc insertAd(ipTree: IpTree, ad: Advertisement) =
   for ip in ad.data.addresses.getIPs():
@@ -26,7 +19,7 @@ proc removeAd(ipTree: IpTree, ad: Advertisement) =
   for ip in ad.data.addresses.getIPs():
     ipTree.removeIp(ip)
 
-proc adScore(ipTree: IpTree, ad: Advertisement): float64 =
+proc adMaxScore(ipTree: IpTree, ad: Advertisement): float64 =
   ## Max IP similarity score across the advertisement's addresses.
   var maxScore = 0.0
   for ip in ad.data.addresses.getIPs():
@@ -67,8 +60,8 @@ proc adsForService*(c: AdvertisementCache, serviceId: ServiceId): seq[Advertisem
     for slot in slots[]:
       result.add(slot.ad)
 
-proc adScore*(c: AdvertisementCache, ad: Advertisement): float64 =
-  c.ipTree.adScore(ad)
+proc adMaxScore*(c: AdvertisementCache, ad: Advertisement): float64 =
+  c.ipTree.adMaxScore(ad)
 
 proc ipTotal*(c: AdvertisementCache): int =
   ## Total IP multi-set size (IPv4 + IPv6 root counters).
@@ -86,19 +79,22 @@ proc removeSlot(c: AdvertisementCache, serviceId: ServiceId, index: int) =
     if slots[].len == 0:
       c.byService.del(serviceId)
 
-proc evictOldest(c: AdvertisementCache) =
-  var oldestService: ServiceId
-  var oldestIndex = -1
+proc findOldestIndex(c: AdvertisementCache): Opt[(ServiceId, int)] =
+  var oldestEntree = Opt.none((ServiceId, int))
   var oldestTime = Moment.high
 
   for serviceId, slots in c.byService:
     for i, slot in slots:
       if slot.timestamp < oldestTime:
         oldestTime = slot.timestamp
-        oldestService = serviceId
-        oldestIndex = i
+        oldestEntree = Opt.some((serviceId, i))
 
-  if oldestIndex >= 0:
+  return oldestEntree
+
+proc evictOldest(c: AdvertisementCache) =
+  let optIndex = c.findOldestIndex()
+  if optIndex.isSome():
+    let (oldestService, oldestIndex) = optIndex.get()
     c.removeSlot(oldestService, oldestIndex)
 
 proc put*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement, now: Moment) =
