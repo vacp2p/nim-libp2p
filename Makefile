@@ -65,43 +65,11 @@ clean:
 	$(RM) nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
-# Generate nimble.paths so config.nims can include it.
-# nimble injects per-package srcDir paths that --NimblePath alone doesn't provide;
-# this replicates that by reading srcDir from each package's .nimble file.
-nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
-	@rm -f $@
-	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
-	  [ -d "$$pkgdir" ] || continue; \
-	  for f in "$$pkgdir"/*/*.nimble; do \
-	    [ -f "$$f" ] || continue; \
-	    pkg=$$(dirname "$$f"); \
-	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
-	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
-	      path="$$pkg/$$src"; \
-	    else \
-	      path="$$pkg"; \
-	    fi; \
-	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
-	  done; \
-	done
+nimble.paths: libp2p.nimble
+	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
-tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tests/nimbledeps/pkgs/*/*.nimble)
-	@rm -f $@
-	@for pkgdir in tests/nimbledeps/pkgs2 tests/nimbledeps/pkgs; do \
-	  [ -d "$$pkgdir" ] || continue; \
-	  for f in "$$pkgdir"/*/*.nimble; do \
-	    [ -f "$$f" ] || continue; \
-	    pkg=$$(dirname "$$f"); \
-	    pkg=$${pkg#tests/}; \
-	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
-	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
-	      path="$$pkg/$$src"; \
-	    else \
-	      path="$$pkg"; \
-	    fi; \
-	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
-	  done; \
-	done
+tests/nimble.paths: tests/tests.nimble libp2p.nimble
+	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
 # nim-libplum vendors libplum (PCP / NAT-PMP / UPnP-IGD) as a git submodule and
 # compiles its C sources into libp2p via nim's {.compile.} pragmas, so there is
@@ -141,8 +109,7 @@ test_integration: nimble.paths tests/nimble.paths
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
 setup:
-	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
-	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
+	$(MAKE) nimble.paths tests/nimble.paths
 
 lock:
 	$(MAKE) -C cbind nimble.lock

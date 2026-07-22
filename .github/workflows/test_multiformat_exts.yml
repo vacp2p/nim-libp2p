@@ -134,16 +134,11 @@ jobs:
           "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
           "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+      - name: Setup deps
         run: |
           NIM_VERSION="${{ needs.pick-platform.outputs.nim_ref }}"
           NIM_VERSION="${NIM_VERSION#v}"
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-          cd tests && nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+          make NIM_VERSION="$NIM_VERSION" setup
 
       - name: Build test_multiformat_exts
         id: build-test
