@@ -49,10 +49,9 @@ jobs:
           # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
           key: nimbledeps-linux-amd64-gcc-v2.2.10-minver-${{ hashFiles('libp2p.nimble') }}
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+      - name: Setup deps
         run: |
-          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l install -dy
+          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l setup -y
 
       - name: Build prerequisites
         run: make nimble.paths
@@ -63,5 +62,4 @@ jobs:
           nimble --version
           gcc --version
 
-          nimble --noLockfile --requires:"nim == 2.2.10" --resolver:minver -l setup
           cd examples && nimble examples

@@ -64,7 +64,7 @@ nim-libp2p/
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-make install_minver   # Install lowest supported dependency set
+make setup_minver     # Set up lowest supported dependency set
 # Or: nix develop     # Nix-based dev environment
 ```
 
@@ -472,7 +472,7 @@ annotations in `libp2p.nim`:
 
 ```sh
 cd cbind
-nimble setup
+nimble setup --localdeps -y
 nimble buildffi         # Build ../build/liblibp2p.{so,dylib,dll}
 nimble genbindings_c    # Generate c_bindings/libp2p.h
 nimble genbindings_cddl # Generate the CDDL schema
@@ -521,7 +521,7 @@ This usually means stale nimble packages. Fix:
 1. Remove `~/.nimble`
 2. Re-install Nim freshly
 3. `nimble install nimble` (get latest nimble)
-4. `nimble install -dy` in the project
+4. `nimble setup --localdeps -y` in the project
 
 ### Formatting errors in CI
 Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks formatting with `nph`.
@@ -560,7 +560,7 @@ nimble testpath protocols/pubsub
 # Format code (required before PR)
 nimble format
 
-# Install/lock dependencies
-make install_minver                  # install lowest supported library deps
+# Set up/lock dependencies
+make setup_minver                    # set up lowest supported library deps
 make lock                            # update app/tool lockfiles
 ```

@@ -75,8 +75,7 @@ jobs:
       - name: Run Go and Nim together
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/autonatv2/go-peer
           go mod tidy
           go run testautonatv2.go &
@@ -105,8 +104,7 @@ jobs:
       - name: Run Nim and Rust together
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/kad/rust-peer
           cargo run &
 
@@ -137,8 +135,7 @@ jobs:
       - name: Run Interop
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
-          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/partial-message
           nim c ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go

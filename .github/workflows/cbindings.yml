@@ -51,21 +51,15 @@ jobs:
           # from library min-version CI.
           key: nimbledeps-linux-amd64-gcc-v2.2.10-lockfile-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble -l install -dy
-          cd cbind && nimble -l install -dy
-
       - name: Build FFI library and generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
           gcc --version
 
-          nimble -l setup
+          nimble -l setup -y
           cd cbind
-          nimble -l setup
+          nimble -l setup -y
           nimble -l buildffi
           nimble -l genbindings_c
           nimble -l genbindings_cddl
@@ -113,21 +107,15 @@ jobs:
             cbind/nimbledeps
           key: nimbledeps-macos-15-arm64-clang-v2.2.10-lockfile-${{ hashFiles('nimble.lock', 'cbind/nimble.lock') }}
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble -l install -dy
-          cd cbind && nimble -l install -dy
-
       - name: Build FFI library and generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
           clang --version
 
-          nimble -l setup
+          nimble -l setup -y
           cd cbind
-          nimble -l setup
+          nimble -l setup -y
           nimble -l buildffi
           nimble -l genbindings_c
           nimble -l genbindings_cddl
