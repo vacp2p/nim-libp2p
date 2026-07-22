@@ -6,4 +6,4 @@ author = "Status Research & Development GmbH"
 description = "Tests for LibP2P implementation"
 license = "MIT"
 
-requires "libbacktrace", "unittest2"
+requires "libbacktrace >= 0.2.0", "unittest2 >= 0.2.5"
