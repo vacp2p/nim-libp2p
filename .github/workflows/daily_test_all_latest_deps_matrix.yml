@@ -140,7 +140,7 @@ jobs:
           "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
           "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install dependencies (latest allowed by nimble requirements)
+      - name: Setup dependencies (latest allowed by nimble requirements)
         run: |
           NIM_REF="${{ matrix.nim.ref }}"
           NIM_REQUIRES=()
@@ -148,15 +148,10 @@ jobs:
             NIM_REQUIRES=(--requires:"nim == ${NIM_REF#v}")
           fi
 
-          echo "=== Installing latest allowed dependencies ==="
-          rm -rf nimbledeps tests/nimbledeps
-          mkdir nimbledeps
-          nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" install -dy
-          mkdir tests/nimbledeps
-          (cd tests && nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" install -dy)
-
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+          echo "=== Setting up latest allowed dependencies ==="
+          rm -rf nimbledeps tests/nimbledeps nimble.paths tests/nimble.paths
+          nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" setup -y
+          (cd tests && nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" setup -y)
 
       - name: Build test_all
         run: |
