@@ -4,7 +4,7 @@ NIM_VERSION ?= 2.2.10
 
 all: build genbindings
 
-# Builds ../build/liblibp2p.so plus the C/CDDL bindings. Run `nimble setup` once first.
+# Builds ../build/liblibp2p.so plus the C/CDDL bindings. Run `nimble -l setup -y` once first.
 build:
 	nimble -l buildffi
 

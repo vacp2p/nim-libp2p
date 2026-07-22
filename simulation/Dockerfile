@@ -5,9 +5,9 @@ FROM nimlang/nim:2.2.10 AS build
 WORKDIR /node
 COPY . .
 
-# Install root libp2p deps, then the simulation-specific deps.
-RUN nimble install -y --depsOnly && \
-    cd simulation && nimble install -y --depsOnly
+# Set up root libp2p deps, then the simulation-specific deps.
+RUN nimble -l setup -y && \
+    cd simulation && nimble -l setup -y
 
 RUN cd simulation && nim c \
     -d:chronicles_sinks=json \
