@@ -220,7 +220,11 @@ proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for key in providedKeys.keys():
     futs.add(kad.addProvider(key))
 
-  await allFutures(futs)
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:

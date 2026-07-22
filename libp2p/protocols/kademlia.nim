@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import chronos, chronicles, results, sequtils
-import ../utils/heartbeat
+import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
@@ -43,7 +43,11 @@ proc refreshTable*(
 
   let futs = targets.mapIt(kad.findNode(it, rtable))
 
-  await allFutures(futs)
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false

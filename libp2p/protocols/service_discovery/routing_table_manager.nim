@@ -4,6 +4,7 @@
 import std/[tables, sequtils]
 import chronos, chronicles, results
 import ../../[switch, peerinfo, peeraddrpolicy]
+import ../../utils/future
 import ../kademlia
 import ../kademlia/[types, routing_table]
 import ./[types, service_discovery_metrics]
@@ -131,7 +132,12 @@ proc refreshAllTables*(
 ) {.async: (raises: [CancelledError]).} =
   let tables = manager.tables.values.toSeq()
   let futs = tables.mapIt(kad.refreshTable(it))
-  await allFutures(futs)
+
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
 
 proc count*(manager: ServiceRoutingTableManager): int =
   return manager.tables.len
