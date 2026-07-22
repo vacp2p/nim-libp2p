@@ -234,17 +234,19 @@ suite "KadDHT - Get Providers":
       (await kads[0].getProviders(key)).len() == 5
 
   asyncTest "Get providers returns at most k closest peers":
-    # Use small replication value (k=3)
-    let kads = setupKadSwitches(2, replication = 3)
+    # Use small replication value
+    const k = 3
+    let kads = setupKadSwitches(2, replication = k)
     startAndDeferStop(kads)
 
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
     await connect(kads[0], kads[1])
 
-    # Peers are inserted directly rather than dialed: a bucket only holds k, so
-    # how many connected peers reach the table would depend on how their random
-    # ids spread over buckets.
-    kads[0].addDialablePeers(6)
+    # Peers are added directly, not through connect: a bucket holds at most k, so
+    # how many of them reach the table would depend on how their ids spread over
+    # buckets, and the table could end up holding no more than k.
+    kads[0].addPeersWithAddrs(2 * k)
+    check kads[0].rtable.allKeys().len() > k
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -252,9 +254,17 @@ suite "KadDHT - Get Providers":
     let response =
       await kads[1].dispatchGetProviders(kads[0].switch.peerInfo.peerId, key)
 
-    # kads[0] knows 6 peers but should only return k=3 in closerPeers
+    let
+      hasher = kads[0].rtable.config.hasher
+      expected = kads[0]
+        .getPeersFromRoutingTable()
+        .filterIt(it != kads[1].switch.peerInfo.peerId)
+        .sortPeers(key, hasher)[0 ..< k]
+
+    # kads[0] knows more than k peers but should only return the k closest ones
     check:
-      response.get().closerPeers.len() == 3
+      response.get().closerPeers.len() == k
+      response.get().closerPeers.toPeerIds().sortPeers(key, hasher) == expected
 
   asyncTest "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
