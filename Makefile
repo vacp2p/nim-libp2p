@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        setup_minver lock gen_multicodec format clean-nim
+        setup lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -39,7 +39,7 @@ endif
 
 TEST_PATH ?=
 
-all: setup_minver
+all: setup
 
 nimble.lock: libp2p.nimble
 	nimble --requires:"nim == $(NIM_VERSION)" lock
@@ -140,7 +140,7 @@ test_integration: nimble.paths tests/nimble.paths
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-setup_minver:
+setup:
 	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
