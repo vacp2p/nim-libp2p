@@ -14,8 +14,8 @@ requires "taskpools >= 0.1.0",
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
-  ## installs use project-local `nimbledeps`; a plain `nimble install` uses the
-  ## global store. Check both.
+  ## and local setup use project-local `nimbledeps`; a plain global install
+  ## uses the global store. Check both.
   var bases = @[
     "nimbledeps/pkgs2", "nimbledeps/pkgs", "../nimbledeps/pkgs2", "../nimbledeps/pkgs"
   ]
@@ -31,7 +31,7 @@ proc findInstalledPkgDir(prefix: string): string =
   raise newException(
     IOError,
     "could not locate installed package '" & prefix &
-      "*'; run `nimble -l install -dy` from cbind first",
+      "*'; run `nimble -l setup -y` from cbind first",
   )
 
 proc ffiDepPaths(): string =

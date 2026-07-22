@@ -73,15 +73,15 @@ make                 # Set up lowest supported dependency set
 ### Running Tests
 ```sh
 # Run all unit tests
-nimble test
+make test
 
 # Run tests matching a path substring
-nimble testpath quic                   # all quic tests
-nimble testpath transports/test_ws     # specific test file
+make test quic                         # all quic tests
+make test transports/test_ws           # specific test file
 
 # Run specific test suites
-nimble testmultiformatexts             # MultiFormat extension tests
-nimble testintegration                 # Integration tests
+make test_multiformat_exts             # MultiFormat extension tests
+make test_integration                  # Integration tests
 ```
 
 ### Faster Iteration (bypass nimble overhead)
@@ -445,7 +445,7 @@ These flags are used in CI and tests:
 - Use `unittest2` framework
 - Tests can be compiled and run directly: `nim c -r tests/libp2p/test_switch.nim`
 - Path filtering: `-d:path=<substring>` selects test files whose path contains the substring
-- Integration tests are in `tests/integration/` (run with `nimble testintegration`)
+- Integration tests are in `tests/integration/` (run with `make test_integration`)
 - Interoperability tests are in `tests/interop/`
 
 ### Test Stubs and Utilities
@@ -551,11 +551,11 @@ Uses `lsquic` (`>= 0.4.1`). May require extra system dependencies for building.
 nim c libp2p.nim
 
 # Run all tests
-nimble test
+make test
 
 # Run specific test
-nimble testpath switch          # tests matching "switch"
-nimble testpath protocols/pubsub
+make test switch                # tests matching "switch"
+make test protocols/pubsub
 
 # Format code (required before PR)
 nimble format
