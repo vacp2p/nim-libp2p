@@ -12,22 +12,29 @@ jobs:
     name: 'Generate & upload documentation'
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           submodules: true
 
-      - uses: jiro4989/setup-nim-action@v2
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
         with:
-          nim-version: 'stable'
+          os: linux
+          cpu: amd64
+          shell: bash
+          nim_ref: v2.2.10
 
       - name: Generate doc
         run: |
           nim --version
           nimble --version
-          nimble --useSystemNim -l install -dy
-          nimble --useSystemNim -l setup
+          NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l install -dy
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup
           # nim doc can "fail", but the doc is still generated
           nim doc --git.url:https://github.com/vacp2p/nim-libp2p --git.commit:${GITHUB_REF##*/} --outdir:${GITHUB_REF##*/} --project libp2p || true
 

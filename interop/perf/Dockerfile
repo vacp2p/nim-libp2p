@@ -8,14 +8,14 @@ COPY libp2p.nimble nimble.lock nim-libp2p/
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd nim-libp2p && nimble --useSystemNim -l install -dy && nimble --useSystemNim -l --noLockfile install -y redis
+RUN cd nim-libp2p && nimble -l install -dy && nimble -l --noLockfile install -y redis
 
 COPY . nim-libp2p/
 
 RUN \
   cd nim-libp2p && \
-  nimble --useSystemNim -l setup && \
-  REDIS_PATH="$(nimble --useSystemNim --noLockfile path redis | tail -n 1)" && \
+  nimble -l setup && \
+  REDIS_PATH="$(nimble -l --noLockfile path redis | tail -n 1)" && \
   nim c -d:release --path:"$REDIS_PATH" --mm:refc -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None --threads:on -o:/app/perf-interop ./interop/perf/main.nim
 
 FROM debian:trixie-slim AS runtime

@@ -31,7 +31,7 @@ proc findInstalledPkgDir(prefix: string): string =
   raise newException(
     IOError,
     "could not locate installed package '" & prefix &
-      "*'; run `nimble --useSystemNim -l install -dy` from cbind first",
+      "*'; run `nimble -l install -dy` from cbind first",
   )
 
 proc ffiDepPaths(): string =

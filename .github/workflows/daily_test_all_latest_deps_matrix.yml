@@ -27,46 +27,10 @@ jobs:
                 gh cache delete -R "$REPO" "$id" || echo "skipped $id (already gone)"
               done
 
-  resolve_deps:
-    name: Resolve newest dependencies
-    runs-on: ubuntu-latest
-    outputs:
-      deps: ${{ steps.resolve.outputs.deps }}
-      test_deps: ${{ steps.resolve.outputs.test_deps }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Resolve dependencies
-        id: resolve
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          if ! DEPS=$(python3 tools/resolve_newest_deps.py nimble.lock 2>"$RUNNER_TEMP/resolve_deps.log"); then
-            cat "$RUNNER_TEMP/resolve_deps.log"
-            exit 1
-          fi
-          if ! TEST_DEPS=$(python3 tools/resolve_newest_deps.py tests/nimble.lock 2>"$RUNNER_TEMP/resolve_test_deps.log"); then
-            cat "$RUNNER_TEMP/resolve_test_deps.log"
-            exit 1
-          fi
-          cat "$RUNNER_TEMP/resolve_deps.log"
-          cat "$RUNNER_TEMP/resolve_test_deps.log"
-          if [ -z "$DEPS" ]; then
-            echo "ERROR: dependency resolver produced no output" >&2
-            exit 1
-          fi
-          if [ -z "$TEST_DEPS" ]; then
-            echo "ERROR: test dependency resolver produced no output" >&2
-            exit 1
-          fi
-          printf 'deps=%s\n' "$DEPS" >> "$GITHUB_OUTPUT"
-          printf 'test_deps=%s\n' "$TEST_DEPS" >> "$GITHUB_OUTPUT"
-
   test:
-    needs: [delete_cache, resolve_deps]
+    needs: [delete_cache]
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: 08be587ad79f1692d5adcb03ce0a13dfda5d8818 # v0.24.0
     timeout-minutes: 70
     strategy:
       fail-fast: false
@@ -176,28 +140,20 @@ jobs:
           "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
           "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install dependencies (newest used across projects)
-        env:
-          DEPS: ${{ needs.resolve_deps.outputs.deps }}
-          TEST_DEPS: ${{ needs.resolve_deps.outputs.test_deps }}
+      - name: Install dependencies (latest allowed by nimble requirements)
         run: |
-          if [ -z "$DEPS" ]; then
-            echo "ERROR: dependency resolver produced no output for this workflow run" >&2
-            exit 1
+          NIM_REF="${{ matrix.nim.ref }}"
+          NIM_REQUIRES=()
+          if [[ "$NIM_REF" == v* ]]; then
+            NIM_REQUIRES=(--requires:"nim == ${NIM_REF#v}")
           fi
-          if [ -z "$TEST_DEPS" ]; then
-            echo "ERROR: test dependency resolver produced no output for this workflow run" >&2
-            exit 1
-          fi
-          echo "=== Installing resolved newest dependencies ==="
-          # nimbledeps/ switches nimble to local-dep mode for the latest-deps build.
+
+          echo "=== Installing latest allowed dependencies ==="
           rm -rf nimbledeps tests/nimbledeps
           mkdir nimbledeps
-          echo "nimble --useSystemNim -l --noLockfile install -y $DEPS"
-          nimble --useSystemNim -l --noLockfile install -y $DEPS
+          nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" install -dy
           mkdir tests/nimbledeps
-          echo "cd tests && nimble --useSystemNim -l --noLockfile install -y $TEST_DEPS"
-          (cd tests && nimble --useSystemNim -l --noLockfile install -y $TEST_DEPS)
+          (cd tests && nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" install -dy)
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths
