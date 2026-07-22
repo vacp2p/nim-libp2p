@@ -62,6 +62,7 @@ suite "Service Discovery Component - Register":
 
   asyncTest "back-to-back REGISTERs return identical waits":
     # Anti-grinding: tMod + tWaitFor (eligibility moment) must never move earlier across retries.
+    # Seed a distinct ad first so occupancy forces Wait for a *new* ad (identical ads are rejected).
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -69,15 +70,15 @@ suite "Service Discovery Component - Register":
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(
-        serviceName, advertiserNode.switch.peerInfo.privateKey
-      )
-      .encode()
-      .get()
+    let advertiserKey = advertiserNode.switch.peerInfo.privateKey
+    let seedAdBytes =
+      makeAdvertisement(serviceName, advertiserKey, seqNo = 1).encode().get()
+    let adBytes =
+      makeAdvertisement(serviceName, advertiserKey, seqNo = 2).encode().get()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
     let response: RegistrationResponse =
-      (await advertiserNode.sendRegister(registrarPeerId, serviceId, adBytes)).get()
+      (await advertiserNode.sendRegister(registrarPeerId, serviceId, seedAdBytes)).get()
     check response.status == kad_protobuf.RegistrationStatus.Confirmed
 
     proc requestTicket(): Future[Ticket] {.async.} =
@@ -128,11 +129,11 @@ suite "Service Discovery Component - Register":
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].data.addresses[0].address == addrA
 
-    # Identical ad re-registration refreshes the existing slot (no new slot).
+    # Identical ad re-registration is rejected (no refresh, no new slot).
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, originalAd.encode().get()
     )
-    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Rejected
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].envelope.signature.data ==
       originalAd.envelope.signature.data

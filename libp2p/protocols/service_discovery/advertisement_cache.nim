@@ -52,6 +52,15 @@ proc serviceAdCount*(c: AdvertisementCache, serviceId: ServiceId): int =
 proc containsService*(c: AdvertisementCache, serviceId: ServiceId): bool =
   serviceId in c.byService
 
+proc contains*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement): bool =
+  ## True when an identical ad (same envelope signature) is already cached
+  ## under `serviceId`.
+  c.byService.withValue(serviceId, slots):
+    for slot in slots[]:
+      if slot.ad.envelope.signature.data == ad.envelope.signature.data:
+        return true
+  false
+
 proc adsForService*(c: AdvertisementCache, serviceId: ServiceId): seq[Advertisement] =
   result = @[]
   c.byService.withValue(serviceId, slots):
@@ -93,22 +102,16 @@ proc evictOldest(c: AdvertisementCache) =
     c.removeSlot(oldestService, oldestIndex)
 
 proc put*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement, now: Moment) =
-  ## Admit `ad` under `serviceId`.
+  ## Append a new ad slot for `serviceId`. Evicts the oldest slot when full.
+  ## Callers must reject duplicates via `contains` before calling `put`.
+  if c.len.uint64 >= c.capacity:
+    c.evictOldest()
+
   if serviceId notin c.byService:
     c.byService[serviceId] = @[]
-
   c.byService.withValue(serviceId, slots):
-    for i in 0 ..< slots[].len:
-      # Match the identity used by Advertisement.hash (signature bytes).
-      if slots[][i].ad.envelope.signature.data == ad.envelope.signature.data:
-        slots[][i].timestamp = now
-        return
-
-    if c.len.uint64 >= c.capacity:
-      c.evictOldest()
-
     slots[].add(CachedAd(ad: ad, timestamp: now))
-    c.ipTree.insertAd(ad)
+  c.ipTree.insertAd(ad)
 
 proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   ## Remove slots whose timestamp is older than `expiry`. Returns how many

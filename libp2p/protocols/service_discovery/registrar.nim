@@ -290,6 +290,15 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
+  if disco.registrar.ads.contains(serviceId, ad):
+    debug "advertisement already in cache", serviceId, peerId = ad.data.peerId
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
