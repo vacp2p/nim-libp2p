@@ -394,6 +394,12 @@ suite "KadDHT Find":
     await connect(kad, mockKad)
     await connect(kad, responsiveKad)
 
+    # Dial up front: a cold handshake can outlast the 100ms timeout on a loaded
+    # machine, which would exhaust the responsive peer's retries too and leave
+    # the lookup with nothing to return.
+    for peer in [mockKad.KadDHT, responsiveKad]:
+      await kad.switch.connect(peer.switch.peerInfo.peerId, peer.switch.peerInfo.addrs)
+
     check mockKad.handleFindNodeCalls == 0
 
     let peerIds = await kad.findNode(mockKad.rtable.selfId)

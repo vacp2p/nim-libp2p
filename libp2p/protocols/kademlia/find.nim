@@ -171,8 +171,15 @@ proc dispatchFindNode*(
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
+  var replyRead = false
   defer:
-    await stream.close()
+    # Closing only half-closes the channel: an abandoned RPC leaves its unread
+    # reply in the read buffer, which blocks the muxer for every other channel
+    # on that connection. Only a reset drops it.
+    if replyRead:
+      await noCancel stream.close()
+    else:
+      await noCancel stream.reset()
 
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -188,6 +195,7 @@ proc dispatchFindNode*(
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
+  replyRead = true
 
   kad_message_bytes_received.inc(
     replyBuf.len.int64, labelValues = [$MessageType.findNode]
@@ -395,6 +403,9 @@ proc lookupCheck(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
   let probe = kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
+  # A probe abandoned on timeout keeps its stream open, so always settle it.
+  defer:
+    await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
     return false
