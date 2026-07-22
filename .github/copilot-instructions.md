@@ -561,6 +561,6 @@ nimble testpath protocols/pubsub
 nimble format
 
 # Set up/lock dependencies
-make setup_minver                    # explicit setup target; also the default `make`
+make setup                           # explicit setup target; also the default `make`
 make lock                            # update app/tool lockfiles
 ```
