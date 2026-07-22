@@ -74,13 +74,6 @@ jobs:
           shell: ${{ needs.pick-platform.outputs.shell }}
           nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
 
-      - name: Install dependencies
-        uses: "./.github/actions/install_test_deps"
-        with:
-          os: ${{ needs.pick-platform.outputs.os }}
-          cpu: ${{ needs.pick-platform.outputs.cpu }}
-          cc: ${{ needs.pick-platform.outputs.cc }}
-
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
         id: windows-mingw-cache
@@ -122,6 +115,14 @@ jobs:
         run: |
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install dependencies
+        uses: "./.github/actions/install_test_deps"
+        with:
+          os: ${{ needs.pick-platform.outputs.os }}
+          cpu: ${{ needs.pick-platform.outputs.cpu }}
+          cc: ${{ needs.pick-platform.outputs.cc }}
+          shell: ${{ needs.pick-platform.outputs.shell }}
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

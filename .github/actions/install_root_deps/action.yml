@@ -11,6 +11,9 @@ inputs:
   cc:
     description: Platform cache compiler segment.
     required: true
+  shell:
+    description: Shell used to run Nimble commands.
+    default: bash
 
 runs:
   using: composite
@@ -24,7 +27,7 @@ runs:
 
     - name: Install deps
       if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-      shell: bash
+      shell: ${{ inputs.shell }}
       run: nimble install_pinned
 
     - name: Save dependencies cache

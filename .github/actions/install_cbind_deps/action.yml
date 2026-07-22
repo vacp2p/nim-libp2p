@@ -11,6 +11,9 @@ inputs:
   cc:
     description: Platform cache compiler segment.
     required: true
+  shell:
+    description: Shell used to run Nimble commands.
+    default: bash
 
 runs:
   using: composite
@@ -21,6 +24,7 @@ runs:
         os: ${{ inputs.os }}
         cpu: ${{ inputs.cpu }}
         cc: ${{ inputs.cc }}
+        shell: ${{ inputs.shell }}
 
     - name: Restore cbind deps from cache
       id: cbind-deps-cache
@@ -31,7 +35,7 @@ runs:
 
     - name: Install cbind deps
       if: ${{ steps.cbind-deps-cache.outputs.cache-hit != 'true' }}
-      shell: bash
+      shell: ${{ inputs.shell }}
       run: |
         cd cbind
         nimble install_pinned
