@@ -64,7 +64,7 @@ nim-libp2p/
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-make setup_minver     # Set up lowest supported dependency set
+make                 # Set up lowest supported dependency set
 # Or: nix develop     # Nix-based dev environment
 ```
 
@@ -561,6 +561,6 @@ nimble testpath protocols/pubsub
 nimble format
 
 # Set up/lock dependencies
-make setup_minver                    # set up lowest supported library deps
+make setup_minver                    # explicit setup target; also the default `make`
 make lock                            # update app/tool lockfiles
 ```

@@ -39,7 +39,7 @@ endif
 
 TEST_PATH ?=
 
-all: build
+all: setup_minver
 
 nimble.lock: libp2p.nimble
 	nimble --requires:"nim == $(NIM_VERSION)" lock
