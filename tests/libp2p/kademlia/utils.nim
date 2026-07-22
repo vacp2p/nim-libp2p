@@ -194,6 +194,17 @@ proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())
 
+proc addDialablePeers*(kad: KadDHT, count: int) =
+  ## Adds `count` random peers with addresses to the routing table, retrying ids
+  ## a full bucket rejects so the table grows by exactly `count`.
+  var added = 0
+  while added < count:
+    let peerId = randomPeerId()
+    if not kad.rtable.insert(peerId):
+      continue
+    kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
+    added.inc()
+
 proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
   for bucket in kad.rtable.buckets:

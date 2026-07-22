@@ -235,12 +235,16 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers returns at most k closest peers":
     # Use small replication value (k=3)
-    let kads = setupKadSwitches(7, replication = 3)
+    let kads = setupKadSwitches(2, replication = 3)
     startAndDeferStop(kads)
 
-    # kads[0] is the hub, connected to kads[1..6] (6 peers)
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
-    await connectHub(kads[0], kads[1 ..^ 1])
+    await connect(kads[0], kads[1])
+
+    # Peers are inserted directly rather than dialed: a bucket only holds k, so
+    # how many connected peers reach the table would depend on how their random
+    # ids spread over buckets.
+    kads[0].addDialablePeers(6)
 
     let key = @[1.byte, 2, 3, 4, 5]
 
