@@ -1,9 +1,16 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        setup lock gen_multicodec format clean-nim
+        setup interop-locks lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
+INTEROP_LOCK_DIRS = \
+  interop/transport \
+  interop/hole-punching \
+  interop/transport-v2 \
+  interop/hole-punching-v2 \
+  interop/kad-dht-v2 \
+  interop/perf
 
 NIMC     ?= nim
 NIMFLAGS ?=
@@ -105,7 +112,13 @@ test_integration: nimble.paths tests/nimble.paths
 setup:
 	$(MAKE) nimble.paths tests/nimble.paths
 
-lock: nix/libp2p.lock
+interop-locks:
+	@for dir in $(INTEROP_LOCK_DIRS); do \
+	  echo "Generating $$dir/nimble.lock"; \
+	  (cd $$dir && nimble --noLockfile lock); \
+	done
+
+lock: nix/libp2p.lock interop-locks
 	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:
