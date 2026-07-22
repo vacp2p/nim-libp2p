@@ -1,9 +1,16 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        install_minver install_pinned lock gen_multicodec format clean-nim
+        install_minver install_pinned interop-locks lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
+INTEROP_LOCK_DIRS = \
+  interop/transport \
+  interop/hole-punching \
+  interop/transport-v2 \
+  interop/hole-punching-v2 \
+  interop/kad-dht-v2 \
+  interop/perf
 
 NIMC     ?= nim
 NIMFLAGS ?=
@@ -146,7 +153,13 @@ install_minver:
 
 install_pinned: install_minver
 
-lock:
+interop-locks:
+	@for dir in $(INTEROP_LOCK_DIRS); do \
+	  echo "Generating $$dir/nimble.lock"; \
+	  (cd $$dir && nimble --noLockfile lock); \
+	done
+
+lock: interop-locks
 	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:
