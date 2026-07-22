@@ -15,27 +15,29 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Restore deps from cache
-      id: deps-cache
+    - name: Install root deps
+      uses: ./.github/actions/install_root_deps
+      with:
+        os: ${{ inputs.os }}
+        cpu: ${{ inputs.cpu }}
+        cc: ${{ inputs.cc }}
+
+    - name: Restore test deps from cache
+      id: test-deps-cache
       uses: actions/cache/restore@v5
       with:
-        path: |
-          nimbledeps
-          tests/nimbledeps
-        key: nimbledeps-with-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+        path: tests/nimbledeps
+        key: nimbledeps-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ hashFiles('tests/.pinned') }}
 
-    - name: Install deps
-      if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+    - name: Install test deps
+      if: ${{ steps.test-deps-cache.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
-        nimble install_pinned
         cd tests && nimble install_pinned
 
-    - name: Save dependencies cache
+    - name: Save test dependencies cache
       uses: actions/cache/save@v5
-      if: github.event_name == 'merge_group' && steps.deps-cache.outputs.cache-hit != 'true'
+      if: github.event_name == 'merge_group' && steps.test-deps-cache.outputs.cache-hit != 'true'
       with:
-        path: |
-          nimbledeps
-          tests/nimbledeps
-        key: ${{ steps.deps-cache.outputs.cache-primary-key }}
+        path: tests/nimbledeps
+        key: ${{ steps.test-deps-cache.outputs.cache-primary-key }}
