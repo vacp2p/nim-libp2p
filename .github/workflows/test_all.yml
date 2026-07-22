@@ -104,18 +104,12 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
-      - name: Restore dependencies from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Install dependencies
+        uses: "./.github/actions/install_test_deps"
         with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          # Scope by os/cpu/cc so cache entries can't leak vendored/compiled
-          # artifacts across mismatched toolchains (linux<->windows,
-          # gcc<->clang). Keep this key in sync with the other workflows that
-          # cache nimbledeps so cache entries are reusable across them.
-          key: nimbledeps-with-tests-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
+          cc: ${{ matrix.platform.cc }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
@@ -158,12 +152,6 @@ jobs:
         run: |
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths

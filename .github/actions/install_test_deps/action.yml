@@ -1,0 +1,41 @@
+name: Install root and test dependencies
+description: Restore, install, and save root and test Nimble dependencies.
+
+inputs:
+  os:
+    description: Platform cache OS segment.
+    required: true
+  cpu:
+    description: Platform cache CPU segment.
+    required: true
+  cc:
+    description: Platform cache compiler segment.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore deps from cache
+      id: deps-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: |
+          nimbledeps
+          tests/nimbledeps
+        key: nimbledeps-with-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
+
+    - name: Install deps
+      if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        nimble install_pinned
+        cd tests && nimble install_pinned
+
+    - name: Save dependencies cache
+      uses: actions/cache/save@v5
+      if: github.event_name == 'merge_group' && steps.deps-cache.outputs.cache-hit != 'true'
+      with:
+        path: |
+          nimbledeps
+          tests/nimbledeps
+        key: ${{ steps.deps-cache.outputs.cache-primary-key }}
