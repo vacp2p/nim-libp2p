@@ -72,7 +72,7 @@ proc ipScore*(c: AdvertisementCache, ip: IpAddress): float64 =
 
 proc removeSlot(c: AdvertisementCache, serviceId: ServiceId, index: int) =
   c.byService.withValue(serviceId, slots):
-    if index < 0 or index >= slots[].len:
+    if index not in 0..slots[].len:
       return
     c.ipTree.removeAd(slots[][index].ad)
     slots[].del(index)
