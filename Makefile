@@ -63,7 +63,7 @@ nimble.paths: libp2p.nimble
 	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
 tests/nimble.paths: tests/tests.nimble libp2p.nimble
-	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
+	cd tests && nimble --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
 # nim-libplum vendors libplum (PCP / NAT-PMP / UPnP-IGD) as a git submodule and
 # compiles its C sources into libp2p via nim's {.compile.} pragmas, so there is
