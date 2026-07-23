@@ -15,12 +15,17 @@ concurrency:
 env:
   NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
+permissions:
+  contents: read
+
 jobs:
   run-transport-interop:
     name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: Build image
         run: docker build --load -t nim-libp2p-transport-head -f interop/transport/Dockerfile .
@@ -40,6 +45,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: Build image
         run: docker build --load -t nim-libp2p-hp-head -f interop/hole-punching/Dockerfile .
@@ -58,6 +65,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -87,6 +96,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -116,6 +127,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6
