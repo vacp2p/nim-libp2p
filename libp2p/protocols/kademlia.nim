@@ -23,7 +23,9 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  var targets = @[rtable.selfId]
+  discard await kad.findNode(rtable.selfId)
+
+  var targets = newSeqOfCap[Key](rtable.buckets.len)
   for i in 0 ..< rtable.buckets.len:
     let bucket = rtable.buckets[i]
 
