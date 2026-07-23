@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1.5-labs
 ARG NIM_VERSION=2.2.10
+ARG NIMBLE_COMMIT=aa8e6ea09ecac774b6fad42552569ce07bef37ec
 FROM nimlang/nim:${NIM_VERSION} as builder
 ARG NIM_VERSION
+ARG NIMBLE_COMMIT
+ENV PATH="/root/.nimble/bin:/opt/nim/bin:${PATH}"
 
 WORKDIR /app
 
@@ -10,6 +13,8 @@ COPY interop/kad-dht-v2/interop_kad_dht_v2.nimble nim-libp2p/interop/kad-dht-v2/
 
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils \
     && rm -rf /var/lib/apt/lists/*
+
+RUN nimble install "nimble@#${NIMBLE_COMMIT}" -y
 
 COPY . nim-libp2p/
 
