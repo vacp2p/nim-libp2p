@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
+
 jobs:
   run-transport-interop:
     name: Run transport interoperability tests
@@ -62,14 +65,17 @@ jobs:
           go-version: "1.25"
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v2
+        uses: "./.github/actions/install_nim"
         with:
-          nim-version: "stable"
+          os: linux
+          cpu: amd64
+          shell: bash
+          nim_ref: v2.2.10
 
       - name: Run Go and Nim together
         run: |
-          nimble install_pinned
-          nimble setup
+          NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/autonatv2/go-peer
           go mod tidy
           go run testautonatv2.go &
@@ -88,14 +94,17 @@ jobs:
           toolchain: stable
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v2
+        uses: "./.github/actions/install_nim"
         with:
-          nim-version: "stable"
+          os: linux
+          cpu: amd64
+          shell: bash
+          nim_ref: v2.2.10
 
       - name: Run Nim and Rust together
         run: |
-          nimble install_pinned
-          nimble setup
+          NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/kad/rust-peer
           cargo run &
 
@@ -114,16 +123,19 @@ jobs:
           go-version: "1.25"
 
       - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v2
+        uses: "./.github/actions/install_nim"
         with:
-          nim-version: "stable"
+          os: linux
+          cpu: amd64
+          shell: bash
+          nim_ref: v2.2.10
 
       # build go and nim clients first to prevent one from waiting on the other to finish building.
       # the go peer runs in the background because the interop test logic is implemented in the nim peer.
       - name: Run Interop
         run: |
-          nimble install_pinned
-          nimble setup
+          NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
+          nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/partial-message
           nim c ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go

@@ -1,5 +1,5 @@
-name: Install root dependencies
-description: Restore, install, and save root Nimble dependencies.
+name: Restore root dependencies
+description: Restore the root Nimble dependency cache.
 
 inputs:
   os:
@@ -11,6 +11,9 @@ inputs:
   cc:
     description: Platform cache compiler segment.
     required: true
+  nim_ref:
+    description: Nim version cache segment.
+    required: true
   shell:
     description: Shell used to run Nimble commands.
     default: bash
@@ -20,19 +23,7 @@ runs:
   steps:
     - name: Restore deps from cache
       id: deps-cache
-      uses: actions/cache/restore@v5
+      uses: actions/cache@v5
       with:
         path: nimbledeps
-        key: nimbledeps-root-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ hashFiles('.pinned') }}
-
-    - name: Install deps
-      if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-      shell: ${{ inputs.shell }}
-      run: nimble install_pinned
-
-    - name: Save dependencies cache
-      uses: actions/cache/save@v5
-      if: github.event_name == 'merge_group' && steps.deps-cache.outputs.cache-hit != 'true'
-      with:
-        path: nimbledeps
-        key: ${{ steps.deps-cache.outputs.cache-primary-key }}
+        key: nimbledeps-root-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ inputs.nim_ref }}-minver-${{ hashFiles('libp2p.nimble') }}

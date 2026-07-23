@@ -15,7 +15,7 @@ concurrency:
 jobs:
   examples:
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -40,14 +40,15 @@ jobs:
           cpu: amd64
           nim_ref: v2.2.10
 
-      - name: Install dependencies
+      - name: Restore dependencies from cache
         uses: "./.github/actions/install_root_deps"
         with:
           os: linux
           cpu: amd64
           cc: gcc
+          nim_ref: v2.2.10
 
-      - name: Build prerequisites
+      - name: Setup deps
         run: make nimble.paths
         
       - name: Build and run examples
@@ -55,6 +56,4 @@ jobs:
           nim --version
           nimble --version
           gcc --version
-
-          nimble setup
           cd examples && nimble examples
