@@ -4,7 +4,6 @@ on:
   workflow_call:
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
@@ -79,6 +78,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: true
 
       - name: Setup Nim
