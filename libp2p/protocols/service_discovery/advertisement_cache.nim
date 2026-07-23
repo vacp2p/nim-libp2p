@@ -85,7 +85,7 @@ proc findOldestIndex(c: AdvertisementCache): Opt[(ServiceId, int)] =
 
   for serviceId, slots in c.byService:
     for i, slot in slots:
-      if slot.timestamp < oldestTime:
+      if slot.timestamp <= oldestTime:
         oldestTime = slot.timestamp
         oldestEntree = Opt.some((serviceId, i))
 
