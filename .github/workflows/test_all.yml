@@ -204,7 +204,11 @@ jobs:
       - name: Run tests
         id: run-tests
         run: |
-          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all.xml
+          TEST_ALL_ARGS=(--output-level=VERBOSE --console --xml:tests/results_test_all.xml)
+          if [[ '${{ matrix.nim.memory_management }}' == 'orc' ]]; then
+            TEST_ALL_ARGS+=(--jobs=1)
+          fi
+          ./tests/test_all "${TEST_ALL_ARGS[@]}"
 
       - name: Fix xml newlines
         if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}

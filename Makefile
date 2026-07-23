@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
         test_multiformat_exts test_integration \
-        setup lock gen_multicodec format clean-nim
+        install_pinned pin unpin gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -39,15 +39,21 @@ endif
 
 TEST_PATH ?=
 
-all: setup
+all: build
 
-nix/libp2p.lock: libp2p.nimble
-	nimble --lockFile:$@ --requires:"nim == $(NIM_VERSION)" lock
+nimble.lock:
+	nimble lock
 
-nix/deps.nix: nix/libp2p.lock
-	./tools/gen-deps.sh nix/libp2p.lock nix/deps.nix
+nix/deps.nix: nimble.lock
+	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
-deps: nix/deps.nix
+tests/nimble.lock: tests/tests.nimble
+	cd tests && nimble lock
+
+nix/tests-deps.nix: tests/nimble.lock
+	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix
+
+deps: nix/deps.nix nix/tests-deps.nix
 
 build: deps
 	nix build
@@ -56,14 +62,46 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nix/deps.nix nimble.paths tests/nimble.paths
+	$(RM) nimble.lock tests/nimble.lock nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
-nimble.paths: libp2p.nimble
-	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
+# Generate nimble.paths so config.nims can include it.
+# nimble injects per-package srcDir paths that --NimblePath alone doesn't provide;
+# this replicates that by reading srcDir from each package's .nimble file.
+nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
+	@rm -f $@
+	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
+	  [ -d "$$pkgdir" ] || continue; \
+	  for f in "$$pkgdir"/*/*.nimble; do \
+	    [ -f "$$f" ] || continue; \
+	    pkg=$$(dirname "$$f"); \
+	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
+	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
+	      path="$$pkg/$$src"; \
+	    else \
+	      path="$$pkg"; \
+	    fi; \
+	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
+	  done; \
+	done
 
-tests/nimble.paths: tests/tests.nimble libp2p.nimble
-	cd tests && nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
+tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tests/nimbledeps/pkgs/*/*.nimble)
+	@rm -f $@
+	@for pkgdir in tests/nimbledeps/pkgs2 tests/nimbledeps/pkgs; do \
+	  [ -d "$$pkgdir" ] || continue; \
+	  for f in "$$pkgdir"/*/*.nimble; do \
+	    [ -f "$$f" ] || continue; \
+	    pkg=$$(dirname "$$f"); \
+	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
+	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
+	      path="$$pkg/$$src"; \
+	    else \
+	      path="$$pkg"; \
+	    fi; \
+	    path="$${path#tests/}"; \
+	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
+	  done; \
+	done
 
 # nim-libplum vendors libplum (PCP / NAT-PMP / UPnP-IGD) as a git submodule and
 # compiles its C sources into libp2p via nim's {.compile.} pragmas, so there is
@@ -102,11 +140,15 @@ test_integration: nimble.paths tests/nimble.paths
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-setup:
-	$(MAKE) nimble.paths tests/nimble.paths
+install_pinned:
+	nimble install_pinned
+	cd tests && nimble install_pinned
 
-lock: nix/libp2p.lock
-	$(MAKE) -C cbind nimble.lock
+pin:
+	nimble pin
+
+unpin:
+	nimble unpin
 
 gen_multicodec:
 	nimble gen_multicodec
@@ -117,4 +159,4 @@ format:
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
 	[ ! -d tests/nimbledeps ] || rm -rf tests/nimbledeps
-	rm nimble.paths tests/nimble.paths 2>/dev/null || true
+	rm nimble.locks nimble.paths tests/nimble.paths 2>/dev/null || true
