@@ -481,6 +481,11 @@ proc libp2pConnectedPeers*(
   let peers = lib.switch.connectedPeers(dir)
   ok(PeersResponse(peerIds: peers.mapIt($it)))
 
+proc libp2pConnectedPeersAnyDirection*(
+    lib: LibP2P
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  ok(PeersResponse(peerIds: lib.switch.connectedPeers().mapIt($it)))
+
 proc libp2pDial*(
     lib: LibP2P, req: DialRequest
 ): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
