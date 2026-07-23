@@ -38,22 +38,12 @@ jobs:
           cpu: arm64
           nim_ref: v2.2.10
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Install dependencies
+        uses: "./.github/actions/install_test_deps"
         with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          # Keep this in sync with ci.yml's cache key so entries are
-          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-with-tests-macos-15-arm64-clang-${{ hashFiles('.pinned', 'tests/.pinned') }}
-
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
+          os: macos-15
+          cpu: arm64
+          cc: clang
 
       - name: Build prerequisites
         run: make nimble.paths tests/nimble.paths
