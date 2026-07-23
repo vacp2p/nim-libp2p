@@ -213,11 +213,24 @@ proc startProviding*(kad: KadDHT, c: Cid) {.async: (raises: [CancelledError]).} 
 proc stopProviding*(kad: KadDHT, c: Cid) =
   kad.providerManager.providedKeys.del(c.toKey())
 
+proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  let providedKeys = kad.providerManager.providedKeys.provided
+
+  var futs = newSeqOfCap[Future[void]](providedKeys.len)
+  for key in providedKeys.keys():
+    futs.add(kad.addProvider(key))
+
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
+
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
-    let providedKeys = kad.providerManager.providedKeys.provided
-    for k in providedKeys.keys():
-      await kad.addProvider(k)
+    discard await kad.republishProvidedKeys().withTimeout(
+      kad.config.republishProvidedKeysInterval
+    )
 
 proc anyExpired(pr: ProviderRecords): bool =
   pr.len() > 0 and pr.records[0] < chronos.Moment.now()

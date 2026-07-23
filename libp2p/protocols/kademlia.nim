@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results
-import ../utils/heartbeat
+import chronos, chronicles, results, sequtils
+import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
@@ -23,15 +23,16 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  discard await kad.findNode(rtable.selfId, rtable)
+  discard await kad.findNode(rtable.selfId)
 
-  # Snapshot bucket count. findNode() can grow buckets and mutate length.
-  # If it changes mid-iteration, Nim triggers an assertion defect.
+  var targets = newSeqOfCap[Key](rtable.buckets.len)
   for i in 0 ..< rtable.buckets.len:
     let bucket = rtable.buckets[i]
+
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
+
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
@@ -39,7 +40,16 @@ proc refreshTable*(
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
       trace "No refresh target for bucket", bucket = i
       continue
-    discard await kad.findNode(target, rtable)
+
+    targets.add(target)
+
+  let futs = targets.mapIt(kad.findNode(it, rtable))
+
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
@@ -49,7 +59,9 @@ proc bootstrap*(
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
-    await kad.refreshTable(kad.rtable, false)
+    discard await kad.refreshTable(kad.rtable, false).withTimeout(
+      kad.config.bucketRefreshTime
+    )
 
 # K instead of T to avoid clashing with the T type param in withValue[T] when
 # called inside a withValue block, which causes a compiler error under --lineDir:on
@@ -135,7 +147,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   if not kad.config.disableBootstrapping:
-    await kad.bootstrap(forceRefresh = true)
+    discard
+      await kad.bootstrap(forceRefresh = true).withTimeout(kad.config.bucketRefreshTime)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
