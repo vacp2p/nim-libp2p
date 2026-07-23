@@ -1,3 +1,0 @@
-taskpools;https://github.com/status-im/nim-taskpools@#9e8ccc754631ac55ac2fd495e167e74e86293edb
-cbor_serialization;https://github.com/vacp2p/nim-cbor-serialization@#1664160e04d153573373afddc552b9cbf6fbe4dc
-ffi;https://github.com/logos-messaging/nim-ffi@#7ef58f4bf5cf683cfdf2abbdb3d7688727763d65

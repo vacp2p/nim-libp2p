@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   runnable-examples:
+    env:
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     defaults:
@@ -38,19 +40,16 @@ jobs:
           cpu: amd64
           nim_ref: v2.2.10
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_root_deps"
         with:
-          path: nimbledeps
-          # Keep this in sync with ci.yml's cache key so entries are
-          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-root-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          os: linux
+          cpu: amd64
+          cc: gcc
+          nim_ref: v2.2.10
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
+      - name: Setup deps
+        run: make nimble.paths
 
       - name: Run runnableExamples check
         run: |

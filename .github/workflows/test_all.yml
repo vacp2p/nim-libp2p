@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 55
     strategy:
       fail-fast: false
@@ -42,7 +42,6 @@ jobs:
         nim:
           - ref: v2.2.4
             memory_management: refc
-            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.22.3
           - ref: v2.2.10
             memory_management: refc
           - ref: v2.2.10
@@ -91,11 +90,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Select Nimble version
-        if: matrix.nim.nimble_commit != ''
-        shell: bash
-        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
-
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
@@ -103,19 +97,6 @@ jobs:
           cpu: ${{ matrix.platform.cpu }}
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
-
-      - name: Restore dependencies from cache
-        id: deps-cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          # Scope by os/cpu/cc so cache entries can't leak vendored/compiled
-          # artifacts across mismatched toolchains (linux<->windows,
-          # gcc<->clang). Keep this key in sync with the other workflows that
-          # cache nimbledeps so cache entries are reusable across them.
-          key: nimbledeps-with-tests-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ matrix.platform.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
@@ -159,14 +140,29 @@ jobs:
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+      - name: Prepare short paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
+          git config --global core.longpaths true
+          New-Item -ItemType Directory -Force -Path D:\t | Out-Null
+          "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_test_deps"
+        with:
+          os: ${{ matrix.platform.os }}
+          cpu: ${{ matrix.platform.cpu }}
+          cc: ${{ matrix.platform.cc }}
+          nim_ref: ${{ matrix.nim.ref }}
+          shell: ${{ matrix.shell }}
+
+      - name: Setup deps
+        run: |
+          NIM_VERSION="${{ matrix.nim.ref }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          make NIM_VERSION="$NIM_VERSION" setup
 
       - name: Restore build cache
         id: nimcache-restore
@@ -181,7 +177,7 @@ jobs:
         id: build-test-all
         run: |
           NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
-          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --import:libbacktrace --define:nimStackTraceOverride"
+          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --define:nimStackTraceOverride"
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
           fi

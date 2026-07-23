@@ -48,7 +48,7 @@ jobs:
   test:
     needs: pick-platform
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     timeout-minutes: 55
     runs-on: ${{ needs.pick-platform.outputs.builder }}
     name: "test_multiformat_exts"
@@ -73,15 +73,6 @@ jobs:
           cpu: ${{ needs.pick-platform.outputs.cpu }}
           shell: ${{ needs.pick-platform.outputs.shell }}
           nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
-
-      - name: Restore dependencies from cache
-        id: deps-cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          key: nimbledeps-with-tests-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
@@ -125,14 +116,29 @@ jobs:
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+      - name: Prepare short paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
+          git config --global core.longpaths true
+          New-Item -ItemType Directory -Force -Path D:\t | Out-Null
+          "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_test_deps"
+        with:
+          os: ${{ needs.pick-platform.outputs.os }}
+          cpu: ${{ needs.pick-platform.outputs.cpu }}
+          cc: ${{ needs.pick-platform.outputs.cc }}
+          nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
+          shell: ${{ needs.pick-platform.outputs.shell }}
+
+      - name: Setup deps
+        run: |
+          NIM_VERSION="${{ needs.pick-platform.outputs.nim_ref }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          make NIM_VERSION="$NIM_VERSION" setup
 
       - name: Build test_multiformat_exts
         id: build-test
