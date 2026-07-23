@@ -112,19 +112,25 @@ proc put*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement, now: M
 proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   ## Remove slots whose timestamp is older than `expiry`. Returns how many
   ## slots were removed.
-  var removed = 0
-  var emptyServices: seq[ServiceId]
+  let cutoff = now - expiry
+  var
+    removed = 0
+    emptyServices: seq[ServiceId]
 
   for serviceId, slots in c.byService.mpairs:
-    var kept: seq[CachedAd]
-    for slot in slots:
-      if now - slot.timestamp > expiry:
-        c.ipTree.removeAd(slot.ad)
-        inc removed
+    var kept = 0
+    for i in 0 ..< slots.len:
+      if slots[i].timestamp < cutoff:
+        c.ipTree.removeAd(slots[i].ad)
       else:
-        kept.add(slot)
-    slots = kept
-    if slots.len == 0:
+        if kept != i:
+          slots[kept] = move(slots[i])
+        inc kept
+
+    removed += slots.len - kept
+    slots.setLen(kept)
+
+    if kept == 0:
       emptyServices.add(serviceId)
 
   for serviceId in emptyServices:
