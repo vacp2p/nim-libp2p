@@ -384,8 +384,10 @@ proc updatePeers*(
     )
     if addrs.len == 0:
       continue
-    if rtable.insert(p.peerId):
-      addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
+    # Store before insert: a peer rejected for lack of bucket space still reaches
+    # the lookup shortlist, and would be undialable without its addresses.
+    addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
+    discard rtable.insert(p.peerId)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   updatePeers(
@@ -547,6 +549,8 @@ proc lookOnce*(
   for (peerId, res) in completedRPCBatch:
     let reply = res.valueOr:
       continue
+    # A reply proves the peer useful; retain it through eviction.
+    rtable.markUseful(peerId)
     let newPeerInfos = state.updateShortlist(reply)
     kad.admitPeers(rtable, newPeerInfos)
     await onReply(peerId, Opt.some(reply), state)

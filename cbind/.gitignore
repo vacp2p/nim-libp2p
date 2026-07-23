@@ -1,7 +1,6 @@
 nimble.develop
 nimble.paths
 nimbledeps
-nimble.lock
 nimcache
 nimcache_c
 nimcache_cddl

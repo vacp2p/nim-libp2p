@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
       CICOV: YES
     steps:
       - uses: actions/checkout@v6
@@ -34,28 +34,16 @@ jobs:
           shell: bash
           nim_ref: v2.2.10
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_test_deps"
         with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          # Keep this in sync with ci.yml's cache key so entries are
-          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned', 'tests/.pinned') }}
+          os: linux
+          cpu: amd64
+          cc: gcc
+          nim_ref: v2.2.10
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
-
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
-
-      - name: Build prerequisites
-        run: make nimble.paths
+      - name: Setup deps
+        run: make setup
 
       - name: Restore build cache
         uses: actions/cache@v5
