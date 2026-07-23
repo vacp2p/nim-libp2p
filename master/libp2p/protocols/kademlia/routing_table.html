@@ -185,8 +185,17 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#insert%2CRoutingTable%2CPeerId" title="insert(rtable: RoutingTable; peerId: PeerId): bool">insert(rtable: RoutingTable; peerId: PeerId): bool</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">isReplaceable
+  <li><a class="reference" href="#isReplaceable%2CNodeEntry%2CDuration%2CMoment" title="isReplaceable(entry: NodeEntry; gracePeriod: Duration; now: Moment): bool">isReplaceable(entry: NodeEntry; gracePeriod: Duration; now: Moment): bool</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">isStale
   <li><a class="reference" href="#isStale%2CBucket" title="isStale(bucket: Bucket): bool">isStale(bucket: Bucket): bool</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">markUseful
+  <li><a class="reference" href="#markUseful%2CRoutingTable%2CKey" title="markUseful(rtable: RoutingTable; nodeId: Key)">markUseful(rtable: RoutingTable; nodeId: Key)</a></li>
+<li><a class="reference" href="#markUseful%2CRoutingTable%2CPeerId" title="markUseful(rtable: RoutingTable; peerId: PeerId)">markUseful(rtable: RoutingTable; peerId: PeerId)</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">new
@@ -195,11 +204,13 @@ window.addEventListener("DOMContentLoaded", main2);
     localNodeId: Opt[Key] = Opt.none(Key)): T:type">new(T: typedesc[RoutingTable]; selfId: Key;
     config: RoutingTableConfig = RoutingTableConfig.new();
     localNodeId: Opt[Key] = Opt.none(Key)): T:type</a></li>
-<li><a class="reference" href="#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint" title="new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
+<li><a class="reference" href="#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint%2CDuration" title="new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
     hasher: Opt[XorDHasher] = NoneHasher; maxBuckets: int = DefaultMaxBuckets;
-    selfIdPreHashed = false): T:type">new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
+    selfIdPreHashed = false;
+    usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod): T:type">new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
     hasher: Opt[XorDHasher] = NoneHasher; maxBuckets: int = DefaultMaxBuckets;
-    selfIdPreHashed = false): T:type</a></li>
+    selfIdPreHashed = false;
+    usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod): T:type</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">oldestPeer
@@ -264,8 +275,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L32" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L32" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L34" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L34" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -277,8 +288,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L229" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L229" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L270" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L270" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -287,8 +298,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L232" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L232" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L273" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L273" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -301,8 +312,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L59" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L59" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L61" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L61" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -315,8 +326,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Returns up to <tt class="docutils literal"><span class="pre"><span class="Identifier">count</span></span></tt> nodes in the table with the smallest XOR distance to <tt class="docutils literal"><span class="pre"><span class="Identifier">targetId</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L135" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L135" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L176" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L176" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -329,8 +340,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L160" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L160" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L201" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L201" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -343,8 +354,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L102" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L102" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L127" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L127" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -354,8 +365,22 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L132" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L132" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L158" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L158" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="isReplaceable-procs-all">
+  <div id="isReplaceable,NodeEntry,Duration,Moment" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#isReplaceable%2CNodeEntry%2CDuration%2CMoment"><span class="Identifier">isReplaceable</span></a><span class="Other">(</span><span class="Identifier">entry</span><span class="Other">:</span> <a href="types.html#NodeEntry"><span class="Identifier">NodeEntry</span></a><span class="Other">;</span> <span class="Identifier">gracePeriod</span><span class="Other">:</span> <span class="Identifier">Duration</span><span class="Other">;</span> <span class="Identifier">now</span><span class="Other">:</span> <span class="Identifier">Moment</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Replaceable once past <tt class="docutils literal"><span class="pre"><span class="Identifier">gracePeriod</span></span></tt> in the table without proving useful; a peer that answered recently or was just added is retained.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L79" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L79" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -367,8 +392,33 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L204" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L204" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L245" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L245" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="markUseful-procs-all">
+  <div id="markUseful,RoutingTable,Key" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#markUseful%2CRoutingTable%2CKey"><span class="Identifier">markUseful</span></a><span class="Other">(</span><span class="Identifier">rtable</span><span class="Other">:</span> <a href="types.html#RoutingTable"><span class="Identifier">RoutingTable</span></a><span class="Other">;</span> <span class="Identifier">nodeId</span><span class="Other">:</span> <a href="types.html#Key"><span class="Identifier">Key</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Records that <tt class="docutils literal"><span class="pre"><span class="Identifier">nodeId</span></span></tt> answered a query, refreshing its usefulness so it survives eviction. No-op when the peer is not in the table.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L161" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L161" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="markUseful,RoutingTable,PeerId" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#markUseful%2CRoutingTable%2CPeerId"><span class="Identifier">markUseful</span></a><span class="Other">(</span><span class="Identifier">rtable</span><span class="Other">:</span> <a href="types.html#RoutingTable"><span class="Identifier">RoutingTable</span></a><span class="Other">;</span> <span class="Identifier">peerId</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L173" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L173" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -382,15 +432,16 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L35" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L35" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L37" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L37" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
-<div id="new,typedesc[RoutingTableConfig],Opt[XorDHasher],int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="types.html#RoutingTableConfig"><span class="Identifier">RoutingTableConfig</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">replication</span> <span class="Other">=</span> <span class="Identifier">DefaultReplication</span><span class="Other">;</span>
+<div id="new,typedesc[RoutingTableConfig],Opt[XorDHasher],int,Duration" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint%2CDuration"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="types.html#RoutingTableConfig"><span class="Identifier">RoutingTableConfig</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">replication</span> <span class="Other">=</span> <span class="Identifier">DefaultReplication</span><span class="Other">;</span>
          <span class="Identifier">hasher</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="types.html#XorDHasher"><span class="Identifier">XorDHasher</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">NoneHasher</span><span class="Other">;</span>
-         <span class="Identifier">maxBuckets</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="Identifier">DefaultMaxBuckets</span><span class="Other">;</span> <span class="Identifier">selfIdPreHashed</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span></pre></dt>
+         <span class="Identifier">maxBuckets</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="Identifier">DefaultMaxBuckets</span><span class="Other">;</span> <span class="Identifier">selfIdPreHashed</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
+         <span class="Identifier">usefulnessGracePeriod</span><span class="Other">:</span> <span class="Identifier">Duration</span> <span class="Other">=</span> <span class="Identifier">DefaultUsefulnessGracePeriod</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span></pre></dt>
 <dd>
 
 
@@ -408,8 +459,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L68" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L68" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L70" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L70" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -422,8 +473,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L235" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L235" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L276" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L276" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -436,8 +487,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L212" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L212" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L253" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L253" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -451,8 +502,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 Returns up to <tt class="docutils literal"><span class="pre"><span class="Identifier">count</span></span></tt> peers sampled randomly from the routing table's buckets, starting from the closest buckets (highest indices) and moving to farther buckets (lower indices).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L166" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L166" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L207" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L207" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -466,8 +517,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L196" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L196" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L237" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L237" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -480,8 +531,8 @@ Returns up to <tt class="docutils literal"><span class="pre"><span class="Identi
 <dd>
 
 Key to run a findNode against in order to refresh <tt class="docutils literal"><span class="pre"><span class="Identifier">bucketIndex</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L241" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L241" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L282" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L282" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -494,8 +545,8 @@ Key to run a findNode against in order to refresh <tt class="docutils literal"><
 <dd>
 
 Update routing table gauge metrics
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L91" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L91" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/routing_table.nim#L116" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/routing_table.nim#L116" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -511,7 +562,7 @@ Update routing table gauge metrics
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-22 06:01:48 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-23 06:02:49 UTC</small>
       </div>
     </div>
   </div>

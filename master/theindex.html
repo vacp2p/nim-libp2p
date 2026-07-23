@@ -2341,6 +2341,10 @@
 <li><a class="reference external"
           data-doc-search-tag="pubsub: const DefaultTopicsHigh" href="libp2p/protocols/pubsub/pubsub.html#DefaultTopicsHigh">pubsub: const DefaultTopicsHigh</a></li>
           </ul></dd>
+<dt><a name="DefaultUsefulnessGracePeriod" href="#DefaultUsefulnessGracePeriod"><span>DefaultUsefulnessGracePeriod:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="types: const DefaultUsefulnessGracePeriod" href="libp2p/protocols/kademlia/types.html#DefaultUsefulnessGracePeriod">types: const DefaultUsefulnessGracePeriod</a></li>
+          </ul></dd>
 <dt><a name="del" href="#del"><span>del:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="peerstore: proc del[T](peerBook: PeerBook[T]; peerId: PeerId): bool" href="libp2p/peerstore.html#del%2CPeerBook%5BT%5D%2CPeerId">peerstore: proc del[T](peerBook: PeerBook[T]; peerId: PeerId): bool</a></li>
@@ -4727,6 +4731,10 @@
 <li><a class="reference external"
           data-doc-search-tag="relay: proc isRelayed(stream: Stream): bool" href="libp2p/protocols/connectivity/relay/relay.html#isRelayed%2CStream">relay: proc isRelayed(stream: Stream): bool</a></li>
           </ul></dd>
+<dt><a name="isReplaceable" href="#isReplaceable"><span>isReplaceable:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="routing_table: proc isReplaceable(entry: NodeEntry; gracePeriod: Duration; now: Moment): bool" href="libp2p/protocols/kademlia/routing_table.html#isReplaceable%2CNodeEntry%2CDuration%2CMoment">routing_table: proc isReplaceable(entry: NodeEntry; gracePeriod: Duration; now: Moment): bool</a></li>
+          </ul></dd>
 <dt><a name="isRunning" href="#isRunning"><span>isRunning:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="autorelayservice: proc isRunning(self: AutoRelayService): bool" href="libp2p/services/autorelayservice.html#isRunning%2CAutoRelayService">autorelayservice: proc isRunning(self: AutoRelayService): bool</a></li>
@@ -5313,6 +5321,12 @@
 <li><a class="reference external"
           data-doc-search-tag="peerstore: proc markPeerDisconnected(peerStore: PeerStore; peerId: PeerId)" href="libp2p/peerstore.html#markPeerDisconnected%2CPeerStore%2CPeerId">peerstore: proc markPeerDisconnected(peerStore: PeerStore; peerId: PeerId)</a></li>
           </ul></dd>
+<dt><a name="markUseful" href="#markUseful"><span>markUseful:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="routing_table: proc markUseful(rtable: RoutingTable; nodeId: Key)" href="libp2p/protocols/kademlia/routing_table.html#markUseful%2CRoutingTable%2CKey">routing_table: proc markUseful(rtable: RoutingTable; nodeId: Key)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="routing_table: proc markUseful(rtable: RoutingTable; peerId: PeerId)" href="libp2p/protocols/kademlia/routing_table.html#markUseful%2CRoutingTable%2CPeerId">routing_table: proc markUseful(rtable: RoutingTable; peerId: PeerId)</a></li>
+          </ul></dd>
 <dt><a name="match" href="#match"><span>match:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="multiaddress: proc match(pat: MaPattern; address: MultiAddress): bool" href="libp2p/multiaddress.html#match%2CMaPattern%2CMultiAddress">multiaddress: proc match(pat: MaPattern; address: MultiAddress): bool</a></li>
@@ -5897,9 +5911,11 @@
           <li><a class="reference external"
           data-doc-search-tag="routing_table: proc new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
     hasher: Opt[XorDHasher] = NoneHasher; maxBuckets: int = DefaultMaxBuckets;
-    selfIdPreHashed = false): T:type" href="libp2p/protocols/kademlia/routing_table.html#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint">routing_table: proc new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
+    selfIdPreHashed = false;
+    usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod): T:type" href="libp2p/protocols/kademlia/routing_table.html#new%2Ctypedesc%5BRoutingTableConfig%5D%2COpt%5BXorDHasher%5D%2Cint%2CDuration">routing_table: proc new(T: typedesc[RoutingTableConfig]; replication = DefaultReplication;
     hasher: Opt[XorDHasher] = NoneHasher; maxBuckets: int = DefaultMaxBuckets;
-    selfIdPreHashed = false): T:type</a></li>
+    selfIdPreHashed = false;
+    usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod): T:type</a></li>
           <li><a class="reference external"
           data-doc-search-tag="types: proc new(K: typedesc[KadDHTConfig];
     validator: EntryValidator = DefaultEntryValidator();
@@ -10117,7 +10133,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-22 06:01:52 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-23 06:02:53 UTC</small>
       </div>
     </div>
   </div>

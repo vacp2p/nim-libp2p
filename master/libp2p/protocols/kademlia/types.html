@@ -229,7 +229,10 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#LocalTable" title="LocalTable = Table[Key, EntryRecord]">LocalTable</a></li>
 <li><a class="reference" href="#NodeEntry" title="NodeEntry = object
   nodeId*: Key
-  lastSeen*: Moment">NodeEntry</a></li>
+  lastSeen*: Moment
+  addedAt*: Moment
+  lastUsefulAt*: Opt[Moment] ## Set when the peer answers a query; `Opt.none` until then, which makes it
+                             ## replaceable once past the grace period since it was added.">NodeEntry</a></li>
 <li><a class="reference" href="#ProvidedKeys" title="ProvidedKeys = ref object
   provided*: Table[Key, Moment]
   capacity*: int">ProvidedKeys</a></li>
@@ -255,7 +258,8 @@ window.addEventListener("DOMContentLoaded", main2);
   replication*: int
   hasher*: Opt[XorDHasher]
   maxBuckets*: int
-  selfIdPreHashed*: bool">RoutingTableConfig</a></li>
+  selfIdPreHashed*: bool
+  usefulnessGracePeriod*: Duration">RoutingTableConfig</a></li>
 <li><a class="reference" href="#Timestamp" title="Timestamp = string">Timestamp</a></li>
 <li><a class="reference" href="#XorDHasher" title="XorDHasher = proc (input: seq[byte]): array[IdLength, byte] {.raises: [],
     nimcall, noSideEffect, gcsafe.}">XorDHasher</a></li>
@@ -291,6 +295,7 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#DefaultRepublishInterval" title="DefaultRepublishInterval = (value: 600000000000)">DefaultRepublishInterval</a></li>
 <li><a class="reference" href="#DefaultRetries" title="DefaultRetries = 5">DefaultRetries</a></li>
 <li><a class="reference" href="#DefaultTimeout" title="DefaultTimeout = (value: 5000000000)">DefaultTimeout</a></li>
+<li><a class="reference" href="#DefaultUsefulnessGracePeriod" title="DefaultUsefulnessGracePeriod = (value: 3600000000000)">DefaultUsefulnessGracePeriod</a></li>
 <li><a class="reference" href="#IdLength" title="IdLength = 32">IdLength</a></li>
 <li><a class="reference" href="#MaxBucketsLimit" title="MaxBucketsLimit = 256">MaxBucketsLimit</a></li>
 <li><a class="reference" href="#MaxMsgSize" title="MaxMsgSize = 4194304">MaxMsgSize</a></li>
@@ -507,8 +512,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L199" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L199" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L206" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L206" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -517,8 +522,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L282" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L282" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L290" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L290" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -527,8 +532,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L317" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L317" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L325" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L325" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -537,8 +542,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L311" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L311" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L319" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L319" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -549,8 +554,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L271" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L271" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L279" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L279" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -559,8 +564,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L305" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L305" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L313" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L313" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -569,8 +574,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L299" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L299" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L307" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L307" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -590,8 +595,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L482" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L482" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L490" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L490" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -625,8 +630,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L390" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L390" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L398" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L398" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -652,8 +657,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L345" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L345" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L353" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L353" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -662,8 +667,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L56" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L56" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L59" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L59" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -672,20 +677,23 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L283" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L283" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L291" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L291" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 <div id="NodeEntry" class="tohide">
 <dt><pre><a href="#NodeEntry"><span class="Identifier">NodeEntry</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Identifier">nodeId</span><span class="Operator">*</span><span class="Other">:</span> <a href="#Key"><span class="Identifier">Key</span></a>
-  <span class="Identifier">lastSeen</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span></pre></dt>
+  <span class="Identifier">lastSeen</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
+  <span class="Identifier">addedAt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Moment</span>
+  <span class="Identifier">lastUsefulAt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">Moment</span><span class="Other">]</span> <span class="Comment">## Set when the peer answers a query; `Opt.none` until then, which makes it</span>
+                             <span class="Comment">## replaceable once past the grace period since it was added.</span></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L195" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L195" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L198" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L198" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -696,8 +704,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L225" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L225" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L233" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L233" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -706,8 +714,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L214" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L214" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L222" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L222" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -719,8 +727,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L229" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L229" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L237" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L237" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -732,8 +740,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L216" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L216" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L224" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L224" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -744,8 +752,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L221" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L221" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L229" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L229" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -754,8 +762,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L281" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L281" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L289" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L289" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -768,8 +776,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L208" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L208" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L216" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L216" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -778,12 +786,13 @@ window.addEventListener("DOMContentLoaded", main2);
   <span class="Identifier">replication</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">hasher</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="#XorDHasher"><span class="Identifier">XorDHasher</span></a><span class="Other">]</span>
   <span class="Identifier">maxBuckets</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
-  <span class="Identifier">selfIdPreHashed</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span></pre></dt>
+  <span class="Identifier">selfIdPreHashed</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+  <span class="Identifier">usefulnessGracePeriod</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Duration</span></pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L202" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L202" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L209" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L209" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -792,8 +801,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L255" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L255" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L263" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L263" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -803,8 +812,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L127" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L127" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L130" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L130" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -813,8 +822,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L126" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L126" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L129" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L129" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -829,8 +838,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L24" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L24" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L27" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L27" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -859,8 +868,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L34" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L34" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L37" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L37" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -869,8 +878,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L30" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L30" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L33" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L33" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -889,8 +898,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 upper bound on in-flight outbound RPCs across find/get/put/provider
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L47" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L47" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L50" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L50" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -899,8 +908,8 @@ upper bound on in-flight outbound RPCs across find/get/put/provider
 <dd>
 
 upper bound on locally stored value records
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L46" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L46" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L49" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L49" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -909,8 +918,8 @@ upper bound on locally stored value records
 <dd>
 
 upper bound on Kademlia routing-table peers sharing one exact IP
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L49" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L49" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L52" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L52" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -919,8 +928,8 @@ upper bound on Kademlia routing-table peers sharing one exact IP
 <dd>
 
 upper bound on Kademlia routing-table peers sharing one IP subnet
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L51" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L51" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L54" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L54" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -929,8 +938,8 @@ upper bound on Kademlia routing-table peers sharing one IP subnet
 <dd>
 
 upper bound on providers stored per key
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L38" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L38" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L41" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L41" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -939,8 +948,8 @@ upper bound on providers stored per key
 <dd>
 
 upper bound on per-query <tt class="docutils literal"><span class="pre">ReceivedTable</span></tt>
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L41" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L41" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L44" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L44" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -949,8 +958,8 @@ upper bound on per-query <tt class="docutils literal"><span class="pre">Received
 <dd>
 
 upper bound on iterative-lookup shortlist
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L39" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L39" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L42" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L42" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -959,8 +968,8 @@ upper bound on iterative-lookup shortlist
 <dd>
 
 upper bound (bytes) on a stored record value. Kept much lower than the RPC frame cap so PUT_VALUE/GET_VALUE records stay independently bounded.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L43" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L43" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L46" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L46" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -969,8 +978,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L28" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L28" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L31" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L31" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -979,8 +988,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L31" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L31" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L34" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L34" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -989,8 +998,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L26" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L26" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L29" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L29" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -999,8 +1008,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L25" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L25" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L28" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L28" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1009,8 +1018,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L32" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L32" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L35" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L35" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1019,8 +1028,8 @@ upper bound (bytes) on a stored record value. Kept much lower than the RPC frame
 <dd>
 
 aka <tt class="docutils literal"><span class="pre"><span class="Identifier">k</span></span></tt> in the spec
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L23" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L23" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L26" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L26" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1029,8 +1038,8 @@ aka <tt class="docutils literal"><span class="pre"><span class="Identifier">k</s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L29" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L29" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L32" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L32" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1039,8 +1048,8 @@ aka <tt class="docutils literal"><span class="pre"><span class="Identifier">k</s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L22" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L22" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L25" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L25" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1051,6 +1060,16 @@ aka <tt class="docutils literal"><span class="pre"><span class="Identifier">k</s
 
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L18" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L18" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="DefaultUsefulnessGracePeriod" class="tohide">
+<dt><pre><a href="#DefaultUsefulnessGracePeriod"><span class="Identifier">DefaultUsefulnessGracePeriod</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">3600000000000</span><span class="Other">)</span></pre></dt>
+<dd>
+
+New peers resist eviction until in the table this long without proving useful; mirrors go-libp2p's k-bucket usefulness grace.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L22" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L22" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1079,8 +1098,8 @@ a bucket per shared prefix bit; deeper prefixes than the key is long cannot exis
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L36" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L36" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L39" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L39" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1089,8 +1108,8 @@ a bucket per shared prefix bit; deeper prefixes than the key is long cannot exis
 <dd>
 
 Upper bound (bytes) on an ADD_PROVIDER key
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L54" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L54" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L57" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L57" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1109,8 +1128,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L257" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L257" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L265" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L265" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1126,8 +1145,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L164" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L164" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L167" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L167" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1139,8 +1158,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L167" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L167" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L170" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L170" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1152,8 +1171,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L156" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L156" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L159" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L159" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1165,8 +1184,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L144" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L144" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L147" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L147" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1179,8 +1198,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L291" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L291" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L299" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L299" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1193,8 +1212,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L170" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L170" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L173" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L173" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1207,8 +1226,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L275" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L275" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L283" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L283" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1222,8 +1241,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L285" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L285" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L293" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L293" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1235,8 +1254,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L150" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L150" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L153" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L153" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1266,8 +1285,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L418" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L418" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L426" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L426" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1277,8 +1296,8 @@ Upper bound (bytes) on an ADD_PROVIDER key
 <dd>
 
 Builds a limits object whose shortlist/received caps and providers-per-key are sized off the actual <tt class="docutils literal"><span class="pre">replication</span></tt> and <tt class="docutils literal"><span class="pre">quorum</span></tt> so the configuration stays internally consistent (e.g. <tt class="docutils literal"><span class="pre">maxShortlistSize &gt;= replication</span></tt>, <tt class="docutils literal"><span class="pre">maxReceivedSize &gt;= quorum</span></tt>).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L373" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L373" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L381" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L381" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1288,8 +1307,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L234" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L234" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L242" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L242" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1302,8 +1321,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L137" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L137" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L140" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L140" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1315,8 +1334,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L259" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L259" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L267" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L267" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1329,8 +1348,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L268" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L268" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L276" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L276" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1342,8 +1361,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L120" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L120" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L123" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L123" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1356,8 +1375,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L58" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L58" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L61" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L61" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1369,8 +1388,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L69" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L69" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L72" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L72" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1379,8 +1398,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L66" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L66" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L69" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L69" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1389,8 +1408,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L72" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L72" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L75" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L75" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1403,8 +1422,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L78" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L78" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L81" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L81" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1413,8 +1432,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L92" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L92" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L95" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L95" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1427,8 +1446,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L75" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L75" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L78" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L78" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1441,8 +1460,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L244" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L244" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L252" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L252" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1452,8 +1471,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L108" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L108" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L111" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L111" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1466,8 +1485,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L99" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L99" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L102" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L102" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1480,8 +1499,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L262" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L262" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L270" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L270" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1493,8 +1512,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L173" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L173" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L176" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L176" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1504,8 +1523,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L182" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L182" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L185" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L185" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1515,8 +1534,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L191" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L191" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L194" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L194" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1526,8 +1545,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L188" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L188" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L191" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L191" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1537,8 +1556,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L185" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L185" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L188" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L188" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1557,8 +1576,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L312" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L312" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L320" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L320" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1568,8 +1587,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L300" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L300" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L308" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L308" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1582,8 +1601,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L318" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L318" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L326" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L326" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1593,8 +1612,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L306" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L306" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L314" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L314" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1612,8 +1631,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L123" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L123" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L126" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L126" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1625,8 +1644,8 @@ Builds a limits object whose shortlist/received caps and providers-per-key are s
 <dd>
 
 Acquire one <tt class="docutils literal"><span class="pre">rpcSem</span></tt> slot until the enclosing scope exits. The slot is released whether the scope exits normally, raises, or is cancelled.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L496" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L496" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/types.nim#L504" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/types.nim#L504" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1642,7 +1661,7 @@ Acquire one <tt class="docutils literal"><span class="pre">rpcSem</span></tt> sl
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-22 06:01:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-23 06:02:49 UTC</small>
       </div>
     </div>
   </div>
