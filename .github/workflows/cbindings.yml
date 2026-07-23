@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
     defaults:
       run:
@@ -40,12 +40,13 @@ jobs:
           cpu: amd64
           nim_ref: v2.2.10
 
-      - name: Install dependencies
+      - name: Restore dependencies from cache
         uses: "./.github/actions/install_cbind_deps"
         with:
           os: linux
           cpu: amd64
           cc: gcc
+          nim_ref: v2.2.10
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -53,9 +54,9 @@ jobs:
           nimble --version
           gcc --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble setup
+          nimble -l setup -y
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl
@@ -72,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
     defaults:
       run:
@@ -94,12 +95,13 @@ jobs:
           cpu: arm64
           nim_ref: v2.2.10
 
-      - name: Install dependencies
+      - name: Restore dependencies from cache
         uses: "./.github/actions/install_cbind_deps"
         with:
           os: macos-15
           cpu: arm64
           cc: clang
+          nim_ref: v2.2.10
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -107,9 +109,9 @@ jobs:
           nimble --version
           clang --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble setup
+          nimble -l setup -y
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl

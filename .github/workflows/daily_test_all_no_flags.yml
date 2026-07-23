@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   tests-no-flags:
+    env:
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-daily-ci')
     timeout-minutes: 55
     strategy:
@@ -38,15 +40,16 @@ jobs:
           cpu: arm64
           nim_ref: v2.2.10
 
-      - name: Install dependencies
+      - name: Restore dependencies from cache
         uses: "./.github/actions/install_test_deps"
         with:
           os: macos-15
           cpu: arm64
           cc: clang
+          nim_ref: v2.2.10
 
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+      - name: Setup deps
+        run: make setup
         
       - name: Build without feature flags
         run: |
