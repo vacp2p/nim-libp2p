@@ -21,7 +21,7 @@ To fix this please, follow these steps:
 1. remove `/home/user/.nimble` - to remove everything (nim & nimble)
 2. install nim again - fresh install
 3. `nimble install nimble` - get latest `nimble` first
-4. then install libp2p
+4. then run `make setup` when developing this repository, or `nimble install libp2p` when using libp2p from another project
 
 ---
 
