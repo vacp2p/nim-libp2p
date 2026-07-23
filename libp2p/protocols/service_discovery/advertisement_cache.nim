@@ -92,9 +92,7 @@ proc findOldestIndex(c: AdvertisementCache): Opt[(ServiceId, int)] =
   return oldestEntree
 
 proc evictOldest(c: AdvertisementCache) =
-  let optIndex = c.findOldestIndex()
-  if optIndex.isSome():
-    let (oldestService, oldestIndex) = optIndex.get()
+  c.findOldestIndex().withValue((oldestService, oldestIndex)):
     c.removeSlot(oldestService, oldestIndex)
 
 proc put*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement, now: Moment) =
