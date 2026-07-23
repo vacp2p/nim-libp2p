@@ -49,6 +49,8 @@ const
   DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
+  DefaultMaxConcurrentProbes* = 20
+    ## upper bound on concurrent routing-table admission probes (lookupCheck)
   DefaultMaxPeersPerIp* = 4
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
@@ -371,6 +373,7 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
+  maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
   maxPeersPerIp*: int
     ## Maximum number of Kademlia routing-table peers sharing one exact IP.
   maxPeersPerIpv4Subnet*: int
@@ -390,6 +393,7 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxValueSize: DefaultMaxValueSize,
     maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
+    maxConcurrentProbes: DefaultMaxConcurrentProbes,
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
@@ -457,6 +461,7 @@ proc new*(
   doAssert actualLimits.maxLocalRecords.isNone or actualLimits.maxLocalRecords.get() > 0,
     "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
   doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
+  doAssert actualLimits.maxConcurrentProbes > 0, "maxConcurrentProbes must be > 0"
   doAssert actualLimits.maxPeersPerIp > 0, "maxPeersPerIp must be > 0"
   doAssert actualLimits.maxPeersPerIpv4Subnet > 0, "maxPeersPerIpv4Subnet must be > 0"
   doAssert actualLimits.maxPeersPerIpv6Subnet > 0, "maxPeersPerIpv6Subnet must be > 0"
@@ -487,6 +492,10 @@ proc new*(
     limits: actualLimits,
   )
 
+type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
+
+type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
+
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: Rng
@@ -500,6 +509,10 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
+  probeSem*: AsyncSemaphore
+    ## Bounds admission probes to ``config.limits.maxConcurrentProbes``.
+  admissionProbes*: Table[ProbeKey, Future[void]]
+    ## In-flight admission probes, keyed by target table and candidate peer.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is

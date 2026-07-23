@@ -74,9 +74,9 @@ suite "KadDHT - Get Providers":
     let providers = await kads[2].getProviders(key)
 
     # kads[2] should discover kads[1] through the closerPeers in the response
-    check:
-      providers.len() == 0
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check providers.len() == 0
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
@@ -100,9 +100,9 @@ suite "KadDHT - Get Providers":
     let providers = await kads[2].getProviders(key)
 
     # kads[2] should discover kads[1] through the closerPeers in the response
-    check:
-      providers.len() == 1
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check providers.len() == 1
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers uses multihash for CID convergence":
     let kads = setupKadSwitches(2)

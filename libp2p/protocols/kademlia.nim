@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../utils/heartbeat
+import ../utils/future
 import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
@@ -74,6 +76,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
+    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -152,14 +155,18 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
 
   kad.started = false
 
-  kad.maintenanceLoop.cancelSoon()
+  await noCancel allFutures(
+    kad.maintenanceLoop.cancelAndWait(),
+    kad.republishLoop.cancelAndWait(),
+    kad.expiredLoop.cancelAndWait(),
+    kad.recordExpirationLoop.cancelAndWait(),
+  )
   kad.maintenanceLoop = nil
-
-  kad.republishLoop.cancelSoon()
   kad.republishLoop = nil
-
-  kad.expiredLoop.cancelSoon()
   kad.expiredLoop = nil
-
-  kad.recordExpirationLoop.cancelSoon()
   kad.recordExpirationLoop = nil
+
+  # loop: a handler racing shutdown can register a probe while we await a batch
+  while kad.admissionProbes.len > 0:
+    let admissionProbes = move kad.admissionProbes
+    await noCancel admissionProbes.values.toSeq().cancelAndWait()

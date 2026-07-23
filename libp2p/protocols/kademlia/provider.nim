@@ -279,7 +279,7 @@ method handleAddProvider*(
     for peer in validPeers:
       let providerId = PeerId.init(peer.id.get()).valueOr:
         continue
-      kad.updatePeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
+      kad.admitPeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
       kad.providerManager.addProviderRecord(
         ProviderRecord(
           provider: peer,
