@@ -68,6 +68,8 @@ type ConnectRequest {.ffi.} = object
 type DialRequest {.ffi.} = object
   peerId: string
   proto: string
+  multiaddrs: seq[string] ## empty dials a peer the switch is already connected to
+  forceDial: bool ## bypasses dial-limit backoff; needs multiaddrs
   timeoutMs: int64
 
 type DialResponse {.ffi.} = object
@@ -519,9 +521,21 @@ proc libp2pDial*(
   ## `timeoutMs <= 0` defers to libp2p's own dial timeout.
   let peerId = PeerId.init(req.peerId).valueOr:
     return err($error)
+  let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
+    return err(error)
+  if req.forceDial and multiaddresses.len == 0:
+    return err("forceDial requires multiaddrs")
+
+  # With addrs libp2p tears the connection down if the stream fails to open, so a
+  # caller that hands them over for an already-connected peer can lose that connection.
+  let dialing =
+    if multiaddresses.len == 0:
+      lib.switch.dial(peerId, req.proto)
+    else:
+      lib.switch.dial(peerId, multiaddresses, @[req.proto], req.forceDial)
   let stream =
     try:
-      await lib.switch.dial(peerId, req.proto).wait(dialTimeout(req.timeoutMs))
+      await dialing.wait(dialTimeout(req.timeoutMs))
     except AsyncTimeoutError:
       return err("dial timeout")
     except DialFailedError as e:
