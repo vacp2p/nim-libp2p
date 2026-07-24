@@ -164,7 +164,10 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    # A full star of numberOfNodes needs numberOfNodes * (numberOfNodes - 1)
+    # pubsub streams to be dialed and negotiated; give this more headroom
+    # than the 30s default on loaded CI runners (see #2798).
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -200,7 +203,7 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -211,12 +214,18 @@ suite "FloodSub Component":
     await allFuturesRaising(futs.mapIt(it[0]))
 
     # test calling unsubscribeAll for coverage
+    #
+    # This assertion must run synchronously, immediately after unsubscribeAll.
+    # `unsubscribeAll` broadcasts "unsubscribe" RPC messages to every connected 
+    # peer. If we polled/awaited here (e.g. via checkUntilTimeout), earlier nodes'
+    # broadcasts could reach later nodes before they're checked, eventually removing
+    #  their `floodsub[topic]` entry and crashing with an unhandled KeyError.
     for node in nodes:
       node.unsubscribeAll(topic)
-      let n = node
-      checkUntilTimeout:
-        n.floodsub[topic].len == numberOfNodes - 1 # we keep the peers in table
-        n.topics.len == 0 # remove the topic tho
+      check:
+        node.floodsub.getOrDefault(topic).len == numberOfNodes - 1
+          # we keep the peers in table
+        node.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
