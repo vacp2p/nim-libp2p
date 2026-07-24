@@ -137,6 +137,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
+  kad.stopping = false
+
   if not kad.config.disableBootstrapping:
     await kad.bootstrap(forceRefresh = true)
 
@@ -153,6 +155,9 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:
     return
 
+  # Set before any await so handlers racing shutdown stop launching probes; the
+  # drain loop below can then finish for good rather than chasing new arrivals.
+  kad.stopping = true
   kad.started = false
 
   await noCancel allFutures(

@@ -166,8 +166,12 @@ proc dispatchFindNode*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   withRpcSlot(kad)
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
+  # Shield the dial from cancellation: interrupting switch.dial mid-handshake
+  # leaks the half-opened channel, since the reset defer below is not yet armed.
+  # Letting the dial settle first means a racing cancel unwinds through that
+  # defer instead, which resets the stream.
   let streamRes = catch:
-    await kad.switch.dial(peer, addrs, kad.codec)
+    await noCancel kad.switch.dial(peer, addrs, kad.codec)
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
@@ -461,6 +465,10 @@ proc admitPeers*(
   ## Addresses are recorded up front regardless, so lookups can still dial them.
   ## Probes are never queued — a candidate with no free slot is retried when a
   ## later reply names it.
+  # A handler racing shutdown must not launch a probe: it would dial after the
+  # drain loop completed, leaking the stream past ``stop``.
+  if kad.stopping:
+    return
   let addressBook = kad.switch.peerStore[AddressBook]
   let selfPid = kad.switch.peerInfo.peerId
   var pending = kad.admissionProbes.keys.toSeq().mapIt(it.peerId)

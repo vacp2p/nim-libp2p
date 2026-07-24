@@ -513,6 +513,10 @@ type KadDHT* = ref object of LPProtocol
     ## Bounds admission probes to ``config.limits.maxConcurrentProbes``.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
+  stopping*: bool
+    ## Set once ``stop`` begins so racing handlers stop launching new probes,
+    ## letting the shutdown drain terminate. Distinct from ``started``, which is
+    ## still false while bootstrap admits its seed peers during ``start``.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is
