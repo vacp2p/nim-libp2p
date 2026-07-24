@@ -7,11 +7,13 @@
 
 import ffi
 
-import std/[tables, sequtils, sets, json, jsonutils, strutils, locks]
+import std/[tables, sequtils, sets, json, jsonutils, strutils, locks, net]
 from std/times import getTime, toUnix, Time, nanosecond
+import chronos
 import metrics
 
 import ../libp2p
+import ../libp2p/services/natservice
 import ../libp2p/[multiaddress, peerid]
 import ../libp2p/crypto/crypto
 import ../libp2p/nameresolving/dnsresolver
@@ -22,6 +24,7 @@ import ../libp2p/protocols/kademlia
 import ../libp2p/protocols/service_discovery
 import ../libp2p/protocols/service_discovery/[random_find, types]
 import ../libp2p/protocols/connectivity/relay/client
+import ../libp2p/protocols/connectivity/autonatv2/service
 import ../libp2p/extended_peer_record
 
 type StreamRegistry = ref object
@@ -346,8 +349,8 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
   if cfg.autonat:
     switchBuilder = switchBuilder.withAutonat()
 
-  if cfg.autonatV2:
-    switchBuilder = switchBuilder.withNAT(autonatConfig(AutonatV2))
+  cfg.nat.withValue(natCfg):
+    switchBuilder = switchBuilder.withNAT(natCfg)
 
   if cfg.autonatV2Server:
     switchBuilder = switchBuilder.withAutonatV2Server()
@@ -431,6 +434,18 @@ type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   autonat: cint
   autonatV2: cint
   autonatV2Server: cint
+  natPortMappingAuto: cint
+  natPortMappingUpnp: cint
+  natPortMappingNatPmp: cint
+  natExplicitIp: cstring
+  natDiscoveryTimeoutMs: int64
+  natMappingTimeoutMs: int64
+  natReachabilityV1: cint
+  natReachabilityV2: cint
+  natReachabilityScheduleIntervalMs: int64
+  natHolePunching: cint
+  natHolePunchingMaxNumRelays: cint
+  natHolePunchingScheduleIntervalMs: int64
 
 proc libp2pNewDefaultConfig(): CLibp2pConfig {.
     exportc: "libp2p_new_default_config", cdecl, dynlib
