@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results
+import chronos, results, sequtils
 import
   ../../../../libp2p/
     [protocols/service_discovery/advertiser, protocols/service_discovery/types, switch]
@@ -62,6 +62,7 @@ suite "Service Discovery Component - Register":
 
   asyncTest "back-to-back REGISTERs return identical waits":
     # Anti-grinding: tMod + tWaitFor (eligibility moment) must never move earlier across retries.
+    # Seed a distinct ad first so occupancy forces Wait for a *new* ad (identical ads are rejected).
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
@@ -69,15 +70,15 @@ suite "Service Discovery Component - Register":
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(
-        serviceName, advertiserNode.switch.peerInfo.privateKey
-      )
-      .encode()
-      .get()
+    let advertiserKey = advertiserNode.switch.peerInfo.privateKey
+    let seedAdBytes =
+      makeAdvertisement(serviceName, advertiserKey, seqNo = 1).encode().get()
+    let adBytes =
+      makeAdvertisement(serviceName, advertiserKey, seqNo = 2).encode().get()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
     let response: RegistrationResponse =
-      (await advertiserNode.sendRegister(registrarPeerId, serviceId, adBytes)).get()
+      (await advertiserNode.sendRegister(registrarPeerId, serviceId, seedAdBytes)).get()
     check response.status == kad_protobuf.RegistrationStatus.Confirmed
 
     proc requestTicket(): Future[Ticket] {.async.} =
@@ -93,7 +94,7 @@ suite "Service Discovery Component - Register":
       third.tWaitFor == second.tWaitFor
       third.tMod.get() >= second.tMod.get()
 
-  asyncTest "REGISTER preserves registrar cache seqNo semantics":
+  asyncTest "REGISTER appends ads without seqNo replace or dedup":
     # Use a non-zero subsecond expiry: the waiting-time formula rounds it down
     # to zero seconds, while registrar maintenance still has a real interval.
     let conf = ServiceDiscoveryConfig.new(advertExpiry = 999.millis)
@@ -118,53 +119,56 @@ suite "Service Discovery Component - Register":
     let newerSeqAd =
       makeAdvertisement(serviceName, advertiserKey, addrs = @[addrB], seqNo = 2)
     let staleLowerSeqAd =
-      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrC], seqNo = 1)
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrC], seqNo = 0)
 
-    # First REGISTER stores the advertiser's initial seqNo/address pair.
+    # First REGISTER stores the advertiser's initial ad.
     var registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, originalAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].data.addresses[0].address == addrA
 
-    var cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-    check:
-      cachedAd.data.seqNo == 1
-      cachedAd.data.addresses[0].address == addrA
+    # Identical ad re-registration is rejected (no refresh, no new slot).
+    registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, originalAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Rejected
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].envelope.signature.data ==
+      originalAd.envelope.signature.data
 
-    # Same peer and same seqNo is a duplicate, even if the payload differs.
-    # The registrar must keep the exact original advertisement.
+    # Same peer/seqNo with different payload still appends a new slot.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, duplicateSameSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registrarNode.countAdsInCache(serviceId) == 2
+    check registrarNode.getAdsInCache(serviceId).anyIt(
+      it.envelope.signature.data == originalAd.envelope.signature.data
+    )
+    check registrarNode.getAdsInCache(serviceId).anyIt(
+      it.envelope.signature.data == duplicateSameSeqAd.envelope.signature.data
+    )
 
-    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-    check:
-      cachedAd.envelope.signature.data == originalAd.envelope.signature.data
-      cachedAd.data.seqNo == 1
-      cachedAd.data.addresses[0].address == addrA
-
-    # Same peer with a higher seqNo is newer state, so it replaces the cache.
+    # Higher seqNo appends; older slots remain.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, newerSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registrarNode.countAdsInCache(serviceId) == 3
+    check registrarNode.getAdsInCache(serviceId).anyIt(it.data.seqNo == 2)
 
-    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-    check:
-      cachedAd.data.seqNo == 2
-      cachedAd.data.addresses[0].address == addrB
-
-    # Same peer with a lower seqNo is stale and must not replace newer state.
+    # Lower seqNo also appends; no in-place replace of newer state.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, staleLowerSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
-
-    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-    check:
-      cachedAd.data.seqNo == 2
-      cachedAd.data.addresses[0].address == addrB
+    check registrarNode.countAdsInCache(serviceId) == 4
+    let seqNos = registrarNode.getAdsInCache(serviceId).mapIt(it.data.seqNo)
+    check 0'u64 in seqNos
+    check 1'u64 in seqNos
+    check 2'u64 in seqNos
 
   asyncTest "REGISTER with invalid-signature ticket is rejected":
     let conf =

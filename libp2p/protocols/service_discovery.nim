@@ -8,10 +8,10 @@ import ./kademlia
 import
   ./service_discovery/[
     random_find, types, routing_table_manager, advertiser, registrar, discoverer,
-    connection,
+    connection, advertisement_cache,
   ]
 
-export chronicles, random_find, types, discoverer, advertiser
+export chronicles, random_find, types, discoverer, advertiser, advertisement_cache
 
 logScope:
   topics = "service-discovery"
@@ -91,7 +91,7 @@ proc new*(
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),
-    registrar: Registrar.new(),
+    registrar: Registrar.new(discoConfig.advertCacheCap),
     services: toHashSet(services),
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,

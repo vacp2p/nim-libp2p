@@ -178,13 +178,12 @@ suite "Service Discovery Component - Advertise Discover":
       seqNo = seqNo,
     )
     check:
-      ad1.toAdvertisementKey() == ad2.toAdvertisementKey()
+      ad1.data.peerId == ad2.data.peerId
+      ad1.data.seqNo == ad2.data.seqNo
       ad1.envelope.signature.data != ad2.envelope.signature.data
 
-    # ad1 served by both registrars (byte-identical duplicate)
-    # ad2 served only by registrar1, sharing (peerId, seqNo) with ad1.
-    registrar1.registrar.cache[serviceId] = @[ad1, ad2]
-    registrar2.registrar.cache[serviceId] = @[ad1]
+    registrar1.registrar.seedAd(serviceId, ad1)
+    registrar2.registrar.seedAd(serviceId, ad2)
 
     let found = await discovererNode.lookup(serviceId)
     check:

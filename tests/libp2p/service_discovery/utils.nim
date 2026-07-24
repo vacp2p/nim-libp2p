@@ -170,10 +170,25 @@ proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) 
   )
 
 proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertisement] =
-  disco.registrar.cache.getOrDefault(serviceId, @[])
+  disco.registrar.ads.adsForService(serviceId)
 
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
+
+proc seedAd*(
+    reg: Registrar, serviceId: ServiceId, ad: Advertisement, now: Moment = Moment.now()
+) =
+  ## Test helper: admit `ad` into the registrar cache via the public API.
+  reg.ads.put(serviceId, ad, now)
+
+proc seedAds*(
+    reg: Registrar,
+    serviceId: ServiceId,
+    ads: seq[Advertisement],
+    now: Moment = Moment.now(),
+) =
+  for ad in ads:
+    reg.seedAd(serviceId, ad, now)
 
 proc containsPeer*(
     response: Result[seq[Advertisement], string], node: ServiceDiscovery

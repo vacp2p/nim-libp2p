@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sequtils, tables
+import chronos, results, sequtils
 import
   ../../../../libp2p/[
     crypto/crypto,
@@ -90,7 +90,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     let adB = makeAdvertisement(serviceId = "service-B")
     # Plant ad for service-B under key for service-A.
     # The registrar will return it, the discoverer must drop it.
-    registrarNode.registrar.cache[serviceIdA] = @[adB]
+    registrarNode.registrar.seedAd(serviceIdA, adB)
 
     let found = await discovererNode.lookup(serviceIdA)
     check found.isOk()
@@ -116,13 +116,13 @@ suite "Service Discovery Component - Lookup Get Ads":
     var firstBucketAds: seq[Advertisement]
     for _ in 0 ..< fLookup:
       firstBucketAds.add(makeAdvertisement(serviceName))
-    queriedFirst.registrar.cache[serviceId] = firstBucketAds
+    queriedFirst.registrar.seedAds(serviceId, firstBucketAds)
 
     # The other should never be queried, so should not appear in the result.
     let otherKey = randomKey()
     let otherAd = makeAdvertisement(serviceName, privateKey = otherKey)
     let otherPeerId = PeerId.init(otherKey).get()
-    queriedSecond.registrar.cache[serviceId] = @[otherAd]
+    queriedSecond.registrar.seedAd(serviceId, otherAd)
 
     let found = await discovererNode.lookup(serviceId)
     check:
@@ -142,7 +142,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     startAndDeferStop(@[discovererNode] & registrars)
     for registrar in registrars:
       await connect(discovererNode, registrar)
-      registrar.registrar.cache[serviceId] = @[makeAdvertisement(serviceName)]
+      registrar.registrar.seedAd(serviceId, makeAdvertisement(serviceName))
 
     let found = await discovererNode.lookup(serviceId)
     check:
@@ -165,8 +165,8 @@ suite "Service Discovery Component - Lookup Get Ads":
     let firstBucketKey = randomKey()
     let firstBucketAd = makeAdvertisement(serviceName, privateKey = firstBucketKey)
     let secondBucketAd = makeAdvertisement(serviceName)
-    queriedFirst.registrar.cache[serviceId] = @[firstBucketAd]
-    queriedSecond.registrar.cache[serviceId] = @[secondBucketAd]
+    queriedFirst.registrar.seedAd(serviceId, firstBucketAd)
+    queriedSecond.registrar.seedAd(serviceId, secondBucketAd)
 
     let found = await discovererNode.lookup(serviceId)
     check:
