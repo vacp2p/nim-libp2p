@@ -4,10 +4,6 @@
 // blocking helpers in common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *Topic = "/cbind/demo";
 
 static atomic_int g_got = 0;
@@ -51,8 +47,8 @@ static LibP2PCtx *gossipsubNode(const char *listenAddr, const char *label) {
   cfg.gossipsubTriggerSelf = true;
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   return await_create(&cfg, label);
 }
 

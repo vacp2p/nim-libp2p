@@ -10,15 +10,11 @@
 // server, which is why only the client needs to know the server.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 // A key is just bytes for the DHT; the value is stored and fetched verbatim.
 static const char *ValueKey = "/cbind/kad/demo-key";
 static const char *ValueData = "hello kademlia";
 
-// libp2p_ctx_create_cid returns the CID string, so it needs its own waiter.
+// libp2p_static_create_cid returns the CID string, so it needs its own waiter.
 typedef struct {
   atomic_int done;
   int err_code;
@@ -96,8 +92,8 @@ static LibP2PCtx *kadNode(const char *listenAddr, const char *label,
   cfg.mountKad = true;
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
 
   NimFfiStr bootAddrs[MAX_ADDRS];
   BootstrapNode bootNode;
@@ -178,11 +174,12 @@ int main(void) {
   CidWaiter cw;
   memset(&cw, 0, sizeof(cw));
   const char *cidData = "cbind-kad";
-  CreateCidRequest cidReq = {1,
+  CreateCidRequest cidReq = {CID_VERSION_V1,
                              nimffi_str("raw"),
                              nimffi_str("sha2-256"),
                              {(uint8_t *)cidData, strlen(cidData)}};
-  libp2p_ctx_create_cid(client, &cidReq, on_cid, &cw);
+  // create_cid is context-independent ({.ffiStatic.}), so it takes no ctx.
+  libp2p_static_create_cid(&cidReq, on_cid, &cw);
   if (!wait_done(&cw.done) || cw.err_code != 0) {
     fprintf(stderr, "create_cid: %s\n", cw.err[0] ? cw.err : "unknown");
     goto cleanup_client;

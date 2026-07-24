@@ -3,10 +3,6 @@
 // list it, read it back, then delete it. Calls are made blocking via common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *Proto = "/cbind/peerstore/1.0.0";
 
 // get_peers replies with a PeersResponse of peer-id strings.
@@ -79,8 +75,8 @@ static LibP2PCtx *createNode(const char *addr, const char *label) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &slot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   return await_create(&cfg, label);
 }
 

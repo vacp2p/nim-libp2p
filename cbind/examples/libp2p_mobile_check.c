@@ -11,11 +11,7 @@
 
 #include "libp2p.h"
 
-enum {
-  LIBP2P_FFI_MUXER_YAMUX = 1,
-  LIBP2P_FFI_TRANSPORT_TCP = 1,
-  CALLBACK_TIMEOUT_SECONDS = 20,
-};
+enum { CALLBACK_TIMEOUT_SECONDS = 20 };
 
 typedef struct {
   pthread_mutex_t mutex;
@@ -134,8 +130,8 @@ static int create_node(LibP2PCtx **out_ctx) {
   config.addrs.data = listen_addrs;
   config.addrs.len = 1;
   config.dnsResolver = nimffi_str("");
-  config.transport = LIBP2P_FFI_TRANSPORT_TCP;
-  config.muxer = LIBP2P_FFI_MUXER_YAMUX;
+  config.transport = TRANSPORT_TYPE_TCP;
+  config.muxer = MUXER_TYPE_YAMUX;
   config.maxConnections = 8;
   config.maxIn = 4;
   config.maxOut = 4;
@@ -207,6 +203,10 @@ int main(void) {
   }
 
 cleanup:
-  libp2p_ctx_destroy(ctx);
+  // ctx_destroy reports teardown status; a smoke check should fail on it.
+  if (libp2p_ctx_destroy(ctx) != NIMFFI_RET_OK) {
+    fprintf(stderr, "destroy: context teardown failed\n");
+    rc = 1;
+  }
   return rc;
 }
