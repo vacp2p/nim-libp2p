@@ -191,11 +191,7 @@ proc putAd*(
     ips: seq[IpAddress] = @[],
 ) =
   ## Test helper for AdvertisementCache.put with advertiser defaults.
-  let adv =
-    if advertiser.len > 0:
-      advertiser
-    else:
-      ad.data.peerId
+  let adv = if advertiser.len > 0: advertiser else: ad.data.peerId
   let advertiserIps =
     if ips.len > 0:
       ips
@@ -211,11 +207,7 @@ proc acceptAd*(
     advertiser: PeerId = PeerId(),
     ips: seq[IpAddress] = @[],
 ) =
-  let adv =
-    if advertiser.len > 0:
-      advertiser
-    else:
-      ad.data.peerId
+  let adv = if advertiser.len > 0: advertiser else: ad.data.peerId
   let advertiserIps =
     if ips.len > 0:
       ips

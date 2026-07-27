@@ -62,9 +62,7 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
   debug "pruned expired adverts", count = expiredCount
 
 proc advertiserIps*(
-    disco: ServiceDiscovery,
-    advertiser: PeerId,
-    connectionIps: seq[IpAddress] = @[],
+    disco: ServiceDiscovery, advertiser: PeerId, connectionIps: seq[IpAddress] = @[]
 ): seq[IpAddress] {.raises: [].} =
   ## Prefer IPs from the live connection (`stream.observedAddr`).
   ## Fall back to peerstore, then self listen addrs for local registration

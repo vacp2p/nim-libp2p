@@ -1546,8 +1546,7 @@ suite "Service Discovery Registrar - connection IPs":
   asyncTest "observedIps extracts IP from stream.observedAddr":
     let peerId = randomPeerId()
     let ma = makeMultiAddress("203.0.113.10")
-    let stream =
-      Connection.new(peerId, Direction.In, observedAddr = Opt.some(ma))
+    let stream = Connection.new(peerId, Direction.In, observedAddr = Opt.some(ma))
     defer:
       await stream.close()
     check stream.observedIps() == @[parseIpAddress("203.0.113.10")]
@@ -1587,14 +1586,12 @@ suite "Service Discovery Registrar - connection IPs":
     )
     let serviceName = "conn-ip-service"
     let serviceId = serviceName.hashServiceId()
-    let ad =
-      makeAdvertisement(serviceName, addrs = @[makeMultiAddress("10.0.0.99")])
+    let ad = makeAdvertisement(serviceName, addrs = @[makeMultiAddress("10.0.0.99")])
     let adBytes = ad.encode().get()
     let advertiserId = ad.data.peerId
 
     # Peerstore claims a different IP than the connection.
-    disco.switch.peerStore[AddressBook][advertiserId] =
-      @[makeMultiAddress("10.0.0.1")]
+    disco.switch.peerStore[AddressBook][advertiserId] = @[makeMultiAddress("10.0.0.1")]
 
     let connectionIps = @[parseIpAddress("198.51.100.42")]
     let inMsg = kadprotobuf.Message(

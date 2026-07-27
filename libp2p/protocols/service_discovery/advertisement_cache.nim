@@ -113,8 +113,7 @@ proc put*(
     if advertiser in peers[]:
       peers[].withValue(advertiser, slot):
         c.ipTree.removeIps(slot[].ips)
-        slot[] =
-          CachedAd(ad: ad, advertiser: advertiser, ips: ips, timestamp: now)
+        slot[] = CachedAd(ad: ad, advertiser: advertiser, ips: ips, timestamp: now)
         c.ipTree.insertIps(ips)
       return
 

@@ -73,8 +73,9 @@ suite "Service Discovery Component - Register":
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let advertiserKey = advertiserNode.switch.peerInfo.privateKey
-    let seedAdBytes =
-      makeAdvertisement(serviceName, seederNode.switch.peerInfo.privateKey)
+    let seedAdBytes = makeAdvertisement(
+        serviceName, seederNode.switch.peerInfo.privateKey
+      )
       .encode()
       .get()
     let adBytes =
