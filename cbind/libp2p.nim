@@ -526,8 +526,10 @@ proc libp2pDial*(
   if req.forceDial and multiaddresses.len == 0:
     return err("forceDial requires multiaddrs")
 
-  # With addrs libp2p tears the connection down if the stream fails to open, so a
-  # caller that hands them over for an already-connected peer can lose that connection.
+  # The two dial overloads react differently when a stream fails to open. The
+  # addrs overload closes the connection. The peer-id overload only raises. Use
+  # the peer-id overload when there are no addrs, so a failure does not close a
+  # connection the caller did not open.
   let dialing =
     if multiaddresses.len == 0:
       lib.switch.dial(peerId, req.proto)
