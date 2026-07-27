@@ -19,6 +19,9 @@ const
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes
     # peer not seen for this duration marks bucket stale
+  DefaultUsefulnessGracePeriod* = 1.hours
+    ## New peers resist eviction until in the table this long without proving
+    ## useful; mirrors go-libp2p's k-bucket usefulness grace.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -195,6 +198,10 @@ type
   NodeEntry* = object
     nodeId*: Key
     lastSeen*: Moment
+    addedAt*: Moment
+    lastUsefulAt*: Opt[Moment]
+      ## Set when the peer answers a query; `Opt.none` until then, which makes it
+      ## replaceable once past the grace period since it was added.
 
   Bucket* = object
     peers*: seq[NodeEntry]
@@ -204,6 +211,7 @@ type
     hasher*: Opt[XorDHasher]
     maxBuckets*: int
     selfIdPreHashed*: bool
+    usefulnessGracePeriod*: Duration
 
   RoutingTable* = ref object
     selfId*: Key

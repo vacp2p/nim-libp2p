@@ -1,16 +1,22 @@
 # Development
 
-Clone the repository and install the dependencies:
+Clone the repository and set up local dependencies:
 
 ```sh
-git clone https://github.com/vacp2p/nim-libp2p
+git clone --recurse-submodules https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-nimble install -dy
+make
 ```
 
-You can use `nix develop` to start a shell with Nim and Nimble.
+`make` is the default local development setup target. It resolves the lowest supported dependency versions for `NIM_VERSION` using Nimble local dependency mode, then writes local dependency paths for the library and tests.
 
-nimble 0.20.1 is required for running `nimble test`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+```sh
+make setup                 # explicit form of the default target
+make NIM_VERSION=2.2.4 setup
+make build                 # explicit Nix build
+```
+
+Nimble 0.24.0 or newer is required for the min-version resolver. You can use `nix develop` to start a shell with Nim and Nimble; if that shell has an older Nimble, run `nimble install nimble` and use the newer binary, typically `~/.nimble/bin/nimble`.
 
 ## Getting Started
 
@@ -54,20 +60,20 @@ Run unit tests:
 
 ```sh
 # run all the unit tests
-nimble test
+make test
 
 # run tests matching a path substring:
 # - Directory name: "transports" matches all tests in transports/
 # - Partial filename: "quic" matches test_quic.nim, test_quic_stream.nim, etc.
 # - Exact filename: "test_ws.nim" matches only that specific file
 # - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
-nimble testpath quic
-nimble testpath transports/test_ws
+make test quic
+make test transports/test_ws
 # etc ...
 
 # run specific test suites
-nimble testmultiformatexts
-nimble testintegration
+make test_multiformat_exts
+make test_integration
 ```
 
 For faster iteration during development, you can bypass nimble overhead by compiling the test file directly:

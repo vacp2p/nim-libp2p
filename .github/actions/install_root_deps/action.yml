@@ -1,0 +1,29 @@
+name: Restore root dependencies
+description: Restore the root Nimble dependency cache.
+
+inputs:
+  os:
+    description: Platform cache OS segment.
+    required: true
+  cpu:
+    description: Platform cache CPU segment.
+    required: true
+  cc:
+    description: Platform cache compiler segment.
+    required: true
+  nim_ref:
+    description: Nim version cache segment.
+    required: true
+  shell:
+    description: Shell used to run Nimble commands.
+    default: bash
+
+runs:
+  using: composite
+  steps:
+    - name: Restore deps from cache
+      id: deps-cache
+      uses: actions/cache@v5
+      with:
+        path: nimbledeps
+        key: nimbledeps-root-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ inputs.nim_ref }}-minver-${{ hashFiles('libp2p.nimble') }}

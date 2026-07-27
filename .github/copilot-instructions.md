@@ -64,24 +64,24 @@ nim-libp2p/
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
-nimble install -dy    # Install dependencies
+make                 # Set up lowest supported dependency set
 # Or: nix develop     # Nix-based dev environment
 ```
 
-> **Note**: nimble 0.20.1+ is required. If using `nix develop`, the nix environment may not have a sufficiently recent nimble — in that case, run `nimble install nimble` inside the nix shell to get a newer version (typically installed to `~/.nimble/bin/nimble`).
+> **Note**: nimble 0.24.0+ is required for the min-version resolver. If using `nix develop`, the nix environment may not have a sufficiently recent nimble — in that case, run `nimble install nimble` inside the nix shell to get a newer version (typically installed to `~/.nimble/bin/nimble`).
 
 ### Running Tests
 ```sh
 # Run all unit tests
-nimble test
+make test
 
 # Run tests matching a path substring
-nimble testpath quic                   # all quic tests
-nimble testpath transports/test_ws     # specific test file
+make test quic                         # all quic tests
+make test transports/test_ws           # specific test file
 
 # Run specific test suites
-nimble testmultiformatexts             # MultiFormat extension tests
-nimble testintegration                 # Integration tests
+make test_multiformat_exts             # MultiFormat extension tests
+make test_integration                  # Integration tests
 ```
 
 ### Faster Iteration (bypass nimble overhead)
@@ -445,7 +445,7 @@ These flags are used in CI and tests:
 - Use `unittest2` framework
 - Tests can be compiled and run directly: `nim c -r tests/libp2p/test_switch.nim`
 - Path filtering: `-d:path=<substring>` selects test files whose path contains the substring
-- Integration tests are in `tests/integration/` (run with `nimble testintegration`)
+- Integration tests are in `tests/integration/` (run with `make test_integration`)
 - Interoperability tests are in `tests/interop/`
 
 ### Test Stubs and Utilities
@@ -463,8 +463,9 @@ CBOR codec and event queue, and *generates* the C/CDDL bindings from the
 annotations in `libp2p.nim`:
 
 - `libp2p.nim` — the top-level FFI module: `declareLibrary` + `{.ffi.}` /
-  `{.ffiCtor.}` / `{.ffiDtor.}` / `{.ffiEvent.}` annotations and the ported
-  libp2p logic; `genBindings()` emits the bindings.
+  `{.ffiCtor.}` / `{.ffiDtor.}` / `{.ffiStatic.}` / `{.ffiEvent.}` /
+  `{.ffiConst.}` annotations and the ported libp2p logic; `genBindings()` emits
+  the bindings.
 - `libp2p/config.nim` — config types and parsing, `include`d into `libp2p.nim`.
 - `c_bindings/` — generated C header (`libp2p.h`), consumed by
   `logos-co/logos-libp2p-module`.
@@ -472,7 +473,7 @@ annotations in `libp2p.nim`:
 
 ```sh
 cd cbind
-nimble setup
+nimble setup --localdeps -y
 nimble buildffi         # Build ../build/liblibp2p.{so,dylib,dll}
 nimble genbindings_c    # Generate c_bindings/libp2p.h
 nimble genbindings_cddl # Generate the CDDL schema
@@ -481,6 +482,12 @@ nimble genbindings_cddl # Generate the CDDL schema
 **cbind conventions**:
 - Requests/responses are CBOR; declare `{.ffi.}` object types for them — never
   raw `ptr`/`pointer` across the boundary.
+- A `##` doc comment on an annotated proc is propagated into the generated
+  bindings, so document the exported API there and nowhere else.
+- Closed value sets are `{.ffi.}` enums (they emit a native C enum and cross the
+  wire as text), not `int` ordinals the host has to hardcode.
+- A proc that needs no node takes no `lib` param and is `{.ffiStatic.}`; its
+  wrapper is `libp2p_static_<name>` and takes no ctx.
 - Stream handles are plain `uint64` ids tracked in `LibP2P` state (nim-ffi has
   no handle type for incoming streams).
 - Convert config-parsing failures to `return err(...)`; never `raiseAssert` on
@@ -521,7 +528,7 @@ This usually means stale nimble packages. Fix:
 1. Remove `~/.nimble`
 2. Re-install Nim freshly
 3. `nimble install nimble` (get latest nimble)
-4. `nimble install -dy` in the project
+4. `nimble setup --localdeps -y` in the project
 
 ### Formatting errors in CI
 Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks formatting with `nph`.
@@ -551,17 +558,16 @@ Uses `lsquic` (`>= 0.4.1`). May require extra system dependencies for building.
 nim c libp2p.nim
 
 # Run all tests
-nimble test
+make test
 
 # Run specific test
-nimble testpath switch          # tests matching "switch"
-nimble testpath protocols/pubsub
+make test switch                # tests matching "switch"
+make test protocols/pubsub
 
 # Format code (required before PR)
 nimble format
 
-# Install/lock dependencies
-nimble install -dy              # fresh install
-nimble pin                      # create lockfile
-nimble install_pinned           # install from lockfile
+# Set up/lock dependencies
+make setup                           # explicit setup target; also the default `make`
+make lock                            # update app/tool lockfiles
 ```

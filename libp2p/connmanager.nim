@@ -282,6 +282,9 @@ proc maxConnections*(c: ConnManager, dir: Direction): int =
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
   c.muxerStore.getPeers(dir)
 
+proc connectedPeers*(c: ConnManager): seq[PeerId] =
+  c.muxerStore.getPeers()
+
 proc getConnections*(c: ConnManager): Table[PeerId, seq[Muxer]] =
   return c.muxerStore.getAll()
 

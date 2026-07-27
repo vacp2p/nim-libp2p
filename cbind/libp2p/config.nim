@@ -16,13 +16,13 @@
 ## leak its `*` into the generated field name. `include` (not `import`) keeps the
 ## fields unexported and the emitted bindings clean.
 
-type TransportType {.pure.} = enum
-  QUIC
-  TCP
+type TransportType {.ffi.} = enum
+  Quic = "quic"
+  Tcp = "tcp"
 
-type MuxerType {.pure.} = enum
-  MPLEX
-  YAMUX
+type MuxerType {.ffi.} = enum
+  Mplex = "mplex"
+  Yamux = "yamux"
 
 type BootstrapNode {.ffi.} = object
   peerId: string
@@ -35,10 +35,8 @@ type Libp2pConfig {.ffi.} = object
   mountServiceDiscovery: bool
   dnsResolver: string
   addrs: seq[string]
-  # `MuxerType`/`TransportType` ordinals, passed as `int` because nim-ffi can't
-  # yet carry a Nim enum across the wire (see parseMuxer/parseTransport).
-  muxer: int
-  transport: int
+  muxer: MuxerType
+  transport: TransportType
   bootstrapNodes: seq[BootstrapNode]
   privKey: seq[byte]
   maxConnections: int
@@ -56,9 +54,9 @@ type ParsedTransport = object
   ## TCP, so the variant makes "no muxer for QUIC" unrepresentable rather than
   ## carrying a meaningless default.
   case kind: TransportType
-  of TransportType.TCP:
+  of TransportType.Tcp:
     muxer: MuxerType
-  of TransportType.QUIC:
+  of TransportType.Quic:
     discard
 
 type ParsedConfig = object
@@ -82,24 +80,6 @@ type ParsedConfig = object
   gossipsubTriggerSelf: bool
   mountKad: bool
   mountServiceDiscovery: bool
-
-func parseTransport(v: int): Result[TransportType, string] =
-  case v
-  of ord(TransportType.QUIC):
-    ok(TransportType.QUIC)
-  of ord(TransportType.TCP):
-    ok(TransportType.TCP)
-  else:
-    err("invalid transport ordinal: " & $v)
-
-func parseMuxer(v: int): Result[MuxerType, string] =
-  case v
-  of ord(MuxerType.MPLEX):
-    ok(MuxerType.MPLEX)
-  of ord(MuxerType.YAMUX):
-    ok(MuxerType.YAMUX)
-  else:
-    err("invalid muxer ordinal: " & $v)
 
 proc parseMultiaddrs(raw: openArray[string]): Result[seq[MultiAddress], string] =
   var addrs: seq[MultiAddress]
@@ -135,19 +115,16 @@ proc parsePrivateKey(raw: seq[byte]): Result[Opt[PrivateKey], string] =
     return err("invalid private key: " & $error)
   ok(Opt.some(key))
 
-func parseTransportConfig(config: Libp2pConfig): Result[ParsedTransport, string] =
-  # A muxer is only used with TCP; a QUIC config's `muxer` ordinal is left
-  # unvalidated, matching the transport it applies to.
-  let transport = ?parseTransport(config.transport)
-  case transport
-  of TransportType.QUIC:
-    ok(ParsedTransport(kind: TransportType.QUIC))
-  of TransportType.TCP:
-    let muxer = ?parseMuxer(config.muxer)
-    ok(ParsedTransport(kind: TransportType.TCP, muxer: muxer))
+func parseTransportConfig(config: Libp2pConfig): ParsedTransport =
+  # A muxer is only used with TCP, so a QUIC config's `muxer` is ignored.
+  case config.transport
+  of TransportType.Quic:
+    ParsedTransport(kind: TransportType.Quic)
+  of TransportType.Tcp:
+    ParsedTransport(kind: TransportType.Tcp, muxer: config.muxer)
 
 proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
-  let transport = ?parseTransportConfig(config)
+  let transport = parseTransportConfig(config)
   let dnsServers = ?resolveDnsServers(config.dnsResolver)
   let addrs = ?parseMultiaddrs(config.addrs)
   let privKey = ?parsePrivateKey(config.privKey)

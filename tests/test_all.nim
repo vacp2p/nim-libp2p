@@ -3,6 +3,9 @@
 
 {.used.}
 
+when defined(nimStackTraceOverride):
+  import libbacktrace
+
 import std/os
 import ./imports
 

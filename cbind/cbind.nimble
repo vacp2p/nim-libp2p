@@ -6,26 +6,20 @@ author = "Status Research & Development GmbH"
 description = "C bindings for nim-libp2p, generated via nim-ffi"
 license = "MIT"
 
-import os, strutils, sequtils
+import os, strutils
 
-# The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
-requires "taskpools >= 0.1.0"
-# ffi/cbor_serialization aren't in the nimble registry, so nimble can't resolve
-# them as `requires`; install_pinned fetches them from .pinned instead.
-
-task install_pinned,
-  "Install cbind's pinned deps (taskpools, cbor_serialization, nim-ffi)":
-  # cbind-scoped lock; kept out of the root .pinned so the Nim 2.2.4 CI job stays green.
-  if not dirExists("nimbledeps"):
-    mkDir("nimbledeps")
-  let deps = readFile(".pinned").splitWhitespace().mapIt(it.split(";", 1)[1])
-  exec "nimble install -y " & deps.join(" ")
+requires "taskpools >= 0.1.0",
+  "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc",
+  # nim-ffi v0.3.0-rc.0
+  "https://github.com/logos-messaging/nim-ffi#435eebf9e3896e800c1586058a85df120a7fe870"
 
 proc findInstalledPkgDir(prefix: string): string =
-  ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). install_pinned
-  ## drops cbind's pinned deps under the project-local `nimbledeps/pkgs2`; a plain
-  ## `nimble install` uses the global store. Check both.
-  var bases = @["nimbledeps/pkgs2", "../nimbledeps/pkgs2"]
+  ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
+  ## and local setup use project-local `nimbledeps`; a plain global install
+  ## uses the global store. Check both.
+  var bases = @[
+    "nimbledeps/pkgs2", "nimbledeps/pkgs", "../nimbledeps/pkgs2", "../nimbledeps/pkgs"
+  ]
   let home = getEnv("HOME")
   if home.len > 0:
     bases.add home & "/.nimble/pkgs2"
@@ -38,14 +32,12 @@ proc findInstalledPkgDir(prefix: string): string =
   raise newException(
     IOError,
     "could not locate installed package '" & prefix &
-      "*'; run `nimble install_pinned` first",
+      "*'; run `nimble -l setup -y` from cbind first",
   )
 
 proc ffiDepPaths(): string =
-  # ffi and cbor_serialization aren't cbind `requires` (they're not in the nimble
-  # registry, so setup can't resolve them onto nimble.paths); point the compiler
-  # at the installed copies. Their transitive deps (chronos, serialization, stew,
-  # results, faststreams, …) are libp2p deps already on the inherited root paths.
+  # `setup` does not put direct Git URL deps on nimble.paths; point the compiler
+  # at the installed copies.
   " --path:" & findInstalledPkgDir("ffi-") & " --path:" &
     findInstalledPkgDir("cbor_serialization-")
 
@@ -77,10 +69,12 @@ task buildffi, "Build the FFI shared library":
   buildFfiLib()
 
 proc genBindingsFor(lang, outDir: string) =
-  exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
+  # `--compileOnly`: the binding files are written during macro expansion, so
+  # codegen is enough — there is nothing to link.
+  exec "nim c --threads:on --noMain --mm:refc -d:metrics --compileOnly" &
     " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
     " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p.nim"
+    " --nimcache:nimcache_" & lang & " libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")

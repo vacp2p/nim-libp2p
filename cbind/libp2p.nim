@@ -49,6 +49,10 @@ declareLibrary("libp2p", LibP2P)
 
 include "libp2p/config"
 
+type PeerDirection {.ffi.} = enum
+  Inbound = "in"
+  Outbound = "out"
+
 type PeerInfoResponse {.ffi.} = object
   peerId: string
   addrs: seq[string]
@@ -105,6 +109,20 @@ type CreateCidRequest {.ffi.} = object
 
 type NewPrivateKeyRequest {.ffi.} = object
   scheme: int
+
+# Named wire values for the two `int` fields above, so a host doesn't hardcode
+# them. A `{.ffi.}` enum can't do this job here: Nim reads `CidV0` and `CIDv0` as
+# one identifier, so a mirror enum collides with the very type it mirrors.
+const
+  # Not libp2p's `CidVersion` ordinals (`CIDvIncorrect` takes 0 there) — the
+  # wire numbering is cbind's own, mapped in `libp2pCreateCid`.
+  CidVersionV0 {.ffiConst.} = 0
+  CidVersionV1 {.ffiConst.} = 1
+  # These are cast straight to `PKScheme`, so derive them and they can't drift.
+  KeySchemeRsa {.ffiConst.} = ord(PKScheme.RSA)
+  KeySchemeEd25519 {.ffiConst.} = ord(PKScheme.Ed25519)
+  KeySchemeSecp256k1 {.ffiConst.} = ord(PKScheme.Secp256k1)
+  KeySchemeEcdsa {.ffiConst.} = ord(PKScheme.ECDSA)
 
 type KadPutValueRequest {.ffi.} = object
   key: seq[byte]
@@ -187,9 +205,11 @@ type PubsubMessageEvent {.ffi.} = object
   topic: string
   data: seq[byte]
 
-proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent: "on_incoming_stream".}
+proc onIncomingStream*(event: IncomingStreamEvent) {.ffiEvent.} =
+  ## Fired by a mounted custom protocol when a peer opens a stream on it.
 
-proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent: "on_pubsub_message".}
+proc onPubsubMessage*(event: PubsubMessageEvent) {.ffiEvent.} =
+  ## Fired for every message received on a subscribed gossipsub topic.
 
 proc register(reg: StreamRegistry, stream: Stream): uint64 =
   reg.nextStreamId.inc()
@@ -212,10 +232,9 @@ proc release(reg: StreamRegistry, id: uint64) =
       releaseWaiter.complete()
   reg.streams.del(id)
 
-const MaxReadBytes = 64 * 1024 * 1024
-  ## Upper bound on a single stream read. Caps the buffer an untrusted peer can
-  ## make us pre-allocate before any byte arrives; well above libp2p's largest
-  ## framed messages, so legitimate reads are unaffected.
+const MaxReadBytes {.ffiConst.} = 64 * 1024 * 1024
+  ## Caps the buffer an untrusted peer can make us pre-allocate before any byte
+  ## arrives; well above libp2p's largest framed messages.
 
 proc mountGossipsub(lib: LibP2P, triggerSelf: bool): Result[void, string] =
   let gs = GossipSub.init(switch = lib.switch, triggerSelf = triggerSelf, rng = lib.rng)
@@ -284,14 +303,14 @@ proc withConfiguredTransport(
     builder: SwitchBuilder, transport: ParsedTransport
 ): SwitchBuilder =
   case transport.kind
-  of TransportType.QUIC:
+  of TransportType.Quic:
     builder.withQuicTransport()
-  of TransportType.TCP:
+  of TransportType.Tcp:
     let tcp = builder.withTcpTransport()
     case transport.muxer
-    of MuxerType.MPLEX:
+    of MuxerType.Mplex:
       tcp.withMplex()
-    of MuxerType.YAMUX:
+    of MuxerType.Yamux:
       tcp.withYamux()
 
 proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
@@ -348,6 +367,8 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
   ok(lib)
 
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
+  ## Builds the switch from `config` and mounts the requested protocols. The
+  ## node is not listening yet; call `libp2p_ctx_start` for that.
   try:
     createLibp2pNode(config)
   except LPError as e:
@@ -362,6 +383,7 @@ proc shutdownSwitch(lib: LibP2P) {.async.} =
   lib.running = false
 
 proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  ## Starts the switch so it listens and accepts connections. Idempotent.
   if lib.running:
     return ok(true)
   try:
@@ -372,16 +394,20 @@ proc libp2pStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   ok(true)
 
 proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  ## Stops the switch and closes every connection. Optional:
+  ## `libp2p_ctx_destroy` does the same at teardown.
   await shutdownSwitch(lib)
   ok(true)
 
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
-  ## Owns the full teardown: the FFI runtime runs this on the worker loop at
-  ## shutdown, so the switch stops gracefully before threads join and the context is
-  ## freed. Sufficient on its own; libp2pStop is optional, for explicit shutdown.
+  ## Runs on the worker loop, so the switch stops gracefully before the threads
+  ## join. Sufficient on its own; `libp2p_ctx_stop` beforehand is optional.
   await shutdownSwitch(lib)
 
-# Hand-maintained C-ABI mirror of `Libp2pConfig`: the `{.ffi.}` config crosses as CBOR, not a C struct, so it's absent from the generated bindings. Keep in sync.
+# Hand-maintained plain-C mirror of `Libp2pConfig`, for hosts that build the
+# config without the generated header. Not layout-compatible with the generated
+# `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
+# `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
@@ -412,6 +438,7 @@ proc libp2pNewDefaultConfig(): CLibp2pConfig {.
   CLibp2pConfig()
 
 proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
+  ## The node's public key, serialized in its own key scheme's format.
   let peerInfo = lib.switch.peerInfo
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
@@ -423,8 +450,8 @@ proc libp2pPublicKey*(lib: LibP2P): Future[Result[seq[byte], string]] {.ffi.} =
 
 func dialTimeout(timeoutMs: int64): Duration =
   ## The caller-supplied bound on a single dial. `<= 0` opts out
-  ## (`InfiniteDuration`), deferring to libp2p's own dial timeout — which is
-  ## still capped by the FFI handler backstop (see libp2pConnect).
+  ## (`InfiniteDuration`), deferring to libp2p's own dial timeout. nim-ffi never
+  ## cancels a handler, so nothing else bounds the call.
   if timeoutMs <= 0:
     InfiniteDuration
   else:
@@ -432,8 +459,9 @@ func dialTimeout(timeoutMs: int64): Duration =
 
 proc libp2pConnect*(
     lib: LibP2P, req: ConnectRequest
-): Future[Result[bool, string]] {.ffi: "timeout = 30000".} =
-  # Raise the FFI handler backstop (5s default) to libp2p's 30s UpgradeTimeout; `req.timeoutMs` bounds the dial itself when shorter.
+): Future[Result[bool, string]] {.ffi.} =
+  ## Dials `peerId` at `multiaddrs` and keeps the connection in the switch.
+  ## `timeoutMs <= 0` defers to libp2p's own dial timeout.
   let multiaddresses = parseMultiaddrs(req.multiaddrs).valueOr:
     return err(error)
 
@@ -452,12 +480,14 @@ proc libp2pConnect*(
 proc libp2pDisconnect*(
     lib: LibP2P, peerId: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Closes every connection to `peerId`.
   let pid = PeerId.init(peerId).valueOr:
     return err($error)
   await lib.switch.disconnect(pid)
   ok(true)
 
 proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ffi.} =
+  ## The node's own peer id and the addresses it listens on.
   let peerInfo = lib.switch.peerInfo
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
@@ -467,24 +497,26 @@ proc libp2pPeerInfo*(lib: LibP2P): Future[Result[PeerInfoResponse, string]] {.ff
     err(e.msg)
 
 proc libp2pConnectedPeers*(
-    lib: LibP2P, direction: int
+    lib: LibP2P, direction: PeerDirection
 ): Future[Result[PeersResponse, string]] {.ffi.} =
+  ## Peer ids of the currently connected peers, restricted to `direction`.
   let dir =
     case direction
-    of ord(Direction.In):
-      Direction.In
-    of ord(Direction.Out):
-      Direction.Out
-    else:
-      return err("invalid direction: " & $direction)
+    of PeerDirection.Inbound: Direction.In
+    of PeerDirection.Outbound: Direction.Out
+  ok(PeersResponse(peerIds: lib.switch.connectedPeers(dir).mapIt($it)))
 
-  let peers = lib.switch.connectedPeers(dir)
-  ok(PeersResponse(peerIds: peers.mapIt($it)))
+proc libp2pConnectedPeersAnyDirection*(
+    lib: LibP2P
+): Future[Result[PeersResponse, string]] {.ffi.} =
+  ## Peer ids of every connected peer, inbound and outbound.
+  ok(PeersResponse(peerIds: lib.switch.connectedPeers().mapIt($it)))
 
 proc libp2pDial*(
     lib: LibP2P, req: DialRequest
-): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
-  # Same 30s backstop as libp2pConnect (else a slow dial trips a spurious timeout and leaks the streamId); `req.timeoutMs` bounds the dial itself.
+): Future[Result[DialResponse, string]] {.ffi.} =
+  ## Opens a stream to `peerId` speaking `proto`, returning its stream id.
+  ## `timeoutMs <= 0` defers to libp2p's own dial timeout.
   let peerId = PeerId.init(req.peerId).valueOr:
     return err($error)
   let stream =
@@ -498,7 +530,9 @@ proc libp2pDial*(
 
 proc libp2pDialCircuitRelay*(
     lib: LibP2P, req: DialCircuitRelayRequest
-): Future[Result[DialResponse, string]] {.ffi: "timeout = 30000".} =
+): Future[Result[DialResponse, string]] {.ffi.} =
+  ## Opens a stream to `peerId` over the circuit-relay address `multiaddr`.
+  ## `timeoutMs <= 0` defers to libp2p's own dial timeout.
   let dstPeerId = PeerId.init(req.peerId).valueOr:
     return err($error)
   let relayCircuitAddr = MultiAddress.init(req.multiaddr).valueOr:
@@ -529,6 +563,7 @@ func validateReadLength(n: int64): Result[int, string] =
 proc libp2pStreamReadExactly*(
     lib: LibP2P, req: StreamReadExactlyRequest
 ): Future[Result[ReadResponse, string]] {.ffi.} =
+  ## Reads exactly `numBytes` from the stream, capped at `MAX_READ_BYTES`.
   let stream = ?lib.streams.get(req.streamId)
   let expected = ?validateReadLength(req.numBytes)
   if expected == 0:
@@ -543,6 +578,7 @@ proc libp2pStreamReadExactly*(
 proc libp2pStreamReadLp*(
     lib: LibP2P, req: StreamReadLpRequest
 ): Future[Result[ReadResponse, string]] {.ffi.} =
+  ## Reads one length-prefixed message, rejecting a prefix above `maxSize`.
   let stream = ?lib.streams.get(req.streamId)
   let maxSize = ?validateReadLength(req.maxSize)
   let data =
@@ -555,6 +591,7 @@ proc libp2pStreamReadLp*(
 proc libp2pStreamWrite*(
     lib: LibP2P, req: StreamWriteRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Writes `data` to the stream as raw bytes.
   let stream = ?lib.streams.get(req.streamId)
   try:
     await stream.write(req.data)
@@ -565,6 +602,7 @@ proc libp2pStreamWrite*(
 proc libp2pStreamWriteLp*(
     lib: LibP2P, req: StreamWriteRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Writes `data` to the stream as one length-prefixed message.
   let stream = ?lib.streams.get(req.streamId)
   try:
     await stream.writeLp(req.data)
@@ -575,6 +613,7 @@ proc libp2pStreamWriteLp*(
 proc libp2pStreamClose*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Closes the stream's write side; the handle stays valid until released.
   let stream = ?lib.streams.get(streamId)
   await stream.close()
   ok(true)
@@ -582,6 +621,7 @@ proc libp2pStreamClose*(
 proc libp2pStreamCloseWithEof*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Closes the stream and waits for the peer's EOF.
   let stream = ?lib.streams.get(streamId)
   await stream.closeWithEOF()
   ok(true)
@@ -589,6 +629,7 @@ proc libp2pStreamCloseWithEof*(
 proc libp2pStreamRelease*(
     lib: LibP2P, streamId: uint64
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Drops the stream handle, letting a custom-protocol handler finish.
   discard ?lib.streams.get(streamId)
   lib.streams.release(streamId)
   ok(true)
@@ -596,6 +637,8 @@ proc libp2pStreamRelease*(
 proc libp2pMountProtocol*(
     lib: LibP2P, proto: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Mounts a custom protocol; each inbound stream on it fires
+  ## `on_incoming_stream` and stays open until the host releases the handle.
   if proto.len == 0:
     return err("proto is empty")
   if lib.switch.isNil():
@@ -634,6 +677,7 @@ proc libp2pMountProtocol*(
 proc libp2pGossipsubPublish*(
     lib: LibP2P, req: PublishRequest
 ): Future[Result[PublishResponse, string]] {.ffi.} =
+  ## Publishes `data` on `topic`, returning how many peers it went to.
   let gossipSub = lib.gossipSub.valueOr:
     return err("gossipsub not initialized")
   let peerCount = await gossipSub.publish(req.topic, req.data)
@@ -642,6 +686,7 @@ proc libp2pGossipsubPublish*(
 proc libp2pGossipsubSubscribe*(
     lib: LibP2P, topic: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Subscribes to `topic`; messages arrive as `on_pubsub_message` events.
   let gossipSub = lib.gossipSub.valueOr:
     return err("gossipsub not initialized")
   if not lib.topicHandlers.hasKey(topic):
@@ -654,6 +699,7 @@ proc libp2pGossipsubSubscribe*(
 proc libp2pGossipsubUnsubscribe*(
     lib: LibP2P, topic: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Unsubscribes from `topic`. A topic that was never subscribed is a no-op.
   let gossipSub = lib.gossipSub.valueOr:
     return err("gossipsub not initialized")
   let handler = lib.topicHandlers.getOrDefault(topic, nil)
@@ -678,6 +724,7 @@ func toExtendedRecordsResponse(
 proc libp2pKadFindNode*(
     lib: LibP2P, peerId: string
 ): Future[Result[PeersResponse, string]] {.ffi.} =
+  ## Walks the DHT for the peers closest to `peerId`.
   let kad = lib.kad.valueOr:
     return err("kad-dht not initialized")
   let target = PeerId.init(peerId).valueOr:
@@ -692,6 +739,7 @@ proc libp2pKadFindNode*(
 proc libp2pKadPutValue*(
     lib: LibP2P, req: KadPutValueRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Stores `value` under `key` on the DHT nodes closest to it.
   let kad = lib.kad.valueOr:
     return err("kad-dht not initialized")
   let res = await kad.putValue(req.key, req.value)
@@ -702,6 +750,8 @@ proc libp2pKadPutValue*(
 proc libp2pKadGetValue*(
     lib: LibP2P, req: KadGetValueRequest
 ): Future[Result[ReadResponse, string]] {.ffi.} =
+  ## Looks `key` up on the DHT. `quorum` is how many agreeing records to
+  ## require; pass a negative value for the default.
   let kad = lib.kad.valueOr:
     return err("kad-dht not initialized")
   if req.quorum == 0:
@@ -730,6 +780,7 @@ proc kadAndCid(lib: LibP2P, cid: string): Result[(KadDHT, Cid), string] =
 proc libp2pKadAddProvider*(
     lib: LibP2P, cid: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Announces this node as a provider of `cid`, once.
   let (kad, c) = kadAndCid(lib, cid).valueOr:
     return err(error)
   await kad.addProvider(c)
@@ -738,6 +789,7 @@ proc libp2pKadAddProvider*(
 proc libp2pKadStartProviding*(
     lib: LibP2P, cid: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Announces this node as a provider of `cid` and keeps re-announcing it.
   let (kad, c) = kadAndCid(lib, cid).valueOr:
     return err(error)
   await kad.startProviding(c)
@@ -746,6 +798,7 @@ proc libp2pKadStartProviding*(
 proc libp2pKadStopProviding*(
     lib: LibP2P, cid: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Stops re-announcing this node as a provider of `cid`.
   let (kad, c) = kadAndCid(lib, cid).valueOr:
     return err(error)
   kad.stopProviding(c)
@@ -754,6 +807,7 @@ proc libp2pKadStopProviding*(
 proc libp2pKadGetProviders*(
     lib: LibP2P, cid: string
 ): Future[Result[ProvidersResponse, string]] {.ffi.} =
+  ## Finds the peers advertising themselves as providers of `cid`.
   let (kad, c) = kadAndCid(lib, cid).valueOr:
     return err(error)
   let providersSet =
@@ -781,18 +835,21 @@ proc resolveServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
 proc libp2pKadRandomRecords*(
     lib: LibP2P
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  ## Extended peer records collected from a random DHT walk.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   let records = await disco.lookupRandom()
   ok(toExtendedRecordsResponse(records))
 
 proc libp2pServiceDiscoStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  ## Starts the service-discovery background loops.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.start()
   ok(true)
 
 proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
+  ## Stops the service-discovery background loops.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.stop()
@@ -801,6 +858,7 @@ proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} 
 proc libp2pServiceDiscoStartAdvertising*(
     lib: LibP2P, req: StartAdvertisingRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Advertises `serviceId` (with optional `serviceData`) in this node's record.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   disco.startAdvertising(
@@ -811,6 +869,7 @@ proc libp2pServiceDiscoStartAdvertising*(
 proc libp2pServiceDiscoStopAdvertising*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Stops advertising `serviceId`.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.stopAdvertising(serviceId)
@@ -819,6 +878,7 @@ proc libp2pServiceDiscoStopAdvertising*(
 proc libp2pServiceDiscoRegisterInterest*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Registers interest in `serviceId` so its providers are cached locally.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   discard disco.registerInterest(serviceId)
@@ -827,6 +887,7 @@ proc libp2pServiceDiscoRegisterInterest*(
 proc libp2pServiceDiscoUnregisterInterest*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Drops the interest previously registered for `serviceId`.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   disco.unregisterInterest(serviceId)
@@ -835,6 +896,7 @@ proc libp2pServiceDiscoUnregisterInterest*(
 proc libp2pServiceDiscoLookup*(
     lib: LibP2P, req: LookupRequest
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  ## Looks up the extended peer records advertising `serviceId`.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   let service = ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
@@ -846,6 +908,7 @@ proc libp2pServiceDiscoLookup*(
 proc libp2pServiceDiscoRandomLookup*(
     lib: LibP2P
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
+  ## Extended peer records from a random walk, whatever they advertise.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
   let records = await disco.lookupRandom()
@@ -854,6 +917,8 @@ proc libp2pServiceDiscoRandomLookup*(
 proc libp2pCreateXpr*(
     lib: LibP2P, req: CreateXprRequest
 ): Future[Result[seq[byte], string]] {.ffi.} =
+  ## Signs and encodes an extended peer record for this node. Empty `addrs`
+  ## means the switch's own addresses, `seqNo` 0 means "now".
   let peerInfo = lib.switch.peerInfo
   if peerInfo.isNil():
     return err("switch peerInfo is nil")
@@ -881,8 +946,9 @@ proc libp2pCreateXpr*(
   ok(xpr.encode())
 
 proc libp2pDecodeXpr*(
-    lib: LibP2P, req: DecodeXprRequest
-): Future[Result[ExtendedPeerRecordEntry, string]] {.ffi.} =
+    req: DecodeXprRequest
+): Future[Result[ExtendedPeerRecordEntry, string]] {.ffiStatic.} =
+  ## Decodes a signed extended peer record and verifies its signature.
   let sxpr = SignedExtendedPeerRecord.decode(req.encoded).valueOr:
     return err("failed to decode signed extended peer record: " & $error)
 
@@ -894,6 +960,7 @@ proc libp2pDecodeXpr*(
 proc libp2pCircuitRelayReserve*(
     lib: LibP2P, req: CircuitRelayReserveRequest
 ): Future[Result[ReservationResponse, string]] {.ffi.} =
+  ## Reserves a slot on a circuit relay, returning the relayed addresses.
   let cl = lib.relayClient.valueOr:
     return err("relay client is not mounted (set circuitRelayClient=true in config)")
 
@@ -916,6 +983,7 @@ proc libp2pCircuitRelayReserve*(
 proc libp2pPeerstoreGetPeers*(
     lib: LibP2P
 ): Future[Result[PeersResponse, string]] {.ffi.} =
+  ## Every peer id known to the peer store, connected or not.
   var peerIds: seq[string]
   try:
     for peerId in keys(lib.switch.peerStore[AddressBook].book):
@@ -927,6 +995,7 @@ proc libp2pPeerstoreGetPeers*(
 proc libp2pPeerstoreGetPeerInfo*(
     lib: LibP2P, peerId: string
 ): Future[Result[PeerStoreEntryResponse, string]] {.ffi.} =
+  ## Everything the peer store holds for `peerId`; absent books come back empty.
   let pid = PeerId.init(peerId).valueOr:
     return err($error)
   let peerStore = lib.switch.peerStore
@@ -946,6 +1015,7 @@ proc libp2pPeerstoreGetPeerInfo*(
 proc libp2pPeerstoreAddPeer*(
     lib: LibP2P, req: AddPeerRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Adds `peerId` to the peer store, extending its addresses and protocols.
   let pid = PeerId.init(req.peerId).valueOr:
     return err($error)
   if req.addrs.len == 0:
@@ -963,6 +1033,7 @@ proc libp2pPeerstoreAddPeer*(
 proc libp2pPeerstoreSetPeerAddresses*(
     lib: LibP2P, req: SetAddressesRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Replaces the peer store's addresses for `peerId`.
   let pid = PeerId.init(req.peerId).valueOr:
     return err($error)
 
@@ -975,6 +1046,7 @@ proc libp2pPeerstoreSetPeerAddresses*(
 proc libp2pPeerstoreSetPeerProtocols*(
     lib: LibP2P, req: SetProtocolsRequest
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Replaces the peer store's protocol list for `peerId`.
   let pid = PeerId.init(req.peerId).valueOr:
     return err($error)
   lib.switch.peerStore[ProtoBook][pid] = req.protocols
@@ -983,19 +1055,22 @@ proc libp2pPeerstoreSetPeerProtocols*(
 proc libp2pPeerstoreDeletePeer*(
     lib: LibP2P, peerId: string
 ): Future[Result[bool, string]] {.ffi.} =
+  ## Drops every peer-store entry for `peerId`.
   let pid = PeerId.init(peerId).valueOr:
     return err($error)
   lib.switch.peerStore.del(pid)
   ok(true)
 
 proc libp2pCreateCid*(
-    lib: LibP2P, req: CreateCidRequest
-): Future[Result[string, string]] {.ffi.} =
+    req: CreateCidRequest
+): Future[Result[string, string]] {.ffiStatic.} =
+  ## Builds a CID string from a multicodec, a multihash name and the data.
+  ## `version` is `CID_VERSION_V0` or `CID_VERSION_V1`.
   let cidVer =
     case req.version
-    of 0:
+    of CidVersionV0:
       CIDv0
-    of 1:
+    of CidVersionV1:
       CIDv1
     else:
       return err("cid version must be 0 or 1")
@@ -1015,6 +1090,8 @@ proc libp2pCreateCid*(
 proc libp2pNewPrivateKey*(
     lib: LibP2P, req: NewPrivateKeyRequest
 ): Future[Result[seq[byte], string]] {.ffi.} =
+  ## Generates a private key from the node's RNG. `scheme` is one of the
+  ## `KEY_SCHEME_*` constants.
   if req.scheme < ord(low(PKScheme)) or req.scheme > ord(high(PKScheme)):
     return err("invalid key scheme")
   let scheme = PKScheme(req.scheme)
@@ -1110,6 +1187,7 @@ proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
   entries
 
 proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+  ## A JSON snapshot of the Prometheus registry, one object per metric sample.
   var jsonText: string
   try:
     {.cast(gcsafe).}:

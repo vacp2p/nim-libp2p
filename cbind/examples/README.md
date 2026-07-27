@@ -16,7 +16,7 @@ The bindings are a header-only C API over a C ABI. Every generated method is asy
 From `cbind/`, produce the runtime library and the generated header first:
 
 ```sh
-nimble setup
+nimble -l setup -y
 nimble buildffi       # -> ../build/liblibp2p.so
 nimble genbindings_c  # -> c_bindings/libp2p.h
 ```

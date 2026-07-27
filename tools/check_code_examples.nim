@@ -22,7 +22,7 @@ createDir outDir
 proc exampleSearchPaths(): string =
   # `nim doc` forwards search paths (`--path`) to the runnableExamples
   # subcompilation, but not the project root nor lazy `NimblePath` entries.
-  # Pass the repo root (so examples can `import libp2p/...`) and each pinned
+  # Pass the repo root (so examples can `import libp2p/...`) and each local
   # dependency (e.g. chronos) explicitly.
   var flags = @["--path:" & quoteShell(getCurrentDir())]
   let pkgsDir = "nimbledeps" / "pkgs2"

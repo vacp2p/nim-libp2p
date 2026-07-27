@@ -44,9 +44,12 @@ Grafana will be available at **http://localhost:3000** (user/pass: `admin`/`admi
 
 ## Local compilation (without Docker)
 
+From the repo root:
+
 ```sh
+make setup
 cd simulation
-nimble install -y --depsOnly
+nimble -l setup -y
 nim c -d:metrics -d:release main.nim
 ```
 

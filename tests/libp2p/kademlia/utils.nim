@@ -194,6 +194,27 @@ proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())
 
+proc addPeersWithAddrs*(kad: KadDHT, count: int) =
+  ## Adds `count` random peers to the routing table, with an address each so they
+  ## survive `toPeers`. Unlike `populateRoutingTable`, rejected ids are retried.
+  const maxRetries = 1000
+  let maxAttempts = count + maxRetries
+  var added = 0
+  for _ in 0 ..< maxAttempts:
+    if added == count:
+      break
+    let peerId = randomPeerId()
+    # A bucket only holds k peers, and which bucket an id lands in is random, so
+    # a full bucket rejects the insert and the id is simply redrawn.
+    if not kad.rtable.insert(peerId):
+      continue
+    kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
+    added.inc()
+
+  doAssert added == count,
+    "routing table took only " & $added & " of " & $count & " peers in " & $maxAttempts &
+      " attempts"
+
 proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
   for bucket in kad.rtable.buckets:

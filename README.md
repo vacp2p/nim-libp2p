@@ -44,7 +44,16 @@ You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-lib
 
 ## Development
 
-See the [development guide](docs/development.md) to get started with the project and testing.
+For local development:
+
+```sh
+git clone --recurse-submodules https://github.com/vacp2p/nim-libp2p
+cd nim-libp2p
+make
+make test
+```
+
+`make` sets up local Nimble dependencies for the library and tests. See the [development guide](docs/development.md) for details.
 For more details, refer to the [documentation](docs/README.md).
 
 ## Contributors

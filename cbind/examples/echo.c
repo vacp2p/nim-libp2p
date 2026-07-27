@@ -8,10 +8,6 @@
 // serves inline.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *EchoProto = "/cbind/echo/1.0.0";
 static const int64_t EchoMaxSize = 4096;
 
@@ -99,8 +95,8 @@ static LibP2PCtx *createNode(const char *listenAddr, const char *label) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   return await_create(&cfg, label);
 }
 
