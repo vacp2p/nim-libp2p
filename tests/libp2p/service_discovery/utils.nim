@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+import std/net
 import chronos, results, sequtils, tables
 import
   ../../../libp2p/[
@@ -17,6 +18,7 @@ import
     protocols/service_discovery/registrar,
     protocols/service_discovery/routing_table_manager,
     protocols/service_discovery/types,
+    routing_record,
     switch,
   ]
 import ../../tools/[crypto, switch_builder, multiaddress]
@@ -175,11 +177,63 @@ proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertis
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
 
+proc ipsFromAd*(ad: Advertisement): seq[IpAddress] =
+  ## Extract IPs from the ad payload (test convenience when advertiser IPs
+  ## are not set up in the peerstore).
+  ad.data.addresses.getIPs()
+
+proc putAd*(
+    ads: AdvertisementCache,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    now: Moment = Moment.now(),
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
+) =
+  ## Test helper for AdvertisementCache.put with advertiser defaults.
+  let adv =
+    if advertiser.len > 0:
+      advertiser
+    else:
+      ad.data.peerId
+  let advertiserIps =
+    if ips.len > 0:
+      ips
+    else:
+      ad.ipsFromAd()
+  ads.put(serviceId, adv, ad, advertiserIps, now)
+
+proc acceptAd*(
+    disco: ServiceDiscovery,
+    now: Moment,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
+) =
+  let adv =
+    if advertiser.len > 0:
+      advertiser
+    else:
+      ad.data.peerId
+  let advertiserIps =
+    if ips.len > 0:
+      ips
+    else:
+      ad.ipsFromAd()
+  disco.acceptAdvertisement(now, serviceId, adv, ad, advertiserIps)
+
 proc seedAd*(
-    reg: Registrar, serviceId: ServiceId, ad: Advertisement, now: Moment = Moment.now()
+    reg: Registrar,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    now: Moment = Moment.now(),
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
 ) =
   ## Test helper: admit `ad` into the registrar cache via the public API.
-  reg.ads.put(serviceId, ad, now)
+  ## Defaults advertiser to `ad.data.peerId` and ips to the ad's addresses.
+  reg.ads.putAd(serviceId, ad, now, advertiser, ips)
 
 proc seedAds*(
     reg: Registrar,

@@ -110,11 +110,12 @@ proc insertPeer*(
   ):
     return false
 
-  result = table.insert(peerInfo.peerId)
-  if result:
+  let inserted = table.insert(peerInfo.peerId)
+  if inserted:
     addressBook.extend(peerInfo.peerId, addrs, AddressConfidence.Low)
     cd_service_table_insertions.inc()
     disco.rtManager.updateServiceTablesMetrics()
+  inserted
 
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service

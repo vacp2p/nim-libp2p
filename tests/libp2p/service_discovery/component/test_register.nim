@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sequtils
+import chronos, results
 import
   ../../../../libp2p/
     [protocols/service_discovery/advertiser, protocols/service_discovery/types, switch]
@@ -62,24 +62,28 @@ suite "Service Discovery Component - Register":
 
   asyncTest "back-to-back REGISTERs return identical waits":
     # Anti-grinding: tMod + tWaitFor (eligibility moment) must never move earlier across retries.
-    # Seed a distinct ad first so occupancy forces Wait for a *new* ad (identical ads are rejected).
+    # Seed another advertiser's ad so occupancy forces Wait for a first-time registration.
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
-    startAndDeferStop(@[registrarNode, advertiserNode])
+    let seederNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, advertiserNode, seederNode])
     await connect(registrarNode, advertiserNode)
+    await connect(registrarNode, seederNode)
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let advertiserKey = advertiserNode.switch.peerInfo.privateKey
     let seedAdBytes =
-      makeAdvertisement(serviceName, advertiserKey, seqNo = 1).encode().get()
+      makeAdvertisement(serviceName, seederNode.switch.peerInfo.privateKey)
+      .encode()
+      .get()
     let adBytes =
-      makeAdvertisement(serviceName, advertiserKey, seqNo = 2).encode().get()
+      makeAdvertisement(serviceName, advertiserKey, seqNo = 1).encode().get()
     let registrarPeerId = registrarNode.switch.peerInfo.peerId
 
-    let response: RegistrationResponse =
-      (await advertiserNode.sendRegister(registrarPeerId, serviceId, seedAdBytes)).get()
-    check response.status == kad_protobuf.RegistrationStatus.Confirmed
+    let seedResponse: RegistrationResponse =
+      (await seederNode.sendRegister(registrarPeerId, serviceId, seedAdBytes)).get()
+    check seedResponse.status == kad_protobuf.RegistrationStatus.Confirmed
 
     proc requestTicket(): Future[Ticket] {.async.} =
       let response: RegistrationResponse =
@@ -94,7 +98,7 @@ suite "Service Discovery Component - Register":
       third.tWaitFor == second.tWaitFor
       third.tMod.get() >= second.tMod.get()
 
-  asyncTest "REGISTER appends ads without seqNo replace or dedup":
+  asyncTest "REGISTER replaces ad for the same advertiser":
     # Use a non-zero subsecond expiry: the waiting-time formula rounds it down
     # to zero seconds, while registrar maintenance still has a real interval.
     let conf = ServiceDiscoveryConfig.new(advertExpiry = 999.millis)
@@ -129,46 +133,39 @@ suite "Service Discovery Component - Register":
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].data.addresses[0].address == addrA
 
-    # Identical ad re-registration is rejected (no refresh, no new slot).
+    # Identical ad re-registration replaces (refreshes) the same slot.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, originalAd.encode().get()
     )
-    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Rejected
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].envelope.signature.data ==
       originalAd.envelope.signature.data
 
-    # Same peer/seqNo with different payload still appends a new slot.
+    # Same peer/seqNo with different payload replaces the slot.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, duplicateSameSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
-    check registrarNode.countAdsInCache(serviceId) == 2
-    check registrarNode.getAdsInCache(serviceId).anyIt(
-      it.envelope.signature.data == originalAd.envelope.signature.data
-    )
-    check registrarNode.getAdsInCache(serviceId).anyIt(
-      it.envelope.signature.data == duplicateSameSeqAd.envelope.signature.data
-    )
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].envelope.signature.data ==
+      duplicateSameSeqAd.envelope.signature.data
 
-    # Higher seqNo appends; older slots remain.
+    # Higher seqNo replaces.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, newerSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
-    check registrarNode.countAdsInCache(serviceId) == 3
-    check registrarNode.getAdsInCache(serviceId).anyIt(it.data.seqNo == 2)
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].data.seqNo == 2
 
-    # Lower seqNo also appends; no in-place replace of newer state.
+    # Lower seqNo also replaces; only the latest payload remains.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, staleLowerSeqAd.encode().get()
     )
     check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
-    check registrarNode.countAdsInCache(serviceId) == 4
-    let seqNos = registrarNode.getAdsInCache(serviceId).mapIt(it.data.seqNo)
-    check 0'u64 in seqNos
-    check 1'u64 in seqNos
-    check 2'u64 in seqNos
+    check registrarNode.countAdsInCache(serviceId) == 1
+    check registrarNode.getAdsInCache(serviceId)[0].data.seqNo == 0
 
   asyncTest "REGISTER with invalid-signature ticket is rejected":
     let conf =

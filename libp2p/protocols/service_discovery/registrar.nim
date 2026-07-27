@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, math, sequtils]
+import std/[tables, math, sequtils, net]
 import chronos, chronicles, results
 import
   ../../[
@@ -61,11 +61,32 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
 
   debug "pruned expired adverts", count = expiredCount
 
+proc advertiserIps*(
+    disco: ServiceDiscovery,
+    advertiser: PeerId,
+    connectionIps: seq[IpAddress] = @[],
+): seq[IpAddress] {.raises: [].} =
+  ## Prefer IPs from the live connection (`stream.observedAddr`).
+  ## Fall back to peerstore, then self listen addrs for local registration
+  ## when no connection IP is available.
+  if connectionIps.len > 0:
+    return connectionIps
+
+  var addrs = disco.switch.peerStore[AddressBook][advertiser]
+  if addrs.len == 0 and advertiser == disco.switch.peerInfo.peerId:
+    addrs = disco.switch.peerInfo.addrs
+
+  var ips = newSeqOfCap[IpAddress](addrs.len)
+  for ma in addrs:
+    ma.getIp().withValue(ip):
+      ips.add(ip)
+  ips
+
 proc waitingTime*(
     registrar: Registrar,
     discoConfig: ServiceDiscoveryConfig,
-    ad: Advertisement,
     serviceId: ServiceId,
+    advertiserIps: seq[IpAddress],
     now: Moment,
 ): Duration =
   let advertCacheCap = registrar.ads.capacity
@@ -82,7 +103,7 @@ proc waitingTime*(
       1.0 / pow(base, exp)
 
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
-  let ipSim = registrar.ads.adMaxScore(ad)
+  let ipSim = registrar.ads.ipMaxScore(advertiserIps)
 
   var w: float64 =
     discoConfig.advertExpiry.seconds.float64 * occupancy *
@@ -103,10 +124,7 @@ proc waitingTime*(
     if waitDuration < prevWaitDuration - elapsedDuration:
       waitDuration = prevWaitDuration - elapsedDuration
 
-  for addressInfo in ad.data.addresses:
-    let ip = addressInfo.address.getIp().valueOr:
-      continue
-
+  for ip in advertiserIps:
     let ipKey = $ip
     if ipKey in registrar.timestampIp:
       let
@@ -122,7 +140,7 @@ proc waitingTime*(
 proc updateLowerBounds*(
     registrar: Registrar,
     serviceId: ServiceId,
-    ad: Advertisement,
+    advertiserIps: seq[IpAddress],
     waitDuration: Duration,
     now: Moment,
 ) =
@@ -135,10 +153,7 @@ proc updateLowerBounds*(
     registrar.boundService[serviceId] = now + waitDuration
     registrar.timestampService[serviceId] = now
 
-  for addressInfo in ad.data.addresses:
-    let ip = addressInfo.address.getIp().valueOr:
-      continue
-
+  for ip in advertiserIps:
     let ipKey = $ip
     let prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, now)
     let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, now)
@@ -223,7 +238,12 @@ proc sendRegisterResponse*(
     error "failed to send register response", err = writeRes.error.msg
 
 proc acceptAdvertisement*(
-    disco: ServiceDiscovery, now: Moment, serviceId: ServiceId, ad: Advertisement
+    disco: ServiceDiscovery,
+    now: Moment,
+    serviceId: ServiceId,
+    advertiser: PeerId,
+    ad: Advertisement,
+    advertiserIps: seq[IpAddress],
 ) =
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -234,7 +254,7 @@ proc acceptAdvertisement*(
     PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
   )
 
-  disco.registrar.ads.put(serviceId, ad, now)
+  disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
 
 proc getCloserPeers(
@@ -248,7 +268,15 @@ proc getCloserPeers(
 
   return disco.switch.toPeers(keys)
 
-proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
+proc registration*(
+    disco: ServiceDiscovery,
+    peerId: PeerId,
+    inMsg: Message,
+    connectionIps: seq[IpAddress] = @[],
+): Message =
+  ## Handle a REGISTER request from `peerId`.
+  ## `connectionIps` should be the remote endpoint IPs from the stream
+  ## (`observedAddr`) when available; empty triggers peerstore/self fallback.
   let serviceId = inMsg.key.valueOr:
     error "Key not set: registration", msg = inMsg
     return
@@ -290,15 +318,6 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  if disco.registrar.ads.contains(serviceId, ad):
-    debug "advertisement already in cache", serviceId, peerId = ad.data.peerId
-
-    cd_register_requests.inc(
-      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
-    )
-
-    return msg
-
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
@@ -311,12 +330,13 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
     return msg
 
-  var tWait = disco.registrar.waitingTime(disco.discoConfig, ad, serviceId, now)
+  let ips = disco.advertiserIps(peerId, connectionIps)
+  var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
 
   disco.updateWaitAfterRetry(ticketOpt, now, tWait)
 
   if tWait <= ZeroDuration:
-    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, peerId, ad, ips)
 
     msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
 
@@ -328,7 +348,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
 
   tWait = min(disco.discoConfig.advertExpiry, tWait)
 
-  disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
+  disco.registrar.updateLowerBounds(serviceId, ips, tWait, now)
 
   var ticket = Ticket(
     advertisement: regMsg.advertisement,

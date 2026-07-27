@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/net
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
@@ -9,6 +10,14 @@ import ./[types, service_discovery_metrics, registrar]
 
 logScope:
   topics = "service-disco connection"
+
+proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
+  ## Remote endpoint IP(s) from the transport connection, if known.
+  var ips: seq[IpAddress]
+  stream.observedAddr.withValue(ma):
+    ma.getIp().withValue(ip):
+      ips.add(ip)
+  ips
 
 proc send*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
@@ -59,7 +68,8 @@ proc handleMessage*(
 
   let response =
     if msg.msgType.get() == MessageType.register:
-      disco.registration(peerId, msg)
+      # Prefer the wire address of this stream for IP-tree scoring.
+      disco.registration(peerId, msg, stream.observedIps())
     else:
       disco.getAdvertisements(peerId, msg)
 

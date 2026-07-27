@@ -10,7 +10,6 @@ import
     protocols/kademlia/types,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
-    protocols/service_discovery/registrar,
     protocols/service_discovery/types,
     switch,
   ]
@@ -74,7 +73,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     for _ in 0 ..< 4:
       let ad = makeAdvertisement(serviceName)
       let now = Moment.now()
-      registrarNode.acceptAdvertisement(now, serviceId, ad)
+      registrarNode.acceptAd(now, serviceId, ad)
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()

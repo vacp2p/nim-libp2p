@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables, hashes]
+import std/[sequtils, sets, tables, hashes, net]
 import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
@@ -50,12 +50,16 @@ type
 
   CachedAd* = object
     ad*: Advertisement
+    advertiser*: PeerId
+    ips*: seq[IpAddress] ## Advertiser IPs counted in the IP tree for this slot
     timestamp*: Moment
 
   AdvertisementCache* = ref object
-    byService*: Table[ServiceId, seq[CachedAd]]
+    ## One slot per (serviceId, advertiserPeerId). Replace on re-register.
+    byService*: Table[ServiceId, Table[PeerId, CachedAd]]
     ipTree*: IpTree
     capacity*: uint64
+    count*: int ## Total cached slots; maintained by put/remove/clear
 
   Registrar* = ref object
     ads*: AdvertisementCache
@@ -145,9 +149,10 @@ proc new*(
 ): T {.raises: [].} =
   doAssert capacity > 0, "capacity must be > 0"
   T(
-    byService: initTable[ServiceId, seq[CachedAd]](),
+    byService: initTable[ServiceId, Table[PeerId, CachedAd]](),
     ipTree: IpTree.new(),
     capacity: capacity,
+    count: 0,
   )
 
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
