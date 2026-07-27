@@ -32,4 +32,9 @@ jobs:
           git checkout FETCH_HEAD
           cd ../..
 
+          libplum_ref=$(grep -oE 'nim-libplum#[0-9a-fA-F]+' vendor/nim-libp2p/libp2p.nimble | cut -d'#' -f2)
+          git clone https://github.com/logos-storage/nim-libplum.git vendor/nim-libplum
+          git -C vendor/nim-libplum checkout "$libplum_ref"
+          git -C vendor/nim-libplum submodule update --init --recursive
+
           make -j"$(nproc)" nimbus_beacon_node
