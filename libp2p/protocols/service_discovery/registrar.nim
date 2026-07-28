@@ -384,8 +384,7 @@ proc getAdvertisements*(
     discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let cap = disco.discoConfig.fReturn
-  let ads =
-    disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)
+  let ads = disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)
 
   let closerPeers = disco.getCloserPeers(serviceId, cap)
 
