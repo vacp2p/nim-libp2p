@@ -156,7 +156,101 @@ func optDurationMs(ms: int64): Opt[Duration] =
   else:
     Opt.none(Duration)
 
-proc parseNATConfig(config: Libp2pConfig): Result[Opt[NATConfig], string] =
+proc parsePortMappingConfig(
+    config: Libp2pConfig
+): Result[Opt[PortMappingConfig], string] =
+  if not (
+    config.natPortMappingAuto or config.natPortMappingUpnp or config.natPortMappingNatPmp or
+    config.natExplicitIp.len > 0
+  ):
+    return ok(Opt.none(PortMappingConfig))
+
+  let
+    discoveryTimeout =
+      if config.natDiscoveryTimeoutMs > 0:
+        chronos.milliseconds(config.natDiscoveryTimeoutMs)
+      else:
+        DefaultDiscoveryTimeout
+    mappingTimeout =
+      if config.natMappingTimeoutMs > 0:
+        chronos.milliseconds(config.natMappingTimeoutMs)
+      else:
+        DefaultMappingTimeout
+
+  if config.natExplicitIp.len > 0:
+    try:
+      return ok(
+        Opt.some(
+          PortMappingConfig(
+            mode: ExplicitIp, explicitIp: parseIpAddress(config.natExplicitIp)
+          )
+        )
+      )
+    except ValueError as e:
+      return err("invalid natExplicitIp: " & e.msg)
+  if config.natPortMappingUpnp:
+    return ok(
+      Opt.some(
+        PortMappingConfig(
+          mode: Upnp, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
+        )
+      )
+    )
+  if config.natPortMappingNatPmp:
+    return ok(
+      Opt.some(
+        PortMappingConfig(
+          mode: NatPmp,
+          discoveryTimeout: discoveryTimeout,
+          mappingTimeout: mappingTimeout,
+        )
+      )
+    )
+  ok(
+    Opt.some(
+      PortMappingConfig(
+        mode: Auto, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
+      )
+    )
+  )
+
+proc parseReachabilityConfig(config: Libp2pConfig): Opt[ReachabilityConfig] =
+  let scheduleInterval = optDurationMs(config.natReachabilityScheduleIntervalMs)
+  if config.natReachabilityV1:
+    return Opt.some(
+      ReachabilityConfig(
+        version: AutonatV1,
+        scheduleInterval: scheduleInterval,
+        v2ServiceConfig: Opt.none(AutonatV2ServiceConfig),
+      )
+    )
+  if config.natReachabilityV2 or config.autonatV2:
+    let v2ServiceConfig =
+      if scheduleInterval.isSome():
+        Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = scheduleInterval))
+      else:
+        Opt.none(AutonatV2ServiceConfig)
+    return Opt.some(
+      ReachabilityConfig(
+        version: AutonatV2,
+        scheduleInterval: scheduleInterval,
+        v2ServiceConfig: v2ServiceConfig,
+      )
+    )
+  Opt.none(ReachabilityConfig)
+
+proc parseHolePunchingConfig(config: Libp2pConfig): Opt[HolePunchingConfig] =
+  if not config.natHolePunching:
+    return Opt.none(HolePunchingConfig)
+  Opt.some(
+    HolePunchingConfig(
+      maxNumRelays: max(1, config.natHolePunchingMaxNumRelays),
+      onReservation: nil,
+      scheduleInterval: optDurationMs(config.natHolePunchingScheduleIntervalMs),
+    )
+  )
+
+proc validateNATConfig(config: Libp2pConfig): Result[void, string] =
   let
     portMappingModes = countEnabled(
       config.natPortMappingAuto,
@@ -187,89 +281,16 @@ proc parseNATConfig(config: Libp2pConfig): Result[Opt[NATConfig], string] =
       return err("natHolePunchingMaxNumRelays requires natHolePunching")
     if config.natHolePunchingScheduleIntervalMs > 0:
       return err("natHolePunchingScheduleIntervalMs requires natHolePunching")
+  ok()
 
-  var nat = NATConfig()
+proc parseNATConfig(config: Libp2pConfig): Result[Opt[NATConfig], string] =
+  ?validateNATConfig(config)
 
-  if portMappingModes == 1:
-    let
-      discoveryTimeout =
-        if config.natDiscoveryTimeoutMs > 0:
-          chronos.milliseconds(config.natDiscoveryTimeoutMs)
-        else:
-          DefaultDiscoveryTimeout
-      mappingTimeout =
-        if config.natMappingTimeoutMs > 0:
-          chronos.milliseconds(config.natMappingTimeoutMs)
-        else:
-          DefaultMappingTimeout
-
-    if config.natExplicitIp.len > 0:
-      try:
-        nat.portMapping = Opt.some(
-          PortMappingConfig(
-            mode: ExplicitIp, explicitIp: parseIpAddress(config.natExplicitIp)
-          )
-        )
-      except ValueError as e:
-        return err("invalid natExplicitIp: " & e.msg)
-    elif config.natPortMappingUpnp:
-      nat.portMapping = Opt.some(
-        PortMappingConfig(
-          mode: Upnp, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
-        )
-      )
-    elif config.natPortMappingNatPmp:
-      nat.portMapping = Opt.some(
-        PortMappingConfig(
-          mode: NatPmp,
-          discoveryTimeout: discoveryTimeout,
-          mappingTimeout: mappingTimeout,
-        )
-      )
-    else:
-      nat.portMapping = Opt.some(
-        PortMappingConfig(
-          mode: Auto, discoveryTimeout: discoveryTimeout, mappingTimeout: mappingTimeout
-        )
-      )
-
-  if wantsReachability:
-    let scheduleInterval = optDurationMs(config.natReachabilityScheduleIntervalMs)
-    if wantsReachabilityV1:
-      nat.reachability = Opt.some(
-        ReachabilityConfig(
-          version: AutonatV1,
-          scheduleInterval: scheduleInterval,
-          v2ServiceConfig: Opt.none(AutonatV2ServiceConfig),
-        )
-      )
-    else:
-      let v2ServiceConfig =
-        if scheduleInterval.isSome():
-          Opt.some(AutonatV2ServiceConfig.new(scheduleInterval = scheduleInterval))
-        else:
-          Opt.none(AutonatV2ServiceConfig)
-      nat.reachability = Opt.some(
-        ReachabilityConfig(
-          version: AutonatV2,
-          scheduleInterval: scheduleInterval,
-          v2ServiceConfig: v2ServiceConfig,
-        )
-      )
-
-  if config.natHolePunching:
-    let maxNumRelays =
-      if config.natHolePunchingMaxNumRelays > 0:
-        config.natHolePunchingMaxNumRelays
-      else:
-        1
-    nat.holePunching = Opt.some(
-      HolePunchingConfig(
-        maxNumRelays: maxNumRelays,
-        onReservation: nil,
-        scheduleInterval: optDurationMs(config.natHolePunchingScheduleIntervalMs),
-      )
-    )
+  let nat = NATConfig(
+    portMapping: ?parsePortMappingConfig(config),
+    reachability: parseReachabilityConfig(config),
+    holePunching: parseHolePunchingConfig(config),
+  )
 
   if nat.portMapping.isNone() and nat.reachability.isNone() and nat.holePunching.isNone():
     ok(Opt.none(NATConfig))
@@ -277,20 +298,13 @@ proc parseNATConfig(config: Libp2pConfig): Result[Opt[NATConfig], string] =
     ok(Opt.some(nat))
 
 proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
-  let transport = parseTransportConfig(config)
-  let dnsServers = ?resolveDnsServers(config.dnsResolver)
-  let addrs = ?parseMultiaddrs(config.addrs)
-  let privKey = ?parsePrivateKey(config.privKey)
-  let bootstrapNodes = ?parseBootstrapNodes(config.bootstrapNodes)
-  let nat = ?parseNATConfig(config)
-
   ok(
     ParsedConfig(
-      dnsServers: dnsServers,
-      addrs: addrs,
-      transport: transport,
-      privKey: privKey,
-      bootstrapNodes: bootstrapNodes,
+      dnsServers: ?resolveDnsServers(config.dnsResolver),
+      addrs: ?parseMultiaddrs(config.addrs),
+      transport: parseTransportConfig(config),
+      privKey: ?parsePrivateKey(config.privKey),
+      bootstrapNodes: ?parseBootstrapNodes(config.bootstrapNodes),
       maxConnections: config.maxConnections,
       maxIn: config.maxIn,
       maxOut: config.maxOut,
@@ -298,7 +312,7 @@ proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
       circuitRelay: config.circuitRelay,
       circuitRelayClient: config.circuitRelayClient,
       autonat: config.autonat,
-      nat: nat,
+      nat: ?parseNATConfig(config),
       autonatV2Server: config.autonatV2Server,
       mountGossipsub: config.mountGossipsub,
       gossipsubTriggerSelf: config.gossipsubTriggerSelf,
