@@ -158,6 +158,13 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
 proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
+proc contains*(rtable: RoutingTable, nodeId: Key): bool =
+  ## Scans only the node's bucket, not the whole table.
+  let idx = rtable.bucketIndex(nodeId)
+  if idx >= rtable.buckets.len:
+    return false
+  peerIndexInBucket(rtable.buckets[idx], nodeId).isSome()
+
 proc markUseful*(rtable: RoutingTable, nodeId: Key) =
   ## Records that `nodeId` answered a query, refreshing its usefulness so it
   ## survives eviction. No-op when the peer is not in the table.

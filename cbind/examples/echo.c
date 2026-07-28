@@ -50,6 +50,7 @@ static bool serveEcho(LibP2PCtx *server) {
     return false;
   }
   uint64_t streamId = g_stream_id;
+  atomic_store(&g_have_stream, 0);
 
   ReadWaiter rw;
   memset(&rw, 0, sizeof(rw));
@@ -87,6 +88,55 @@ static void on_dial(int ec, const DialResponse *reply, const char *em,
   if (em)
     snprintf(w->err, sizeof(w->err), "%s", em);
   atomic_store(&w->done, 1);
+}
+
+// One dial, write, echo and verify cycle. `dialReq` decides whether the stream
+// rides an existing connection or dials the addrs itself.
+static bool echoRoundTrip(LibP2PCtx *client, LibP2PCtx *server,
+                          const DialRequest *dialReq, const char *sent) {
+  DialWaiter dw;
+  memset(&dw, 0, sizeof(dw));
+  libp2p_ctx_dial(client, dialReq, on_dial, &dw);
+  if (!wait_done(&dw.done) || dw.err_code != 0) {
+    fprintf(stderr, "dial: %s\n", dw.err[0] ? dw.err : "unknown");
+    return false;
+  }
+  uint64_t streamId = dw.streamId;
+
+  printf("Client sending: %s\n", sent);
+  BoolWaiter bw;
+  NimFfiBytes sentBytes = {(uint8_t *)sent, strlen(sent)};
+  StreamWriteRequest writeReq = {streamId, sentBytes};
+  if (!AWAIT_BOOL(bw,
+                  libp2p_ctx_stream_write_lp(client, &writeReq, on_bool, &bw),
+                  "stream_write_lp"))
+    return false;
+
+  // The server side runs on this thread too: read the request and echo it back
+  // before the client reads the reply.
+  if (!serveEcho(server))
+    return false;
+
+  ReadWaiter rw;
+  memset(&rw, 0, sizeof(rw));
+  StreamReadLpRequest readReq = {streamId, EchoMaxSize};
+  libp2p_ctx_stream_read_lp(client, &readReq, on_read, &rw);
+  if (!wait_done(&rw.done) || rw.err_code != 0) {
+    fprintf(stderr, "stream_read_lp: %s\n", rw.err[0] ? rw.err : "unknown");
+    return false;
+  }
+  printf("Client received: %.*s\n", (int)rw.len, (const char *)rw.data);
+
+  bool matched = rw.len == strlen(sent) && memcmp(rw.data, sent, rw.len) == 0;
+  if (!matched)
+    fprintf(stderr, "Error: echoed payload did not match\n");
+
+  AWAIT_BOOL(bw,
+             libp2p_ctx_stream_close_with_eof(client, streamId, on_bool, &bw),
+             "stream_close_with_eof");
+  AWAIT_BOOL(bw, libp2p_ctx_stream_release(client, streamId, on_bool, &bw),
+             "stream_release");
+  return matched;
 }
 
 static LibP2PCtx *createNode(const char *listenAddr, const char *label) {
@@ -137,59 +187,25 @@ int main(void) {
   if (!AWAIT_BOOL(bw, libp2p_ctx_start(client, on_bool, &bw), "start client"))
     goto cleanup;
 
-  // Establish the peer connection first, then open a protocol stream via dial.
-  NimFfiStr connAddrs[MAX_ADDRS];
+  // Addrs on the dial connect the peer and open the stream in one call.
+  NimFfiStr dialAddrs[MAX_ADDRS];
   for (size_t i = 0; i < pw.naddrs; i++)
-    connAddrs[i] = nimffi_str(pw.addrs[i]);
-  ConnectRequest connReq = {nimffi_str(pw.peerId), {connAddrs, pw.naddrs}, 0};
-  if (!AWAIT_BOOL(bw, libp2p_ctx_connect(client, &connReq, on_bool, &bw),
-                  "connect"))
+    dialAddrs[i] = nimffi_str(pw.addrs[i]);
+  DialRequest dialWithAddrs = {nimffi_str(pw.peerId),
+                               nimffi_str(EchoProto),
+                               {dialAddrs, pw.naddrs},
+                               false,
+                               0};
+  if (!echoRoundTrip(client, server, &dialWithAddrs, "hello from cbind echo"))
     goto cleanup;
 
-  DialWaiter dw;
-  memset(&dw, 0, sizeof(dw));
-  DialRequest dialReq = {nimffi_str(pw.peerId), nimffi_str(EchoProto)};
-  libp2p_ctx_dial(client, &dialReq, on_dial, &dw);
-  if (!wait_done(&dw.done) || dw.err_code != 0) {
-    fprintf(stderr, "dial: %s\n", dw.err[0] ? dw.err : "unknown");
-    goto cleanup;
-  }
-  uint64_t streamId = dw.streamId;
-
-  const char *sent = "hello from cbind echo";
-  printf("Client sending: %s\n", sent);
-  NimFfiBytes sentBytes = {(uint8_t *)sent, strlen(sent)};
-  StreamWriteRequest writeReq = {streamId, sentBytes};
-  if (!AWAIT_BOOL(bw,
-                  libp2p_ctx_stream_write_lp(client, &writeReq, on_bool, &bw),
-                  "stream_write_lp"))
+  // Without addrs the dial opens a second stream over that same connection.
+  DialRequest dialConnected = {
+      nimffi_str(pw.peerId), nimffi_str(EchoProto), {NULL, 0}, false, 0};
+  if (!echoRoundTrip(client, server, &dialConnected, "hello again"))
     goto cleanup;
 
-  // The server side runs on this thread too: read the request and echo it back
-  // before the client reads the reply.
-  if (!serveEcho(server))
-    goto cleanup;
-
-  ReadWaiter rw;
-  memset(&rw, 0, sizeof(rw));
-  StreamReadLpRequest readReq = {streamId, EchoMaxSize};
-  libp2p_ctx_stream_read_lp(client, &readReq, on_read, &rw);
-  if (!wait_done(&rw.done) || rw.err_code != 0) {
-    fprintf(stderr, "stream_read_lp: %s\n", rw.err[0] ? rw.err : "unknown");
-    goto cleanup;
-  }
-  printf("Client received: %.*s\n", (int)rw.len, (const char *)rw.data);
-
-  if (rw.len == strlen(sent) && memcmp(rw.data, sent, rw.len) == 0)
-    status = 0;
-  else
-    fprintf(stderr, "Error: echoed payload did not match\n");
-
-  AWAIT_BOOL(bw,
-             libp2p_ctx_stream_close_with_eof(client, streamId, on_bool, &bw),
-             "stream_close_with_eof");
-  AWAIT_BOOL(bw, libp2p_ctx_stream_release(client, streamId, on_bool, &bw),
-             "stream_release");
+  status = 0;
 
 cleanup:
   AWAIT_BOOL(bw, libp2p_ctx_stop(client, on_bool, &bw), "stop client");
