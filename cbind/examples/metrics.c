@@ -4,10 +4,6 @@
 // common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 // collect_metrics replies with a JSON string (Result[string]).
 typedef struct {
   atomic_int done;
@@ -38,8 +34,8 @@ int main(void) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &addr;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
 
   LibP2PCtx *node = await_create(&cfg, "node");
   if (!node)

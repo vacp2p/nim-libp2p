@@ -463,8 +463,9 @@ CBOR codec and event queue, and *generates* the C/CDDL bindings from the
 annotations in `libp2p.nim`:
 
 - `libp2p.nim` — the top-level FFI module: `declareLibrary` + `{.ffi.}` /
-  `{.ffiCtor.}` / `{.ffiDtor.}` / `{.ffiEvent.}` annotations and the ported
-  libp2p logic; `genBindings()` emits the bindings.
+  `{.ffiCtor.}` / `{.ffiDtor.}` / `{.ffiStatic.}` / `{.ffiEvent.}` /
+  `{.ffiConst.}` annotations and the ported libp2p logic; `genBindings()` emits
+  the bindings.
 - `libp2p/config.nim` — config types and parsing, `include`d into `libp2p.nim`.
 - `c_bindings/` — generated C header (`libp2p.h`), consumed by
   `logos-co/logos-libp2p-module`.
@@ -481,6 +482,12 @@ nimble genbindings_cddl # Generate the CDDL schema
 **cbind conventions**:
 - Requests/responses are CBOR; declare `{.ffi.}` object types for them — never
   raw `ptr`/`pointer` across the boundary.
+- A `##` doc comment on an annotated proc is propagated into the generated
+  bindings, so document the exported API there and nowhere else.
+- Closed value sets are `{.ffi.}` enums (they emit a native C enum and cross the
+  wire as text), not `int` ordinals the host has to hardcode.
+- A proc that needs no node takes no `lib` param and is `{.ffiStatic.}`; its
+  wrapper is `libp2p_static_<name>` and takes no ctx.
 - Stream handles are plain `uint64` ids tracked in `LibP2P` state (nim-ffi has
   no handle type for incoming streams).
 - Convert config-parsing failures to `return err(...)`; never `raiseAssert` on
