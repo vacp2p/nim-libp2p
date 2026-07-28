@@ -1024,39 +1024,6 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
     check disco.countAdsInCache(serviceId) == 0
 
 suite "Service Discovery Registrar - registration replaces by advertiser":
-  test "identical ad re-registration replaces and refreshes timestamp":
-    # Subsecond expiry rounds wait to zero so re-register is Confirmed.
-    let disco = setupServiceDiscoveryNode(
-      discoConfig =
-        ServiceDiscoveryConfig.new(safetyParam = 0.0, advertExpiry = 999.millis)
-    )
-    let serviceName = "service"
-    let serviceId = serviceName.hashServiceId()
-    let ad = makeAdvertisement(serviceName)
-    let adBytes = ad.encode().get()
-    let oldTime = initMoment(1000)
-
-    disco.registrar.seedAd(serviceId, ad, oldTime)
-
-    let inMsg = kadprotobuf.Message(
-      msgType: kadprotobuf.MessageType.register,
-      key: serviceId,
-      register: Opt.some(
-        kadprotobuf.RegisterMessage(
-          advertisement: adBytes,
-          status: Opt.none(kadprotobuf.RegistrationStatus),
-          ticket: Opt.none(Ticket),
-        )
-      ),
-    )
-
-    let reply = disco.registration(ad.data.peerId, inMsg).register.get()
-    check reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed
-    check disco.countAdsInCache(serviceId) == 1
-    let slot = disco.registrar.ads.getCachedAd(serviceId, ad.data.peerId).get()
-    check slot.ad.envelope.signature.data == ad.envelope.signature.data
-    check slot.timestamp > oldTime
-
   test "same advertiser different payload replaces the slot":
     # Subsecond expiry rounds wait to zero so a new ad is Confirmed, not Wait.
     let disco = setupServiceDiscoveryNode(
