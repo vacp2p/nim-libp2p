@@ -11,7 +11,7 @@ proc ping*(
 ): Future[bool] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let stream = await kad.switch.dial(peerId, addrs, kad.codec)
+  let stream = await noCancel kad.switch.dial(peerId, addrs, kad.codec)
   defer:
     await noCancel stream.close()
 

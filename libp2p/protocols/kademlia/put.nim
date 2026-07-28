@@ -52,7 +52,9 @@ proc dispatchPutVal*(
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   withRpcSlot(kad)
   let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    await noCancel kad.switch.dial(
+      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
+    )
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()

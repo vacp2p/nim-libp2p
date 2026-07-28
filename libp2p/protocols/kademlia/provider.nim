@@ -109,7 +109,9 @@ proc dispatchAddProvider(
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   withRpcSlot(kad)
   let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    await noCancel kad.switch.dial(
+      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
+    )
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
@@ -316,7 +318,9 @@ proc dispatchGetProviders*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   withRpcSlot(kad)
   let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    await noCancel kad.switch.dial(
+      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
+    )
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()

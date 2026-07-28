@@ -18,11 +18,11 @@ proc send*(
     return err("no address found for peer: " & $peerId)
 
   let connRes = catch:
-    await disco.switch.dial(peerId, addrs, disco.codec)
+    await noCancel disco.switch.dial(peerId, addrs, disco.codec)
   let stream = connRes.valueOr:
     return err("dialing peer failed: " & error.msg)
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let encodedMsg = msg.encode()
 

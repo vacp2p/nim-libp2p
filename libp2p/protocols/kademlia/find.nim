@@ -165,8 +165,11 @@ proc dispatchFindNode*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   withRpcSlot(kad)
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
+  # `noCancel`: a cancel that lands mid-dial aborts the connection upgrade, and
+  # the switch closes the half-built connection. Concurrent RPCs to the same peer
+  # then fail their own upgrade, so let the dial finish and unwind after it.
   let streamRes = catch:
-    await kad.switch.dial(peer, addrs, kad.codec)
+    await noCancel kad.switch.dial(peer, addrs, kad.codec)
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
@@ -498,17 +501,19 @@ proc applyReplies(
 proc dropDonePeers(
     state: LookupState, pending: var seq[Attempt]
 ): seq[RpcFuture] {.raises: [].} =
-  ## Remove attempts whose peer is finished with — it responded (no duplicate
-  ## retry), a closer peer evicted it from the shortlist, or it was abandoned
-  ## with its retries depleted (never re-dispatched, so its RPC is pure waste) —
-  ## and return their still-live RPCs so the caller can cancel them.
+  ## Remove attempts whose peer is finished with — it responded successfully (no
+  ## duplicate retry), a closer peer evicted it from the shortlist, or it was
+  ## abandoned with its retries depleted (never re-dispatched, so its RPC is pure
+  ## waste) — and return their still-live RPCs so the caller can cancel them.
+  ## A `Failed` status does not end the peer: the entry stays until its retries
+  ## run out, and the retry that `fillSlots` dispatched must keep running.
   var keep: seq[Attempt]
   var stale: seq[RpcFuture]
   for a in pending:
+    let succeeded = state.responded.getOrDefault(a.peer) == RespondedStatus.Success
     let retriesDepleted =
       a.abandoned and state.attempts.getOrDefault(a.peer, 0) > state.kad.config.retries
-    if state.responded.hasKey(a.peer) or not state.shortlist.hasKey(a.peer) or
-        retriesDepleted:
+    if succeeded or not state.shortlist.hasKey(a.peer) or retriesDepleted:
       stale.add(a.fut)
     else:
       keep.add(a)
