@@ -41,6 +41,11 @@ proc serviceAdCount*(c: AdvertisementCache, serviceId: ServiceId): int =
 proc containsService*(c: AdvertisementCache, serviceId: ServiceId): bool =
   serviceId in c.byService
 
+proc contains*(c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId): bool =
+  c.byService.withValue(serviceId, peers):
+    return advertiser in peers[]
+  false
+
 proc adsForService*(c: AdvertisementCache, serviceId: ServiceId): seq[Advertisement] =
   var ads: seq[Advertisement] = @[]
   c.byService.withValue(serviceId, peers):
