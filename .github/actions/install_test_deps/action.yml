@@ -30,7 +30,15 @@ runs:
         nim_ref: ${{ inputs.nim_ref }}
         shell: ${{ inputs.shell }}
 
-    - name: Restore test deps from cache
+    - name: Restore test deps from cache (read-only)
+      if: github.event_name != 'push' || github.ref != 'refs/heads/master'
+      uses: actions/cache/restore@v5
+      with:
+        path: tests/nimbledeps
+        key: nimbledeps-tests-${{ inputs.os }}-${{ inputs.cpu }}-${{ inputs.cc }}-${{ inputs.nim_ref }}-minver-${{ hashFiles('tests/tests.nimble') }}
+
+    - name: Restore test deps from cache (master write-through)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       id: test-deps-cache
       uses: actions/cache@v5
       with:
