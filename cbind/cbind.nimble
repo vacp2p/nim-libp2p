@@ -10,7 +10,8 @@ import os, strutils
 
 requires "taskpools >= 0.1.0",
   "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc",
-  "https://github.com/logos-messaging/nim-ffi#7ef58f4bf5cf683cfdf2abbdb3d7688727763d65"
+  # nim-ffi v0.3.0-rc.0
+  "https://github.com/logos-messaging/nim-ffi#435eebf9e3896e800c1586058a85df120a7fe870"
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
@@ -68,10 +69,12 @@ task buildffi, "Build the FFI shared library":
   buildFfiLib()
 
 proc genBindingsFor(lang, outDir: string) =
-  exec "nim c --threads:on --app:lib --noMain --mm:refc -d:metrics" &
+  # `--compileOnly`: the binding files are written during macro expansion, so
+  # codegen is enough — there is nothing to link.
+  exec "nim c --threads:on --noMain --mm:refc -d:metrics --compileOnly" &
     " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
     " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " -o:/dev/null libp2p.nim"
+    " --nimcache:nimcache_" & lang & " libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")

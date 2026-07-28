@@ -308,6 +308,9 @@ type QuicTransport* = ref object of Transport
   certGenerator: CertGenerator
   closeFuts: seq[Future[void]]
 
+type PeerIdCertificateVerifier = ref object of CertificateVerifier
+  expectedPeerId: PeerId
+
 proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
   if certificatesDer.len != 1:
     trace "CertificateVerifier: expected one certificate in the chain",
@@ -343,6 +346,11 @@ proc verifyCertificatesForPeer(
       expectedPeerId = expectedPeerId
     return false
   true
+
+method verify(
+    self: PeerIdCertificateVerifier, _: string, certificatesDer: seq[seq[byte]]
+): bool =
+  verifyCertificatesForPeer(certificatesDer, self.expectedPeerId)
 
 proc certificateVerifier(_: string, certificatesDer: seq[seq[byte]]): bool {.gcsafe.} =
   verifyCertificates(certificatesDer)
@@ -623,14 +631,13 @@ method dial*(
         await sleepAsync(delay.milliseconds)
 
     let endpoint = self.dialEndpointFor(taAddress)
-    let quicConnection = await endpoint.dial(taAddress)
-    peerId.withValue(expectedPeerId):
-      if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
-        quicConnection.abort()
-        raise newException(
-          QuicTransportDialError,
-          "error in quic dial: certificate does not match expected peer id",
+    let quicConnection =
+      if peerId.isSome():
+        await endpoint.dial(
+          taAddress, PeerIdCertificateVerifier(expectedPeerId: peerId.get())
         )
+      else:
+        await endpoint.dial(taAddress)
     return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(

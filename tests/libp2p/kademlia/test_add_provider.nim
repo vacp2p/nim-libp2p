@@ -94,7 +94,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[1].expiresAt > originalExpiresAt2
 
   asyncTest "Start/stop providing":
-    let kads = setupKadSwitches(2)
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = 2.secs)
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])

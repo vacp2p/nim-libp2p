@@ -5,10 +5,6 @@
 // its incoming stream from main. Calls are made blocking via common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *Proto = "/cbind/relay/1.0.0";
 
 // Single-slot hand-off from the destination's incoming-stream event to main.
@@ -81,8 +77,8 @@ static LibP2PCtx *createNode(const char *addr, const char *label, bool client) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &slot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   cfg.circuitRelay = !client;
   cfg.circuitRelayClient = client;
   return await_create(&cfg, label);

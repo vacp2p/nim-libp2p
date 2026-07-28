@@ -4,7 +4,6 @@ on:
   workflow_call:
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
@@ -79,6 +78,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: true
 
       - name: Setup Nim
@@ -149,9 +149,8 @@ jobs:
           fi
 
           echo "=== Setting up latest allowed dependencies ==="
-          rm -rf nimbledeps tests/nimbledeps nimble.paths tests/nimble.paths
           nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" setup -y
-          (cd tests && nimble --noLockfile --resolver:maxver -l "${NIM_REQUIRES[@]}" setup -y)
+          (cd tests && nimble --resolver:maxver -l "${NIM_REQUIRES[@]}" setup -y)
 
       - name: Build test_all
         run: |

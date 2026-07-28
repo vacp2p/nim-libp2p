@@ -140,8 +140,15 @@ suite "Quic transport":
       await client.stop()
       await server.stop()
 
+    let acceptFut = server.accept()
+    defer:
+      await acceptFut.cancelAndWait()
+
     expect QuicTransportDialError:
       discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
+
+    # Ensure there was no connection accepted on the server side.
+    check not (await acceptFut.withTimeout(200.milliseconds))
 
   asyncTest "should allow multiple local addresses":
     let server = await createQuicTransport(

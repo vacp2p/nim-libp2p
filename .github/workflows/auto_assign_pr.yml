@@ -5,6 +5,9 @@ on:
     types:
       - opened
 
+permissions:
+  pull-requests: write
+
 jobs:
   assign_creator:
     runs-on: ubuntu-latest
