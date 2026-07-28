@@ -92,7 +92,7 @@ jobs:
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.config.cc == 'clang'
         id: windows-mingw-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: external/mingw-${{ matrix.config.cpu }}
           key: 'mingw-llvm-17-${{ matrix.config.cpu }}'
@@ -109,6 +109,19 @@ jobs:
           curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.config.cpu }}.zip"
           7z x -y "external/mingw-${{ matrix.config.cpu }}.zip" -oexternal/mingw-${{ matrix.config.cpu }}/
           mv external/mingw-${{ matrix.config.cpu }}/**/* ./external/mingw-${{ matrix.config.cpu }}
+
+      - name: Save llvm-mingw (Windows) to cache
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        uses: actions/cache/save@v5
+        continue-on-error: true
+        with:
+          path: external/mingw-${{ matrix.config.cpu }}
+          key: ${{ steps.windows-mingw-cache.outputs.cache-primary-key }}
 
       - name: Use gcc 14
         if: ${{ matrix.config.os == 'linux-gcc-14'}}

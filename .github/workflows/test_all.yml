@@ -107,7 +107,7 @@ jobs:
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
         id: windows-mingw-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: external/mingw-${{ matrix.platform.cpu }}
           key: 'mingw-llvm-17-${{ matrix.platform.cpu }}'
@@ -124,6 +124,19 @@ jobs:
           curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.platform.cpu }}.zip"
           7z x -y "external/mingw-${{ matrix.platform.cpu }}.zip" -oexternal/mingw-${{ matrix.platform.cpu }}/
           mv external/mingw-${{ matrix.platform.cpu }}/**/* ./external/mingw-${{ matrix.platform.cpu }}
+
+      - name: Save llvm-mingw (Windows) to cache
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
+        uses: actions/cache/save@v5
+        continue-on-error: true
+        with:
+          path: external/mingw-${{ matrix.platform.cpu }}
+          key: ${{ steps.windows-mingw-cache.outputs.cache-primary-key }}
 
       - name: Use gcc 14
         if: ${{ matrix.platform.os == 'linux-gcc-14'}}
@@ -191,13 +204,13 @@ jobs:
 
       - name: Save build cache
         uses: actions/cache/save@v5
-        if: github.event_name == 'merge_group'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         with:
           path: nimcache
           key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
 
       - name: Prune old nimcache entries
-        if: github.event_name == 'merge_group'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -84,7 +84,7 @@ jobs:
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
         id: windows-mingw-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: external/mingw-${{ needs.pick-platform.outputs.cpu }}
           key: 'mingw-llvm-17-${{ needs.pick-platform.outputs.cpu }}'
@@ -101,6 +101,19 @@ jobs:
           curl -L "$MINGW_URL" -o "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip"
           7z x -y "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip" -oexternal/mingw-${{ needs.pick-platform.outputs.cpu }}/
           mv external/mingw-${{ needs.pick-platform.outputs.cpu }}/**/* ./external/mingw-${{ needs.pick-platform.outputs.cpu }}
+
+      - name: Save llvm-mingw (Windows) to cache
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          needs.pick-platform.outputs.cc == 'clang'
+        uses: actions/cache/save@v5
+        continue-on-error: true
+        with:
+          path: external/mingw-${{ needs.pick-platform.outputs.cpu }}
+          key: ${{ steps.windows-mingw-cache.outputs.cache-primary-key }}
 
       - name: Use gcc 14
         if: needs.pick-platform.outputs.os == 'linux-gcc-14'
