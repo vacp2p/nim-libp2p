@@ -61,7 +61,7 @@ runs:
     - name: Restore Nim DLLs dependencies (Windows) from cache
       if: inputs.os == 'Windows'
       id: windows-dlls-cache
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
         path: external/dlls
         key: 'dlls'
@@ -75,6 +75,18 @@ runs:
         mkdir -p external
         curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
         7z x external/windeps.zip -oexternal/dlls
+
+    - name: Save Nim DLLs dependencies (Windows) to cache
+      if: >
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/master' &&
+        inputs.os == 'Windows' &&
+        steps.windows-dlls-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      continue-on-error: true
+      with:
+        path: external/dlls
+        key: 'dlls'
 
     - name: Path to cached dependencies (Windows)
       shell: ${{ inputs.shell }}
@@ -116,7 +128,7 @@ runs:
 
     - name: Restore Nim from cache
       id: nim-cache
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
         path: '${{ github.workspace }}/nim'
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}-${{ env.NIMBLE_COMMIT }}
@@ -142,3 +154,14 @@ runs:
           bash build_nim.sh nim csources dist/nimble NimBinaries
 
         mv "$tmpdir/nim" "${{ github.workspace }}/nim"
+
+    - name: Save Nim to cache
+      if: >
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/master' &&
+        steps.nim-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      continue-on-error: true
+      with:
+        path: '${{ github.workspace }}/nim'
+        key: ${{ steps.nim-cache.outputs.cache-primary-key }}

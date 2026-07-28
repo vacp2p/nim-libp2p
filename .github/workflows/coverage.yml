@@ -50,7 +50,8 @@ jobs:
         run: make setup
 
       - name: Restore build cache
-        uses: actions/cache@v5
+        id: coverage-cache
+        uses: actions/cache/restore@v5
         with:
           path: nimcache
           key: ${{ github.ref_name }}-nimcache-coverage-linux-amd64-gcc-2.2.10
@@ -78,6 +79,16 @@ jobs:
           lcov --capture --directory nimcache --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --ignore-errors source --output-directory coverage/output
+
+      - name: Save build cache
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master' &&
+          steps.coverage-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: nimcache
+          key: ${{ steps.coverage-cache.outputs.cache-primary-key }}
 
       - name: Upload coverage to codecov
         uses: codecov/codecov-action@v5
