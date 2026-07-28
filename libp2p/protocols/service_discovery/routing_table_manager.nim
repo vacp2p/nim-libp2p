@@ -3,7 +3,7 @@
 
 import std/[tables, sequtils]
 import chronos, chronicles, results
-import ../../[switch, peerinfo, peeraddrpolicy]
+import ../../[switch, peerid, peerinfo, peeraddrpolicy]
 import ../../utils/future
 import ../kademlia
 import ../kademlia/[types, routing_table]
@@ -115,6 +115,21 @@ proc insertPeer*(
     addressBook.extend(peerInfo.peerId, addrs, AddressConfidence.Low)
     cd_service_table_insertions.inc()
     disco.rtManager.updateServiceTablesMetrics()
+
+proc admitPeers*(
+    manager: ServiceRoutingTableManager,
+    kad: KadDHT,
+    serviceId: ServiceId,
+    peerInfos: seq[PeerInfo],
+) =
+  let table = manager.getTable(serviceId).valueOr:
+    return
+
+  let onAdmit = proc(peerId: PeerId) {.gcsafe, raises: [].} =
+    cd_service_table_insertions.inc()
+    manager.updateServiceTablesMetrics()
+
+  kad.admitPeers(table, peerInfos, onAdmit)
 
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service

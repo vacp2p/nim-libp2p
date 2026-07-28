@@ -115,13 +115,24 @@ suite "KadDHT Bootstrap Component":
       9,
       bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
+
+    # The nodes bootstrap at the same instant, so the hub admits no one yet when
+    # they query it. A short refresh interval makes them query the hub again.
+    # bucketRefreshTime also limits each refresh, so keep it above the RPC timeout.
+    for kad in kads:
+      kad.config.bucketRefreshTime = 2.seconds
     startAndDeferStop(kads)
 
     # All nodes should know about all other nodes after bootstrap
-    for i, kad in kads:
-      for j, otherKad in kads:
-        if i != j:
-          check kad.hasKey(otherKad.rtable.selfId)
+    proc allPeersKnowEachOther(): bool =
+      for i, kad in kads:
+        for j, otherKad in kads:
+          if i != j and not kad.hasKey(otherKad.rtable.selfId):
+            return false
+      true
+
+    checkUntilTimeout:
+      allPeersKnowEachOther()
 
   asyncTest "bootstrap with unreachable peer completes gracefully":
     # Fake bootstrap peer with valid address format

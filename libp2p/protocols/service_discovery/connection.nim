@@ -21,8 +21,15 @@ proc send*(
     await disco.switch.dial(peerId, addrs, disco.codec)
   let stream = connRes.valueOr:
     return err("dialing peer failed: " & error.msg)
+  var replyRead = false
   defer:
-    await stream.close()
+    # Closing only half-closes the channel: an abandoned RPC leaves its unread
+    # reply in the read buffer, which blocks the muxer for every other channel
+    # on that connection. Only a reset drops it.
+    if replyRead:
+      await noCancel stream.close()
+    else:
+      await noCancel stream.reset()
 
   let encodedMsg = msg.encode()
 
@@ -41,6 +48,7 @@ proc send*(
     return err("connection writing failed: " & writeRes.error.msg)
   let replyBuf = readRes.valueOr:
     return err("connection reading failed: " & readRes.error.msg)
+  replyRead = true
 
   cd_messages_received.inc(labelValues = [$msg.msgType])
   cd_message_bytes_received.inc(replyBuf.len.float64, labelValues = [$msg.msgType])
