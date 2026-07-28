@@ -103,8 +103,8 @@ suite "Service Discovery Component - Registrar Closer Peers":
       not discovererNode.rtable.hasPeer(serviceOnlyKey)
 
     let found = await discovererNode.lookup(serviceId)
-    check:
-      found.isOk()
+    check found.isOk()
+    checkUntilTimeout:
       discovererNode.rtable.hasPeer(serviceOnlyKey)
 
   asyncTest "REGISTER with Wait adds advertiser to RegT":

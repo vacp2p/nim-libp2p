@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables]
+import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
@@ -22,23 +22,22 @@ proc randomRecords(
 
   let randomKey = randomPeerId.toKey()
 
-  let state = LookupState.init(disco, randomKey)
   var queried: HashSet[PeerId]
   var getValFuts: seq[Future[Result[Message, string]].Raising([CancelledError])]
 
-  try:
-    while not closestAvailableStop(state):
-      let progressed =
-        await disco.lookOnce(state, disco.rtable, findNodeDispatch, noopReply)
-      if not progressed:
-        break
+  # Issue a getValue as soon as a peer responds, so they run in parallel with
+  # the rest of the lookup.
+  let onReply = proc(
+      peerId: PeerId, msg: Opt[Message], state: LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    if peerId notin queried:
+      queried.incl(peerId)
+      getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
 
-      # Issue getValue requests as soon as peers respond, so they run in
-      # parallel with the next lookup round.
-      for peerId, status in state.responded:
-        if status == RespondedStatus.Success and peerId notin queried:
-          queried.incl(peerId)
-          getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
+  try:
+    discard await disco.iterativeLookup(
+      randomKey, findNodeDispatch, onReply, closestAvailableStop
+    )
   except CancelledError as e:
     await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
     raise e

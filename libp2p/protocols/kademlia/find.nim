@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm, net]
+import std/[tables, sequtils, algorithm, net, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy, wire]
 import ../protocol
@@ -21,7 +21,6 @@ type LookupState* = ref object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
-  inflight*: Table[PeerId, seq[FutureBase]]
 
 type DispatchProc* = proc(
   kad: KadDHT, peer: PeerId, target: Key
@@ -166,13 +165,24 @@ proc dispatchFindNode*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   withRpcSlot(kad)
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
+  # Shield the dial from cancellation: interrupting switch.dial mid-handshake
+  # leaks the half-opened channel, since the reset defer below is not yet armed.
+  # Letting the dial settle first means a racing cancel unwinds through that
+  # defer instead, which resets the stream.
   let streamRes = catch:
-    await kad.switch.dial(peer, addrs, kad.codec)
+    await noCancel kad.switch.dial(peer, addrs, kad.codec)
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
+  var replyRead = false
   defer:
-    await stream.close()
+    # Closing only half-closes the channel: an abandoned RPC leaves its unread
+    # reply in the read buffer, which blocks the muxer for every other channel
+    # on that connection. Only a reset drops it.
+    if replyRead:
+      await noCancel stream.close()
+    else:
+      await noCancel stream.reset()
 
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -188,6 +198,7 @@ proc dispatchFindNode*(
       replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
+  replyRead = true
 
   kad_message_bytes_received.inc(
     replyBuf.len.int64, labelValues = [$MessageType.findNode]
@@ -254,6 +265,19 @@ proc sharesSubnet64(addrs: seq[Ipv6Address], subnet: Ipv6Subnet64): bool =
       return true
   false
 
+proc diversityPeers(
+    rtable: RoutingTable, pending: seq[PeerId]
+): seq[PeerId] {.raises: [].} =
+  ## Peers counting against the IP-diversity caps. In-flight probes count too, so
+  ## one reply naming many peer ids on a single address cannot fan out dials.
+  var peers: seq[PeerId]
+  for key in rtable.allKeys():
+    let pid = key.toPeerId().valueOr:
+      continue
+    peers.add(pid)
+  peers.add(pending)
+  peers
+
 proc hasIpDiversity*(
     addressBook: AddressBook,
     rtable: RoutingTable,
@@ -262,10 +286,11 @@ proc hasIpDiversity*(
     maxPeersPerIp: int,
     maxPeersPerIpv4Subnet: int,
     maxPeersPerIpv6Subnet: int,
+    pending: seq[PeerId] = @[],
 ): bool {.raises: [].} =
   # Existing entries may refresh their addresses; diversity limits apply to new
   # routing-table admission, not to maintenance of already-admitted peers.
-  if peerId.toKey() in rtable.allKeys():
+  if peerId.toKey() in rtable:
     return true
 
   let candidateIps = addrs.uniquePublicIps()
@@ -274,7 +299,7 @@ proc hasIpDiversity*(
   if candidateIps.ipv4s.len == 0 and candidateIps.ipv6s.len == 0:
     return true
 
-  let currentKeys = rtable.allKeys()
+  let others = rtable.diversityPeers(pending)
   # A multi-addressed peer is admissible if at least one public address remains
   # below both its exact-IP and subnet caps.
   for candidateIp in candidateIps.ipv4s:
@@ -282,9 +307,7 @@ proc hasIpDiversity*(
     var exactCount = 0
     var subnetCount = 0
 
-    for key in currentKeys:
-      let existingPeer = key.toPeerId().valueOr:
-        continue
+    for existingPeer in others:
       if existingPeer == peerId:
         continue
 
@@ -302,9 +325,7 @@ proc hasIpDiversity*(
     var exactCount = 0
     var subnetCount = 0
 
-    for key in currentKeys:
-      let existingPeer = key.toPeerId().valueOr:
-        continue
+    for existingPeer in others:
       if existingPeer == peerId:
         continue
 
@@ -319,6 +340,35 @@ proc hasIpDiversity*(
 
   false
 
+proc admissibleAddrs(
+    switch: Switch,
+    addressPolicy: PeerAddressPolicy,
+    rtable: RoutingTable,
+    p: PeerInfo,
+    maxPeersPerIp: int,
+    maxPeersPerIpv4Subnet: int,
+    maxPeersPerIpv6Subnet: int,
+    pending: seq[PeerId] = @[],
+): seq[MultiAddress] {.raises: [].} =
+  let addrs = addressPolicy.filterAddrs(p.addrs)
+  if addrs.len == 0:
+    return @[]
+  if not switch.peerStore[AddressBook].hasIpDiversity(
+    rtable, p.peerId, addrs, maxPeersPerIp, maxPeersPerIpv4Subnet,
+    maxPeersPerIpv6Subnet, pending,
+  ):
+    return @[]
+  addrs
+
+proc admissibleAddrs(
+    kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
+): seq[MultiAddress] {.raises: [].} =
+  kad.switch.admissibleAddrs(
+    kad.config.addressPolicy, rtable, p, kad.config.limits.maxPeersPerIp,
+    kad.config.limits.maxPeersPerIpv4Subnet, kad.config.limits.maxPeersPerIpv6Subnet,
+    pending,
+  )
+
 proc updatePeers*(
     switch: Switch,
     addressPolicy: PeerAddressPolicy,
@@ -328,15 +378,14 @@ proc updatePeers*(
     maxPeersPerIpv4Subnet: int = DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: int = DefaultMaxPeersPerSubnet,
 ) {.raises: [].} =
+  ## Unprobed admission, for trusted seed peers only; see ``admitPeers``.
   let addressBook = switch.peerStore[AddressBook]
   for p in peerInfos:
-    let addrs = addressPolicy.filterAddrs(p.addrs)
-    if addrs.len == 0:
-      continue
-    if not addressBook.hasIpDiversity(
-      rtable, p.peerId, addrs, maxPeersPerIp, maxPeersPerIpv4Subnet,
+    let addrs = switch.admissibleAddrs(
+      addressPolicy, rtable, p, maxPeersPerIp, maxPeersPerIpv4Subnet,
       maxPeersPerIpv6Subnet,
-    ):
+    )
+    if addrs.len == 0:
       continue
     # Store before insert: a peer rejected for lack of bucket space still reaches
     # the lookup shortlist, and would be undialable without its addresses.
@@ -354,6 +403,96 @@ proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
 
+proc lookupCheck(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
+  let probe = kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
+  # A probe abandoned on timeout keeps its stream open, so always settle it.
+  defer:
+    await noCancel probe.cancelAndWait()
+  discard await probe.withTimeout(kad.config.timeout)
+  if not probe.completed():
+    return false
+  let reply = probe.value().valueOr:
+    return false
+  reply.msgType == Opt.some(MessageType.findNode)
+
+proc admitPeer(
+    kad: KadDHT,
+    rtable: RoutingTable,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    onAdmit: AdmitHook,
+) {.async: (raises: []).} =
+  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
+  defer:
+    try:
+      kad.probeSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "probeSem released without acquire"
+
+  let reachable =
+    try:
+      await kad.lookupCheck(peerId, addrs)
+    except CancelledError:
+      return
+  if not reachable:
+    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    return
+  if rtable.insert(peerId) and not onAdmit.isNil():
+    onAdmit(peerId)
+
+proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: [].} =
+  ## ``probe`` may already be done — a dial can fail without ever suspending.
+  if probe.finished():
+    return
+  kad.admissionProbes[probeKey] = probe
+  probe.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      if kad.admissionProbes.getOrDefault(probeKey) == probe:
+        kad.admissionProbes.del(probeKey)
+  )
+
+proc admitPeers*(
+    kad: KadDHT,
+    rtable: RoutingTable,
+    peerInfos: seq[PeerInfo],
+    onAdmit: AdmitHook = nil,
+) {.raises: [].} =
+  ## Admit network-discovered peers into ``rtable`` behind a background probe.
+  ## Addresses are recorded up front regardless, so lookups can still dial them.
+  ## Probes are never queued — a candidate with no free slot is retried when a
+  ## later reply names it.
+  # A handler racing shutdown must not launch a probe: it would dial after the
+  # drain loop completed, leaking the stream past ``stop``.
+  if kad.stopping:
+    return
+  let addressBook = kad.switch.peerStore[AddressBook]
+  let selfPid = kad.switch.peerInfo.peerId
+  var pending = kad.admissionProbes.keys.toSeq().mapIt(it.peerId)
+  for p in peerInfos:
+    if p.peerId == selfPid:
+      continue
+    let addrs = kad.admissibleAddrs(rtable, p, pending)
+    if addrs.len == 0:
+      continue
+    addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
+    if p.peerId.toKey() in rtable:
+      # already admitted, refresh recency without re-probing
+      discard rtable.insert(p.peerId)
+      continue
+    let probeKey: ProbeKey = (rtable.selfId, p.peerId)
+    if kad.admissionProbes.hasKey(probeKey):
+      continue
+    if not kad.probeSem.tryAcquire():
+      break
+    pending.add(p.peerId)
+    kad.trackProbe(probeKey, kad.admitPeer(rtable, p.peerId, addrs, onAdmit))
+
+proc admitPeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
+  kad.admitPeers(kad.rtable, peerInfos)
+
 proc noopReply*(
     peerId: PeerId, msgOpt: Opt[Message], state: LookupState
 ): Future[void] {.async: (raises: []), gcsafe.} =
@@ -367,79 +506,151 @@ proc findNodeDispatch*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   return await dispatchFindNode(kad, peer, target)
 
-proc lookOnce*(
+type DispatchOutcome = enum
+  Completed
+  Errored
+
+type DispatchResult = object
+  peer: PeerId
+  outcome: DispatchOutcome
+  msg: Message
+
+type RpcFuture = Future[DispatchResult].Raising([CancelledError])
+
+type Attempt = object
+  peer: PeerId
+  fut: RpcFuture
+  deadline: Moment
+  abandoned: bool
+    ## its ``timeout`` elapsed; the slot is freed but the RPC
+    ## keeps running so it can still deliver, and its late result is ignored.
+
+proc dispatchPeer(
+    kad: KadDHT, peerId: PeerId, target: Key, dispatch: DispatchProc
+): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
+  let res = await dispatch(kad, peerId, target)
+  if res.isErr():
+    error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+    return DispatchResult(peer: peerId, outcome: Errored)
+  DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
+
+func activePeers(pending: seq[Attempt]): HashSet[PeerId] {.raises: [].} =
+  var peers = initHashSet[PeerId]()
+  for a in pending:
+    if not a.abandoned:
+      peers.incl(a.peer)
+  peers
+
+proc fillSlots(
+    kad: KadDHT, state: LookupState, pending: var seq[Attempt], dispatch: DispatchProc
+) {.raises: [].} =
+  ## Keep up to ``alpha`` RPCs in flight by dispatching the next-closest
+  ## not-yet-active peers into any free slots.
+  var active = pending.activePeers()
+  let target = state.target
+  for (peerId, _) in state.sortedShortlist():
+    if active.len >= kad.config.alpha:
+      break
+    if peerId in active:
+      continue
+    state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
+    debug "Lookup query", peer = peerId.shortLog()
+    pending.add(
+      Attempt(
+        peer: peerId,
+        fut: kad.dispatchPeer(peerId, target, dispatch),
+        deadline: Moment.now() + kad.config.timeout,
+        abandoned: false,
+      )
+    )
+    active.incl(peerId)
+
+proc awaitProgress(pending: seq[Attempt]) {.async: (raises: [CancelledError]).} =
+  ## Wake as soon as any in-flight RPC finishes or the earliest active slot's
+  ## ``timeout`` elapses, whichever comes first.
+  var earliest = Opt.none(Moment)
+  for a in pending:
+    if not a.abandoned and (earliest.isNone or a.deadline < earliest.get()):
+      earliest = Opt.some(a.deadline)
+
+  let timer = sleepAsync(
+    if earliest.isSome:
+      max(earliest.get() - Moment.now(), ZeroDuration)
+    else:
+      InfiniteDuration
+  )
+  defer:
+    timer.cancelSoon()
+
+  var futs = pending.mapIt(FutureBase(it.fut))
+  futs.add(FutureBase(timer))
+  try:
+    discard await race(futs)
+  except ValueError:
+    raiseAssert "race() cannot raise ValueError on a non-empty future list"
+
+proc harvestInflight(
+    pending: var seq[Attempt], now: Moment
+): seq[DispatchResult] {.raises: [].} =
+  ## Collect the replies of finished, still-relevant RPCs and drop them, and
+  ## mark overdue in-flight RPCs abandoned so their slot frees while they keep
+  ## running (a late reply is ignored).
+  var completed: seq[DispatchResult]
+  var stillPending: seq[Attempt]
+  for a in pending:
+    if a.fut.finished():
+      if not a.abandoned and not a.fut.cancelled():
+        completed.add(a.fut.value())
+      continue
+    if not a.abandoned and now >= a.deadline:
+      stillPending.add(
+        Attempt(peer: a.peer, fut: a.fut, deadline: a.deadline, abandoned: true)
+      )
+    else:
+      stillPending.add(a)
+  pending = stillPending
+  completed
+
+proc applyReplies(
     kad: KadDHT,
     state: LookupState,
     rtable: RoutingTable,
-    dispatch: DispatchProc,
+    completed: seq[DispatchResult],
     onReply: ReplyHandler,
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  ## Run a single round of the iterative lookup against ``state.target``.
-  ## Returns ``false`` when no further peers can be queried, signalling the
-  ## caller to stop driving the lookup.
-  let toQuery = state.selectCloserPeers(kad.config.alpha)
-  if toQuery.len() == 0:
-    return false
+) {.async: (raises: [CancelledError]).} =
+  for res in completed:
+    case res.outcome
+    of Errored:
+      state.responded[res.peer] = RespondedStatus.Failed
+    of Completed:
+      state.responded[res.peer] = RespondedStatus.Success
+      # A reply proves the peer useful; retain it through eviction.
+      rtable.markUseful(res.peer)
+      let newPeerInfos = state.updateShortlist(res.msg)
+      kad.admitPeers(rtable, newPeerInfos)
+      await onReply(res.peer, Opt.some(res.msg), state)
 
-  for peerId in toQuery:
-    state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-
-  debug "Lookup queries", peersToQuery = toQuery.mapIt(it.shortLog())
-
-  let target = state.target
-  let dispatchWithPeer = proc(
-      peerId: PeerId
-  ): Future[(PeerId, Result[Message, string])] {.
-      async: (raises: [CancelledError]), gcsafe
-  .} =
-    let msg = await dispatch(kad, peerId, target)
-    return (peerId, msg)
-
-  let rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
-  for (fut, peerId) in zip(rpcBatch, toQuery):
-    state.inflight.mgetOrPut(peerId, @[]).add(FutureBase(fut))
-  let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
-
-  for (fut, peerId) in zip(rpcBatch, toQuery):
-    if not fut.finished() or fut.cancelled():
-      continue
-    if fut.failed():
-      state.responded[peerId] = RespondedStatus.Failed
+proc dropDonePeers(
+    state: LookupState, pending: var seq[Attempt]
+): seq[RpcFuture] {.raises: [].} =
+  ## Remove attempts whose peer is finished with — it responded successfully (no
+  ## duplicate retry), a closer peer evicted it from the shortlist, or it was
+  ## abandoned with its retries depleted (never re-dispatched, so its RPC is pure
+  ## waste) — and return their still-live RPCs so the caller can cancel them.
+  ## A `Failed` status does not end the peer: the entry stays until its retries
+  ## run out, and the retry that `fillSlots` dispatched must keep running.
+  var keep: seq[Attempt]
+  var stale: seq[RpcFuture]
+  for a in pending:
+    let succeeded = state.responded.getOrDefault(a.peer) == RespondedStatus.Success
+    let retriesDepleted =
+      a.abandoned and state.attempts.getOrDefault(a.peer, 0) > state.kad.config.retries
+    if succeeded or not state.shortlist.hasKey(a.peer) or retriesDepleted:
+      stale.add(a.fut)
     else:
-      let (_, res) = fut.value()
-      if res.isErr():
-        state.responded[peerId] = RespondedStatus.Failed
-        error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
-      else:
-        state.responded[peerId] = RespondedStatus.Success
-
-  var toCancel: seq[FutureBase]
-  for (peerId, res) in completedRPCBatch:
-    let reply = res.valueOr:
-      continue
-    # A reply proves the peer useful; retain it through eviction.
-    rtable.markUseful(peerId)
-    let newPeerInfos = state.updateShortlist(reply)
-    kad.switch.updatePeers(
-      kad.config.addressPolicy, rtable, newPeerInfos, kad.config.limits.maxPeersPerIp,
-      kad.config.limits.maxPeersPerIpv4Subnet, kad.config.limits.maxPeersPerIpv6Subnet,
-    )
-    await onReply(peerId, Opt.some(reply), state)
-
-  # Evicted peers are no longer eligible for retries, so cancel any abandoned RPCs.
-  for peerId in state.inflight.keys.toSeq:
-    if not state.shortlist.hasKey(peerId):
-      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
-      state.inflight.del(peerId)
-
-  for peerId in toQuery:
-    if state.responded.hasKey(peerId) or
-        state.attempts.getOrDefault(peerId, 0) > kad.config.retries:
-      toCancel.add(state.inflight.getOrDefault(peerId).filterIt(not it.finished()))
-      state.inflight.del(peerId)
-  await toCancel.cancelAndWait()
-
-  return true
+      keep.add(a)
+  pending = keep
+  stale
 
 proc iterativeLookup*(
     kad: KadDHT,
@@ -449,17 +660,35 @@ proc iterativeLookup*(
     onReply: ReplyHandler,
     stopCond: StopCond,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
+  ## Drive lookup with continuous ``alpha`` concurrency instead of synchronized
+  ## rounds. Timed-out RPCs free their slot and may be retried; late replies are
+  ## ignored.
   let state = LookupState.init(kad, target)
+  var pending: seq[Attempt]
 
-  while not stopCond(state):
-    if not await kad.lookOnce(state, rtable, dispatch, onReply):
+  # `noCancel`: when the lookup itself is cancelled, still wait for every RPC to
+  # unwind, otherwise we return while their streams are still closing.
+  defer:
+    let inflight = pending.mapIt(it.fut)
+    await noCancel inflight.cancelAndWait()
+
+  while true:
+    let completed = pending.harvestInflight(Moment.now())
+    await kad.applyReplies(state, rtable, completed, onReply)
+    # `dropDonePeers` already removed these from `pending`, so the `defer` above
+    # no longer covers them: they must be awaited to completion here. Bind first:
+    # `cancelAndWait` is a template that would evaluate the call more than once.
+    let stale = state.dropDonePeers(pending)
+    await noCancel stale.cancelAndWait()
+
+    # Once the stop condition holds, dispatch no new peers but keep draining the
+    # replies already in flight, so the returned peer set stays complete.
+    if not stopCond(state):
+      kad.fillSlots(state, pending, dispatch)
+
+    if pending.activePeers().len == 0:
       break
-
-  var leftover: seq[FutureBase]
-  for futs in state.inflight.values:
-    leftover.add(futs.filterIt(not it.finished()))
-  if leftover.len > 0:
-    await leftover.cancelAndWait()
+    await awaitProgress(pending)
 
   state
 
@@ -556,4 +785,4 @@ method handleFindNode*(
   # may use an ephemeral source port.
   let addrs = kad.switch.peerStore[AddressBook][stream.peerId]
   if addrs.len > 0:
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])
+    kad.admitPeers(@[PeerInfo(peerId: stream.peerId, addrs: addrs)])

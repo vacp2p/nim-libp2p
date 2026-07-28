@@ -11,9 +11,9 @@ proc ping*(
 ): Future[bool] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let stream = await kad.switch.dial(peerId, addrs, kad.codec)
+  let stream = await noCancel kad.switch.dial(peerId, addrs, kad.codec)
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let request = Message(msgType: Opt.some(MessageType.ping))
   let encoded = request.encode(kad.config.hideConnectionStatus)

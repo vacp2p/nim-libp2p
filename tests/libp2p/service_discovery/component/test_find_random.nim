@@ -26,7 +26,7 @@ suite "Service Discovery Component - Find Random":
       check record.peerId in peerIds
 
   asyncTest "lookupRandom completes when there are no peers to query":
-    # With an empty routing table the shortlist is empty, so lookOnce returns
+    # With an empty routing table the shortlist is empty, so the lookup returns
     # immediately and lookupRandom must complete rather than hang.
     let discos = setupServiceDiscoveryNodes(1)
     startAndDeferStop(discos)

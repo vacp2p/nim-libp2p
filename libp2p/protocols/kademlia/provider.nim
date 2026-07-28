@@ -109,12 +109,14 @@ proc dispatchAddProvider(
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   withRpcSlot(kad)
   let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    await noCancel kad.switch.dial(
+      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
+    )
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let msg = Message(
     msgType: Opt.some(MessageType.addProvider),
@@ -292,7 +294,7 @@ method handleAddProvider*(
     for peer in validPeers:
       let providerId = PeerId.init(peer.id.get()).valueOr:
         continue
-      kad.updatePeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
+      kad.admitPeers(@[PeerInfo(peerId: providerId, addrs: peer.addrs)])
       kad.providerManager.addProviderRecord(
         ProviderRecord(
           provider: peer,
@@ -316,12 +318,14 @@ proc dispatchGetProviders*(
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   withRpcSlot(kad)
   let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    await noCancel kad.switch.dial(
+      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
+    )
   if streamRes.isErr:
     return err(streamRes.error.msg)
   let stream = streamRes.value()
   defer:
-    await stream.close()
+    await noCancel stream.close()
   let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
