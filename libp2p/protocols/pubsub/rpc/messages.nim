@@ -52,12 +52,12 @@ type
     supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
 
   Message* {.proto2.} = object
-    fromPeer* {.fieldNumber: 1, ext.}: Opt[PeerId]
-    data* {.fieldNumber: 2.}: Opt[seq[byte]]
-    seqno* {.fieldNumber: 3.}: Opt[seq[byte]]
+    fromPeer* {.fieldNumber: 1, ext, implicit.}: PeerId
+    data* {.fieldNumber: 2, implicit.}: seq[byte]
+    seqno* {.fieldNumber: 3, implicit.}: seq[byte]
     topic* {.fieldNumber: 4, required.}: string
-    signature* {.fieldNumber: 5.}: Opt[seq[byte]]
-    key* {.fieldNumber: 6.}: Opt[seq[byte]]
+    signature* {.fieldNumber: 5, implicit.}: seq[byte]
+    key* {.fieldNumber: 6, implicit.}: seq[byte]
 
   ControlExtensions* {.proto2.} = object
     partialMessageExtension* {.fieldNumber: 10.}: Opt[bool]
@@ -76,19 +76,19 @@ type
     extensions* {.fieldNumber: 6.}: Opt[ControlExtensions]
 
   ControlIHave* {.proto2.} = object
-    topicID* {.fieldNumber: 1.}: Opt[string]
+    topicID* {.fieldNumber: 1, implicit.}: string
     messageIDs* {.fieldNumber: 2.}: seq[MessageId]
 
   ControlIWant* {.proto2.} = object
     messageIDs* {.fieldNumber: 1.}: seq[MessageId]
 
   ControlGraft* {.proto2.} = object
-    topicID* {.fieldNumber: 1.}: Opt[string]
+    topicID* {.fieldNumber: 1, implicit.}: string
 
   ControlPrune* {.proto2.} = object
-    topicID* {.fieldNumber: 1.}: Opt[string]
+    topicID* {.fieldNumber: 1, implicit.}: string
     peers* {.fieldNumber: 2.}: seq[PeerInfoMsg]
-    backoff* {.fieldNumber: 3, pint.}: Opt[uint64]
+    backoff* {.fieldNumber: 3, pint, implicit.}: uint64
 
   TestExtensionRPC* {.proto2.} = object
 
@@ -384,12 +384,10 @@ proc withIDontWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessa
 proc withIHave*(
     _: typedesc[ControlMessage], topicID: string, messageIDs: sink seq[MessageId]
 ): ControlMessage =
-  ControlMessage(
-    ihave: @[ControlIHave(topicID: Opt.some(topicID), messageIDs: move(messageIDs))]
-  )
+  ControlMessage(ihave: @[ControlIHave(topicID: topicID, messageIDs: move(messageIDs))])
 
 proc withGraft*(_: typedesc[ControlMessage], topicID: string): ControlMessage =
-  ControlMessage(graft: @[ControlGraft(topicID: Opt.some(topicID))])
+  ControlMessage(graft: @[ControlGraft(topicID: topicID)])
 
 proc withPrune*(
     _: typedesc[ControlMessage],
@@ -398,11 +396,7 @@ proc withPrune*(
     peers: sink seq[PeerInfoMsg],
 ): ControlMessage =
   ControlMessage(
-    prune: @[
-      ControlPrune(
-        topicID: Opt.some(topicID), peers: move(peers), backoff: Opt.some(backoff)
-      )
-    ]
+    prune: @[ControlPrune(topicID: topicID, peers: move(peers), backoff: backoff)]
   )
 
 proc withExtensions*(
@@ -485,10 +479,10 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
   if anonymize and msg.messages.len > 0:
     var anonMsg = msg
     for m in anonMsg.messages.mitems:
-      m.fromPeer = Opt.none(PeerId)
-      m.seqno = Opt.none(seq[byte])
-      m.signature = Opt.none(seq[byte])
-      m.key = Opt.none(seq[byte])
+      m.fromPeer = PeerId()
+      m.seqno = @[]
+      m.signature = @[]
+      m.key = @[]
     anonMsg
   else:
     msg

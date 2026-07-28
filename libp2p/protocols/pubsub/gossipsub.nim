@@ -509,14 +509,13 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if isLargeMessage(msg.data.get(@[]).len, msgId):
+    if isLargeMessage(msg.data.len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
       # Also exclude the original message publisher so we don't send IDontWant
       # to a peer we won't relay to after the fix below.
-      msg.fromPeer.withValue(fromPeer):
-        g.peers.withValue(fromPeer, sourcePeer):
-          peersToSendIDontWant.excl(sourcePeer[])
+      g.peers.withValue(msg.fromPeer, sourcePeer):
+        peersToSendIDontWant.excl(sourcePeer[])
       g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
@@ -524,8 +523,7 @@ proc validateAndRelay(
     let seenPeers = g.validationSeen.getOrDefault(saltedId)
     libp2p_gossipsub_duplicate_during_validation.inc(seenPeers.len.int64)
     libp2p_gossipsub_saved_bytes.inc(
-      (msg.data.get(@[]).len * seenPeers.len).int64,
-      labelValues = ["validation_duplicate"],
+      (msg.data.len * seenPeers.len).int64, labelValues = ["validation_duplicate"]
     )
 
     case validation
@@ -561,16 +559,15 @@ proc validateAndRelay(
     # Also exclude the original message publisher to prevent relaying back to
     # them. This handles the case where the message arrived via an intermediate
     # relay node (e.g., A→B→C: when C relays, it should not send back to A).
-    msg.fromPeer.withValue(fromPeer):
-      g.peers.withValue(fromPeer, sourcePeer):
-        toSendPeers.excl(sourcePeer[])
+    g.peers.withValue(msg.fromPeer, sourcePeer):
+      toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
         if saltedId in iDontWant:
           libp2p_gossipsub_idontwant_saved_messages.inc
           libp2p_gossipsub_saved_bytes.inc(
-            msg.data.get(@[]).len.int64, labelValues = ["idontwant"]
+            msg.data.len.int64, labelValues = ["idontwant"]
           )
           return true
       return false
@@ -578,8 +575,7 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     g.extensionsState.preambleBroadcastIfNotReceiving(
-      RPCMsg.withPreamble(topic, msgId, msg.data.get(@[]).len),
-      toSendPeers.mapIt(it.peerId),
+      RPCMsg.withPreamble(topic, msgId, msg.data.len), toSendPeers.mapIt(it.peerId)
     )
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -591,14 +587,14 @@ proc validateAndRelay(
       toSendPeers.len.int64, labelValues = [g.topicLabel(topic)]
     )
 
-    await handleData(g, topic, msg.data.get())
+    await handleData(g, topic, msg.data)
   except CancelledError:
     info "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
     info "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
-  msgs.mapIt(it.data.get(@[]).len + it.topic.len).foldl(a + b, 0)
+  msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
 
 proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
   # In this way we count even ignored fields by protobuf
@@ -697,20 +693,20 @@ method rpcHandler*(
         msgId = shortLog(msgId), peer
       continue
 
-    if (msg.signature.isSome or g.verifySignature) and not msg.verify():
+    if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       debug "Dropping message due to failed signature verification", msg = msg
 
       await g.punishInvalidMessage(peer, msg)
       continue
 
-    if msg.seqno.isSome and msg.seqno.get().len != 8:
+    if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
       await g.punishInvalidMessage(peer, msg)
       continue
 
-    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.get(@[]).len)
+    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
 
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
@@ -923,12 +919,12 @@ method publish*(
     g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish:
-    if not pubParams.skipIDontWant and isLargeMessage(msg.data.get().len, msgId):
+    if not pubParams.skipIDontWant and isLargeMessage(msg.data.len, msgId):
       g.sendIDontWant(topic, msgId, peers)
 
     if not pubParams.skipPreamble:
       g.extensionsState.preambleBroadcast(
-        RPCMsg.withPreamble(topic, msgId, msg.data.get().len), peers.mapIt(it.peerId)
+        RPCMsg.withPreamble(topic, msgId, msg.data.len), peers.mapIt(it.peerId)
       )
 
   g.broadcast(
