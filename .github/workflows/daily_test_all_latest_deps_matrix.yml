@@ -89,69 +89,18 @@ jobs:
           nim_ref: ${{ matrix.nim.ref }}
           cpu: ${{ matrix.config.cpu }}
 
-      - name: Restore llvm-mingw (Windows) from cache
-        if: runner.os == 'Windows' && matrix.config.cc == 'clang'
-        id: windows-mingw-cache
-        uses: actions/cache/restore@v5
+      - name: Setup Windows dependencies
+        uses: "./.github/actions/setup_windows"
         with:
-          path: external/mingw-${{ matrix.config.cpu }}
-          key: 'mingw-llvm-17-${{ matrix.config.cpu }}'
-
-      - name: Install llvm-mingw dependency (Windows)
-        if: >
-          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows' &&
-          matrix.config.cc == 'clang'
-        run: |
-          mkdir -p external
-          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
-          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
-          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.config.cpu }}.zip"
-          7z x -y "external/mingw-${{ matrix.config.cpu }}.zip" -oexternal/mingw-${{ matrix.config.cpu }}/
-          mv external/mingw-${{ matrix.config.cpu }}/**/* ./external/mingw-${{ matrix.config.cpu }}
-
-      - name: Save llvm-mingw (Windows) to cache
-        if: >
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/master' &&
-          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows' &&
-          matrix.config.cc == 'clang'
-        uses: actions/cache/save@v5
-        continue-on-error: true
-        with:
-          path: external/mingw-${{ matrix.config.cpu }}
-          key: ${{ steps.windows-mingw-cache.outputs.cache-primary-key }}
+          cpu: ${{ matrix.config.cpu }}
+          cc: ${{ matrix.config.cc }}
+          shell: ${{ matrix.config.shell }}
 
       - name: Use gcc 14
         if: ${{ matrix.config.os == 'linux-gcc-14'}}
         run: |
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
           sudo update-alternatives --set gcc /usr/bin/gcc-14
-
-      - name: Path to cached dependencies (Windows)
-        if: >
-          runner.os == 'Windows' &&
-          matrix.config.cc == 'clang'
-        run: |
-          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.config.cpu }}/bin" >> $GITHUB_PATH
-          echo "." >> $GITHUB_PATH
-
-      - name: Install nasm (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install nasm --no-progress -y
-          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Prepare short paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          git config --global core.longpaths true
-          New-Item -ItemType Directory -Force -Path D:\t | Out-Null
-          "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
-          "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Setup dependencies (latest allowed by nimble requirements)
         run: |
