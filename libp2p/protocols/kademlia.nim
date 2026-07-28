@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sequtils
+import std/[sequtils, tables]
+import chronos, chronicles, results
 import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
@@ -86,6 +87,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
+    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -146,6 +148,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
+  kad.stopping = false
+
   if not kad.config.disableBootstrapping:
     discard
       await kad.bootstrap(forceRefresh = true).withTimeout(kad.config.bucketRefreshTime)
@@ -163,16 +167,23 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:
     return
 
+  # Set before any await so handlers racing shutdown stop launching probes; the
+  # drain loop below can then finish for good rather than chasing new arrivals.
+  kad.stopping = true
   kad.started = false
 
-  kad.maintenanceLoop.cancelSoon()
+  await noCancel allFutures(
+    kad.maintenanceLoop.cancelAndWait(),
+    kad.republishLoop.cancelAndWait(),
+    kad.expiredLoop.cancelAndWait(),
+    kad.recordExpirationLoop.cancelAndWait(),
+  )
   kad.maintenanceLoop = nil
-
-  kad.republishLoop.cancelSoon()
   kad.republishLoop = nil
-
-  kad.expiredLoop.cancelSoon()
   kad.expiredLoop = nil
-
-  kad.recordExpirationLoop.cancelSoon()
   kad.recordExpirationLoop = nil
+
+  # loop: a handler racing shutdown can register a probe while we await a batch
+  while kad.admissionProbes.len > 0:
+    let admissionProbes = move kad.admissionProbes
+    await noCancel admissionProbes.values.toSeq().cancelAndWait()

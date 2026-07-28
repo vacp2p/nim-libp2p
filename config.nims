@@ -34,6 +34,5 @@ if defined(windows) and not defined(vcc):
 
 # begin Nimble config (version 2)
 when withDir(thisDir(), system.fileExists("nimble.paths")):
-  --noNimblePath
   include "nimble.paths"
 # end Nimble config
