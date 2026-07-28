@@ -22,13 +22,7 @@ type
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
 
 proc getIPs*(addrsInfos: seq[AddressInfo]): seq[IpAddress] =
-  var ips = newSeqOfCap[IpAddress](addrsInfos.len)
-
-  for addrInfo in addrsInfos:
-    addrInfo.address.getIp().withValue(ip):
-      ips.add(ip)
-
-  return ips
+  addrsInfos.mapIt(it.address).getIPs()
 
 proc checkAddresses*(addresses: seq[AddressInfo]): Result[void, string] =
   for ai in addresses:

@@ -11,6 +11,7 @@ import
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
+export iptree
 export extended_peer_record.MaxServiceDataSize
 export extended_peer_record.MaxXPRSize
 export extended_peer_record.isValid

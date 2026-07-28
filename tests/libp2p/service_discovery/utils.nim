@@ -172,7 +172,7 @@ proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) 
   )
 
 proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertisement] =
-  disco.registrar.ads.adsForService(serviceId)
+  disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)
 
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len

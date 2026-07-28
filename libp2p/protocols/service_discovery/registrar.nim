@@ -19,8 +19,8 @@ logScope:
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.ads.len.float64)
-  cd_registrar_cache_services.set(registrar.ads.serviceCount.float64)
-  cd_iptree_total_ips.set(registrar.ads.ipTotal.float64)
+  cd_registrar_cache_services.set(registrar.ads.serviceLen.float64)
+  cd_iptree_total_ips.set(registrar.ads.ipTree.ipsLen.float64)
 
 proc isExpired(now, ts: Moment, expiry: Duration): bool =
   now - ts > expiry
@@ -74,11 +74,7 @@ proc advertiserIps*(
   if addrs.len == 0 and advertiser == disco.switch.peerInfo.peerId:
     addrs = disco.switch.peerInfo.addrs
 
-  var ips = newSeqOfCap[IpAddress](addrs.len)
-  for ma in addrs:
-    ma.getIp().withValue(ip):
-      ips.add(ip)
-  ips
+  addrs.getIPs()
 
 proc waitingTime*(
     registrar: Registrar,
@@ -89,7 +85,7 @@ proc waitingTime*(
 ): Duration =
   let advertCacheCap = registrar.ads.capacity
   let c = registrar.ads.len.uint64
-  let c_s = registrar.ads.serviceAdCount(serviceId)
+  let c_s = registrar.ads.serviceCacheAdsLen(serviceId)
 
   let occupancy =
     if c >= advertCacheCap:
@@ -101,7 +97,7 @@ proc waitingTime*(
       1.0 / pow(base, exp)
 
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
-  let ipSim = registrar.ads.ipMaxScore(advertiserIps)
+  let ipSim = registrar.ads.ipTree.ipsMaxScore(advertiserIps)
 
   var w: float64 =
     discoConfig.advertExpiry.seconds.float64 * occupancy *
@@ -387,9 +383,9 @@ proc getAdvertisements*(
   if senderAddrs.len > 0:
     discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
-  let ads = disco.registrar.ads.adsForService(serviceId)
-
   let cap = disco.discoConfig.fReturn
+  let ads =
+    disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)
 
   let closerPeers = disco.getCloserPeers(serviceId, cap)
 

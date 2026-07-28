@@ -1284,6 +1284,15 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
 
+proc getIPs*(addrs: seq[MultiAddress]): seq[IpAddress] =
+  ## Extract IP addresses from a list of multiaddresses.
+  ## Multiaddresses without an IP4/IP6 component are skipped.
+  var ips = newSeqOfCap[IpAddress](addrs.len)
+  for ma in addrs:
+    ma.getIp().withValue(ip):
+      ips.add(ip)
+  ips
+
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
   ## ``ip``. If ``ip``'s family differs from the original, the IP codec is
