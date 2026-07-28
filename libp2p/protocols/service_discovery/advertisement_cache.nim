@@ -20,7 +20,6 @@ proc removeIps(ipTree: IpTree, ips: seq[IpAddress]) =
     ipTree.removeIp(ip)
 
 proc ipMaxScore(ipTree: IpTree, ips: seq[IpAddress]): float64 =
-  ## Max IP similarity score across the given addresses.
   var maxScore = 0.0
   for ip in ips:
     let score = ipTree.ipScore(ip)
@@ -42,12 +41,6 @@ proc serviceAdCount*(c: AdvertisementCache, serviceId: ServiceId): int =
 proc containsService*(c: AdvertisementCache, serviceId: ServiceId): bool =
   serviceId in c.byService
 
-proc contains*(c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId): bool =
-  ## True when `advertiser` already has a cached ad under `serviceId`.
-  c.byService.withValue(serviceId, peers):
-    return advertiser in peers[]
-  false
-
 proc adsForService*(c: AdvertisementCache, serviceId: ServiceId): seq[Advertisement] =
   var ads: seq[Advertisement] = @[]
   c.byService.withValue(serviceId, peers):
@@ -67,7 +60,6 @@ proc ipMaxScore*(c: AdvertisementCache, ips: seq[IpAddress]): float64 =
   c.ipTree.ipMaxScore(ips)
 
 proc ipTotal*(c: AdvertisementCache): int =
-  ## Total IP multi-set size (IPv4 + IPv6 root counters).
   c.ipTree.root.counter + c.ipTree.root6.counter
 
 proc ipScore*(c: AdvertisementCache, ip: IpAddress): float64 =
@@ -134,7 +126,6 @@ proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   let cutoff = now - expiry
   var
     removed = 0
-    emptyServices: seq[ServiceId]
     toRemove: seq[(ServiceId, PeerId)]
 
   for serviceId, peers in c.byService:
@@ -145,13 +136,6 @@ proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   for (serviceId, advertiser) in toRemove:
     c.removeSlot(serviceId, advertiser)
     inc removed
-
-  for serviceId, peers in c.byService:
-    if peers.len == 0:
-      emptyServices.add(serviceId)
-
-  for serviceId in emptyServices:
-    c.byService.del(serviceId)
 
   removed
 

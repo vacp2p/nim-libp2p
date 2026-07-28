@@ -51,15 +51,14 @@ type
   CachedAd* = object
     ad*: Advertisement
     advertiser*: PeerId
-    ips*: seq[IpAddress] ## Advertiser IPs counted in the IP tree for this slot
+    ips*: seq[IpAddress]
     timestamp*: Moment
 
   AdvertisementCache* = ref object
-    ## One slot per (serviceId, advertiserPeerId). Replace on re-register.
     byService*: Table[ServiceId, Table[PeerId, CachedAd]]
     ipTree*: IpTree
     capacity*: uint64
-    count*: int ## Total cached slots; maintained by put/remove/clear
+    count*: int
 
   Registrar* = ref object
     ads*: AdvertisementCache

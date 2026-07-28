@@ -272,9 +272,6 @@ proc registration*(
     inMsg: Message,
     connectionIps: seq[IpAddress] = @[],
 ): Message =
-  ## Handle a REGISTER request from `peerId`.
-  ## `connectionIps` should be the remote endpoint IPs from the stream
-  ## (`observedAddr`) when available; empty triggers peerstore/self fallback.
   let serviceId = inMsg.key.valueOr:
     error "Key not set: registration", msg = inMsg
     return
