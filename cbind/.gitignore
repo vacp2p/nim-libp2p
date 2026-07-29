@@ -1,8 +1,0 @@
-nimble.develop
-nimble.paths
-nimbledeps
-nimcache
-nimcache_c
-nimcache_cddl
-c_bindings
-cddl_bindings
