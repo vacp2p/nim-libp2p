@@ -33,7 +33,7 @@ pkgs.stdenv.mkDerivation {
       --skipUserCfg \
       --threads:on \
       --opt:speed \
-      -d:libp2p_mix_experimental_exit_is_dest \
+      -d:chronicles_runtime_filtering=TRUE \
       libp2p.nim
   '';
 }
