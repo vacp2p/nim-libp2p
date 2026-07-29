@@ -420,7 +420,7 @@ proc libp2pSetLogLevel*(lib: LibP2P, level: int): Future[Result[bool, string]] {
   if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
     return err("invalid log level: " & $level)
 
-  when defined(chronicles_runtime_filtering):
+  when chronicles.runtimeFilteringEnabled:
     chronicles.setLogLevel(chronicles.LogLevel(level))
     ok(true)
   else:
