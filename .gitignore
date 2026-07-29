@@ -1,14 +1,15 @@
+.vscode/
+.DS_Store
+
+# Ignore dynamic, static libs and libtool archive files
 *.so
 *.dylib
 *.a
 *.la
 *.exe
 *.dll
-.vscode/
-.DS_Store
 
 # Executables shall be put in an ignored build/ directory
-# Ignore dynamic, static libs and libtool archive files
 build/
 
 # Generated Nim files
