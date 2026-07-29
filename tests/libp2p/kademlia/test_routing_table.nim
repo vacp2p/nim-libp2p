@@ -221,14 +221,10 @@ suite "KadDHT Routing Table":
       selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     )
     let key = rt.keyInBucket(TargetBucket)
-    check:
-      rt.insert(key)
-      key in rt
-
-    check:
-      rt.removePeer(key)
-      key notin rt
-
+    check rt.insert(key)
+    check key in rt
+    check rt.removePeer(key)
+    check key notin rt
     check not rt.removePeer(key) # already gone
 
   test "removePeer rejects self and localNodeId":
@@ -239,7 +235,7 @@ suite "KadDHT Routing Table":
       not rt.removePeer(selfId)
       not rt.removePeer(localNodeId)
 
-  test "isReplaceable follows grace period from last activity":
+  test "needsLivenessCheck follows grace period from last activity":
     let now = Moment.now()
     var entry = NodeEntry(
       nodeId: testKey(1),
@@ -247,15 +243,9 @@ suite "KadDHT Routing Table":
       addedAt: now - 2.hours,
       lastUsefulAt: Opt.none(Moment),
     )
-    check entry.isReplaceable(1.hours, now)
-
-    entry = NodeEntry(
-      nodeId: testKey(1),
-      lastSeen: now,
-      addedAt: now - 2.hours,
-      lastUsefulAt: Opt.some(now - 30.minutes),
-    )
-    check not entry.isReplaceable(1.hours, now)
+    check entry.needsLivenessCheck(1.hours, now)
+    entry.lastUsefulAt = Opt.some(now - 30.minutes)
+    check not entry.needsLivenessCheck(1.hours, now)
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)

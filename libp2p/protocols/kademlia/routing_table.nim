@@ -95,21 +95,13 @@ func lastActivity*(entry: NodeEntry): Moment =
 
 func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
   ## Replaceable once past `gracePeriod` in the table without proving useful; a
-  ## peer that answered recently or was just added is retained. Also used to
-  ## select peers for liveness probes during maintenance.
+  ## peer that answered recently or was just added is retained.
   now - entry.lastActivity() > gracePeriod
 
-proc isReplaceable*(
-    rtable: RoutingTable, peerId: PeerId, gracePeriod: Duration, now: Moment
-): bool =
-  ## Live-table check: false when the peer is missing or still within grace.
-  let nodeId = peerId.toKey()
-  let idx = rtable.bucketIndex(nodeId)
-  if idx >= rtable.buckets.len:
-    return false
-  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
-    return false
-  rtable.buckets[idx].peers[pos].isReplaceable(gracePeriod, now)
+func needsLivenessCheck*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
+  ## True when the peer has had no successful DHT activity within `gracePeriod`
+  ## and should be probed (and possibly removed) during maintenance.
+  now - entry.lastActivity() > gracePeriod
 
 proc replaceableCandidate(bucket: Bucket, gracePeriod: Duration): Opt[int] =
   ## Least-recently-seen peer past the grace period, i.e. the best eviction
