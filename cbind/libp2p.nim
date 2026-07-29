@@ -129,6 +129,7 @@ const
   KeySchemeEd25519 {.ffiConst.} = ord(PKScheme.Ed25519)
   KeySchemeSecp256k1 {.ffiConst.} = ord(PKScheme.Secp256k1)
   KeySchemeEcdsa {.ffiConst.} = ord(PKScheme.ECDSA)
+  # consts for chronicles runtime log level
   LogLevelNone {.ffiConst.} = ord(chronicles.LogLevel.NONE)
   LogLevelTrace {.ffiConst.} = ord(chronicles.LogLevel.TRACE)
   LogLevelDebug {.ffiConst.} = ord(chronicles.LogLevel.DEBUG)
