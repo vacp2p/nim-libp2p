@@ -176,13 +176,19 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     announcedAddrs: openArray[MultiAddress] = [],
 ): PeerInfo {.raises: [LPError].} =
-  let pubkey = key.getPublicKey().valueOr:
-    raise
-      newException(PeerInfoError, "invalid private key creating PeerInfo: " & $error)
-  let peerId = PeerId.init(pubkey).valueOr:
+  let pubkeyRes = key.getPublicKey()
+  if pubkeyRes.isErr:
     raise newException(
-      PeerInfoError, "invalid public key creating PeerInfo peer id: " & $error
+      PeerInfoError, "invalid private key creating PeerInfo: " & $pubkeyRes.error
     )
+  let pubkey = pubkeyRes.get()
+
+  let peerIdRes = PeerId.init(pubkey)
+  if peerIdRes.isErr:
+    raise newException(
+      PeerInfoError, "invalid public key creating PeerInfo peer id: " & $peerIdRes.error
+    )
+  let peerId = peerIdRes.get()
 
   PeerInfo(
     peerId: peerId,
