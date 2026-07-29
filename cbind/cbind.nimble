@@ -73,9 +73,9 @@ proc genBindingsFor(lang, outDir: string) =
   # codegen is enough — there is nothing to link.
   exec "nim c --threads:on --noMain --mm:refc -d:metrics --compileOnly" &
     " -d:chronicles_runtime_filtering --nimMainPrefix:liblibp2p" &
-    " -d:ffiGenBindings -d:targetLang=" & lang &
-    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " libp2p.nim"
+    " -d:ffiGenBindings -d:targetLang=" & lang & " -d:ffiOutputDir=" & outDir &
+    " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() & " --nimcache:nimcache_" & lang &
+    " libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")
