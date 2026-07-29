@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, sequtils
+import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/protocols/kademlia/[find, types]
 import ../../tools/[lifecycle, topology, unittest]
