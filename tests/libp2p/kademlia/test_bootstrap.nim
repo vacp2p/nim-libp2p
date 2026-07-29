@@ -146,3 +146,89 @@ suite "KadDHT Bootstrap Component":
     check:
       kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table
       kad.started # node should be operational
+
+  asyncTest "pingAndEvictPeers removes peers past liveness grace that fail probe":
+    let hub = setupKad()
+    let leaf = setupKad(config = testKadConfig(timeout = chronos.milliseconds(200)))
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    check hub.hasKey(leafId.toKey())
+
+    # Stop the leaf so the next probe fails, then age hub's entry past grace.
+    await leaf.stop()
+    await leaf.switch.stop()
+
+    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
+    for b in hub.rtable.buckets.mitems:
+      for p in b.peers.mitems:
+        if p.nodeId == leafId.toKey():
+          p.addedAt = past
+          p.lastUsefulAt = Opt.none(Moment)
+          p.lastSeen = past
+
+    await hub.pingAndEvictPeers(hub.rtable)
+
+    check not hub.hasKey(leafId.toKey())
+
+  asyncTest "pingAndEvictPeers retains peers that answer the probe":
+    let hub = setupKad()
+    let leaf = setupKad()
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    check hub.hasKey(leafId.toKey())
+
+    # Age past grace so a probe is required; leaf is still alive.
+    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
+    for b in hub.rtable.buckets.mitems:
+      for p in b.peers.mitems:
+        if p.nodeId == leafId.toKey():
+          p.addedAt = past
+          p.lastUsefulAt = Opt.none(Moment)
+          p.lastSeen = past
+
+    await hub.pingAndEvictPeers(hub.rtable)
+
+    check hub.hasKey(leafId.toKey())
+    # Successful probe marks the peer useful again.
+    var useful = false
+    for b in hub.rtable.buckets:
+      for p in b.peers:
+        if p.nodeId == leafId.toKey():
+          useful = p.lastUsefulAt.isSome()
+    check useful
+
+  asyncTest "pingAndEvictPeers skips peers still within liveness grace":
+    let hub = setupKad()
+    let leaf = setupKad(config = testKadConfig(timeout = chronos.milliseconds(200)))
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    await leaf.stop()
+    await leaf.switch.stop()
+
+    # Fresh insert times: within grace, so no probe and no eviction.
+    await hub.pingAndEvictPeers(hub.rtable)
+    check hub.hasKey(leafId.toKey())
+
+  asyncTest "pingAndEvictPeers removes peers with no known addresses":
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let orphan = randomPeerId()
+    discard kad.rtable.insert(orphan)
+    # No AddressBook entry.
+
+    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
+    for b in kad.rtable.buckets.mitems:
+      for p in b.peers.mitems:
+        if p.nodeId == orphan.toKey():
+          p.addedAt = past
+          p.lastUsefulAt = Opt.none(Moment)
+
+    await kad.pingAndEvictPeers(kad.rtable)
+    check not kad.hasKey(orphan.toKey())

@@ -18,11 +18,84 @@ logScope:
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 
+proc livenessCandidates(
+    rtable: RoutingTable, gracePeriod: Duration
+): seq[PeerId] {.raises: [].} =
+  ## Peers past the liveness grace period that should be probed.
+  let now = Moment.now()
+  var peers: seq[PeerId]
+  for bucket in rtable.buckets:
+    for entry in bucket.peers:
+      if not entry.needsLivenessCheck(gracePeriod, now):
+        continue
+      entry.nodeId.toPeerId().withValue(pid):
+        peers.add(pid)
+  peers
+
+proc checkAndEvictPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
+) {.async: (raises: []).} =
+  ## Probe one routing-table peer; remove it if unreachable or not speaking DHT.
+  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
+  defer:
+    try:
+      kad.probeSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "probeSem released without acquire"
+
+  let addrs = kad.switch.peerStore[AddressBook][peerId]
+  if addrs.len == 0:
+    trace "Evicting peer with no known addresses", peer = peerId.shortLog()
+    discard rtable.removePeer(peerId, reason = "liveness")
+    kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
+    return
+
+  let alive =
+    try:
+      await kad.lookupCheck(peerId, addrs)
+    except CancelledError:
+      return
+
+  if alive:
+    rtable.markUseful(peerId)
+    kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
+    return
+
+  trace "Evicting unresponsive peer after liveness probe", peer = peerId.shortLog()
+  discard rtable.removePeer(peerId, reason = "liveness")
+  kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
+
+proc pingAndEvictPeers*(
+    kad: KadDHT, rtable: RoutingTable
+) {.async: (raises: [CancelledError]).} =
+  ## Probes routing-table peers that have been quiet longer than the liveness
+  ## grace period and removes those that fail to answer a FIND_NODE.
+  if kad.stopping:
+    return
+
+  let candidates = rtable.livenessCandidates(kad.config.livenessGracePeriod)
+  if candidates.len == 0:
+    return
+
+  var futs: seq[Future[void]]
+  for peerId in candidates:
+    if kad.stopping:
+      break
+    if not kad.probeSem.tryAcquire():
+      # Remaining candidates are retried on the next maintenance pass.
+      break
+    futs.add(kad.checkAndEvictPeer(rtable, peerId))
+
+  if futs.len > 0:
+    await noCancel allFutures(futs)
+
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
+
+  await kad.pingAndEvictPeers(rtable)
 
   discard await kad.findNode(rtable.selfId)
 
@@ -35,7 +108,7 @@ proc refreshTable*(
       continue
 
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
-    if not (forceRefresh or bucket.isStale()):
+    if not (forceRefresh or bucket.isStale(rtable.config.bucketStaleTime)):
       continue
 
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
@@ -77,7 +150,11 @@ proc new*(
 ): K {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(replication = config.replication),
+    config = RoutingTableConfig.new(
+      replication = config.replication,
+      usefulnessGracePeriod = config.usefulnessGracePeriod,
+      bucketStaleTime = config.bucketStaleTime,
+    ),
   )
   let kad = K(
     rng: rng,
