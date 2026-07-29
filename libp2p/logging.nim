@@ -12,5 +12,8 @@ template setLogLevel*(level: LogLevel) =
   when defined(chronicles_runtime_filtering):
     chronicles.setLogLevel(level)
   else:
-    {.error: "Run-time Chronicles log filtering is disabled. " &
-      "Enable it with '-d:chronicles_runtime_filtering:on'.".}
+    {.
+      error:
+        "Run-time Chronicles log filtering is disabled. " &
+        "Enable it with '-d:chronicles_runtime_filtering:on'."
+    .}

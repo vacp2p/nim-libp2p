@@ -14,16 +14,15 @@ var
   deliveredDebug {.threadvar.}: int
   deliveredInfo {.threadvar.}: int
 
-let captureLog =
-  proc(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].} =
-    discard msg
-    case logLevel
-    of DEBUG:
-      inc deliveredDebug
-    of INFO:
-      inc deliveredInfo
-    else:
-      discard
+let captureLog = proc(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].} =
+  discard msg
+  case logLevel
+  of DEBUG:
+    inc deliveredDebug
+  of INFO:
+    inc deliveredInfo
+  else:
+    discard
 
 when defaultChroniclesStream.outputs.type.arity == 1:
   defaultChroniclesStream.outputs[0].writer = captureLog
