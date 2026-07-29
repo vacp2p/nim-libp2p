@@ -27,37 +27,22 @@ proc livenessCandidates(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for entry in bucket.peers:
-      if not entry.isReplaceable(gracePeriod, now):
+      if not entry.needsLivenessCheck(gracePeriod, now):
         continue
       entry.nodeId.toPeerId().withValue(pid):
         peers.add(pid)
   peers
 
-template withProbeSlotOrReturn*(kad: KadDHT) =
-  ## Acquire one ``probeSem`` slot for the enclosing scope, or return without
-  ## probing. Non-blocking: candidates that find no free slot are retried on a
-  ## later pass rather than queued.
-  if not kad.probeSem.tryAcquire():
-    kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
-    return
+proc checkAndEvictPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## Probe one routing-table peer; remove it if unreachable or not speaking DHT.
+  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
   defer:
     try:
       kad.probeSem.release()
     except AsyncSemaphoreError:
       raiseAssert "probeSem released without acquire"
-
-proc checkAndEvictPeer(
-    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: [CancelledError]).} =
-  withProbeSlotOrReturn(kad)
-
-  # Candidate list is a snapshot; by the time a slot is free the peer may have
-  # been refreshed (markUseful) or removed, and stop may have begun.
-  if kad.stopping:
-    return
-  let grace = kad.config.livenessGracePeriod
-  if not rtable.isReplaceable(peerId, grace, Moment.now()):
-    return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
@@ -71,15 +56,11 @@ proc checkAndEvictPeer(
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
 
-  # Probe can race with unrelated traffic that markUseful'd the peer mid-flight.
-  if not rtable.isReplaceable(peerId, grace, Moment.now()):
-    return
-
   trace "Evicting unresponsive peer after liveness probe", peer = peerId.shortLog()
   discard rtable.removePeer(peerId, reason = "liveness")
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
-proc probeAndEvictPeers*(
+proc pingAndEvictPeers*(
     kad: KadDHT, rtable: RoutingTable
 ) {.async: (raises: [CancelledError]).} =
   ## Probes routing-table peers that have been quiet longer than the liveness
@@ -91,16 +72,17 @@ proc probeAndEvictPeers*(
   if candidates.len == 0:
     return
 
-  var futs = newSeqOfCap[Future[void]](candidates.len)
+  var futs: seq[Future[void]]
   for peerId in candidates:
+    if kad.stopping:
+      break
+    if not kad.probeSem.tryAcquire():
+      # Remaining candidates are retried on the next maintenance pass.
+      break
     futs.add(kad.checkAndEvictPeer(rtable, peerId))
 
   if futs.len > 0:
-    try:
-      await allFutures(futs)
-    except CancelledError as exc:
-      await noCancel futs.cancelAndWait()
-      raise exc
+    await noCancel allFutures(futs)
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
@@ -108,7 +90,7 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  await kad.probeAndEvictPeers(rtable)
+  await kad.pingAndEvictPeers(rtable)
 
   discard await kad.findNode(rtable.selfId)
 
