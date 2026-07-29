@@ -33,7 +33,7 @@ pkgs.stdenv.mkDerivation {
       --skipUserCfg \
       --threads:on \
       --opt:speed \
-      -d:chronicles_runtime_filtering=TRUE \
+      -d:chronicles_runtime_filtering=on \
       libp2p.nim
   '';
 }
