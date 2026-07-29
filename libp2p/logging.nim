@@ -9,7 +9,7 @@ template setLogLevel*(level: LogLevel) =
   ## Set the runtime Chronicles log level for all configured sinks.
   ##
   ## This requires compiling with `-d:chronicles_runtime_filtering`.
-  when defined(chronicles_runtime_filtering):
+  when chronicles.runtimeFilteringEnabled:
     chronicles.setLogLevel(level)
   else:
     {.
