@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, std/[sequtils, tables]
+import chronos, results, std/sequtils
 import
   ../../../../libp2p/[
     peerinfo,
@@ -36,7 +36,7 @@ suite "Service Discovery Component - Client Mode":
       await serverNode.sendRegister(clientNode.switch.peerInfo.peerId, serviceId, ad)
     check:
       response.isErr
-      clientNode.registrar.cache.len == 0
+      clientNode.registrar.ads.len == 0
 
   asyncTest "client-mode node returns no ads when targeted by lookup":
     let clientNode = setupServiceDiscoveryNode(client = true)
@@ -49,7 +49,7 @@ suite "Service Discovery Component - Client Mode":
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     # Seed the client's cache so lookup would find the ad if the client were serving GET_ADS.
-    clientNode.registrar.cache[serviceId] = @[makeAdvertisement(serviceName)]
+    clientNode.registrar.seedAd(serviceId, makeAdvertisement(serviceName))
 
     let found = await discovererNode.lookup(serviceId)
     check:
