@@ -27,7 +27,7 @@ proc peersInGracePeriod(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for entry in bucket.peers:
-      if not entry.isReplaceable(gracePeriod, now):
+      if not entry.needsLivenessCheck(gracePeriod, now):
         continue
       entry.nodeId.toPeerId().withValue(pid):
         peers.add(pid)
