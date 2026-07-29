@@ -62,7 +62,7 @@ proc buildFfiLib() =
   # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
-    " -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
+    " -d:chronicles_runtime_filtering=on -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
     " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
@@ -72,9 +72,10 @@ proc genBindingsFor(lang, outDir: string) =
   # `--compileOnly`: the binding files are written during macro expansion, so
   # codegen is enough — there is nothing to link.
   exec "nim c --threads:on --noMain --mm:refc -d:metrics --compileOnly" &
-    " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
-    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " libp2p.nim"
+    " -d:chronicles_runtime_filtering=on --nimMainPrefix:liblibp2p" &
+    " -d:ffiGenBindings -d:targetLang=" & lang & " -d:ffiOutputDir=" & outDir &
+    " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() & " --nimcache:nimcache_" & lang &
+    " libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")

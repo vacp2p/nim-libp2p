@@ -10,6 +10,7 @@ import ffi
 import std/[tables, sequtils, sets, json, jsonutils, strutils, locks, net]
 from std/times import getTime, toUnix, Time, nanosecond
 import chronos
+import chronicles
 import metrics
 
 import ../libp2p
@@ -128,6 +129,15 @@ const
   KeySchemeEd25519 {.ffiConst.} = ord(PKScheme.Ed25519)
   KeySchemeSecp256k1 {.ffiConst.} = ord(PKScheme.Secp256k1)
   KeySchemeEcdsa {.ffiConst.} = ord(PKScheme.ECDSA)
+  # consts for chronicles runtime log level
+  LogLevelNone {.ffiConst.} = ord(chronicles.LogLevel.NONE)
+  LogLevelTrace {.ffiConst.} = ord(chronicles.LogLevel.TRACE)
+  LogLevelDebug {.ffiConst.} = ord(chronicles.LogLevel.DEBUG)
+  LogLevelInfo {.ffiConst.} = ord(chronicles.LogLevel.INFO)
+  LogLevelNotice {.ffiConst.} = ord(chronicles.LogLevel.NOTICE)
+  LogLevelWarn {.ffiConst.} = ord(chronicles.LogLevel.WARN)
+  LogLevelError {.ffiConst.} = ord(chronicles.LogLevel.ERROR)
+  LogLevelFatal {.ffiConst.} = ord(chronicles.LogLevel.FATAL)
 
 type KadPutValueRequest {.ffi.} = object
   key: seq[byte]
@@ -403,6 +413,18 @@ proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   ## `libp2p_ctx_destroy` does the same at teardown.
   await shutdownSwitch(lib)
   ok(true)
+
+proc libp2pSetLogLevel*(lib: LibP2P, level: int): Future[Result[bool, string]] {.ffi.} =
+  ## Changes the process-wide Chronicles runtime log level.
+  discard lib
+  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
+    return err("invalid log level: " & $level)
+
+  when chronicles.runtimeFilteringEnabled:
+    chronicles.setLogLevel(chronicles.LogLevel(level))
+    ok(true)
+  else:
+    err("Chronicles runtime filtering is disabled")
 
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## Runs on the worker loop, so the switch stops gracefully before the threads
