@@ -221,10 +221,14 @@ suite "KadDHT Routing Table":
       selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     )
     let key = rt.keyInBucket(TargetBucket)
-    check rt.insert(key)
-    check key in rt
-    check rt.removePeer(key)
-    check key notin rt
+    check:
+      rt.insert(key)
+      key in rt
+
+    check:
+      rt.removePeer(key)
+      key notin rt
+
     check not rt.removePeer(key) # already gone
 
   test "removePeer rejects self and localNodeId":
@@ -244,7 +248,13 @@ suite "KadDHT Routing Table":
       lastUsefulAt: Opt.none(Moment),
     )
     check entry.needsLivenessCheck(1.hours, now)
-    entry.lastUsefulAt = Opt.some(now - 30.minutes)
+
+    entry = NodeEntry(
+      nodeId: testKey(1),
+      lastSeen: now,
+      addedAt: now - 2.hours,
+      lastUsefulAt: Opt.some(now - 30.minutes),
+    )
     check not entry.needsLivenessCheck(1.hours, now)
 
   test "randomKeyInBucket returns id at correct distance":
