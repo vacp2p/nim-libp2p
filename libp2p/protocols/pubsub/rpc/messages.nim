@@ -51,13 +51,13 @@ type
     # When requestsPartial is true, this is assumed to be true.
     supportsSendingPartial* {.fieldNumber: 4.}: Opt[bool]
 
-  Message* {.proto2.} = object
-    fromPeer* {.fieldNumber: 1, ext, implicit.}: PeerId
-    data* {.fieldNumber: 2, implicit.}: seq[byte]
-    seqno* {.fieldNumber: 3, implicit.}: seq[byte]
+  Message* {.proto, implicit.} = object
+    fromPeer* {.fieldNumber: 1, ext.}: PeerId
+    data* {.fieldNumber: 2.}: seq[byte]
+    seqno* {.fieldNumber: 3.}: seq[byte]
     topic* {.fieldNumber: 4, required.}: string
-    signature* {.fieldNumber: 5, implicit.}: seq[byte]
-    key* {.fieldNumber: 6, implicit.}: seq[byte]
+    signature* {.fieldNumber: 5.}: seq[byte]
+    key* {.fieldNumber: 6.}: seq[byte]
 
   ControlExtensions* {.proto2.} = object
     partialMessageExtension* {.fieldNumber: 10.}: Opt[bool]
@@ -75,20 +75,20 @@ type
     idontwant* {.fieldNumber: 5.}: seq[ControlIWant]
     extensions* {.fieldNumber: 6.}: Opt[ControlExtensions]
 
-  ControlIHave* {.proto2.} = object
-    topicID* {.fieldNumber: 1, implicit.}: string
+  ControlIHave* {.proto, implicit.} = object
+    topicID* {.fieldNumber: 1.}: string
     messageIDs* {.fieldNumber: 2.}: seq[MessageId]
 
   ControlIWant* {.proto2.} = object
     messageIDs* {.fieldNumber: 1.}: seq[MessageId]
 
-  ControlGraft* {.proto2.} = object
-    topicID* {.fieldNumber: 1, implicit.}: string
+  ControlGraft* {.proto, implicit.} = object
+    topicID* {.fieldNumber: 1.}: string
 
-  ControlPrune* {.proto2.} = object
-    topicID* {.fieldNumber: 1, implicit.}: string
+  ControlPrune* {.proto, implicit.} = object
+    topicID* {.fieldNumber: 1.}: string
     peers* {.fieldNumber: 2.}: seq[PeerInfoMsg]
-    backoff* {.fieldNumber: 3, pint, implicit.}: uint64
+    backoff* {.fieldNumber: 3, pint.}: uint64
 
   TestExtensionRPC* {.proto2.} = object
 
@@ -496,4 +496,7 @@ func validate*(msg: RPCMsg): Result[void, string] =
   # validates RPCMsg after it is received and decoded.
   for sub in msg.subscriptions:
     ?sub.validate()
+  for message in msg.messages:
+    if message.topic.len == 0:
+      return err("Message topic must be set")
   ok()
