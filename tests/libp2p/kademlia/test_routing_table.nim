@@ -239,7 +239,7 @@ suite "KadDHT Routing Table":
       not rt.removePeer(selfId)
       not rt.removePeer(localNodeId)
 
-  test "needsLivenessCheck follows grace period from last activity":
+  test "isReplaceable follows grace period from last activity":
     let now = Moment.now()
     var entry = NodeEntry(
       nodeId: testKey(1),
@@ -247,7 +247,7 @@ suite "KadDHT Routing Table":
       addedAt: now - 2.hours,
       lastUsefulAt: Opt.none(Moment),
     )
-    check entry.needsLivenessCheck(1.hours, now)
+    check entry.isReplaceable(1.hours, now)
 
     entry = NodeEntry(
       nodeId: testKey(1),
@@ -255,7 +255,7 @@ suite "KadDHT Routing Table":
       addedAt: now - 2.hours,
       lastUsefulAt: Opt.some(now - 30.minutes),
     )
-    check not entry.needsLivenessCheck(1.hours, now)
+    check not entry.isReplaceable(1.hours, now)
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)

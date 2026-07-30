@@ -27,7 +27,7 @@ proc livenessCandidates(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for entry in bucket.peers:
-      if not entry.needsLivenessCheck(gracePeriod, now):
+      if not entry.isReplaceable(gracePeriod, now):
         continue
       entry.nodeId.toPeerId().withValue(pid):
         peers.add(pid)
@@ -37,7 +37,6 @@ proc checkAndEvictPeer(
     kad: KadDHT, rtable: RoutingTable, peerId: PeerId
 ) {.async: (raises: [CancelledError]).} =
   ## Probe one routing-table peer; remove it if unreachable or not speaking DHT.
-  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
   await kad.probeSem.acquire()
 
   defer:
@@ -45,6 +44,14 @@ proc checkAndEvictPeer(
       kad.probeSem.release()
     except AsyncSemaphoreError:
       raiseAssert "probeSem released without acquire"
+
+  # Candidate list is a snapshot; by the time a slot is free the peer may have
+  # been refreshed (markUseful) or removed, and stop may have begun.
+  if kad.stopping:
+    return
+  let grace = kad.config.livenessGracePeriod
+  if not rtable.isReplaceable(peerId, grace, Moment.now()):
+    return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
@@ -58,11 +65,15 @@ proc checkAndEvictPeer(
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
 
+  # Probe can race with unrelated traffic that markUseful'd the peer mid-flight.
+  if not rtable.isReplaceable(peerId, grace, Moment.now()):
+    return
+
   trace "Evicting unresponsive peer after liveness probe", peer = peerId.shortLog()
   discard rtable.removePeer(peerId, reason = "liveness")
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
-proc pingAndEvictPeers*(
+proc probeAndEvictPeers*(
     kad: KadDHT, rtable: RoutingTable
 ) {.async: (raises: [CancelledError]).} =
   ## Probes routing-table peers that have been quiet longer than the liveness
@@ -79,7 +90,11 @@ proc pingAndEvictPeers*(
     futs.add(kad.checkAndEvictPeer(rtable, peerId))
 
   if futs.len > 0:
-    await noCancel allFutures(futs)
+    try:
+      await allFutures(futs)
+    except CancelledError as exc:
+      await noCancel futs.cancelAndWait()
+      raise exc
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
@@ -87,7 +102,7 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  await kad.pingAndEvictPeers(rtable)
+  await kad.probeAndEvictPeers(rtable)
 
   discard await kad.findNode(rtable.selfId)
 
