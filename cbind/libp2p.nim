@@ -392,11 +392,6 @@ proc applyLogLevel(level: int): Result[void, string] =
   else:
     err("nim-libp2p runtime logs filtering is disabled")
 
-proc libp2pSetLogLevel*(level: int): Future[Result[bool, string]] {.ffiStatic.} =
-  ## Changes the process-wide nim-libp2p runtime log level.
-  ?applyLogLevel(level)
-  ok(true)
-
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   ## Builds the switch from `config` and mounts the requested protocols. The
   ## node is not listening yet; call `libp2p_ctx_start` for that.
