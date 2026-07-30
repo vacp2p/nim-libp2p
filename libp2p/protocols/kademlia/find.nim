@@ -6,7 +6,7 @@ import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy, wire]
 import ../protocol
 import ../../utils/future
-import ./[routing_table, protobuf, types, kademlia_metrics]
+import ./[routing_table, protobuf, types, rpc, kademlia_metrics]
 
 logScope:
   topics = "kad-dht find"
@@ -176,54 +176,10 @@ proc dispatchFindNode*(
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  withRpcSlot(kad)
-  let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  # Shield the dial from cancellation: interrupting switch.dial mid-handshake
-  # leaks the half-opened channel, since the reset defer below is not yet armed.
-  # Letting the dial settle first means a racing cancel unwinds through that
-  # defer instead, which resets the stream.
-  let streamRes = catch:
-    await noCancel kad.switch.dial(peer, addrs, kad.codec)
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  var replyRead = false
-  defer:
-    # Closing only half-closes the channel: an abandoned RPC leaves its unread
-    # reply in the read buffer, which blocks the muxer for every other channel
-    # on that connection. Only a reset drops it.
-    if replyRead:
-      await noCancel stream.close()
-    else:
-      await noCancel stream.reset()
-
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
-  let encoded = msg.encode(kad.config.hideConnectionStatus)
-
-  kad_messages_sent.inc(labelValues = [$MessageType.findNode])
-  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.findNode])
-
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
-    ioRes = catch:
-      await stream.writeLp(encoded)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
-  replyRead = true
-
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.findNode]
+  await kad.dispatchRpc(
+    peer, addrs.valueOr(kad.switch.peerStore[AddressBook][peer]), msg
   )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("FindNode reply decode fail")
-
-  if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
-
-  return ok(reply)
 
 type
   Ipv4Address = array[4, byte]

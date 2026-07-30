@@ -83,7 +83,7 @@ proc new*(
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
-  disco.initKadBase(switch, config, rng, isServer = not client)
+  disco.initKadBase(switch, config, rng, isServer = not client, codec = codec)
 
   # Fill up buckets with initial bootstrap nodes
   disco.updatePeers(bootstrapNodes)
@@ -93,8 +93,6 @@ proc new*(
       return
 
     disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
-
-  disco.codec = codec
 
   disco.handler = proc(
       stream: Stream, proto: string

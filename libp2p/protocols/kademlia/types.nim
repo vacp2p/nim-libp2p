@@ -6,9 +6,9 @@ from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
-import ./protobuf
+import ./[protobuf, message_sender]
 
-export tables, sets, heapqueue
+export tables, sets, heapqueue, message_sender
 
 const
   IdLength* = 32 # 256-bit IDs
@@ -572,6 +572,8 @@ type KadDHT* = ref object of LPProtocol
   provideTasks*: seq[Future[void]]
     ## ADD_PROVIDER RPCs still running after an early ``optimisticProvide``.
   config*: KadDHTConfig
+  msgSender*: MessageSender
+    ## Reuses one outbound stream per peer across every RPC sent to it.
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
   probeSem*: AsyncSemaphore

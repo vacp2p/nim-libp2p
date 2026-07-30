@@ -19,6 +19,12 @@ declarePublicHistogram kad_message_duration_ms,
 declarePublicCounter kad_responses_with_closer_peers,
   "responses with closer peers", ["type"]
 
+# Outbound stream reuse metrics
+declarePublicCounter kad_streams_opened, "outbound RPC streams opened"
+declarePublicCounter kad_stream_reuses, "outbound RPCs sent on an already open stream"
+declarePublicCounter kad_stream_reuse_failures,
+  "reused outbound streams that failed and were retried on a fresh stream"
+
 # Lookup metrics
 declarePublicCounter kad_lookup_followups,
   "iterative lookups that entered the k-closest follow-up phase"

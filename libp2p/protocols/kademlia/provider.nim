@@ -14,7 +14,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
 import ../../utils/[collections, heartbeat, future]
 import ../protocol
-import ./[protobuf, types, find, keyspace, netsize, kademlia_metrics]
+import ./[protobuf, types, find, rpc, keyspace, netsize, kademlia_metrics]
 
 logScope:
   topics = "kad-dht provider"
@@ -108,15 +108,7 @@ proc dispatchAddProvider(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   withRpcSlot(kad)
-  let streamRes = catch:
-    await noCancel kad.switch.dial(
-      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
-    )
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await noCancel stream.close()
+  let addrs = kad.switch.peerStore[AddressBook][peer]
 
   let msg = Message(
     msgType: Opt.some(MessageType.addProvider),
@@ -128,23 +120,22 @@ proc dispatchAddProvider(
   kad_message_bytes_sent.inc(
     encoded.len.int64, labelValues = [$MessageType.addProvider]
   )
-  let writeRes = catch:
-    await stream.writeLp(encoded)
-  if writeRes.isErr:
-    return err(writeRes.error.msg)
 
   if not kad.config.providerRejection:
+    (await kad.msgSender.sendMessage(peer, addrs, encoded, kad.config.timeout)).isOkOr:
+      return err($error)
     return ok(AddProviderStatus.accepted)
 
-  let readFut = stream.readLp(MaxMsgSize)
-  if not (await readFut.withTimeout(kad.config.timeout)):
-    return ok(AddProviderStatus.accepted)
-  let readRes = catch:
-    await readFut
-  if readRes.isErr:
+  # Remotes without the accepted/rejected reply simply never answer, so only a
+  # failure to reach the peer is an error; a silent read counts as accepted.
+  let replyBuf = (
+    await kad.msgSender.sendRequest(peer, addrs, encoded, kad.config.timeout)
+  ).valueOr:
+    if error.stage != readStage:
+      return err($error)
     return ok(AddProviderStatus.accepted)
 
-  let reply = Message.decode(readRes.value).valueOr:
+  let reply = Message.decode(replyBuf).valueOr:
     return ok(AddProviderStatus.accepted)
 
   return ok(reply.providerStatus.get(AddProviderStatus.accepted))
@@ -495,46 +486,12 @@ method handleAddProvider*(
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  withRpcSlot(kad)
-  let streamRes = catch:
-    await noCancel kad.switch.dial(
-      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
-    )
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await noCancel stream.close()
   let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
-  let encoded = msg.encode(kad.config.hideConnectionStatus)
-
-  kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
-  kad_message_bytes_sent.inc(
-    encoded.len.int64, labelValues = [$MessageType.getProviders]
-  )
-
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
-    ioRes = catch:
-      await stream.writeLp(encoded)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
-
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.getProviders]
-  )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("GetProviders reply decode fail")
-
-  if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
+  let reply = ?await kad.dispatchRpc(peer, kad.switch.peerStore[AddressBook][peer], msg)
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
-  return ok(reply)
+  ok(reply)
 
 proc getProviders*(
     kad: KadDHT, key: Key
