@@ -108,9 +108,7 @@ suite "KadDHT Keyspace Regions":
   test "closestFirst orders peers by distance to the key":
     let hasher = Opt.none(XorDHasher)
     let key = PeerId.random(rng()).get().toKey()
-    var peers: seq[PeerId]
-    for _ in 0 ..< 8:
-      peers.add(PeerId.random(rng()).get())
+    let peers = PeerId.random(8, rng())
 
     let ordered = peers.closestFirst(key, hasher)
     check:
