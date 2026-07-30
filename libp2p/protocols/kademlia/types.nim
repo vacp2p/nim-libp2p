@@ -8,6 +8,8 @@ import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
 import ./protobuf
 
+export tables, sets, heapqueue
+
 const
   IdLength* = 32 # 256-bit IDs
 
