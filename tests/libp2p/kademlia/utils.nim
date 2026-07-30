@@ -233,6 +233,24 @@ proc makeBucketStale*(bucket: var Bucket) =
   for peer in bucket.peers.mitems:
     peer.lastSeen = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
 
+proc agePeerPastLivenessGrace*(rtable: var RoutingTable, key: Key) =
+  ## Age a routing-table entry past the default liveness grace so the next
+  ## maintenance pass will probe it.
+  let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
+  for b in rtable.buckets.mitems:
+    for p in b.peers.mitems:
+      if p.nodeId == key:
+        p.addedAt = past
+        p.lastUsefulAt = Opt.none(Moment)
+        p.lastSeen = past
+
+proc isPeerUseful*(kad: KadDHT, key: Key): bool =
+  for b in kad.rtable.buckets:
+    for p in b.peers:
+      if p.nodeId == key:
+        return p.lastUsefulAt.isSome()
+  false
+
 proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =

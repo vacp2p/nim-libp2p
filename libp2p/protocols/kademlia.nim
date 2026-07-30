@@ -34,9 +34,11 @@ proc livenessCandidates(
 
 proc checkAndEvictPeer(
     kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Probe one routing-table peer; remove it if unreachable or not speaking DHT.
   ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
+  await kad.probeSem.acquire()
+
   defer:
     try:
       kad.probeSem.release()
@@ -77,13 +79,8 @@ proc pingAndEvictPeers*(
   if candidates.len == 0:
     return
 
-  var futs: seq[Future[void]]
+  var futs = newSeqOfCap[Future[void]](candidates.len)
   for peerId in candidates:
-    if kad.stopping:
-      break
-    if not kad.probeSem.tryAcquire():
-      # Remaining candidates are retried on the next maintenance pass.
-      break
     futs.add(kad.checkAndEvictPeer(rtable, peerId))
 
   if futs.len > 0:

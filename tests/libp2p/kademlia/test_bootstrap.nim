@@ -160,13 +160,7 @@ suite "KadDHT Bootstrap Component":
     await leaf.stop()
     await leaf.switch.stop()
 
-    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
-    for b in hub.rtable.buckets.mitems:
-      for p in b.peers.mitems:
-        if p.nodeId == leafId.toKey():
-          p.addedAt = past
-          p.lastUsefulAt = Opt.none(Moment)
-          p.lastSeen = past
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
 
     await hub.pingAndEvictPeers(hub.rtable)
 
@@ -182,24 +176,13 @@ suite "KadDHT Bootstrap Component":
     check hub.hasKey(leafId.toKey())
 
     # Age past grace so a probe is required; leaf is still alive.
-    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
-    for b in hub.rtable.buckets.mitems:
-      for p in b.peers.mitems:
-        if p.nodeId == leafId.toKey():
-          p.addedAt = past
-          p.lastUsefulAt = Opt.none(Moment)
-          p.lastSeen = past
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
 
     await hub.pingAndEvictPeers(hub.rtable)
 
     check hub.hasKey(leafId.toKey())
     # Successful probe marks the peer useful again.
-    var useful = false
-    for b in hub.rtable.buckets:
-      for p in b.peers:
-        if p.nodeId == leafId.toKey():
-          useful = p.lastUsefulAt.isSome()
-    check useful
+    check hub.isPeerUseful(leafId.toKey())
 
   asyncTest "pingAndEvictPeers skips peers still within liveness grace":
     let hub = setupKad()
@@ -220,15 +203,10 @@ suite "KadDHT Bootstrap Component":
     startAndDeferStop(@[kad])
 
     let orphan = randomPeerId()
-    discard kad.rtable.insert(orphan)
+    check kad.rtable.insert(orphan)
     # No AddressBook entry.
 
-    let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
-    for b in kad.rtable.buckets.mitems:
-      for p in b.peers.mitems:
-        if p.nodeId == orphan.toKey():
-          p.addedAt = past
-          p.lastUsefulAt = Opt.none(Moment)
+    agePeerPastLivenessGrace(kad.rtable, orphan.toKey())
 
     await kad.pingAndEvictPeers(kad.rtable)
     check not kad.hasKey(orphan.toKey())
