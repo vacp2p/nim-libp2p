@@ -449,6 +449,68 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords[0].provider.id.get() ==
         kads[0].rtable.selfId
 
+suite "KadDHT - Republish By Keyspace Region":
+  teardown:
+    checkTrackers()
+
+  proc provideWithoutAnnouncing(kad: KadDHT, count: int): seq[Key] =
+    ## Seed the store directly, so only the republish loop advertises the keys.
+    var keys: seq[Key]
+    for i in 0 ..< count:
+      let key = MultiHash.digest("sha2-256", @[i.byte]).get().toKey()
+      kad.providerManager.providedKeys.provided[key] = Moment.now()
+      keys.add(key)
+    keys
+
+  asyncTest "Provided keys are grouped into keyspace regions":
+    let kad = setupKad(testKadConfig(republishRegionBits = Opt.some(1)))
+    startAndDeferStop(@[kad])
+
+    let keys = kad.provideWithoutAnnouncing(8)
+    let regions = kad.providedKeyRegions()
+    let hasher = kad.rtable.config.hasher
+
+    check:
+      regions.len < keys.len
+      regions.len <= 2
+      regions.concat().toHashSet() == keys.toHashSet()
+
+    for region in regions:
+      check region.allIt(
+        it.regionPrefix(1, hasher) == region[0].regionPrefix(1, hasher)
+      )
+
+  asyncTest "Each key gets its own region while the network size is unknown":
+    let kad = setupKad()
+    startAndDeferStop(@[kad])
+
+    check kad.rtable.regionBits().isNone()
+
+    let keys = kad.provideWithoutAnnouncing(4)
+    let regions = kad.providedKeyRegions()
+
+    check:
+      regions.len == keys.len
+      regions.concat().toHashSet() == keys.toHashSet()
+
+  asyncTest "A single region walk advertises every key it holds":
+    let senderKad = setupKad(
+      testKadConfig(
+        republishRegionBits = Opt.some(0), providerExpirationInterval = 30.seconds
+      )
+    )
+    let receiverKad = setupKad(testKadConfig(providerExpirationInterval = 30.seconds))
+
+    startAndDeferStop(@[senderKad, receiverKad])
+    await connect(senderKad, receiverKad)
+
+    let keys = senderKad.provideWithoutAnnouncing(5)
+    check senderKad.providedKeyRegions().len == 1
+
+    checkUntilTimeout:
+      receiverKad.providerManager.knownKeys.len == keys.len
+      keys.allIt(receiverKad.providerManager.knownKeys.hasKey(it))
+
 suite "KadDHT - ADD_PROVIDER Rejection":
   teardown:
     checkTrackers()

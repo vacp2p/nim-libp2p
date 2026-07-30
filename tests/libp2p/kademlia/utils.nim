@@ -61,6 +61,7 @@ proc testKadConfig*(
     providerExpirationInterval: Duration = 1.seconds,
     recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
+    republishRegionBits: Opt[int] = Opt.none(int),
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
@@ -74,6 +75,7 @@ proc testKadConfig*(
     providerRejection = providerRejection,
     recordExpirationInterval = recordExpirationInterval,
     cleanupDataEntriesInterval = cleanupDataEntriesInterval,
+    republishRegionBits = republishRegionBits,
   )
 
 proc setupKad*(

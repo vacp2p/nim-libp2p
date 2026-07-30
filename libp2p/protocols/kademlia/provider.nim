@@ -14,7 +14,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
 import ../../utils/[heartbeat, future]
 import ../protocol
-import ./[protobuf, types, find, kademlia_metrics]
+import ./[protobuf, types, find, keyspace, kademlia_metrics]
 
 logScope:
   topics = "kad-dht provider"
@@ -169,13 +169,19 @@ proc countResults[T](rpcBatch: seq[T]): (int, int) =
         rejected.inc()
   (accepted, rejected)
 
-proc addProviderSpillover(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]).} =
-  let allPeers = (
-    await kad.iterativeLookup(key, findNodeDispatch, noopReply, closestAvailableStop)
-  ).allSortedPeers()
+proc storeProviderAt(
+    kad: KadDHT, key: Key, peers: seq[PeerId]
+) {.async: (raises: [CancelledError]).} =
+  ## Store this node as a provider of `key` at `peers`, ordered closest first.
+  ## With `providerRejection`, a fully rejected batch spills over to the next,
+  ## farther batch until `replication` peers accepted.
+  if not kad.config.providerRejection:
+    for chunk in peers.take(kad.config.replication).toChunks(kad.config.alpha):
+      await kad.sendBatch(chunk, key).allFuturesWaitOrTimeout(kad.config.timeout)
+    return
 
   var stored = 0
-  for chunk in allPeers.toChunks(kad.config.alpha):
+  for chunk in peers.toChunks(kad.config.alpha):
     if stored >= kad.config.replication:
       break
     let batch = kad.sendBatch(chunk, key)
@@ -194,12 +200,17 @@ proc addProviderSpillover(kad: KadDHT, key: Key) {.async: (raises: [CancelledErr
         key = key, batchSize = chunk.len
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
-  if kad.config.providerRejection:
-    await kad.addProviderSpillover(key)
-  else:
-    let peers = await kad.findNode(key)
-    for chunk in peers.toChunks(kad.config.alpha):
-      await kad.sendBatch(chunk, key).allFuturesWaitOrTimeout(kad.config.timeout)
+  let peers =
+    if kad.config.providerRejection:
+      # Spillover needs the peers past the closest `replication` ones too.
+      (
+        await kad.iterativeLookup(
+          key, findNodeDispatch, noopReply, closestAvailableStop
+        )
+      ).allSortedPeers()
+    else:
+      await kad.findNode(key)
+  await kad.storeProviderAt(key, peers)
 
 proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
   await addProvider(kad, cid.toKey())
@@ -215,12 +226,68 @@ proc startProviding*(kad: KadDHT, c: Cid) {.async: (raises: [CancelledError]).} 
 proc stopProviding*(kad: KadDHT, c: Cid) =
   kad.providerManager.providedKeys.del(c.toKey())
 
-proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  let providedKeys = kad.providerManager.providedKeys.provided
+proc providedKeyRegions*(kad: KadDHT): seq[seq[Key]] =
+  ## Provided keys grouped into keyspace regions, one group per DHT walk. Falls
+  ## back to a group per key while the routing table cannot size a region.
+  let keys = kad.providerManager.providedKeys.provided.keys().toSeq()
+  let bits = kad.config.republishRegionBits.valueOr:
+    kad.rtable.regionBits().valueOr:
+      return keys.mapIt(@[it])
+  keys.keyspaceRegions(bits, kad.rtable.config.hasher)
 
-  var futs = newSeqOfCap[Future[void]](providedKeys.len)
-  for key in providedKeys.keys():
-    futs.add(kad.addProvider(key))
+proc stillProvided(kad: KadDHT, keys: seq[Key]): seq[Key] =
+  ## A region waits for its slot, so `stopProviding` can drop a key between the
+  ## grouping and the walk.
+  keys.filterIt(kad.providerManager.providedKeys.hasKey(it))
+
+proc republishRegion(
+    kad: KadDHT, region: seq[Key]
+) {.async: (raises: [CancelledError]).} =
+  ## One walk for the whole region, then advertise every key to the peers it
+  ## found. Any member key is a valid walk target.
+  let keys = kad.stillProvided(region)
+  if keys.len == 0:
+    return
+
+  let regionPeers = (
+    await kad.iterativeLookup(
+      keys[0], findNodeDispatch, noopReply, closestAvailableStop
+    )
+  ).allSortedPeers()
+
+  kad_provider_republish_regions.inc()
+  kad_provider_republish_keys.inc(keys.len.int64)
+
+  let hasher = kad.rtable.config.hasher
+  let futs = keys.mapIt(kad.storeProviderAt(it, regionPeers.closestFirst(it, hasher)))
+  try:
+    await allFutures(futs)
+  except CancelledError as e:
+    await noCancel futs.cancelAndWait()
+    raise e
+
+func regionStartSpacing(interval: chronos.Duration, regions: int): chronos.Duration =
+  ## Regions start evenly spread over the first half of the republish interval;
+  ## the second half is headroom for the last region to finish.
+  if regions <= 1:
+    ZeroDuration
+  else:
+    (interval div 2) div regions
+
+proc republishRegionAfter(
+    kad: KadDHT, delay: chronos.Duration, keys: seq[Key]
+) {.async: (raises: [CancelledError]).} =
+  await sleepAsync(delay)
+  await kad.republishRegion(keys)
+
+proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  let regions = kad.providedKeyRegions()
+  let spacing =
+    regionStartSpacing(kad.config.republishProvidedKeysInterval, regions.len)
+
+  var futs = newSeqOfCap[Future[void]](regions.len)
+  for i, region in regions:
+    futs.add(kad.republishRegionAfter(spacing * i, region))
 
   try:
     await allFutures(futs)
