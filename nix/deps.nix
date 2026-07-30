@@ -102,9 +102,9 @@
   };
 
   protobuf_serialization = pkgs.fetchgit {
-    url = "https://github.com/nitely/nim-protobuf-serialization";
-    rev = "61949b84adfe05e2ce0afd25596c73b753048e7e";
-    sha256 = "08mgriagg20915v9sbxzib4palfl8jm1gvdirmxcn6wd1yc7ip80";
+    url = "https://github.com/status-im/nim-protobuf-serialization";
+    rev = "7861570c5182bd69f6b7c151028ffd5d0134b9ab";
+    sha256 = "07c2d5853k26rjqsrg4vq0kv0i5brzlbh0pj3v0qw0h929y5m54z";
     fetchSubmodules = true;
   };
 

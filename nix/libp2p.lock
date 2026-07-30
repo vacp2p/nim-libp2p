@@ -195,9 +195,9 @@
       }
     },
     "protobuf_serialization": {
-      "version": "#proto_editions",
-      "vcsRevision": "61949b84adfe05e2ce0afd25596c73b753048e7e",
-      "url": "https://github.com/nitely/nim-protobuf-serialization",
+      "version": "0.6.0",
+      "vcsRevision": "7861570c5182bd69f6b7c151028ffd5d0134b9ab",
+      "url": "https://github.com/status-im/nim-protobuf-serialization",
       "downloadMethod": "git",
       "dependencies": [
         "nim",
@@ -208,7 +208,7 @@
         "unittest2"
       ],
       "checksums": {
-        "sha1": "3440e6f435f4b6468e83f48d32d7a2b83106b542"
+        "sha1": "42d1fcecc4efff1319378c52b582dc1591b79221"
       }
     },
     "json_serialization": {
