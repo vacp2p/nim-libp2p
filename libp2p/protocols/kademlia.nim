@@ -86,6 +86,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    msgSender: MessageSender.new(switch, codec, MaxMsgSize),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
   )
@@ -149,6 +150,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   kad.stopping = false
+  kad.msgSender.start()
 
   if not kad.config.disableBootstrapping:
     discard
@@ -187,3 +189,6 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   while kad.admissionProbes.len > 0:
     let admissionProbes = move kad.admissionProbes
     await noCancel admissionProbes.values.toSeq().cancelAndWait()
+
+  # After the drain: nothing is left to reuse a stream, and `stop` refuses new ones.
+  await kad.msgSender.stop()

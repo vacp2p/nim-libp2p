@@ -6,7 +6,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/[heartbeat, future]
 import ../protocol
-import ./[protobuf, types, find, kademlia_metrics]
+import ./[protobuf, types, find, rpc, kademlia_metrics]
 
 logScope:
   topics = "kad-dht put"
@@ -50,49 +50,20 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc dispatchPutVal*(
     kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  withRpcSlot(kad)
-  let streamRes = catch:
-    await noCancel kad.switch.dial(
-      peer, kad.switch.peerStore[AddressBook][peer], kad.codec
-    )
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await noCancel stream.close()
   let msg = Message(
     msgType: Opt.some(MessageType.putValue),
     key: Opt.some(key),
     record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
-  let encoded = msg.encode()
+  let reply = ?await kad.dispatchRpc(peer, kad.switch.peerStore[AddressBook][peer], msg)
 
-  kad_messages_sent.inc(labelValues = [$MessageType.putValue])
-  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
-
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
-    ioRes = catch:
-      await stream.writeLp(encoded)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
-
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.putValue]
-  )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("PutValue reply decode fail")
-
-  debug "Got PutValue reply", msg = msg, reply = reply, stream = stream
+  debug "Got PutValue reply", msg = msg, reply = reply, peer = peer
 
   if reply != msg:
     error "Unexpected change between msg and reply: ",
-      msg = msg, reply = reply, stream = stream
+      msg = msg, reply = reply, peer = peer
 
-  return ok()
+  ok()
 
 proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
   if kad.dataTable.hasKey(key):
