@@ -14,6 +14,7 @@ import chronicles
 import metrics
 
 import ../libp2p
+import ../libp2p/logging
 import ../libp2p/services/natservice
 import ../libp2p/[multiaddress, peerid]
 import ../libp2p/crypto/crypto
@@ -381,6 +382,17 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
   ok(lib)
 
+proc libp2pSetLogLevel*(level: int): Future[Result[bool, string]] {.ffiStatic.} =
+  ## Changes the process-wide nim-libp2p runtime log level.
+  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
+    return err("invalid log level: " & $level)
+
+  when chronicles.runtimeFilteringEnabled:
+    logging.setLogLevel(chronicles.LogLevel(level))
+    ok(true)
+  else:
+    err("nim-libp2p runtime logs filtering is disabled")
+
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   ## Builds the switch from `config` and mounts the requested protocols. The
   ## node is not listening yet; call `libp2p_ctx_start` for that.
@@ -413,18 +425,6 @@ proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   ## `libp2p_ctx_destroy` does the same at teardown.
   await shutdownSwitch(lib)
   ok(true)
-
-proc libp2pSetLogLevel*(lib: LibP2P, level: int): Future[Result[bool, string]] {.ffi.} =
-  ## Changes the process-wide Chronicles runtime log level.
-  discard lib
-  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
-    return err("invalid log level: " & $level)
-
-  when chronicles.runtimeFilteringEnabled:
-    chronicles.setLogLevel(chronicles.LogLevel(level))
-    ok(true)
-  else:
-    err("Chronicles runtime filtering is disabled")
 
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## Runs on the worker loop, so the switch stops gracefully before the threads
