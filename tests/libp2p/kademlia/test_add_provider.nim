@@ -472,6 +472,7 @@ suite "KadDHT - Republish By Keyspace Region":
 
     check:
       regions.len < keys.len
+      # 1 prefix bit cuts the keyspace in two, so no key falls outside 2 regions.
       regions.len <= 2
       regions.concat().toHashSet() == keys.toHashSet()
 

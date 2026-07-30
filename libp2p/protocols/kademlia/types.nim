@@ -64,6 +64,12 @@ const
 
 type Key* = seq[byte]
 
+func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
+  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
+  var buf: array[IdLength, byte]
+  discard buf.copyFrom(bytes)
+  @buf
+
 proc toCid*(k: Key): Cid =
   let cidRes = Cid.init(k)
   if cidRes.isOk:

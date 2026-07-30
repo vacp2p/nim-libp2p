@@ -25,11 +25,17 @@ func regionPrefix*(key: Key, bits: int, hasher: Opt[XorDHasher]): RegionPrefix =
 func keyspaceRegions*(
     keys: seq[Key], bits: int, hasher: Opt[XorDHasher]
 ): seq[seq[Key]] =
-  ## Partition `keys` by prefix. `bits == 0` yields a single region.
-  var regions: Table[RegionPrefix, seq[Key]]
+  ## Partition `keys` by prefix, each region in the order its first key appears.
+  ## `bits == 0` yields a single region.
+  var
+    order: seq[RegionPrefix]
+    regions: Table[RegionPrefix, seq[Key]]
   for key in keys:
-    regions.mgetOrPut(key.regionPrefix(bits, hasher), @[]).add(key)
-  regions.values().toSeq()
+    let prefix = key.regionPrefix(bits, hasher)
+    if prefix notin regions:
+      order.add(prefix)
+    regions.mgetOrPut(prefix, @[]).add(key)
+  order.mapIt(regions.getOrDefault(it))
 
 func regionBits*(rtable: RoutingTable): Opt[int] =
   ## Prefix length that splits the keyspace into regions of at least

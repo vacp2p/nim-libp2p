@@ -3,30 +3,23 @@
 
 {.used.}
 
-import std/[algorithm, sequtils, sets]
+import std/sets
 import chronos, results
 import ../../../libp2p/[peerid, protocols/kademlia, crypto/crypto]
 import ../../tools/[unittest, crypto]
 
 let NoOp = Opt.some(noOpHasher)
 
-proc keyFrom(bytes: openArray[byte]): Key =
-  ## Key whose `noOpHasher` hash starts with `bytes`.
-  var buf: array[IdLength, byte]
-  for i, b in bytes:
-    buf[i] = b
-  @buf
-
-proc keyInBucket(bucket: int, tag: byte): Key =
+proc makeKeyInBucket(bucket: int, tag: byte): Key =
   ## Key landing in `bucket` of an all-zero selfId table. `tag` keeps keys apart.
   var buf: array[IdLength, byte]
   buf[bucket div 8] = 0x80'u8 shr (bucket mod 8)
   buf[IdLength - 1] = tag
   @buf
 
-proc emptyTable(replication: int): RoutingTable =
+proc makeEmptyTable(replication: int): RoutingTable =
   RoutingTable.new(
-    keyFrom([0'u8]),
+    Key.init([0'u8]),
     RoutingTableConfig.new(
       replication = replication, hasher = NoOp, selfIdPreHashed = true
     ),
@@ -34,11 +27,11 @@ proc emptyTable(replication: int): RoutingTable =
 
 proc fillBucket(rtable: RoutingTable, bucket: int, count: int) =
   for i in 0 ..< count:
-    doAssert rtable.insert(keyInBucket(bucket, i.byte))
+    doAssert rtable.insert(makeKeyInBucket(bucket, i.byte))
 
 suite "KadDHT Keyspace Regions":
   test "region prefix keeps the leading bits and clears the rest":
-    let key = keyFrom([0b1011_0110'u8, 0b1111_0000])
+    let key = Key.init([0b1011_0110'u8, 0b1111_0000])
     check:
       key.regionPrefix(0, NoOp) == newSeq[byte](0)
       key.regionPrefix(1, NoOp) == @[0b1000_0000'u8]
@@ -47,53 +40,38 @@ suite "KadDHT Keyspace Regions":
       key.regionPrefix(12, NoOp) == @[0b1011_0110'u8, 0b1111_0000]
 
   test "region prefix is clamped to the hash length":
-    check keyFrom([0xFF'u8]).regionPrefix(MaxRegionBits + 8, NoOp).len == IdLength
+    check Key.init([0xFF'u8]).regionPrefix(MaxRegionBits + 8, NoOp).len == IdLength
 
   test "keys share a region exactly when their leading bits match":
     let
-      a = keyFrom([0b1010_0000'u8])
-      b = keyFrom([0b1011_0000'u8])
+      a = Key.init([0b1010_0000'u8])
+      b = Key.init([0b1011_0000'u8])
     check:
       a.regionPrefix(3, NoOp) == b.regionPrefix(3, NoOp)
       a.regionPrefix(4, NoOp) != b.regionPrefix(4, NoOp)
 
   test "zero bits groups every key into one region":
-    let keys = @[keyFrom([0x00'u8]), keyFrom([0x80'u8]), keyFrom([0xFF'u8])]
-    let regions = keys.keyspaceRegions(0, NoOp)
-    check:
-      regions.len == 1
-      regions[0].toHashSet() == keys.toHashSet()
+    let keys = @[Key.init([0x00'u8]), Key.init([0x80'u8]), Key.init([0xFF'u8])]
+    check keys.keyspaceRegions(0, NoOp) == @[keys]
 
   test "regions partition the keys by prefix":
-    let keys = @[
-      keyFrom([0x00'u8]),
-      keyFrom([0x01'u8]),
-      keyFrom([0x80'u8]),
-      keyFrom([0xC0'u8]),
-      keyFrom([0xFF'u8]),
-    ]
-    let regions = keys.keyspaceRegions(1, NoOp)
-
-    check:
-      regions.len == 2
-      regions.mapIt(it.len).sorted() == @[2, 3]
-      regions.concat().toHashSet() == keys.toHashSet()
-
-    for region in regions:
-      check region.allIt(it.regionPrefix(1, NoOp) == region[0].regionPrefix(1, NoOp))
+    let
+      zeroPrefix = @[Key.init([0x00'u8]), Key.init([0x01'u8])]
+      onePrefix = @[Key.init([0x80'u8]), Key.init([0xC0'u8]), Key.init([0xFF'u8])]
+    check (zeroPrefix & onePrefix).keyspaceRegions(1, NoOp) == @[zeroPrefix, onePrefix]
 
   test "an empty key set yields no regions":
     check newSeq[Key]().keyspaceRegions(4, NoOp).len == 0
 
   test "region bits are unknown while no bucket is full":
-    let rtable = emptyTable(4)
+    let rtable = makeEmptyTable(4)
     check rtable.regionBits().isNone()
 
     rtable.fillBucket(2, 3)
     check rtable.regionBits().isNone()
 
   test "region bits follow the deepest full bucket":
-    let rtable = emptyTable(4)
+    let rtable = makeEmptyTable(4)
 
     rtable.fillBucket(2, 4)
     check rtable.regionBits() == Opt.some(3)
@@ -108,7 +86,7 @@ suite "KadDHT Keyspace Regions":
   test "closestFirst orders peers by distance to the key":
     let hasher = Opt.none(XorDHasher)
     let key = PeerId.random(rng()).get().toKey()
-    let peers = PeerId.random(8, rng())
+    let peers = PeerId.random(8, rng()).get()
 
     let ordered = peers.closestFirst(key, hasher)
     check:
