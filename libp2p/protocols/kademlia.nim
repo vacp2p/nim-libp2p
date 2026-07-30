@@ -27,7 +27,7 @@ proc peersInGracePeriod(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for entry in bucket.peers:
-      if not entry.needsLivenessCheck(gracePeriod, now):
+      if not entry.isReplaceable(gracePeriod, now):
         continue
       entry.nodeId.toPeerId().withValue(pid):
         peers.add(pid)
@@ -82,6 +82,14 @@ proc checkAndEvictPeer(
       dueTables.add(rtable)
   if dueTables.len == 0:
     debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
+    return
+
+  # Candidate list is a snapshot; by the time a slot is free the peer may have
+  # been refreshed (markUseful) or removed, and stop may have begun.
+  if kad.stopping:
+    return
+  let grace = kad.config.livenessGracePeriod
+  if not rtable.isReplaceable(peerId, grace, Moment.now()):
     return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
