@@ -29,6 +29,8 @@ type BootstrapNode {.ffi.} = object
   multiaddrs: seq[string]
 
 type Libp2pConfig {.ffi.} = object
+  logLevel: int
+    ## Chronicles runtime log level to apply before node construction.
   mountGossipsub: bool
     ## Mount GossipSub for publishing and receiving messages via pubsub.
   gossipsubTriggerSelf: bool ## Deliver locally published GossipSub messages to self.
