@@ -204,26 +204,32 @@ proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())
 
-proc addPeersWithAddrs*(kad: KadDHT, count: int) =
-  ## Adds `count` random peers to the routing table, with an address each so they
-  ## survive `toPeers`. Unlike `populateRoutingTable`, rejected ids are retried.
+proc insertRandomPeers*(kad: KadDHT, count: int): seq[PeerId] =
+  ## Inserts `count` random peers into the routing table. Unlike
+  ## `populateRoutingTable`, rejected ids are retried.
   const maxRetries = 1000
   let maxAttempts = count + maxRetries
-  var added = 0
+  var peers: seq[PeerId]
   for _ in 0 ..< maxAttempts:
-    if added == count:
+    if peers.len == count:
       break
     let peerId = randomPeerId()
     # A bucket only holds k peers, and which bucket an id lands in is random, so
     # a full bucket rejects the insert and the id is simply redrawn.
     if not kad.rtable.insert(peerId):
       continue
-    kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
-    added.inc()
+    peers.add(peerId)
 
-  doAssert added == count,
-    "routing table took only " & $added & " of " & $count & " peers in " & $maxAttempts &
-      " attempts"
+  doAssert peers.len == count,
+    "routing table took only " & $peers.len & " of " & $count & " peers in " &
+      $maxAttempts & " attempts"
+  peers
+
+proc addPeersWithAddrs*(kad: KadDHT, count: int) =
+  ## Adds `count` random peers to the routing table, with an address each so they
+  ## survive `toPeers`.
+  for peerId in kad.insertRandomPeers(count):
+    kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
 
 proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
@@ -253,6 +259,30 @@ proc sortPeers*(
         cmp(a[1], b[1])
     )
     .mapIt(it[0])
+
+proc seedRoutingTable*(kad: KadDHT, count: int, target: Key): seq[PeerId] =
+  ## Adds `count` random peers to the routing table and returns them sorted by
+  ## distance to `target`, closest first.
+  kad.insertRandomPeers(count).sortPeers(target, kad.rtable.config.hasher)
+
+proc seedRoutingTableBelow*(
+    kad: KadDHT, count: int, target: Key
+): tuple[closest: PeerId, seeded: seq[PeerId]] =
+  ## Seeds the routing table as `seedRoutingTable` does, and draws one more peer
+  ## that is closer to `target` than all of them. That peer is left out of the
+  ## routing table, so only a reply can bring it into a lookup.
+  const maxDraws = 1000
+  let peers = kad.seedRoutingTable(count, target)
+  let hasher = kad.rtable.config.hasher
+  let closestSeeded = xorDistance(peers[0], target, hasher)
+
+  for _ in 0 ..< maxDraws:
+    let candidate = randomPeerId()
+    if xorDistance(candidate, target, hasher) < closestSeeded:
+      return (candidate, peers)
+
+  raiseAssert "no peer closer than the " & $count & " seeded ones in " & $maxDraws &
+    " draws"
 
 proc addRandomPeers*(
     state: LookupState, count: int, target: Key, hasher: Opt[XorDHasher]

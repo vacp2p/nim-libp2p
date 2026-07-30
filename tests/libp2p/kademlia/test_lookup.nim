@@ -3,10 +3,36 @@
 
 {.used.}
 
-import tables
+import chronos, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/protocols/kademlia/[find, types]
 import ../../tools/[unittest]
 import ./utils.nim
+
+proc recordingDispatch(
+    queried: ref seq[PeerId],
+    closerPeers = initTable[PeerId, seq[PeerId]](),
+    failing = initHashSet[PeerId](),
+): DispatchProc =
+  ## Answers every query without any I/O, recording who was asked in order and
+  ## replying with the peers `closerPeers` maps that peer to. Peers in `failing`
+  ## answer with an error, as an unreachable or misbehaving peer would.
+  proc(
+      kad: KadDHT, peer: PeerId, target: Key
+  ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+    queried[].add(peer)
+    if peer in failing:
+      return err("peer is not answering")
+    let closer = closerPeers.getOrDefault(peer).mapIt(Peer(id: it.getBytes()))
+    ok(Message(msgType: MessageType.findNode, closerPeers: closer))
+
+proc setupLookupKad(retries = DefaultRetries): KadDHT =
+  ## `alpha = 1` keeps a single query in flight, so the recorded query order
+  ## tells the two phases apart.
+  let kad = setupKad(testKadConfig(replication = 5, retries = retries))
+  kad.config.alpha = 1
+  kad.config.beta = 2
+  kad
 
 suite "KadDHT Iterative Lookup":
   teardown:
@@ -165,50 +191,73 @@ suite "KadDHT Iterative Lookup":
     check allPeers ==
       @[peer1, peer2, peer3].sortPeers(targetKey, kad.rtable.config.hasher)
 
-  test "Lookup stops when k closest nodes have responded successfully":
+  test "Core lookup converges when the beta closest nodes responded successfully":
     let kad = setupKad()
 
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
 
-    # Add peers
     let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
-
-    # Set k=3
-    kad.config.replication = 3
+    kad.config.beta = 3
 
     # only 2 successes, need 3
     state.responded[peers[0]] = RespondedStatus.Failed
     state.responded[peers[1]] = RespondedStatus.Success
     state.responded[peers[2]] = RespondedStatus.Success
-    check not state.hasResponsesFromClosestAvailable()
+    check not state.hasConverged()
 
-    # stop condition met
     state.responded[peers[3]] = RespondedStatus.Success
-    check state.hasResponsesFromClosestAvailable()
+    check state.hasConverged()
 
-  test "Lookup doesn't stop when k successes but closer peer not responded":
+  test "Core lookup doesn't converge when beta successes but closer peer not responded":
     let kad = setupKad()
 
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
 
-    # Add peers
     let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
-
-    # Set k=3
-    kad.config.replication = 3
+    kad.config.beta = 3
 
     # Respond from 0, 2 and 3, but not 1
     # The gap means the condition is not satisfied
     state.responded[peers[0]] = RespondedStatus.Success
     state.responded[peers[2]] = RespondedStatus.Success
     state.responded[peers[3]] = RespondedStatus.Success
-    check not state.hasResponsesFromClosestAvailable()
+    check not state.hasConverged()
 
-    # Stop condition satisfied
     state.responded[peers[1]] = RespondedStatus.Success
-    check state.hasResponsesFromClosestAvailable()
+    check state.hasConverged()
+
+  test "Core lookup never waits for more than k responses":
+    let kad = setupKad()
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
+
+    kad.config.beta = 5
+    kad.config.replication = 2
+
+    state.responded[peers[0]] = RespondedStatus.Success
+    check not state.hasConverged()
+
+    state.responded[peers[1]] = RespondedStatus.Success
+    check state.hasConverged()
+
+  test "Follow-up phase targets the k closest peers that did not answer":
+    let kad = setupKad()
+    kad.config.replication = 3
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    let peers = state.addRandomPeers(5, targetKey, kad.rtable.config.hasher)
+
+    state.responded[peers[0]] = RespondedStatus.Success
+    state.responded[peers[1]] = RespondedStatus.Failed
+
+    # peers[1] still has retries left, peers[2] was never queried, and peers[3..4]
+    # are past the k closest
+    check state.followUpPeers() == toHashSet([peers[1], peers[2]])
 
   test "selectCloserPeers excludes peers that exhausted retries":
     let kad = setupKad()
@@ -257,3 +306,66 @@ suite "KadDHT Iterative Lookup":
 
       # But selectCloserPeers only returns k=3
       state.selectCloserPeers(kad.config.replication).len == kad.config.replication
+
+  asyncTest "Lookup confirms the k closest peers after converging on beta":
+    let kad = setupLookupKad()
+
+    let targetKey = randomPeerId().toKey()
+    let known = kad.seedRoutingTable(5, targetKey)
+
+    let queried = new(seq[PeerId])
+    discard await kad.iterativeLookup(
+      targetKey, recordingDispatch(queried), noopReply, noStop
+    )
+
+    check queried[] == known
+
+  asyncTest "Follow-up phase does not query peers it hears about":
+    let kad = setupLookupKad()
+
+    let targetKey = randomPeerId().toKey()
+    # `closest` beats every seeded peer, so a lookup that kept iterating would
+    # query it before terminating
+    let (closest, known) = kad.seedRoutingTableBelow(5, targetKey)
+
+    let queried = new(seq[PeerId])
+    # The third query is the first one of the follow-up phase
+    let dispatch = recordingDispatch(queried, {known[2]: @[closest]}.toTable())
+    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply, noStop)
+
+    check:
+      queried[] == known
+      # heard about and reported back, but never queried
+      state.shortlist.hasKey(closest)
+      state.allSortedPeers()[0] == closest
+
+  asyncTest "Lookup converges past a closest peer that does not answer":
+    # No retries, so the dead peer costs exactly one query
+    let kad = setupLookupKad(retries = 0)
+
+    let targetKey = randomPeerId().toKey()
+    let known = kad.seedRoutingTable(5, targetKey)
+
+    let queried = new(seq[PeerId])
+    let dispatch = recordingDispatch(queried, failing = toHashSet([known[0]]))
+    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply, noStop)
+
+    check:
+      # The dead peer holds nothing back and is not asked again
+      queried[] == known
+      state.responded[known[0]] == RespondedStatus.Failed
+
+  asyncTest "External stop condition skips the follow-up phase":
+    let kad = setupLookupKad()
+
+    let targetKey = randomPeerId().toKey()
+    let known = kad.seedRoutingTable(5, targetKey)
+
+    let queried = new(seq[PeerId])
+    let stopOnFirstReply = proc(state: LookupState): bool {.gcsafe.} =
+      state.responded.len >= 1
+    discard await kad.iterativeLookup(
+      targetKey, recordingDispatch(queried), noopReply, stopOnFirstReply
+    )
+
+    check queried[] == known[0 .. 0]

@@ -203,11 +203,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
   let peers =
     if kad.config.providerRejection:
       # Spillover needs the peers past the closest `replication` ones too.
-      (
-        await kad.iterativeLookup(
-          key, findNodeDispatch, noopReply, closestAvailableStop
-        )
-      ).allSortedPeers()
+      (await kad.iterativeLookup(key, findNodeDispatch, noopReply, noStop)).allSortedPeers()
     else:
       await kad.findNode(key)
   await kad.storeProviderAt(key, peers)

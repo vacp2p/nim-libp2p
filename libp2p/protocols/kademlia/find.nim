@@ -124,27 +124,38 @@ proc selectCloserPeers*(
     # take at most alpha peers
     .take(amount)
 
-proc hasResponsesFromClosestAvailable*(
-    state: LookupState
+proc hasResponsesFromClosest*(
+    state: LookupState, amount: int
 ): bool {.raises: [], gcsafe.} =
-  ## True when all closest k AVAILABLE peers have responded.
+  ## True when the closest `amount` AVAILABLE peers have responded.
   let candidates = state.sortedShortlist(excludeResponded = false)
   if candidates.len == 0:
     return true
 
-  var closetsRespondedCnt = 0
+  var closestRespondedCnt = 0
   for (c, _) in candidates:
-    if state.responded.hasKey(c):
-      try:
-        if state.responded[c] == RespondedStatus.Success:
-          closetsRespondedCnt.inc(1)
-      except KeyError:
-        raiseAssert "checked with hasKey"
-    else:
+    if not state.responded.hasKey(c):
       # It's a close peer but has not been queried yet
       break
+    if state.responded.getOrDefault(c) == RespondedStatus.Success:
+      closestRespondedCnt.inc(1)
 
-  return closetsRespondedCnt >= state.kad.config.replication
+  closestRespondedCnt >= amount
+
+proc hasConverged*(state: LookupState): bool {.raises: [], gcsafe.} =
+  # Both config fields are public and mutable, so pin the range at the point of use.
+  let beta = max(1, min(state.kad.config.beta, state.kad.config.replication))
+  state.hasResponsesFromClosest(beta)
+
+proc followUpPeers*(state: LookupState): HashSet[PeerId] {.raises: [].} =
+  ## The `replication` closest peers heard about that never answered.
+  var peers = initHashSet[PeerId]()
+  for pid in state.selectCloserPeers(
+    state.kad.config.replication, excludeResponded = false
+  ):
+    if state.responded.getOrDefault(pid) != RespondedStatus.Success:
+      peers.incl(pid)
+  peers
 
 proc allSortedPeers*(state: LookupState): seq[PeerId] =
   ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
@@ -498,8 +509,8 @@ proc noopReply*(
 ): Future[void] {.async: (raises: []), gcsafe.} =
   discard
 
-proc closestAvailableStop*(state: LookupState): bool {.raises: [], gcsafe.} =
-  state.hasResponsesFromClosestAvailable()
+proc noStop*(state: LookupState): bool {.raises: [], gcsafe.} =
+  false
 
 proc findNodeDispatch*(
     kad: KadDHT, peer: PeerId, target: Key
@@ -542,13 +553,17 @@ func activePeers(pending: seq[Attempt]): HashSet[PeerId] {.raises: [].} =
   peers
 
 proc fillSlots(
-    kad: KadDHT, state: LookupState, pending: var seq[Attempt], dispatch: DispatchProc
+    kad: KadDHT,
+    state: LookupState,
+    pending: var seq[Attempt],
+    dispatch: DispatchProc,
+    candidates: seq[PeerId],
 ) {.raises: [].} =
   ## Keep up to ``alpha`` RPCs in flight by dispatching the next-closest
-  ## not-yet-active peers into any free slots.
+  ## not-yet-active ``candidates`` into any free slots.
   var active = pending.activePeers()
   let target = state.target
-  for (peerId, _) in state.sortedShortlist():
+  for peerId in candidates:
     if active.len >= kad.config.alpha:
       break
     if peerId in active:
@@ -652,6 +667,34 @@ proc dropDonePeers(
   pending = keep
   stale
 
+type LookupPhase = enum
+  Core ## converge on the closest `beta` peers
+  FollowUp ## confirm the rest of the k-closest set
+
+proc nextQueryTargets(
+    state: LookupState,
+    phase: LookupPhase,
+    followUp: HashSet[PeerId],
+    stopCond: StopCond,
+): seq[PeerId] {.raises: [].} =
+  ## Peers still worth querying in ``phase``, closest first. An empty result only
+  ## stops new queries: the ones already in flight keep draining, so the returned
+  ## peer set stays complete.
+  if stopCond(state):
+    return @[]
+
+  let closest = state.sortedShortlist().mapIt(it[0])
+  case phase
+  of Core:
+    if state.hasConverged():
+      @[]
+    else:
+      closest
+  of FollowUp:
+    # The set is fixed when the phase starts, so peers heard about during it are
+    # reported and not queried, and the phase ends.
+    closest.filterIt(it in followUp)
+
 proc iterativeLookup*(
     kad: KadDHT,
     target: Key,
@@ -662,9 +705,12 @@ proc iterativeLookup*(
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
   ## Drive lookup with continuous ``alpha`` concurrency instead of synchronized
   ## rounds. Timed-out RPCs free their slot and may be retried; late replies are
-  ## ignored.
+  ## ignored. An external ``stopCond`` ends the lookup on the spot, follow-up
+  ## phase included, since its caller already has what it asked for.
   let state = LookupState.init(kad, target)
   var pending: seq[Attempt]
+  var phase = Core
+  var followUp: HashSet[PeerId]
 
   # `noCancel`: when the lookup itself is cancelled, still wait for every RPC to
   # unwind, otherwise we return while their streams are still closing.
@@ -681,14 +727,22 @@ proc iterativeLookup*(
     let stale = state.dropDonePeers(pending)
     await noCancel stale.cancelAndWait()
 
-    # Once the stop condition holds, dispatch no new peers but keep draining the
-    # replies already in flight, so the returned peer set stays complete.
-    if not stopCond(state):
-      kad.fillSlots(state, pending, dispatch)
+    kad.fillSlots(
+      state, pending, dispatch, state.nextQueryTargets(phase, followUp, stopCond)
+    )
 
-    if pending.activePeers().len == 0:
+    if pending.activePeers().len > 0:
+      await awaitProgress(pending)
+      continue
+
+    if phase == FollowUp or stopCond(state):
       break
-    await awaitProgress(pending)
+
+    phase = FollowUp
+    followUp = state.followUpPeers()
+    if followUp.len == 0:
+      break
+    kad_lookup_followups.inc()
 
   state
 
@@ -705,9 +759,8 @@ method findNode*(
     kad: KadDHT, target: Key, rtable: RoutingTable
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
-  let state = await kad.iterativeLookup(
-    target, rtable, findNodeDispatch, noopReply, closestAvailableStop
-  )
+  let state =
+    await kad.iterativeLookup(target, rtable, findNodeDispatch, noopReply, noStop)
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
