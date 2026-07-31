@@ -272,8 +272,19 @@ proc send(
   # deadline, and the retry the caller sends next would spend its whole budget
   # waiting for the stream, never reaching the peer.
   let deadline = Moment.now() + timeout
-  if not await ps.lock.acquire().withTimeout(timeout):
-    return err(SendError.init(dialStage, "timed out waiting for the peer's stream"))
+  # `withTimeout` on an `acquire` can drop the wait at the instant chronos hands
+  # the lock off, leaving it held with no owner. Release it if the acquire won
+  # that race, so a cancelled or timed-out wait never leaks the peer's lock.
+  let acquireFut = ps.lock.acquire()
+  try:
+    if not await acquireFut.withTimeout(timeout):
+      if acquireFut.completed():
+        ps.releaseLock()
+      return err(SendError.init(dialStage, "timed out waiting for the peer's stream"))
+  except CancelledError as e:
+    if acquireFut.completed():
+      ps.releaseLock()
+    raise e
   defer:
     ps.releaseLock()
 
