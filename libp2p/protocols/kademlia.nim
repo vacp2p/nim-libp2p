@@ -6,11 +6,12 @@ import chronos, chronicles, results
 import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
-import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
+import
+  ./kademlia/[routing_table, protobuf, types, find, get, put, keyspace, provider, ping]
 import ./kademlia/kademlia_metrics
 
 export
-  chronicles, routing_table, protobuf, types, find, get, put, provider, ping,
+  chronicles, routing_table, protobuf, types, find, get, put, keyspace, provider, ping,
   kademlia_metrics
 
 logScope:

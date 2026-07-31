@@ -15,6 +15,8 @@ const
 
   MaxBucketsLimit* = IdLength * 8
     ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
+  MaxRegionBits* = IdLength * 8
+    ## a region prefix bit per key bit; a longer prefix narrows nothing further
   DefaultMaxBuckets* = MaxBucketsLimit
   MaxRefreshLeadingZeros* = 12
   DefaultTimeout* = 5.seconds
@@ -61,6 +63,12 @@ const
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
 type Key* = seq[byte]
+
+func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
+  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
+  var buf: array[IdLength, byte]
+  discard buf.copyFrom(bytes)
+  @buf
 
 proc toCid*(k: Key): Cid =
   let cidRes = Cid.init(k)
@@ -427,6 +435,11 @@ type KadDHTConfig* = object
     ## rejected. The per-key cap (``limits.maxProvidersPerKey``) is always
     ## enforced regardless of this flag — this only controls whether
     ## rejections are acknowledged on the wire.
+  republishRegionBits*: Opt[int]
+    ## Overrides the keyspace prefix length that groups provided keys into
+    ## republish regions, one DHT walk each. ``Opt.none`` derives it from the
+    ## routing table; too few bits advertise a key to peers that are not its
+    ## closest.
   limits*: KadDHTLimits
 
 proc new*(
@@ -450,10 +463,14 @@ proc new*(
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
     providerRejection: bool = false,
+    republishRegionBits: Opt[int] = Opt.none(int),
     limits: Opt[KadDHTLimits] = Opt.none(KadDHTLimits),
 ): K {.raises: [].} =
   let actualLimits = limits.valueOr:
     KadDHTLimits.new(replication, quorum)
+  doAssert republishRegionBits.isNone or republishRegionBits.get() in 0 .. MaxRegionBits,
+    "republishRegionBits must be in 0 .. " & $MaxRegionBits &
+      "; use Opt.none(int) to derive it from the routing table"
   doAssert actualLimits.maxProvidersPerKey.isNone or
     actualLimits.maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
@@ -491,6 +508,7 @@ proc new*(
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
     providerRejection: providerRejection,
+    republishRegionBits: republishRegionBits,
     limits: actualLimits,
   )
 
