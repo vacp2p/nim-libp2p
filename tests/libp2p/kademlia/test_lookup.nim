@@ -29,10 +29,7 @@ proc recordingDispatch(
 proc setupLookupKad(retries = DefaultRetries): KadDHT =
   ## `alpha = 1` keeps a single query in flight, so the recorded query order
   ## tells the two phases apart.
-  let kad = setupKad(testKadConfig(replication = 5, retries = retries))
-  kad.config.alpha = 1
-  kad.config.beta = 2
-  kad
+  setupKad(testKadConfig(replication = 5, retries = retries, alpha = 1, beta = 2))
 
 suite "KadDHT Iterative Lookup":
   teardown:
@@ -314,30 +311,47 @@ suite "KadDHT Iterative Lookup":
     let known = kad.seedRoutingTable(5, targetKey)
 
     let queried = new(seq[PeerId])
-    discard await kad.iterativeLookup(
-      targetKey, recordingDispatch(queried), noopReply, noStop
-    )
+    discard await kad.iterativeLookup(targetKey, recordingDispatch(queried), noopReply)
 
     check queried[] == known
 
-  asyncTest "Follow-up phase does not query peers it hears about":
+  asyncTest "Follow-up phase defers a peer it hears about to the next round":
     let kad = setupLookupKad()
 
     let targetKey = randomPeerId().toKey()
-    # `closest` beats every seeded peer, so a lookup that kept iterating would
-    # query it before terminating
+    # `closest` beats every seeded peer, so the lookup owes it a query
     let (closest, known) = kad.seedRoutingTableBelow(5, targetKey)
 
     let queried = new(seq[PeerId])
     # The third query is the first one of the follow-up phase
     let dispatch = recordingDispatch(queried, {known[2]: @[closest]}.toTable())
-    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply, noStop)
+    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply)
 
     check:
-      queried[] == known
-      # heard about and reported back, but never queried
-      state.shortlist.hasKey(closest)
+      # the running phase finishes its own set first, then `closest` reopens it
+      queried[] == known & @[closest]
+      state.responded[closest] == RespondedStatus.Success
       state.allSortedPeers()[0] == closest
+
+  asyncTest "Lookup keeps going for a stop condition the follow-up phase unblocks":
+    let kad = setupLookupKad()
+
+    let targetKey = randomPeerId().toKey()
+    let (closest, known) = kad.seedRoutingTableBelow(5, targetKey)
+
+    let queried = new(seq[PeerId])
+    let dispatch = recordingDispatch(queried, {known[2]: @[closest]}.toTable())
+    # Stands in for the quorum of `getValue` and `getProviders`: only the peer
+    # the follow-up phase discovers can satisfy it.
+    let stopOnClosestReply = proc(state: LookupState): bool {.gcsafe.} =
+      state.responded.hasKey(closest)
+
+    let state =
+      await kad.iterativeLookup(targetKey, dispatch, noopReply, stopOnClosestReply)
+
+    check:
+      closest in queried[]
+      state.responded[closest] == RespondedStatus.Success
 
   asyncTest "Lookup converges past a closest peer that does not answer":
     # No retries, so the dead peer costs exactly one query
@@ -348,7 +362,7 @@ suite "KadDHT Iterative Lookup":
 
     let queried = new(seq[PeerId])
     let dispatch = recordingDispatch(queried, failing = toHashSet([known[0]]))
-    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply, noStop)
+    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply)
 
     check:
       # The dead peer holds nothing back and is not asked again

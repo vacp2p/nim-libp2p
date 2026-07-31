@@ -29,7 +29,7 @@ const
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
-  DefaultBeta* = 3
+  DefaultBeta* = 3 ## core lookup convergence threshold
   DefaultQuorum* = 5 # number of GetValue responses needed to decide
   DefaultProviderRecordCapacity* = 500
     # maximum number of provider records to store at once
@@ -420,7 +420,7 @@ type KadDHTConfig* = object
   alpha*: int
   beta*: int
     ## Number of closest peers that must answer for the core lookup to converge.
-    ## The lookup caps values above ``replication``.
+    ## Must be in ``1 .. replication``.
   ttl*: chronos.Duration
   quorum*: int
   providerRecordCapacity*: int
@@ -480,6 +480,8 @@ proc new*(
     actualLimits.maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
   doAssert beta > 0, "beta must be > 0"
+  doAssert beta <= replication,
+    "beta must be <= replication, since the follow-up phase never reaches past the k closest peers"
   doAssert actualLimits.maxShortlistSize > 0, "maxShortlistSize must be > 0"
   doAssert actualLimits.maxReceivedSize > 0, "maxReceivedSize must be > 0"
   doAssert actualLimits.maxValueSize > 0, "maxValueSize must be > 0"

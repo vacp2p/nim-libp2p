@@ -35,7 +35,7 @@ proc randomRecords(
       getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
 
   try:
-    discard await disco.iterativeLookup(randomKey, findNodeDispatch, onReply, noStop)
+    discard await disco.iterativeLookup(randomKey, findNodeDispatch, onReply)
   except CancelledError as e:
     await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
     raise e

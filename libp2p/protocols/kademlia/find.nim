@@ -32,7 +32,10 @@ type ReplyHandler* = proc(
   peer: PeerId, msg: Opt[Message], state: LookupState
 ): Future[void] {.async: (raises: []), gcsafe.}
 
-type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
+type EarlyExit* = proc(state: LookupState): bool {.raises: [], gcsafe.}
+  ## External early exit. ``iterativeLookup`` converges and confirms the k
+  ## closest peers on its own, so a caller passes this only to stop sooner than
+  ## that, once it already has what it asked for.
 
 proc getFarthest(
     t: Table[PeerId, XorDistance]
@@ -127,7 +130,9 @@ proc selectCloserPeers*(
 proc hasResponsesFromClosest*(
     state: LookupState, amount: int
 ): bool {.raises: [], gcsafe.} =
-  ## True when the closest `amount` AVAILABLE peers have responded.
+  ## True when `amount` of the closest peers already answered successfully,
+  ## counting from the closest and stopping at the first one never queried.
+  ## An empty shortlist counts as converged: there is nobody left to wait for.
   let candidates = state.sortedShortlist(excludeResponded = false)
   if candidates.len == 0:
     return true
@@ -149,13 +154,10 @@ proc hasConverged*(state: LookupState): bool {.raises: [], gcsafe.} =
 
 proc followUpPeers*(state: LookupState): HashSet[PeerId] {.raises: [].} =
   ## The `replication` closest peers heard about that never answered.
-  var peers = initHashSet[PeerId]()
-  for pid in state.selectCloserPeers(
-    state.kad.config.replication, excludeResponded = false
-  ):
-    if state.responded.getOrDefault(pid) != RespondedStatus.Success:
-      peers.incl(pid)
-  peers
+  state
+    .selectCloserPeers(amount = state.kad.config.replication, excludeResponded = false)
+    .filterIt(state.responded.getOrDefault(it) != RespondedStatus.Success)
+    .toHashSet()
 
 proc allSortedPeers*(state: LookupState): seq[PeerId] =
   ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
@@ -509,7 +511,8 @@ proc noopReply*(
 ): Future[void] {.async: (raises: []), gcsafe.} =
   discard
 
-proc noStop*(state: LookupState): bool {.raises: [], gcsafe.} =
+proc noEarlyExit*(state: LookupState): bool {.raises: [], gcsafe.} =
+  ## Default for a lookup that wants the k closest peers and nothing else.
   false
 
 proc findNodeDispatch*(
@@ -669,31 +672,47 @@ proc dropDonePeers(
 
 type LookupPhase = enum
   Core ## converge on the closest `beta` peers
-  FollowUp ## confirm the rest of the k-closest set
+  FollowUp ## sweep the k closest peers that have not answered
 
-proc nextQueryTargets(
-    state: LookupState,
-    phase: LookupPhase,
-    followUp: HashSet[PeerId],
-    stopCond: StopCond,
-): seq[PeerId] {.raises: [].} =
-  ## Peers still worth querying in ``phase``, closest first. An empty result only
-  ## stops new queries: the ones already in flight keep draining, so the returned
-  ## peer set stays complete.
-  if stopCond(state):
-    return @[]
+type LookupPhases = object
+  phase: LookupPhase
+  sweep: HashSet[PeerId] ## the peers the running sweep targets
+  swept: HashSet[PeerId] ## every peer some sweep already targeted
 
+proc targets(phases: LookupPhases, state: LookupState): seq[PeerId] {.raises: [].} =
+  ## Peers still worth querying in the running phase, closest first.
   let closest = state.sortedShortlist().mapIt(it[0])
-  case phase
+  case phases.phase
   of Core:
     if state.hasConverged():
       @[]
     else:
       closest
   of FollowUp:
-    # The set is fixed when the phase starts, so peers heard about during it are
-    # reported and not queried, and the phase ends.
-    closest.filterIt(it in followUp)
+    # The set is fixed when the sweep starts, so a peer heard about mid-sweep
+    # waits for the next round and one sweep cannot grow without end.
+    closest.filterIt(it in phases.sweep)
+
+proc advance(phases: var LookupPhases, state: LookupState): bool {.raises: [].} =
+  ## Open the next phase now that the running one has nothing left in flight.
+  ## False when neither phase has work left, which ends the lookup.
+  if phases.phase == FollowUp:
+    # The sweep drained, and its replies may name closer peers. Let the core
+    # phase converge on those before sweeping again.
+    phases.phase = Core
+    return true
+
+  # Sweeping a peer twice is what would let the two phases alternate forever.
+  let sweep = state.followUpPeers() - phases.swept
+  if sweep.len == 0:
+    return false
+
+  if phases.swept.len == 0:
+    kad_lookup_followups.inc()
+  phases.swept.incl(sweep)
+  phases.sweep = sweep
+  phases.phase = FollowUp
+  true
 
 proc iterativeLookup*(
     kad: KadDHT,
@@ -701,16 +720,17 @@ proc iterativeLookup*(
     rtable: RoutingTable,
     dispatch: DispatchProc,
     onReply: ReplyHandler,
-    stopCond: StopCond,
+    earlyExit: EarlyExit = noEarlyExit,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
   ## Drive lookup with continuous ``alpha`` concurrency instead of synchronized
   ## rounds. Timed-out RPCs free their slot and may be retried; late replies are
-  ## ignored. An external ``stopCond`` ends the lookup on the spot, follow-up
-  ## phase included, since its caller already has what it asked for.
+  ## ignored. An ``earlyExit`` ends the lookup on the spot, follow-up sweep
+  ## included, since its caller already has what it asked for. Until it holds,
+  ## the lookup alternates core and follow-up until the k closest peers it knows
+  ## of have all been queried.
   let state = LookupState.init(kad, target)
   var pending: seq[Attempt]
-  var phase = Core
-  var followUp: HashSet[PeerId]
+  var phases = LookupPhases(phase: Core)
 
   # `noCancel`: when the lookup itself is cancelled, still wait for every RPC to
   # unwind, otherwise we return while their streams are still closing.
@@ -727,22 +747,17 @@ proc iterativeLookup*(
     let stale = state.dropDonePeers(pending)
     await noCancel stale.cancelAndWait()
 
-    kad.fillSlots(
-      state, pending, dispatch, state.nextQueryTargets(phase, followUp, stopCond)
-    )
+    if not earlyExit(state):
+      kad.fillSlots(state, pending, dispatch, phases.targets(state))
 
+    # Dispatching nothing new only stops the lookup once the RPCs already in
+    # flight have drained, so the returned peer set stays complete.
     if pending.activePeers().len > 0:
       await awaitProgress(pending)
       continue
 
-    if phase == FollowUp or stopCond(state):
+    if earlyExit(state) or not phases.advance(state):
       break
-
-    phase = FollowUp
-    followUp = state.followUpPeers()
-    if followUp.len == 0:
-      break
-    kad_lookup_followups.inc()
 
   state
 
@@ -751,16 +766,15 @@ proc iterativeLookup*(
     target: Key,
     dispatch: DispatchProc,
     onReply: ReplyHandler,
-    stopCond: StopCond,
+    earlyExit: EarlyExit = noEarlyExit,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
-  await kad.iterativeLookup(target, kad.rtable, dispatch, onReply, stopCond)
+  await kad.iterativeLookup(target, kad.rtable, dispatch, onReply, earlyExit)
 
 method findNode*(
     kad: KadDHT, target: Key, rtable: RoutingTable
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
-  let state =
-    await kad.iterativeLookup(target, rtable, findNodeDispatch, noopReply, noStop)
+  let state = await kad.iterativeLookup(target, rtable, findNodeDispatch, noopReply)
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 

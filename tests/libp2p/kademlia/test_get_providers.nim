@@ -226,8 +226,12 @@ suite "KadDHT - Get Providers":
     check:
       (await kads[0].getProviders(key)).len() == 3
 
-    # Increase replication
+    # Increase replication. The shortlist cap is derived from replication
+    # (`maxShortlistSize = replication * 2`), so refresh the limits too; otherwise
+    # the cap stays sized for the old replication and the lookup can evict kad[2]
+    # before it answers, dropping its providers.
     kads[0].config.replication = 6
+    kads[0].config.limits = KadDHTLimits.new(6, kads[0].config.quorum)
 
     # kads[0] queries again and stops only at kad[2]
     check:
