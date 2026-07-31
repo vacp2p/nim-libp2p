@@ -65,6 +65,17 @@ proc checkAndEvictPeer(
     debug "Liveness probe skipped: no free slot", peer = peerId.shortLog()
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
+  kad.livenessProbes[probeKey] = probe
+  probe.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      if kad.livenessProbes.getOrDefault(probeKey) == probe:
+        kad.livenessProbes.del(probeKey)
+  )
+
+proc checkAndEvictPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
   defer:
     try:
       kad.livenessSem.release()
@@ -83,11 +94,6 @@ proc checkAndEvictPeer(
   if dueTables.len == 0:
     debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
-
-proc checkAndEvictPeer(
-    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: [CancelledError]).} =
-  withProbeSlotOrReturn(kad)
 
   # Candidate list is a snapshot; by the time a slot is free the peer may have
   # been refreshed (markUseful) or removed, and stop may have begun.
@@ -221,6 +227,40 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       idle = false
     else:
       idle = true
+
+proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  ## Continuous background task: drain replaceable peers via liveness probes
+  ## as soon as they become due, bounded by ``probeSem``. Independent of
+  ## bucket refresh so dead peers are not held until the next refresh tick.
+  # Yield once so start() can finish bootstrap before the first scan.
+  await sleepAsync(kad.config.livenessIdleInterval)
+
+  while not kad.stopping:
+    let grace = kad.config.livenessGracePeriod
+    var saturated = false
+
+    for rtable in kad.maintainableTables():
+      if kad.stopping:
+        return
+      for peerId in rtable.livenessCandidates(grace):
+        if not kad.tryLaunchLivenessProbe(rtable, peerId):
+          saturated = true
+          break
+      if saturated:
+        break
+
+    if kad.livenessProbes.len > 0:
+      let inFlight = kad.livenessProbes.values.toSeq()
+      try:
+        discard await one(inFlight)
+      except ValueError:
+        # All futures already finished between the snapshot and the wait.
+        discard
+      except CancelledError as exc:
+        await noCancel inFlight.cancelAndWait()
+        raise exc
+    else:
+      await sleepAsync(kad.config.livenessIdleInterval)
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
