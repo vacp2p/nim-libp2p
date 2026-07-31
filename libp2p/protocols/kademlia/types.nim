@@ -557,6 +557,11 @@ type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
 
 type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
+type KadMode* {.pure.} = enum
+  Client ## never serves queries; only issues them
+  Server ## always serves queries
+  Auto ## serves queries only while the node is reachable (driven by autonat)
+
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: Rng
@@ -582,6 +587,16 @@ type KadDHT* = ref object of LPProtocol
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
     ## still false while bootstrap admits its seed peers during ``start``.
+  mode*: KadMode
+    ## Configured client/server mode.
+    ## ``Auto`` changes to ``Server`` when node is reachable
+    ## or to ``Client`` when not is not reachable;
+    ## ``Client`` and ``Server`` pin it.
+  serving*: bool
+    ## Whether the node currently answers inbound queries. Under ``Auto`` this
+    ## tracks reachability; otherwise it is fixed by ``mode``.
+  serverStreams*: HashSet[Stream]
+    ## Open inbound server streams, reset on a downgrade to client mode.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is

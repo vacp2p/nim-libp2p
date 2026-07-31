@@ -63,6 +63,7 @@ type
   KadInfo = object
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+    mode*: KadMode
 
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
@@ -395,8 +396,9 @@ proc withKademlia*(
     b: SwitchBuilder,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
+    mode: KadMode = KadMode.Server,
 ): SwitchBuilder =
-  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
+  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes, mode: mode))
   b
 
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -557,9 +559,28 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     var config = kadInfo.config
     config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = config,
+      rng = b.rng,
+      mode = kadInfo.mode,
     )
     switch.mount(kad)
+
+    if kadInfo.mode == KadMode.Auto:
+      var wired = false
+      switch.natService().withValue(nat):
+        wired = nat.addReachabilityHandler(
+          proc(
+              reachability: NetworkReachability,
+              confidence: Opt[float],
+              dialBackAddr: Opt[MultiAddress],
+          ) {.async: (raises: [CancelledError]).} =
+            await kad.onReachabilityChanged(reachability)
+        )
+      if not wired:
+        warn "Kad-DHT auto mode has no reachability service; it stays a client",
+          hint = "configure withNAT reachability or hole-punching"
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var switch = b.buildSwitch()

@@ -66,7 +66,7 @@ suite "KadDHT Switch Builder":
       switch2,
       bootstrapNodes = @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
       rng = rng(),
-      client = true,
+      mode = KadMode.Client,
     )
 
     await allFutures(switch1.start(), switch2.start())
