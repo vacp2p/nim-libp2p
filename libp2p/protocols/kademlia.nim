@@ -86,9 +86,8 @@ proc checkAndEvictPeer(
 
 proc checkAndEvictPeer(
     kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   withProbeSlotOrReturn(kad)
-      raiseAssert "probeSem released without acquire"
 
   # Candidate list is a snapshot; by the time a slot is free the peer may have
   # been refreshed (markUseful) or removed, and stop may have begun.
