@@ -27,8 +27,12 @@ const
     ## New peers resist eviction until in the table this long without proving
   DefaultLivenessGracePeriod* = 1.hours
     ## Peers with no successful outbound DHT activity within this window are
-    ## probed for liveness during maintenance; failures are removed from the
-    ## routing table.
+    ## probed for liveness by the background liveness loop; failures are
+    ## removed from the routing table.
+  DefaultLivenessIdleInterval* = 30.seconds
+    ## Maximum sleep between liveness-loop iterations when no peer needs a
+    ## probe. Bound so a newly replaceable peer is noticed without waiting
+    ## for the next bucket-refresh tick.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -434,6 +438,7 @@ type KadDHTConfig* = object
   bucketStaleTime*: chronos.Duration
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
+  livenessIdleInterval*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
@@ -479,6 +484,7 @@ proc new*(
     bucketStaleTime: chronos.Duration = DefaultBucketStaleTime,
     usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
     livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
+    livenessIdleInterval: chronos.Duration = DefaultLivenessIdleInterval,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -532,6 +538,7 @@ proc new*(
     bucketStaleTime: bucketStaleTime,
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
+    livenessIdleInterval: livenessIdleInterval,
     retries: retries,
     replication: replication,
     alpha: alpha,
@@ -562,6 +569,7 @@ type KadDHT* = ref object of LPProtocol
   rng*: Rng
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
+  livenessLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   recordExpirationLoop*: Future[void]
@@ -575,9 +583,12 @@ type KadDHT* = ref object of LPProtocol
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
   probeSem*: AsyncSemaphore
-    ## Bounds admission probes to ``config.limits.maxConcurrentProbes``.
+    ## Bounds concurrent admission and liveness probes to
+    ## ``config.limits.maxConcurrentProbes``.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
+  livenessProbes*: Table[ProbeKey, Future[void]]
+    ## In-flight routing-table liveness probes, keyed by target table and peer.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
