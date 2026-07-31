@@ -14,6 +14,7 @@ import chronicles
 import metrics
 
 import ../libp2p
+import ../libp2p/logging
 import ../libp2p/services/natservice
 import ../libp2p/[multiaddress, peerid]
 import ../libp2p/crypto/crypto
@@ -381,9 +382,22 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
   ok(lib)
 
+proc applyLogLevel(level: int): Result[void, string] =
+  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
+    return err("invalid log level: " & $level)
+
+  when chronicles.runtimeFilteringEnabled:
+    logging.setLogLevel(chronicles.LogLevel(level))
+    ok()
+  else:
+    err("nim-libp2p runtime logs filtering is disabled")
+
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   ## Builds the switch from `config` and mounts the requested protocols. The
   ## node is not listening yet; call `libp2p_ctx_start` for that.
+  if config.logLevel != ord(chronicles.LogLevel.NONE):
+    ?applyLogLevel(config.logLevel)
+
   try:
     createLibp2pNode(config)
   except LPError as e:
@@ -414,18 +428,6 @@ proc libp2pStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
   await shutdownSwitch(lib)
   ok(true)
 
-proc libp2pSetLogLevel*(lib: LibP2P, level: int): Future[Result[bool, string]] {.ffi.} =
-  ## Changes the process-wide Chronicles runtime log level.
-  discard lib
-  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
-    return err("invalid log level: " & $level)
-
-  when chronicles.runtimeFilteringEnabled:
-    chronicles.setLogLevel(chronicles.LogLevel(level))
-    ok(true)
-  else:
-    err("Chronicles runtime filtering is disabled")
-
 proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
   ## Runs on the worker loop, so the switch stops gracefully before the threads
   ## join. Sufficient on its own; `libp2p_ctx_stop` beforehand is optional.
@@ -436,6 +438,7 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
 # `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
 # `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
+  logLevel: cint
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
   mountKad: cint

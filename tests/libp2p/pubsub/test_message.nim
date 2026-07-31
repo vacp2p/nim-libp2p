@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, strutils, stew/byteutils, results
+import chronos, strutils, stew/byteutils, results, nimcrypto/sha2
 import
   ../../../libp2p/[
     peerid,
@@ -79,7 +79,7 @@ suite "Message":
       peer = PeerInfo.new(seckey)
 
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
-    msg.fromPeer = Opt.none(PeerId)
+    msg.fromPeer = PeerId()
     let msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -174,6 +174,79 @@ suite "Message":
     )
     check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
+  test "downstream-compatible public pubsub fields":
+    let
+      peerId = PeerId(data: @[1'u8, 2, 3])
+      message = Message(data: @[4'u8, 5, 6], topic: topic, fromPeer: peerId)
+      digest = sha256.digest(message.data)
+      ihave = ControlIHave(topicID: topic, messageIDs: @[])
+      graft = ControlGraft(topicID: topic)
+      prune = ControlPrune(topicID: topic, backoff: 10.uint64)
+
+    proc validator(message: Message): ValidationResult =
+      if message.fromPeer == peerId and message.data.len > 0:
+        ValidationResult.Accept
+      else:
+        ValidationResult.Reject
+
+    proc observe(
+        ihave: ControlIHave, graft: ControlGraft, prune: ControlPrune
+    ): string =
+      ihave.topicID & graft.topicID & prune.topicID & $prune.backoff
+
+    check:
+      message.topic == topic
+      message.data == @[4'u8, 5, 6]
+      digest.data.len == sha256.sizeDigest
+      validator(message) == ValidationResult.Accept
+      observe(ihave, graft, prune) == topic & topic & topic & "10"
+
+  test "Message decode defaults absent restored wire fields":
+    let encoded: seq[byte] = @[34, 6, 102, 111, 111, 98, 97, 114]
+    let message = Message.decode(encoded).get()
+
+    check:
+      message.topic == topic
+      message.data == @[]
+      message.fromPeer == PeerId()
+      message.seqno == @[]
+      message.signature == @[]
+      message.key == @[]
+
+  test "RPCMsg decode defaults absent restored wire fields":
+    let
+      encodedMessage: seq[byte] = @[18, 8, 34, 6, 102, 111, 111, 98, 97, 114]
+      messageRpc = RPCMsg.decode(encodedMessage).get()
+      encodedIHave: seq[byte] = @[26, 2, 10, 0]
+      ihaveRpc = RPCMsg.decode(encodedIHave).get()
+      encodedGraft: seq[byte] = @[26, 2, 26, 0]
+      graftRpc = RPCMsg.decode(encodedGraft).get()
+      encodedPrune: seq[byte] = @[26, 2, 34, 0]
+      pruneRpc = RPCMsg.decode(encodedPrune).get()
+
+    check:
+      messageRpc.messages.len == 1
+      messageRpc.messages[0].topic == topic
+      messageRpc.messages[0].data == @[]
+      messageRpc.messages[0].fromPeer == PeerId()
+      ihaveRpc.control.isSome
+      ihaveRpc.control.get().ihave.len == 1
+      ihaveRpc.control.get().ihave[0].topicID == ""
+      ihaveRpc.control.get().ihave[0].messageIDs.len == 0
+      graftRpc.control.isSome
+      graftRpc.control.get().graft.len == 1
+      graftRpc.control.get().graft[0].topicID == ""
+      pruneRpc.control.isSome
+      pruneRpc.control.get().prune.len == 1
+      pruneRpc.control.get().prune[0].topicID == ""
+      pruneRpc.control.get().prune[0].backoff == 0
+
+  test "Message decode still requires topic":
+    check Message.decode(@[]).isErr
+
+  test "RPCMsg decode still requires nested Message topic":
+    check RPCMsg.decode(@[18.byte, 0]).isErr
+
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
   asyncTest "RPCMsg:ControlMessage - encoding and decoding":
@@ -221,10 +294,10 @@ suite "Message":
     check:
       anon.data == msg.data
       anon.topic == msg.topic
-      anon.fromPeer.isNone
-      anon.seqno.isNone
-      anon.signature.isNone
-      anon.key.isNone
+      anon.fromPeer.data.len == 0
+      anon.seqno.len == 0
+      anon.signature.len == 0
+      anon.key.len == 0
 
   test "anonymize Message - anonymize=false returns message unchanged":
     let peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
@@ -249,10 +322,10 @@ suite "Message":
     let anon = rpc.anonymize(true)
     for m in anon.messages:
       check:
-        m.fromPeer.isNone
-        m.seqno.isNone
-        m.signature.isNone
-        m.key.isNone
+        m.fromPeer.data.len == 0
+        m.seqno.len == 0
+        m.signature.len == 0
+        m.key.len == 0
     check:
       anon.messages[0].data == msg1.data
       anon.messages[1].data == msg2.data
