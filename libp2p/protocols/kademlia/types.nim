@@ -590,17 +590,13 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
-  admissionSem*: AsyncSemaphore
-    ## Bounds concurrent admission probes to ``config.limits.maxConcurrentProbes``.
-  livenessSem*: AsyncSemaphore
-    ## Bounds concurrent liveness/eviction probes to
-    ## ``config.limits.maxConcurrentLivenessProbes``. Independent of
-    ## ``admissionSem`` so eviction never starves routing-table admission.
+  probeSem*: AsyncSemaphore
+    ## Bounds concurrent admission and liveness probes to
+    ## ``config.limits.maxConcurrentProbes``.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
-  livenessProbes*: Table[PeerId, Future[void]]
-    ## In-flight liveness probes, keyed by peer only. A peer shared across
-    ## multiple routing tables (main Kad + service tables) is probed once.
+  livenessProbes*: Table[ProbeKey, Future[void]]
+    ## In-flight routing-table liveness probes, keyed by target table and peer.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
