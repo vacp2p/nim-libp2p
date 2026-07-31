@@ -382,20 +382,22 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
   ok(lib)
 
-proc libp2pSetLogLevel*(level: int): Future[Result[bool, string]] {.ffiStatic.} =
-  ## Changes the process-wide nim-libp2p runtime log level.
+proc applyLogLevel(level: int): Result[void, string] =
   if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
     return err("invalid log level: " & $level)
 
   when chronicles.runtimeFilteringEnabled:
     logging.setLogLevel(chronicles.LogLevel(level))
-    ok(true)
+    ok()
   else:
     err("nim-libp2p runtime logs filtering is disabled")
 
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   ## Builds the switch from `config` and mounts the requested protocols. The
   ## node is not listening yet; call `libp2p_ctx_start` for that.
+  if config.logLevel != ord(chronicles.LogLevel.NONE):
+    ?applyLogLevel(config.logLevel)
+
   try:
     createLibp2pNode(config)
   except LPError as e:
@@ -436,6 +438,7 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
 # `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
 # `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
+  logLevel: cint
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
   mountKad: cint

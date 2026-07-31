@@ -103,8 +103,8 @@
 
   protobuf_serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-protobuf-serialization";
-    rev = "8406e7287196661614ce6a8e8be20f755376af7f";
-    sha256 = "0lb4756a77vr1x1khy3dxl97kyxy7w09ap92ylkkgjp093dic59k";
+    rev = "7861570c5182bd69f6b7c151028ffd5d0134b9ab";
+    sha256 = "07c2d5853k26rjqsrg4vq0kv0i5brzlbh0pj3v0qw0h929y5m54z";
     fetchSubmodules = true;
   };
 
