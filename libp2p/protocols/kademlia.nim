@@ -84,6 +84,12 @@ proc checkAndEvictPeer(
     debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
+proc checkAndEvictPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
+) {.async: (raises: []).} =
+  withProbeSlotOrReturn(kad)
+      raiseAssert "probeSem released without acquire"
+
   # Candidate list is a snapshot; by the time a slot is free the peer may have
   # been refreshed (markUseful) or removed, and stop may have begun.
   if kad.stopping:
