@@ -164,9 +164,7 @@ proc dispatchFindNode*(
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
-  await kad.dispatchRpc(
-    peer, addrs.valueOr(kad.switch.peerStore[AddressBook][peer]), msg
-  )
+  await kad.dispatchRpc(peer, msg, addrs)
 
 type
   Ipv4Address = array[4, byte]

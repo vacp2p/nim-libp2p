@@ -40,7 +40,6 @@ type
     msg*: string
 
   PeerMessageSender = ref object
-    peerId: PeerId
     lock: AsyncLock ## serializes the RPCs sharing `stream`
     stream: Stream ## nil while no stream is open
     users: int ## RPCs holding or waiting for `lock`
@@ -51,6 +50,7 @@ type
 
   MessageSender* = ref object
     switch: Switch
+    onDisconnect: ConnEventHandler
     codec: string
     maxMsgSize: int
     maxReuseFailures: int
@@ -59,7 +59,9 @@ type
 
   PreparedStream = tuple[stream: Stream, reused: bool]
 
-func sendError(stage: SendStage, msg: string): SendError {.raises: [].} =
+func init(
+    T: typedesc[SendError], stage: SendStage, msg: string
+): SendError {.raises: [].} =
   SendError(stage: stage, msg: msg)
 
 func `$`*(e: SendError): string {.raises: [].} =
@@ -80,12 +82,16 @@ proc discardStream(
   await stream.reset()
 
 proc retireStream(
-    ps: PeerMessageSender, stream: Stream
+    ps: PeerMessageSender, stream: Stream, deadline: Moment
 ) {.async: (raises: []), gcsafe.} =
-  ## Give up a stream whose reply was fully read, leaving nothing buffered.
+  ## Close rather than reset, so a message written just before still reaches the
+  ## remote, then wait for the remote's EOF so nothing stays buffered on the
+  ## muxer. A remote that never answers the close gets a reset instead of an
+  ## unbounded wait.
   if ps.stream == stream:
     ps.stream = nil
-  await stream.close()
+  if not await noCancel stream.closeWithEOF().withTimeout(deadline.timeLeft()):
+    await stream.reset()
 
 proc dropPeer*(ms: MessageSender, peerId: PeerId) {.async: (raises: []), gcsafe.} =
   ## Forget a peer's stream. The RPC holding it, if any, fails on its next
@@ -95,22 +101,23 @@ proc dropPeer*(ms: MessageSender, peerId: PeerId) {.async: (raises: []), gcsafe.
     return
   ms.senders.del(peerId)
   ps.invalidated = true
-  let stream = ps.stream
-  ps.stream = nil
+  let stream = move ps.stream
   if not stream.isNil():
     await stream.reset()
 
 proc start*(ms: MessageSender) {.raises: [].} =
   ms.stopped = false
+  ms.switch.addConnEventHandler(ms.onDisconnect, ConnEventKind.Disconnected)
 
 proc stop*(ms: MessageSender) {.async: (raises: []), gcsafe.} =
-  ## Reject further sends and reset every open stream. `start` reopens it.
+  ## Reject further sends, take the disconnect handler back off the switch and
+  ## reset every open stream. `start` reopens it.
   ms.stopped = true
+  ms.switch.removeConnEventHandler(ms.onDisconnect, ConnEventKind.Disconnected)
   let senders = move ms.senders
   for ps in senders.values():
     ps.invalidated = true
-    let stream = ps.stream
-    ps.stream = nil
+    let stream = move ps.stream
     if not stream.isNil():
       await stream.reset()
 
@@ -129,25 +136,25 @@ proc new*(
   )
   # A dead connection takes its streams with it; drop the entry so the table
   # stays bounded by the number of connected peers.
-  let onDisconnect = proc(
+  ms.onDisconnect = proc(
       peerId: PeerId, event: ConnEvent
   ) {.async: (raises: [CancelledError]).} =
     await ms.dropPeer(peerId)
 
-  switch.addConnEventHandler(onDisconnect, ConnEventKind.Disconnected)
+  switch.addConnEventHandler(ms.onDisconnect, ConnEventKind.Disconnected)
   ms
 
 proc senderFor(ms: MessageSender, peerId: PeerId): PeerMessageSender {.raises: [].} =
-  ms.senders.mgetOrPut(peerId, PeerMessageSender(peerId: peerId, lock: newAsyncLock()))
+  ms.senders.mgetOrPut(peerId, PeerMessageSender(lock: newAsyncLock()))
 
-proc forget(ms: MessageSender, ps: PeerMessageSender) {.raises: [].} =
+proc forget(ms: MessageSender, peerId: PeerId, ps: PeerMessageSender) {.raises: [].} =
   ## Drop an idle entry. Peers we never reached leave no stream and raise no
   ## disconnect event, so without this the table grows with every peer id a
   ## lookup ever named.
   if ps.users > 0 or not ps.stream.isNil():
     return
-  if ms.senders.getOrDefault(ps.peerId) == ps:
-    ms.senders.del(ps.peerId)
+  if ms.senders.getOrDefault(peerId) == ps:
+    ms.senders.del(peerId)
 
 proc releaseLock(ps: PeerMessageSender) {.raises: [].} =
   try:
@@ -156,12 +163,16 @@ proc releaseLock(ps: PeerMessageSender) {.raises: [].} =
     raiseAssert "peer message sender lock released without acquire: " & e.msg
 
 proc prepStream(
-    ms: MessageSender, ps: PeerMessageSender, addrs: seq[MultiAddress]
+    ms: MessageSender,
+    peerId: PeerId,
+    ps: PeerMessageSender,
+    addrs: seq[MultiAddress],
+    deadline: Moment,
 ): Future[Result[PreparedStream, SendError]] {.
     async: (raises: [CancelledError]), gcsafe
 .} =
   if ps.invalidated:
-    return err(sendError(dialStage, "peer message sender invalidated"))
+    return err(SendError.init(dialStage, "peer message sender invalidated"))
 
   let existing = ps.stream
   if not existing.isNil():
@@ -170,13 +181,34 @@ proc prepStream(
       return ok((existing, true))
     await ps.discardStream(existing)
 
-  # Shield the dial from cancellation: interrupting it mid-handshake leaks the
-  # half-opened channel, because nothing holds the stream yet to reset it.
+  let timeLeft = deadline.timeLeft()
+  if timeLeft.isZero():
+    return err(SendError.init(dialStage, "timed out before dialing"))
+
+  # `Dialer.dial` closes whatever it opened when the dial is cancelled, so
+  # neither the timeout nor a cancellation leaves a half-opened channel behind.
+  let dialFut = ms.switch.dial(peerId, addrs, ms.codec)
+  let dialed =
+    try:
+      await dialFut.withTimeout(timeLeft)
+    except CancelledError as e:
+      await noCancel dialFut.cancelAndWait()
+      raise e
+  if not dialed:
+    return err(SendError.init(dialStage, "timed out dialing the peer"))
+
   let stream =
     try:
-      await noCancel ms.switch.dial(ps.peerId, addrs, ms.codec)
+      await dialFut
     except DialFailedError as e:
-      return err(sendError(dialStage, e.msg))
+      return err(SendError.init(dialStage, e.msg))
+
+  # `stop` and `dropPeer` reset the peer's stream, and this one did not exist
+  # yet when they ran. Sending on it would use a sender that is already gone.
+  if ps.invalidated:
+    await stream.reset()
+    return err(SendError.init(dialStage, "peer message sender invalidated"))
+
   ps.stream = stream
   kad_streams_opened.inc()
   ok((stream, false))
@@ -191,7 +223,7 @@ proc exchange(
   try:
     await stream.writeLp(payload)
   except LPStreamError as e:
-    return err(sendError(writeStage, e.msg))
+    return err(SendError.init(writeStage, e.msg))
 
   if not awaitReply:
     return ok(newSeq[byte]())
@@ -200,7 +232,7 @@ proc exchange(
   # the next RPC on this stream, so a timeout always retires the stream.
   let timeLeft = deadline.timeLeft()
   if timeLeft.isZero():
-    return err(sendError(readStage, "timed out waiting for reply"))
+    return err(SendError.init(readStage, "timed out waiting for reply"))
 
   let readFut = stream.readLp(maxMsgSize)
   let replied =
@@ -210,29 +242,29 @@ proc exchange(
       await noCancel readFut.cancelAndWait()
       raise e
   if not replied:
-    return err(sendError(readStage, "timed out waiting for reply"))
+    return err(SendError.init(readStage, "timed out waiting for reply"))
 
   try:
     ok(await readFut)
   except LPStreamError as e:
-    err(sendError(readStage, e.msg))
+    err(SendError.init(readStage, e.msg))
 
 proc send(
     ms: MessageSender,
     peerId: PeerId,
     addrs: seq[MultiAddress],
-    payload: seq[byte],
+    payload: sink seq[byte],
     timeout: Duration,
     awaitReply: bool,
 ): Future[Result[seq[byte], SendError]] {.async: (raises: [CancelledError]), gcsafe.} =
   if ms.stopped:
-    return err(sendError(dialStage, "message sender stopped"))
+    return err(SendError.init(dialStage, "message sender stopped"))
 
   let ps = ms.senderFor(peerId)
   ps.users.inc()
   defer:
     ps.users.dec()
-    ms.forget(ps)
+    ms.forget(peerId, ps)
 
   # One deadline covers the wait for the peer's turn and the exchange itself, so
   # an RPC gives the stream up as soon as its own budget runs out. Charging each
@@ -241,12 +273,12 @@ proc send(
   # waiting for the stream, never reaching the peer.
   let deadline = Moment.now() + timeout
   if not await ps.lock.acquire().withTimeout(timeout):
-    return err(sendError(dialStage, "timed out waiting for the peer's stream"))
+    return err(SendError.init(dialStage, "timed out waiting for the peer's stream"))
   defer:
     ps.releaseLock()
 
   while true:
-    let (stream, reused) = (await ms.prepStream(ps, addrs)).valueOr:
+    let (stream, reused) = (await ms.prepStream(peerId, ps, addrs, deadline)).valueOr:
       return err(error)
 
     let sendRes =
@@ -258,10 +290,12 @@ proc send(
 
     if sendRes.isErr():
       await ps.discardStream(stream)
-      if not reused:
-        return err(sendRes.error())
       # A reused stream also fails when the remote quietly dropped it while it
       # sat idle; one fresh attempt tells that apart from a real RPC failure.
+      # A spent deadline is not that case: the peer is slow, and a second dial
+      # plus a repeat of the same RPC would only add to its load.
+      if not reused or deadline.timeLeft().isZero():
+        return err(sendRes.error())
       ps.reuseFailures.inc()
       kad_stream_reuse_failures.inc()
       continue
@@ -270,29 +304,29 @@ proc send(
     # nothing back may have left a reply buffered that would desync the next
     # RPC, and a peer that keeps breaking reuse is served one stream per RPC.
     if not awaitReply or ps.reuseFailures >= ms.maxReuseFailures:
-      await ps.retireStream(stream)
+      await ps.retireStream(stream, deadline)
     return sendRes
 
 proc sendRequest*(
     ms: MessageSender,
     peerId: PeerId,
     addrs: seq[MultiAddress],
-    payload: seq[byte],
+    payload: sink seq[byte],
     timeout: Duration,
 ): Future[Result[seq[byte], SendError]] {.async: (raises: [CancelledError]), gcsafe.} =
   ## Send `payload` on the peer's stream and wait for one reply. `timeout` is the
   ## whole budget: the wait for the peer's turn on that stream comes out of it.
-  await ms.send(peerId, addrs, payload, timeout, awaitReply = true)
+  await ms.send(peerId, addrs, move payload, timeout, awaitReply = true)
 
 proc sendMessage*(
     ms: MessageSender,
     peerId: PeerId,
     addrs: seq[MultiAddress],
-    payload: seq[byte],
+    payload: sink seq[byte],
     timeout: Duration,
 ): Future[Result[void, SendError]] {.async: (raises: [CancelledError]), gcsafe.} =
   ## Send `payload` without waiting for a reply. `timeout` bounds the wait for
   ## the peer's turn on its stream. The stream is retired afterwards, so a reply
   ## from a remote that does answer cannot be picked up by a later RPC.
-  discard ?await ms.send(peerId, addrs, payload, timeout, awaitReply = false)
+  discard ?await ms.send(peerId, addrs, move payload, timeout, awaitReply = false)
   ok()

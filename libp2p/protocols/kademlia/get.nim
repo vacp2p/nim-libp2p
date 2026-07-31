@@ -15,7 +15,7 @@ proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
-  await kad.dispatchRpc(peer, kad.switch.peerStore[AddressBook][peer], msg)
+  await kad.dispatchRpc(peer, msg)
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
