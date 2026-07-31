@@ -32,15 +32,6 @@ proc livenessCandidates(
         peers.add(pid)
   peers
 
-proc checkAndEvictPeer(
-    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: [CancelledError]).} =
-  ## Probe one routing-table peer; remove it if unreachable or not speaking DHT.
-  await kad.probeSem.acquire()
-
-  defer:
-    try:
-      kad.probeSem.release()
 template withProbeSlotOrReturn*(kad: KadDHT) =
   ## Acquire one ``probeSem`` slot for the enclosing scope, or return without
   ## probing. Non-blocking: candidates that find no free slot are retried on a
@@ -56,9 +47,8 @@ template withProbeSlotOrReturn*(kad: KadDHT) =
 
 proc checkAndEvictPeer(
     kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   withProbeSlotOrReturn(kad)
-      raiseAssert "probeSem released without acquire"
 
   # Candidate list is a snapshot; by the time a slot is free the peer may have
   # been refreshed (markUseful) or removed, and stop may have begun.
@@ -75,9 +65,7 @@ proc checkAndEvictPeer(
     kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
     return
 
-  let alive = await kad.lookupCheck(peerId, addrs)
-
-  if alive:
+  if (await kad.lookupCheck(peerId, addrs)):
     rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
