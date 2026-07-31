@@ -449,6 +449,33 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords[0].provider.id.get() ==
         kads[0].rtable.selfId
 
+  template optimisticProvideStores(seedEstimate: bool) =
+    ## Without a seeded estimate `addProvider` takes the classic path, with one
+    ## the optimistic path. Both must store the record.
+    var cfg = testKadConfig()
+    cfg.optimisticProvide = true
+    let kads = @[setupKad(cfg), setupKad(cfg)]
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    if seedEstimate:
+      kads[1].nsEstimator.seedLinearMeasurements(1000)
+    check kads[1].nsEstimator.networkSize().isOk() == seedEstimate
+
+    await kads[1].addProvider(kads[0].rtable.selfId.toCid())
+
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len == 1
+      kads[0].providerManager.providerRecords[0].provider.id.get() ==
+        kads[1].rtable.selfId
+
+  asyncTest "Optimistic provide falls back to classic without a size estimate":
+    optimisticProvideStores(seedEstimate = false)
+
+  asyncTest "Optimistic provide stores records once the estimator has data":
+    optimisticProvideStores(seedEstimate = true)
+
 suite "KadDHT - Republish By Keyspace Region":
   teardown:
     checkTrackers()

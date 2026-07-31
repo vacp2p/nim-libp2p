@@ -8,11 +8,11 @@ import ../[peerid, switch, multihash]
 import ./protocol
 import
   ./kademlia/[routing_table, protobuf, types, find, get, put, keyspace, provider, ping]
-import ./kademlia/kademlia_metrics
+import ./kademlia/[kademlia_metrics, netsize]
 
 export
   chronicles, routing_table, protobuf, types, find, get, put, keyspace, provider, ping,
-  kademlia_metrics
+  kademlia_metrics, netsize
 
 logScope:
   topics = "kad-dht"
@@ -176,6 +176,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    nsEstimator: NetworkSizeEstimator.new(config.replication),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
   )
@@ -277,3 +278,7 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   while kad.admissionProbes.len > 0:
     let admissionProbes = move kad.admissionProbes
     await noCancel admissionProbes.values.toSeq().cancelAndWait()
+
+  # Optimistic provide returns before its ADD_PROVIDER RPCs finish.
+  let provideTasks = move kad.provideTasks
+  await noCancel provideTasks.cancelAndWait()

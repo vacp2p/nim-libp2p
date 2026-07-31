@@ -63,6 +63,17 @@ func bucketIndexFor(rtable: RoutingTable, selfHash: Key, key: Key): int =
 func bucketIndex*(rtable: RoutingTable, key: Key): int =
   rtable.bucketIndexFor(rtable.selfHash(), key)
 
+func commonPrefixLen*(rtable: RoutingTable, key: Key): int =
+  ## Leading bits `key` shares with self: the bucket index before clamping.
+  xorDistance(rtable.selfHash(), key.hashFor(rtable.config.hasher)).leadingZeros()
+
+func nPeersForCpl*(rtable: RoutingTable, cpl: int): int =
+  ## Fullness of the bucket holding the peers that share `cpl` bits with self.
+  var count = 0
+  for bucket in rtable.buckets:
+    count += bucket.peers.countIt(rtable.commonPrefixLen(it.nodeId) == cpl)
+  count
+
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
     if p.nodeId == nodeId:
