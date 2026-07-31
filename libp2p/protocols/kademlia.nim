@@ -33,7 +33,9 @@ proc livenessCandidates(
         peers.add(pid)
   peers
 
-method maintainableTables*(kad: KadDHT): seq[RoutingTable] {.base, gcsafe, raises: [].} =
+method maintainableTables*(
+    kad: KadDHT
+): seq[RoutingTable] {.base, gcsafe, raises: [].} =
   ## Routing tables the liveness loop should keep healthy. Service discovery
   ## overrides this to include per-service tables.
   @[kad.rtable]
