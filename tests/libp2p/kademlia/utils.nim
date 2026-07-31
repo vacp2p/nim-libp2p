@@ -124,6 +124,7 @@ proc setupKadSwitches*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
+    beta: int = DefaultBeta,
     recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
 ): seq[KadDHT] =
@@ -135,6 +136,7 @@ proc setupKadSwitches*(
       cleanupProvidersInterval,
       republishProvidedKeysInterval,
       replication = replication,
+      beta = beta,
       recordExpirationInterval = recordExpirationInterval,
       cleanupDataEntriesInterval = cleanupDataEntriesInterval,
     )

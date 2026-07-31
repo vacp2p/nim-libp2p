@@ -202,8 +202,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[2])
 
   asyncTest "Get providers terminates early when sufficient providers found":
-    # Use small replication value
-    let kads = setupKadSwitches(8, replication = 2)
+    # Use small replication value; beta must stay <= replication
+    let kads = setupKadSwitches(8, replication = 2, beta = 2)
     startAndDeferStop(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
