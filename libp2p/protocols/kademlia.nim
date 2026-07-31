@@ -42,7 +42,23 @@ proc checkAndEvictPeer(
   defer:
     try:
       kad.probeSem.release()
+template withProbeSlotOrReturn*(kad: KadDHT) =
+  ## Acquire one ``probeSem`` slot for the enclosing scope, or return without
+  ## probing. Non-blocking: candidates that find no free slot are retried on a
+  ## later pass rather than queued.
+  if not kad.probeSem.tryAcquire():
+    kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
+    return
+  defer:
+    try:
+      kad.probeSem.release()
     except AsyncSemaphoreError:
+      raiseAssert "probeSem released without acquire"
+
+proc checkAndEvictPeer(
+    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
+) {.async: (raises: []).} =
+  withProbeSlotOrReturn(kad)
       raiseAssert "probeSem released without acquire"
 
   # Candidate list is a snapshot; by the time a slot is free the peer may have
