@@ -236,3 +236,90 @@ suite "KadDHT Bootstrap Component":
 
     await kad.probeAndEvictPeers(kad.rtable)
     check kad.hasKey(peer.toKey())
+
+  asyncTest "refreshTable does not probe or evict aged peers":
+    ## Liveness is owned by maintainLiveness, not bucket refresh.
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let orphan = randomPeerId()
+    check kad.rtable.insert(orphan)
+    agePeerPastLivenessGrace(kad.rtable, orphan.toKey())
+
+    await kad.refreshTable(kad.rtable, forceRefresh = true)
+    check kad.hasKey(orphan.toKey())
+
+  asyncTest "liveness loop starts with KadDHT and clears on stop":
+    let kad = setupKad(
+      config = testKadConfig(
+        disableBootstrapping = true, livenessIdleInterval = chronos.hours(1)
+      )
+    )
+    await kad.switch.start()
+    defer:
+      await kad.switch.stop()
+
+    await kad.start()
+    check not kad.livenessLoop.isNil
+    await kad.stop()
+    check:
+      kad.livenessLoop.isNil
+      kad.livenessProbes.len == 0
+
+  asyncTest "liveness loop evicts aged peer without refreshTable":
+    let grace = chronos.milliseconds(50)
+    let hub = setupKad(
+      config = testKadConfig(
+        timeout = chronos.milliseconds(200),
+        livenessGracePeriod = grace,
+        livenessIdleInterval = chronos.milliseconds(20),
+        disableBootstrapping = true,
+      )
+    )
+    let leaf = setupKad(
+      config = testKadConfig(
+        timeout = chronos.milliseconds(200), disableBootstrapping = true
+      )
+    )
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    check hub.hasKey(leafId.toKey())
+
+    await leaf.stop()
+    await leaf.switch.stop()
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey(), grace)
+
+    # Wait for the continuous loop (initial idle + probe), not refreshTable.
+    checkUntilTimeoutCustom(5.seconds, chronos.milliseconds(20)):
+      not hub.hasKey(leafId.toKey())
+
+  asyncTest "liveness probe is de-duplicated while in flight":
+    ## An in-flight entry must be awaited by a concurrent batch instead of
+    ## launching a second probe (and acquiring another probeSem slot).
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let peer = randomPeerId()
+    check kad.rtable.insert(peer)
+    agePeerPastLivenessGrace(kad.rtable, peer.toKey())
+
+    let hang = newFuture[void]()
+    let probeKey = (kad.rtable.selfId, peer)
+    kad.livenessProbes[probeKey] = hang
+
+    let batch = kad.probeAndEvictPeers(kad.rtable)
+    await sleepAsync(chronos.milliseconds(20))
+    check:
+      not batch.finished()
+      kad.livenessProbes.len == 1
+
+    hang.complete()
+    await batch
+    # Hang stood in for the real probe body, so the peer was not removed.
+    # Manual inject has no track callback; drop the finished entry ourselves.
+    kad.livenessProbes.del(probeKey)
+    check:
+      kad.hasKey(peer.toKey())
+      kad.livenessProbes.len == 0
