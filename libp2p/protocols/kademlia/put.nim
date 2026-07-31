@@ -55,7 +55,7 @@ proc dispatchPutVal*(
     key: Opt.some(key),
     record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
-  let reply = ?await kad.dispatchRpc(peer, kad.switch.peerStore[AddressBook][peer], msg)
+  let reply = ?await kad.dispatchRpc(peer, msg)
 
   debug "Got PutValue reply", msg = msg, reply = reply, peer = peer
 

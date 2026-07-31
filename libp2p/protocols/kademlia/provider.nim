@@ -115,22 +115,24 @@ proc dispatchAddProvider(
     key: Opt.some(key),
     providerPeers: @[kad.switch.peerInfo.toPeer()],
   )
-  let encoded = msg.encode(kad.config.hideConnectionStatus)
-  kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
-  kad_message_bytes_sent.inc(
-    encoded.len.int64, labelValues = [$MessageType.addProvider]
-  )
+  var encoded = msg.encode(kad.config.hideConnectionStatus)
+  let sentBytes = encoded.len.int64
 
   if not kad.config.providerRejection:
-    (await kad.msgSender.sendMessage(peer, addrs, encoded, kad.config.timeout)).isOkOr:
+    let sendRes =
+      await kad.msgSender.sendMessage(peer, addrs, move encoded, kad.config.timeout)
+    sendRes.countSent(MessageType.addProvider, sentBytes)
+    sendRes.isOkOr:
       return err($error)
     return ok(AddProviderStatus.accepted)
 
+  let sendRes =
+    await kad.msgSender.sendRequest(peer, addrs, move encoded, kad.config.timeout)
+  sendRes.countSent(MessageType.addProvider, sentBytes)
+
   # Remotes without the accepted/rejected reply simply never answer, so only a
   # failure to reach the peer is an error; a silent read counts as accepted.
-  let replyBuf = (
-    await kad.msgSender.sendRequest(peer, addrs, encoded, kad.config.timeout)
-  ).valueOr:
+  let replyBuf = sendRes.valueOr:
     if error.stage != readStage:
       return err($error)
     return ok(AddProviderStatus.accepted)
@@ -487,7 +489,7 @@ proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
-  let reply = ?await kad.dispatchRpc(peer, kad.switch.peerStore[AddressBook][peer], msg)
+  let reply = ?await kad.dispatchRpc(peer, msg)
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 

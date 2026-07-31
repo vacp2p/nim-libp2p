@@ -149,7 +149,7 @@ suite "KadDHT message sender":
       await sender.stop()
 
     let reply = await sender.sendRequest(
-      server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 100.milliseconds
+      server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 1.seconds
     )
     check:
       reply.isErr()
@@ -197,3 +197,19 @@ suite "KadDHT message sender":
       )
     ).isOk()
     check proto.streams == 2
+
+  asyncTest "a stopped sender refuses to dial":
+    let proto = newCountingEcho()
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    await sender.stop()
+
+    let reply = await sender.sendRequest(
+      server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 1.seconds
+    )
+    check:
+      reply.isErr()
+      reply.error().stage == dialStage
+      proto.streams == 0
