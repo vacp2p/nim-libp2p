@@ -13,7 +13,9 @@ import ./[types, routing_table]
 type RegionPrefix* = seq[byte]
   ## Leading bits of a hashed key, trailing bits of the last byte cleared.
 
-func regionPrefix*(key: Key, bits: int, hasher: Opt[XorDHasher]): RegionPrefix =
+func init*(
+    T: typedesc[RegionPrefix], key: Key, bits: int, hasher: Opt[XorDHasher]
+): RegionPrefix =
   let hashed = key.hashFor(hasher)
   let width = clamp(bits, 0, hashed.len * 8)
   var prefix = hashed[0 ..< width div 8]
@@ -31,7 +33,7 @@ func keyspaceRegions*(
     order: seq[RegionPrefix]
     regions: Table[RegionPrefix, seq[Key]]
   for key in keys:
-    let prefix = key.regionPrefix(bits, hasher)
+    let prefix = RegionPrefix.init(key, bits, hasher)
     if prefix notin regions:
       order.add(prefix)
     regions.mgetOrPut(prefix, @[]).add(key)

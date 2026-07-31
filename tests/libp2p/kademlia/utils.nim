@@ -3,7 +3,8 @@
 {.used.}
 
 import algorithm, chronos, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
+import
+  ../../../libp2p/[protocols/kademlia, switch, builders, multihash, stream/connection]
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
@@ -48,6 +49,13 @@ method select*(
   if values.len == 1:
     return ok(0)
   ok(1)
+
+proc makeKeys*(T: typedesc[Key], count: int): seq[Key] =
+  ## `count` distinct keys, one per index.
+  var keys: seq[Key]
+  for i in 0 ..< count:
+    keys.add(MultiHash.digest("sha2-256", @[i.byte]).get().toKey())
+  keys
 
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),

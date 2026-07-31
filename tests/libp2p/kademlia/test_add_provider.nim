@@ -455,11 +455,9 @@ suite "KadDHT - Republish By Keyspace Region":
 
   proc provideWithoutAnnouncing(kad: KadDHT, count: int): seq[Key] =
     ## Seed the store directly, so only the republish loop advertises the keys.
-    var keys: seq[Key]
-    for i in 0 ..< count:
-      let key = MultiHash.digest("sha2-256", @[i.byte]).get().toKey()
+    let keys = Key.makeKeys(count)
+    for key in keys:
       kad.providerManager.providedKeys.provided[key] = Moment.now()
-      keys.add(key)
     keys
 
   asyncTest "Provided keys are grouped into keyspace regions":
@@ -472,13 +470,13 @@ suite "KadDHT - Republish By Keyspace Region":
 
     check:
       regions.len < keys.len
-      # 1 prefix bit cuts the keyspace in two, so no key falls outside 2 regions.
+      # 1 prefix bit splits the keyspace in two, so the keys land in 2 regions at most.
       regions.len <= 2
       regions.concat().toHashSet() == keys.toHashSet()
 
     for region in regions:
       check region.allIt(
-        it.regionPrefix(1, hasher) == region[0].regionPrefix(1, hasher)
+        RegionPrefix.init(it, 1, hasher) == RegionPrefix.init(region[0], 1, hasher)
       )
 
   asyncTest "Each key gets its own region while the network size is unknown":
