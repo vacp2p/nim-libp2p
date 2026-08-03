@@ -14,7 +14,8 @@ COPY interop/hole-punching-v2/interop_hole_punching_v2.nimble nim-libp2p/interop
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils libssl-dev \
   && rm -rf /var/lib/apt/lists/*
 
-RUN nimble install "nimble@#${NIMBLE_COMMIT}" -y
+COPY interop/install-nimble.sh nim-libp2p/interop/
+RUN bash nim-libp2p/interop/install-nimble.sh "${NIMBLE_COMMIT}"
 
 COPY . nim-libp2p/
 
