@@ -146,3 +146,93 @@ suite "KadDHT Bootstrap Component":
     check:
       kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table
       kad.started # node should be operational
+
+  asyncTest "probeAndEvictPeers removes peers past liveness grace that fail probe":
+    let hub = setupKad()
+    let leaf = setupKad(config = testKadConfig(timeout = chronos.milliseconds(200)))
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    check hub.hasKey(leafId.toKey())
+
+    # Stop the leaf so the next probe fails, then age hub's entry past grace.
+    await leaf.stop()
+    await leaf.switch.stop()
+
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
+
+    await hub.probeAndEvictPeers(hub.rtable)
+
+    check not hub.hasKey(leafId.toKey())
+
+  asyncTest "probeAndEvictPeers retains peers that answer the probe":
+    let hub = setupKad()
+    let leaf = setupKad()
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    check hub.hasKey(leafId.toKey())
+
+    # Age past grace so a probe is required; leaf is still alive.
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
+
+    await hub.probeAndEvictPeers(hub.rtable)
+
+    check hub.hasKey(leafId.toKey())
+    # Successful probe marks the peer useful again.
+    check hub.isPeerUseful(leafId.toKey())
+
+  asyncTest "probeAndEvictPeers skips peers still within liveness grace":
+    let hub = setupKad()
+    let leaf = setupKad(config = testKadConfig(timeout = chronos.milliseconds(200)))
+    startAndDeferStop(@[hub, leaf])
+    await connect(hub, leaf)
+
+    let leafId = leaf.switch.peerInfo.peerId
+    await leaf.stop()
+    await leaf.switch.stop()
+
+    # Fresh insert times: within grace, so no probe and no eviction.
+    await hub.probeAndEvictPeers(hub.rtable)
+    check hub.hasKey(leafId.toKey())
+
+  asyncTest "probeAndEvictPeers removes peers with no known addresses":
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let orphan = randomPeerId()
+    check kad.rtable.insert(orphan)
+    # No AddressBook entry.
+
+    agePeerPastLivenessGrace(kad.rtable, orphan.toKey())
+
+    await kad.probeAndEvictPeers(kad.rtable)
+    check not kad.hasKey(orphan.toKey())
+
+  asyncTest "probeAndEvictPeers keeps useful peer even with no addresses":
+    ## Re-check after the candidate snapshot: a peer that is still within grace
+    ## (or was markUseful'd) must not be removed on the no-addrs path.
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let peer = randomPeerId()
+    check kad.rtable.insert(peer)
+    # Fresh insert: within grace, and no AddressBook entry.
+    await kad.probeAndEvictPeers(kad.rtable)
+    check kad.hasKey(peer.toKey())
+
+  asyncTest "probeAndEvictPeers skips peer refreshed after aging":
+    ## Age past grace then markUseful before the maintenance pass: candidate
+    ## selection (and the post-acquire re-check) must leave the peer in place.
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    let peer = randomPeerId()
+    check kad.rtable.insert(peer)
+    agePeerPastLivenessGrace(kad.rtable, peer.toKey())
+    kad.rtable.markUseful(peer)
+
+    await kad.probeAndEvictPeers(kad.rtable)
+    check kad.hasKey(peer.toKey())

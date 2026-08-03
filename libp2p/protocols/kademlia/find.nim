@@ -403,10 +403,11 @@ proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
 
-proc lookupCheck(
+proc lookupCheck*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
+  ## Used for admission probes and for routing-table liveness checks.
   let probe = kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
   # A probe abandoned on timeout keeps its stream open, so always settle it.
   defer:
