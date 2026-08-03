@@ -260,6 +260,10 @@ proc advertiseToRegistrar*(
     of kademlia_protobuf.RegistrationStatus.Confirmed:
       debug "advert accepted", serviceId, registrar
 
+      # Drop any ticket used for this Confirm.
+      # Self-registration reuses this loop after advertExpiry.
+      currentTicket = Opt.none(Ticket)
+
       await sleepAsync(disco.discoConfig.advertExpiry)
 
       if isSelf:
