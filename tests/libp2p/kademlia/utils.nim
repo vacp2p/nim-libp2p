@@ -3,7 +3,8 @@
 {.used.}
 
 import algorithm, chronos, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
+import
+  ../../../libp2p/[protocols/kademlia, switch, builders, multihash, stream/connection]
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
@@ -49,6 +50,13 @@ method select*(
     return ok(0)
   ok(1)
 
+proc makeKeys*(T: typedesc[Key], count: int): seq[Key] =
+  ## `count` distinct keys, one per index.
+  var keys: seq[Key]
+  for i in 0 ..< count:
+    keys.add(MultiHash.digest("sha2-256", @[i.byte]).get().toKey())
+  keys
+
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
     selector: EntrySelector = CandSelector(),
@@ -61,6 +69,7 @@ proc testKadConfig*(
     providerExpirationInterval: Duration = 1.seconds,
     recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
+    republishRegionBits: Opt[int] = Opt.none(int),
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
@@ -74,6 +83,7 @@ proc testKadConfig*(
     providerRejection = providerRejection,
     recordExpirationInterval = recordExpirationInterval,
     cleanupDataEntriesInterval = cleanupDataEntriesInterval,
+    republishRegionBits = republishRegionBits,
   )
 
 proc setupKad*(

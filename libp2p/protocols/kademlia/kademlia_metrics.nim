@@ -24,6 +24,9 @@ declarePublicCounter kad_provider_rejections_sent,
   "ADD_PROVIDER messages rejected due to per-key limit"
 declarePublicCounter kad_provider_spillover_rounds,
   "ADD_PROVIDER spillover rounds (batch of candidates fully rejected)"
+declarePublicCounter kad_provider_republish_regions,
+  "keyspace regions republished, one DHT walk each"
+declarePublicCounter kad_provider_republish_keys, "provided keys republished"
 
 # Routing table metrics
 declarePublicGauge kad_routing_table_peers, "total peers in routing table"
