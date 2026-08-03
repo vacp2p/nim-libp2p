@@ -1,5 +1,5 @@
 // Metrics: a running node dumps the process-wide Prometheus registry as JSON
-// via libp2p_ctx_collect_metrics. The registry is global, so one started node
+// via libp2p_static_collect_metrics. The registry is global, so one started node
 // is enough to populate it. Calls are made blocking with the helpers in
 // common.h.
 #include "common.h"
@@ -48,7 +48,7 @@ int main(void) {
 
   MetricsWaiter mw;
   memset(&mw, 0, sizeof(mw));
-  libp2p_ctx_collect_metrics(node, on_metrics, &mw);
+  libp2p_static_collect_metrics(on_metrics, &mw);
   if (!wait_done(&mw.done) || mw.err_code != 0) {
     fprintf(stderr, "collect_metrics: %s\n", mw.err[0] ? mw.err : "unknown");
     goto cleanup;

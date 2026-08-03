@@ -1243,7 +1243,7 @@ proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
         )
   entries
 
-proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+proc libp2pCollectMetrics*(): Future[Result[string, string]] {.ffiStatic.} =
   ## A JSON snapshot of the Prometheus registry, one object per metric sample.
   var jsonText: string
   try:
