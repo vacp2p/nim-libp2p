@@ -20,6 +20,7 @@ proc new*(
     maxBuckets: int = DefaultMaxBuckets,
     selfIdPreHashed = false,
     usefulnessGracePeriod: Duration = DefaultUsefulnessGracePeriod,
+    bucketStaleTime: Duration = DefaultBucketStaleTime,
 ): T =
   doAssert maxBuckets > 0 and maxBuckets <= MaxBucketsLimit,
     "maxBuckets must be in 1 .. " & $MaxBucketsLimit
@@ -29,6 +30,7 @@ proc new*(
     maxBuckets: maxBuckets,
     selfIdPreHashed: selfIdPreHashed,
     usefulnessGracePeriod: usefulnessGracePeriod,
+    bucketStaleTime: bucketStaleTime,
   )
 
 proc `$`*(rt: RoutingTable): string =
@@ -76,10 +78,27 @@ proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
       oldestIdx = i
   (oldest, oldestIdx)
 
+func lastActivity*(entry: NodeEntry): Moment =
+  ## Most recent time the peer answered a DHT query, or when it was admitted.
+  entry.lastUsefulAt.get(entry.addedAt)
+
 func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
   ## Replaceable once past `gracePeriod` in the table without proving useful; a
-  ## peer that answered recently or was just added is retained.
-  now - entry.lastUsefulAt.get(entry.addedAt) > gracePeriod
+  ## peer that answered recently or was just added is retained. Also used to
+  ## select peers for liveness probes during maintenance.
+  now - entry.lastActivity() > gracePeriod
+
+proc isReplaceable*(
+    rtable: RoutingTable, peerId: PeerId, gracePeriod: Duration, now: Moment
+): bool =
+  ## Live-table check: false when the peer is missing or still within grace.
+  let nodeId = peerId.toKey()
+  let idx = rtable.bucketIndex(nodeId)
+  if idx >= rtable.buckets.len:
+    return false
+  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
+    return false
+  rtable.buckets[idx].peers[pos].isReplaceable(gracePeriod, now)
 
 proc replaceableCandidate(bucket: Bucket, gracePeriod: Duration): Opt[int] =
   ## Least-recently-seen peer past the grace period, i.e. the best eviction
@@ -157,6 +176,28 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
 
 proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
+
+proc removePeer*(rtable: RoutingTable, nodeId: Key, reason = "remove"): bool =
+  ## Removes `nodeId` from the routing table. Returns true if it was present.
+  ## ``reason`` labels the ``kad_routing_table_evictions`` metric
+  ## (e.g. ``"liveness"``, ``"remove"``).
+  if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
+    return false
+
+  let idx = rtable.bucketIndex(nodeId)
+  if idx >= rtable.buckets.len:
+    return false
+
+  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
+    return false
+
+  rtable.buckets[idx].peers.delete(pos)
+  kad_routing_table_evictions.inc(labelValues = [reason])
+  updateRoutingTableMetrics(rtable)
+  true
+
+proc removePeer*(rtable: RoutingTable, peerId: PeerId, reason = "remove"): bool =
+  removePeer(rtable, peerId.toKey(), reason)
 
 proc contains*(rtable: RoutingTable, nodeId: Key): bool =
   ## Scans only the node's bucket, not the whole table.
@@ -249,13 +290,21 @@ proc randomPeersClosestFirstPeerIds*(
     .filterIt(it.isOk)
     .mapIt(it.value())
 
-proc isStale*(bucket: Bucket): bool =
+proc isStale*(bucket: Bucket, staleTime: Duration = DefaultBucketStaleTime): bool =
+  ## True when the bucket is empty or any peer has not been seen for longer than
+  ## `staleTime`. Used only to decide whether to refresh the bucket, not to
+  ## remove peers.
   if bucket.peers.len == 0:
     return true
   for p in bucket.peers:
-    if Moment.now() - p.lastSeen > DefaultBucketStaleTime:
+    if Moment.now() - p.lastSeen > staleTime:
       return true
   return false
+
+proc isStale*(rtable: RoutingTable, bucketIndex: int): bool =
+  if bucketIndex notin 0 ..< rtable.buckets.len:
+    return true
+  rtable.buckets[bucketIndex].isStale(rtable.config.bucketStaleTime)
 
 proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
   let lz = clamp(bucketIndex, 0, bucketCount(rtable.config.maxBuckets) - 1)

@@ -34,3 +34,6 @@ declarePublicGauge kad_routing_table_buckets, "number of buckets"
 declarePublicGauge kad_routing_table_bucket_size, "peers per bucket", ["bucket"]
 declarePublicCounter kad_routing_table_insertions, "peer insertions"
 declarePublicCounter kad_routing_table_replacements, "peer replacements"
+declarePublicCounter kad_routing_table_evictions, "peer evictions", ["reason"]
+declarePublicCounter kad_routing_table_liveness_probes,
+  "routing-table liveness probes", ["result"]

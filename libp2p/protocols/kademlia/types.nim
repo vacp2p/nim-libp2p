@@ -22,10 +22,13 @@ const
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
   DefaultBucketStaleTime* = 30.minutes
-    # peer not seen for this duration marks bucket stale
+    ## Peer not seen for this duration marks the bucket stale (refresh trigger).
   DefaultUsefulnessGracePeriod* = 1.hours
     ## New peers resist eviction until in the table this long without proving
-    ## useful; mirrors go-libp2p's k-bucket usefulness grace.
+  DefaultLivenessGracePeriod* = 1.hours
+    ## Peers with no successful outbound DHT activity within this window are
+    ## probed for liveness during maintenance; failures are removed from the
+    ## routing table.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -224,6 +227,7 @@ type
     maxBuckets*: int
     selfIdPreHashed*: bool
     usefulnessGracePeriod*: Duration
+    bucketStaleTime*: Duration
 
   RoutingTable* = ref object
     selfId*: Key
@@ -414,6 +418,9 @@ type KadDHTConfig* = object
   selector*: EntrySelector
   timeout*: chronos.Duration
   bucketRefreshTime*: chronos.Duration
+  bucketStaleTime*: chronos.Duration
+  usefulnessGracePeriod*: chronos.Duration
+  livenessGracePeriod*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
@@ -448,6 +455,9 @@ proc new*(
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
     bucketRefreshTime: chronos.Duration = DefaultBucketRefreshTime,
+    bucketStaleTime: chronos.Duration = DefaultBucketStaleTime,
+    usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
+    livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -493,6 +503,9 @@ proc new*(
     selector: selector,
     timeout: timeout,
     bucketRefreshTime: bucketRefreshTime,
+    bucketStaleTime: bucketStaleTime,
+    usefulnessGracePeriod: usefulnessGracePeriod,
+    livenessGracePeriod: livenessGracePeriod,
     retries: retries,
     replication: replication,
     alpha: alpha,
