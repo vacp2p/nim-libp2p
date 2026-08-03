@@ -130,6 +130,41 @@ suite "AutonatV2 Service":
     discard createSwitch(Opt.some(service))
     check service.networkReachability == NetworkReachability.Unknown
 
+  asyncTest "Every ReachabilityService subscriber gets the answer":
+    let
+      (v2Service, _) = newService(NetworkReachability.Reachable)
+      switch = createSwitch(Opt.some(v2Service))
+      # Through the base type, so the test exercises dispatch, not the concrete proc.
+      service = ReachabilityService(v2Service)
+    var switches = createSwitches(3)
+
+    let first = newFuture[NetworkReachability]()
+    let second = newFuture[NetworkReachability]()
+
+    service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        first.completeOnce(reachability)
+    )
+    service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        second.completeOnce(reachability)
+    )
+
+    check service.networkReachability == NetworkReachability.Unknown
+
+    await switch.startAndConnect(switches)
+
+    let
+      firstSeen = await first.wait(5.seconds)
+      secondSeen = await second.wait(5.seconds)
+    check:
+      firstSeen == NetworkReachability.Reachable
+      secondSeen == NetworkReachability.Reachable
+      service.networkReachability == NetworkReachability.Reachable
+
+    await switch.stop()
+    await switches.stopAll()
+
   asyncTest "Peer must be reachable":
     let
       (service, _) = newService(NetworkReachability.Reachable)
@@ -147,7 +182,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -208,7 +243,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         reachableObserved.completeOnce()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
 
     await notReachableObserved
@@ -246,7 +281,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -286,7 +321,7 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -323,7 +358,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -385,9 +420,9 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter2.completeOnce()
 
-    service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
-    service2.setStatusAndConfidenceHandler(statusAndConfidenceHandler2)
-    service3.setStatusAndConfidenceHandler(statusAndConfidenceHandler2)
+    service1.addStatusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service2.addStatusAndConfidenceHandler(statusAndConfidenceHandler2)
+    service3.addStatusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -435,7 +470,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter1.completeOnce()
 
-    service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
+    service1.addStatusAndConfidenceHandler(statusAndConfidenceHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -483,7 +518,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch.start()
     await switches.startAll()
@@ -523,7 +558,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -551,7 +586,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce(dialBackAddr)
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     let capturedAddr = await awaiter
     await client.finished
@@ -580,7 +615,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce(dialBackAddr)
 
-    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    service.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
     let capturedAddr = await awaiter
     await client.finished

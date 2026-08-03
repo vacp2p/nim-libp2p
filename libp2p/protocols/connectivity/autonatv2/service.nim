@@ -13,6 +13,7 @@ import
   ../../../peerid,
   ../../../wire,
   ../../../utils/heartbeat,
+  ../../../utils/future,
   ../../../crypto/crypto,
   ../autonat/types,
   ./types,
@@ -40,11 +41,11 @@ type
     enableAddressMapper: bool
     enableDialableCandidates: bool
 
-  AutonatV2Service* = ref object of Service
+  AutonatV2Service* = ref object of ReachabilityService
     config*: AutonatV2ServiceConfig
     confidence: Opt[float]
     newConnectedPeerHandler: PeerEventHandler
-    statusAndConfidenceHandler: StatusAndConfidenceHandler
+    subscribers: Subscribers[StatusAndConfidenceHandler]
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
     networkReachability*: NetworkReachability
@@ -96,10 +97,13 @@ proc new*(
 proc callHandler(
     self: AutonatV2Service, dialBackAddr: Opt[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
-  if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(
-      self.networkReachability, self.confidence, dialBackAddr
+  # Handlers start in subscription order, then run concurrently, so a subscriber
+  # that blocks does not delay the subscribers behind it.
+  await allOrCancel(
+    self.subscribers.handlers.mapIt(
+      it(self.networkReachability, self.confidence, dialBackAddr)
     )
+  )
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
@@ -287,7 +291,37 @@ method stop*(
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 
+proc addStatusAndConfidenceHandler*(
+    self: AutonatV2Service, handler: StatusAndConfidenceHandler
+): SubscriptionId {.discardable.} =
+  self.subscribers.subscribe(handler)
+
+proc removeStatusAndConfidenceHandler*(
+    self: AutonatV2Service, id: SubscriptionId
+): bool =
+  self.subscribers.unsubscribe(id)
+
 proc setStatusAndConfidenceHandler*(
-    self: AutonatV2Service, statusAndConfidenceHandler: StatusAndConfidenceHandler
-) =
-  self.statusAndConfidenceHandler = statusAndConfidenceHandler
+    self: AutonatV2Service, handler: StatusAndConfidenceHandler
+) {.deprecated: "use addStatusAndConfidenceHandler; it appends, it does not replace".} =
+  self.addStatusAndConfidenceHandler(handler)
+
+method addReachabilityHandler*(
+    self: AutonatV2Service, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  if handler.isNil():
+    return NoSubscription
+  self.addStatusAndConfidenceHandler(
+    proc(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      await handler(networkReachability)
+  )
+
+method removeReachabilityHandler*(self: AutonatV2Service, id: SubscriptionId): bool =
+  self.removeStatusAndConfidenceHandler(id)
+
+method networkReachability*(self: AutonatV2Service): NetworkReachability =
+  self.networkReachability

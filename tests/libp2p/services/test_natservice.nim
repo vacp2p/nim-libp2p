@@ -107,6 +107,11 @@ proc findNatService(switch: Switch): NATService =
   switch.natService().valueOr:
     raiseAssert "NATService not found in switch.services"
 
+proc noopReachabilityHandler(
+    reachability: NetworkReachability
+) {.async: (raises: [CancelledError]).} =
+  discard
+
 suite "NATService":
   teardown:
     checkTrackers()
@@ -171,6 +176,11 @@ suite "NATService":
     check switch.peerInfo.announcedAddrs.len == 0
     # addrs falls back to mapper-chain output (which here is just listenAddrs).
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
+    # No reachability config, so there is nothing to subscribe to.
+    let nat = findNatService(switch)
+    check:
+      nat.addReachabilityHandler(noopReachabilityHandler) == NoSubscription
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
     let mock = newMock()
@@ -335,10 +345,12 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
       nat.autonatV2Service.isNone()
       not dcutrMounted(switch)
       # AutonatService registers exactly one reachability addressMapper.
       switch.peerInfo.addressMappers.len == 1
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "autonat v2 spins up the AutonatV2 service":
     let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
@@ -348,8 +360,10 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
       nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "holePunchingConfig composes the full HP stack":
     let switch = makeSwitch(holePunchingConfig(maxNumRelays = 2), @[TcpAutoAddress])
@@ -359,9 +373,11 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
       # HPService mounts DCUtR and drives AutoNAT v1, not v2.
       dcutrMounted(switch)
       nat.autonatV2Service.isNone()
+      nat.networkReachability == NetworkReachability.Unknown
 
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
     # The realistic path: two withNAT calls for the conflicting concerns.
@@ -465,6 +481,51 @@ suite "NATService":
       discard standardBuilder(@[TcpAutoAddress])
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
+
+type
+  StubReachabilityService = ref object of ReachabilityService
+    subs: Subscribers[ReachabilityHandler]
+    reachability: NetworkReachability
+
+  BareReachabilityService = ref object of ReachabilityService
+
+method addReachabilityHandler(
+    self: StubReachabilityService, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  self.subs.subscribe(handler)
+
+method removeReachabilityHandler(
+    self: StubReachabilityService, id: SubscriptionId
+): bool =
+  self.subs.unsubscribe(id)
+
+method networkReachability(self: StubReachabilityService): NetworkReachability =
+  self.reachability
+
+suite "ReachabilityService":
+  test "a new backend needs no natservice edit":
+    # A backend this module has never heard of serves the same calls.
+    let stub = StubReachabilityService(reachability: NetworkReachability.Reachable)
+    let service = ReachabilityService(stub)
+
+    let id = service.addReachabilityHandler(noopReachabilityHandler)
+
+    check:
+      stub.subs.handlers.len == 1
+      service.networkReachability == NetworkReachability.Reachable
+      # A nil handler would crash the next dispatch, so it never reaches the seq.
+      service.addReachabilityHandler(nil) == NoSubscription
+      service.removeReachabilityHandler(id)
+      stub.subs.handlers.len == 0
+      # The handle is spent, so a second remove reports that it removed nothing.
+      not service.removeReachabilityHandler(id)
+
+  test "a backend that implements no method fails loudly":
+    let service = ReachabilityService(BareReachabilityService())
+    expect AssertionDefect:
+      service.addReachabilityHandler(noopReachabilityHandler)
+    expect AssertionDefect:
+      discard service.networkReachability
 
 proc loopbackAddr(): MultiAddress =
   MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()

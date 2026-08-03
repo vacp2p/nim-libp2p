@@ -30,9 +30,43 @@ proc createSwitch(
 
   return switch
 
+type RecordingAutonatService = ref object of AutonatService
+  added: int
+  removed: seq[SubscriptionId]
+
+method addReachabilityHandler(
+    self: RecordingAutonatService, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  self.added.inc()
+  SubscriptionId(self.added)
+
+method removeReachabilityHandler(
+    self: RecordingAutonatService, id: SubscriptionId
+): bool =
+  self.removed.add(id)
+  true
+
 suite "Hole Punching":
   teardown:
     checkTrackers()
+
+  test "HPService forwards the reachability interface to its AutonatService":
+    # HPService produces no reachability of its own, so it delegates every call.
+    let autonatService =
+      RecordingAutonatService(networkReachability: NetworkReachability.Reachable)
+    # A nil AutoRelayService is safe here: only setup() dereferences it.
+    let service = ReachabilityService(HPService.new(autonatService, nil))
+
+    let id = service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        discard
+    )
+
+    check:
+      autonatService.added == 1
+      service.removeReachabilityHandler(id)
+      autonatService.removed == @[id]
+      service.networkReachability == NetworkReachability.Reachable
 
   asyncTest "Direct connection must work when peer address is public":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)

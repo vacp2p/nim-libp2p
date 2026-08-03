@@ -9,7 +9,7 @@ import ../../../switch
 import ../../../wire
 import client
 from types import NetworkReachability, AutonatUnreachableError
-import ../../../utils/heartbeat
+import ../../../utils/[heartbeat, future]
 import ../../../crypto/crypto
 
 export NetworkReachability
@@ -24,7 +24,7 @@ declarePublicGauge(
 )
 
 type
-  AutonatService* = ref object of Service
+  AutonatService* = ref object of ReachabilityService
     newConnectedPeerHandler: PeerEventHandler
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
@@ -32,7 +32,7 @@ type
     confidence: Opt[float]
     answers: Deque[NetworkReachability]
     autonatClient: AutonatClient
-    statusAndConfidenceHandler: StatusAndConfidenceHandler
+    subscribers: Subscribers[StatusAndConfidenceHandler]
     rng: Rng
     scheduleInterval: Opt[Duration]
     askNewConnectedPeers: bool
@@ -74,8 +74,11 @@ proc new*(
   )
 
 proc callHandler(self: AutonatService) {.async: (raises: [CancelledError]).} =
-  if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
+  # Handlers start in subscription order, then run concurrently, so a subscriber
+  # that blocks does not delay the subscribers behind it.
+  await allOrCancel(
+    self.subscribers.handlers.mapIt(it(self.networkReachability, self.confidence))
+  )
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
@@ -244,7 +247,33 @@ method stop*(
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 
+proc addStatusAndConfidenceHandler*(
+    self: AutonatService, handler: StatusAndConfidenceHandler
+): SubscriptionId {.discardable.} =
+  self.subscribers.subscribe(handler)
+
+proc removeStatusAndConfidenceHandler*(self: AutonatService, id: SubscriptionId): bool =
+  self.subscribers.unsubscribe(id)
+
 proc statusAndConfidenceHandler*(
-    self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler
-) =
-  self.statusAndConfidenceHandler = statusAndConfidenceHandler
+    self: AutonatService, handler: StatusAndConfidenceHandler
+) {.deprecated: "use addStatusAndConfidenceHandler; it appends, it does not replace".} =
+  self.addStatusAndConfidenceHandler(handler)
+
+method addReachabilityHandler*(
+    self: AutonatService, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  if handler.isNil():
+    return NoSubscription
+  self.addStatusAndConfidenceHandler(
+    proc(
+        networkReachability: NetworkReachability, confidence: Opt[float]
+    ) {.async: (raises: [CancelledError]).} =
+      await handler(networkReachability)
+  )
+
+method removeReachabilityHandler*(self: AutonatService, id: SubscriptionId): bool =
+  self.removeStatusAndConfidenceHandler(id)
+
+method networkReachability*(self: AutonatService): NetworkReachability =
+  self.networkReachability

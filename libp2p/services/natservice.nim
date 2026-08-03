@@ -70,7 +70,8 @@ type
     mapper: PortMapper
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
-    reachability: Service # active AutoNAT v1 / v2 / HP, started/stopped polymorphically
+    reachability: ReachabilityService
+      # active AutoNAT v1 / v2 / HP, started/stopped polymorphically
 
 const
   DefaultDiscoveryTimeout* = 10.seconds
@@ -96,6 +97,32 @@ proc autonatV2Service*(self: NATService): Opt[AutonatV2Service] =
   if self.reachability of AutonatV2Service:
     return Opt.some(AutonatV2Service(self.reachability))
   Opt.none(AutonatV2Service)
+
+proc addReachabilityHandler*(
+    self: NATService, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  ## Subscribe ``handler`` to the active reachability service (AutoNAT v1/v2 or
+  ## hole-punching). Yields ``NoSubscription`` when no reachability service is
+  ## configured, or when ``handler`` is nil, so the caller can log that the
+  ## subscription had no effect. Pass the handle to ``removeReachabilityHandler``
+  ## to unsubscribe again.
+  if self.reachability.isNil():
+    return NoSubscription
+  self.reachability.addReachabilityHandler(handler)
+
+proc removeReachabilityHandler*(self: NATService, id: SubscriptionId): bool =
+  ## Unsubscribe the handler that ``id`` identifies. False means no such handler.
+  if self.reachability.isNil():
+    return false
+  self.reachability.removeReachabilityHandler(id)
+
+proc networkReachability*(self: NATService): NetworkReachability =
+  ## The reachability the active service last observed; ``Unknown`` when no
+  ## reachability service is configured. Lets a late subscriber read the current
+  ## value instead of waiting for the next change.
+  if self.reachability.isNil():
+    return NetworkReachability.Unknown
+  self.reachability.networkReachability()
 
 proc natService*(switch: Switch): Opt[NATService] =
   ## The switch's NATService, if one was configured.

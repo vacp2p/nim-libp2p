@@ -84,6 +84,59 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
+  asyncTest "Dispatch reaches every subscriber, and skips an unsubscribed one":
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub.answer = NotReachable
+
+    # maxQueueSize 1: a single answer already clears the confidence threshold.
+    let autonatService = AutonatService.new(autonatClientStub, rng(), maxQueueSize = 1)
+    # Through the base type, so the test exercises dispatch, not the concrete proc.
+    let service = ReachabilityService(autonatService)
+
+    let switch1 = createSwitch(Opt.some(autonatService))
+    let switch2 = createSwitch()
+
+    let gate = newAsyncEvent()
+    let first = newFuture[NetworkReachability]()
+    let last = newFuture[NetworkReachability]()
+    var firstDone = false
+    var goneCalls = 0
+
+    service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        first.completeOnce(reachability)
+        await gate.wait()
+        firstDone = true
+    )
+    let gone = service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        goneCalls.inc()
+    )
+    service.addReachabilityHandler(
+      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
+        last.completeOnce(reachability)
+    )
+    check:
+      service.removeReachabilityHandler(gone)
+      service.networkReachability == NetworkReachability.Unknown
+
+    await switch1.start()
+    await switch2.start()
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+    let
+      firstSeen = await first.wait(5.seconds)
+      lastSeen = await last.wait(5.seconds)
+    check:
+      firstSeen == NetworkReachability.NotReachable
+      lastSeen == NetworkReachability.NotReachable
+      not firstDone # the last handler answered while the first one still blocks
+      goneCalls == 0
+      service.networkReachability == NetworkReachability.NotReachable
+
+    gate.fire()
+    await allFuturesRaising(switch1.stop(), switch2.stop())
+
   asyncTest "Peer must be reachable":
     let autonatService =
       AutonatService.new(AutonatClient.new(), rng(), Opt.some(1.seconds))
@@ -104,7 +157,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -159,7 +212,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -206,7 +259,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -251,7 +304,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -297,7 +350,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -354,9 +407,9 @@ suite "Autonat Service":
     check autonatService2.networkReachability == NetworkReachability.Unknown
     check autonatService3.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
-    autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
-    autonatService3.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+    autonatService1.addStatusAndConfidenceHandler(statusAndConfidenceHandler1)
+    autonatService2.addStatusAndConfidenceHandler(statusAndConfidenceHandler2)
+    autonatService3.addStatusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -397,7 +450,7 @@ suite "Autonat Service":
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    autonatService1.addStatusAndConfidenceHandler(statusAndConfidenceHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -445,7 +498,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()
@@ -486,7 +539,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    autonatService.addStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
     await switch1.start()
     await switch2.start()

@@ -59,6 +59,15 @@ template cancelAndWait*[T](futs: seq[T]): auto =
     cancelFuts.add(fut.cancelAndWait())
   allFutures(cancelFuts)
 
+proc allOrCancel*[T](futs: seq[T]) {.async: (raises: [CancelledError]).} =
+  ## Await every future, also one that fails. On cancel, cancel them all first,
+  ## because `allFutures` leaves its children running.
+  try:
+    await allFutures(futs)
+  except CancelledError as e:
+    await noCancel futs.cancelAndWait()
+    raise e
+
 template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
     fut.cancelSoon()

@@ -18,7 +18,7 @@ import ../multicodec
 logScope:
   topics = "libp2p hpservice"
 
-type HPService* = ref object of Service
+type HPService* = ref object of ReachabilityService
   newConnectedPeerHandler: PeerEventHandler
   onNewStatusHandler: StatusAndConfidenceHandler
   autoRelayService: AutoRelayService
@@ -95,6 +95,17 @@ proc newConnectedPeerHandler(
   except CatchableError as err:
     debug "Hole punching failed during dcutr", description = err.msg
 
+method addReachabilityHandler*(
+    self: HPService, handler: ReachabilityHandler
+): SubscriptionId {.discardable.} =
+  self.autonatService.addReachabilityHandler(handler)
+
+method removeReachabilityHandler*(self: HPService, id: SubscriptionId): bool =
+  self.autonatService.removeReachabilityHandler(id)
+
+method networkReachability*(self: HPService): NetworkReachability =
+  self.autonatService.networkReachability
+
 method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.autonatService.setup(switch)
   self.autoRelayService.setup(switch)
@@ -130,7 +141,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
+  self.autonatService.addStatusAndConfidenceHandler(self.onNewStatusHandler)
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.start(switch)
