@@ -1,5 +1,5 @@
 // Metrics: a running node dumps the process-wide Prometheus registry as JSON
-// via libp2p_static_collect_metrics. The registry is global, so one started 
+// via libp2p_static_collect_metrics. The registry is global, so one started
 // node is enough to populate it. Calls are made blocking with the helpers in
 // common.h.
 #include "common.h"
