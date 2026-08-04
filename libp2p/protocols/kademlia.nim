@@ -6,14 +6,13 @@ import chronos, chronicles, results
 import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
-import ./connectivity/autonat/types as autonat_types
 import
   ./kademlia/[routing_table, protobuf, types, find, get, put, keyspace, provider, ping]
 import ./kademlia/[kademlia_metrics, netsize]
 
 export
   chronicles, routing_table, protobuf, types, find, get, put, keyspace, provider, ping,
-  kademlia_metrics, netsize, NetworkReachability
+  kademlia_metrics, netsize
 
 logScope:
   topics = "kad-dht"
@@ -159,7 +158,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: Rng,
-    mode: KadMode = KadMode.Server,
+    isServer: bool = true,
     codec: string = KadCodec,
 ): K {.raises: [].} =
   var rtable = RoutingTable.new(
@@ -180,9 +179,7 @@ proc new*(
     nsEstimator: NetworkSizeEstimator.new(config.replication),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
-    # Auto starts as a client until autonat proves the node reachable.
-    mode: if mode == KadMode.Auto: KadMode.Client else: mode,
-    autoMode: mode == KadMode.Auto,
+    isServer: isServer,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -193,8 +190,8 @@ proc new*(
   kad.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
-    if kad.mode != KadMode.Server:
-      trace "Refusing inbound query while not in server mode", stream, mode = kad.mode
+    if not kad.isServer:
+      trace "Refusing inbound query while not serving", stream
       await stream.reset()
       return
 
@@ -244,41 +241,23 @@ proc new*(
   return kad
 
 proc resetServerStreams(kad: KadDHT) {.async: (raises: []).} =
-  # HashSet has no mapIt, so collect the streams into a seq first.
-  let streams = kad.serverStreams.toSeq()
+  let streams = kad.serverStreams.toSeq() # HashSet has no mapIt
   kad.serverStreams.clear()
   await noCancel allFutures(streams.mapIt(it.reset()))
   debug "Reset inbound Kad DHT streams", streams = streams.len
 
-proc changeMode*(kad: KadDHT, newMode: KadMode): Future[bool] {.async: (raises: []).} =
-  ## Move the node to ``newMode`` and report whether the mode changed. ``Auto``
-  ## is a configuration value only, so it changes nothing here. Moving to
-  ## ``Client`` resets the in-flight inbound streams; the codec stays mounted
-  ## (no unmount exists), so peers drop us once the handler refuses to serve.
-  if newMode == KadMode.Auto or newMode == kad.mode:
+proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []).} =
+  ## Start or stop serving inbound queries, and report whether the mode changed.
+  ## Stopping resets the in-flight inbound streams; the codec stays mounted (no
+  ## unmount exists), so peers drop us once the handler refuses to serve.
+  if isServer == kad.isServer:
     return false
 
-  kad.mode = newMode
-  if newMode == KadMode.Client:
+  kad.isServer = isServer
+  if not isServer:
     await kad.resetServerStreams()
-  debug "Kad DHT changed mode", mode = newMode
+  debug "Kad DHT changed mode", isServer
   true
-
-proc onReachabilityChanged*(
-    kad: KadDHT, reachability: NetworkReachability
-) {.async: (raises: []).} =
-  ## Wire this to the autonat reachability handler. Only a node configured as
-  ## ``Auto`` reacts; ``Client`` and ``Server`` ignore reachability changes.
-  if not kad.autoMode:
-    return
-
-  case reachability
-  of NetworkReachability.Reachable:
-    discard await kad.changeMode(KadMode.Server)
-  of NetworkReachability.NotReachable:
-    discard await kad.changeMode(KadMode.Client)
-  of NetworkReachability.Unknown:
-    discard
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   if kad.started:

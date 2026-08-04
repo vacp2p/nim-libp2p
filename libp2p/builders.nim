@@ -41,7 +41,8 @@ export
   natservice.NATService, natservice.natConfig, natservice.upnpConfig,
   natservice.natPmpConfig, natservice.explicitIpConfig, natservice.autonatConfig,
   natservice.holePunchingConfig, natservice.AutonatV2ServiceConfig,
-  natservice.AutonatV2Service, natservice.natService
+  natservice.AutonatV2Service, natservice.natService, natservice.ReachabilityHandler,
+  natservice.addReachabilityHandler
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -534,6 +535,23 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   for service in switch.services:
     service.setup(switch)
 
+proc kadReachabilityHandler*(kad: KadDHT): ReachabilityHandler =
+  ## Handler for ``KadMode.Auto``: the node serves queries while it is
+  ## reachable, and stops serving when it is not. ``Unknown`` keeps the current
+  ## mode, since it means autonat has no verdict yet.
+  proc(
+      reachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
+  ) {.async: (raises: [CancelledError]).} =
+    case reachability
+    of NetworkReachability.Reachable:
+      discard await kad.changeMode(isServer = true)
+    of NetworkReachability.NotReachable:
+      discard await kad.changeMode(isServer = false)
+    of NetworkReachability.Unknown:
+      discard
+
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
@@ -563,21 +581,15 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
       bootstrapNodes = kadInfo.bootstrapNodes,
       config = config,
       rng = b.rng,
-      mode = kadInfo.mode,
+      # Auto starts as a client until autonat proves the node reachable.
+      isServer = kadInfo.mode == KadMode.Server,
     )
     switch.mount(kad)
 
     if kadInfo.mode == KadMode.Auto:
       var wired = false
       switch.natService().withValue(nat):
-        wired = nat.addReachabilityHandler(
-          proc(
-              reachability: NetworkReachability,
-              confidence: Opt[float],
-              dialBackAddr: Opt[MultiAddress],
-          ) {.async: (raises: [CancelledError]).} =
-            await kad.onReachabilityChanged(reachability)
-        )
+        wired = nat.addReachabilityHandler(kadReachabilityHandler(kad))
       if not wired:
         warn "Kad-DHT auto mode has no reachability service; it stays a client",
           hint = "configure withNAT reachability or hole-punching"

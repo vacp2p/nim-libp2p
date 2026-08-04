@@ -9,9 +9,33 @@ import ../../../libp2p/protocols/kademlia
 import ../../tools/[unittest, crypto]
 import ./utils.nim
 
+proc buildKadSwitch(mode: KadMode): Switch {.raises: [LPError].} =
+  SwitchBuilder
+    .new()
+    .withRng(rng())
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .withKademlia(mode = mode)
+    .build()
+
+proc mountedKad(switch: Switch): Opt[KadDHT] =
+  for handler in switch.ms.handlers:
+    if KadCodec in handler.protos:
+      return Opt.some(KadDHT(handler.protocol))
+  Opt.none(KadDHT)
+
 suite "KadDHT Switch Builder":
   teardown:
     checkTrackers()
+
+  test "Configured mode sets the initial serving flag":
+    check:
+      buildKadSwitch(KadMode.Server).mountedKad().get().isServer
+      not buildKadSwitch(KadMode.Client).mountedKad().get().isServer
+      # Auto serves nothing until autonat proves the node reachable.
+      not buildKadSwitch(KadMode.Auto).mountedKad().get().isServer
 
   asyncTest "Build switch with withKademlia":
     var switch1 = SwitchBuilder
@@ -66,7 +90,7 @@ suite "KadDHT Switch Builder":
       switch2,
       bootstrapNodes = @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
       rng = rng(),
-      mode = KadMode.Client,
+      isServer = false,
     )
 
     await allFutures(switch1.start(), switch2.start())

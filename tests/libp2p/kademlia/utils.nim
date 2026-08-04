@@ -93,10 +93,10 @@ proc testKadConfig*(
 proc setupKad*(
     config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-    mode: KadMode = KadMode.Server,
+    isServer: bool = true,
 ): KadDHT =
   let switch = makeStandardSwitch(TcpAutoAddress)
-  let kad = KadDHT.new(switch, bootstrapNodes, config, rng = rng(), mode = mode)
+  let kad = KadDHT.new(switch, bootstrapNodes, config, rng(), isServer)
   kad.switch.mount(kad)
   kad
 
