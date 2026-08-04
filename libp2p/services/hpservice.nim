@@ -9,18 +9,20 @@ import chronos, chronicles
 
 import ../switch, ../wire
 import ../protocols/rendezvous
-import ../services/autorelayservice
+import ../services/[autorelayservice, reachabilityservice]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
 import ../multicodec
+
+export reachabilityservice
 
 logScope:
   topics = "libp2p hpservice"
 
 type HPService* = ref object of ReachabilityService
   newConnectedPeerHandler: PeerEventHandler
-  onNewStatusHandler: StatusAndConfidenceHandler
+  onNewStatusHandler: ReachabilityHandler
   autoRelayService: AutoRelayService
   autonatService: AutonatService
 
@@ -97,11 +99,11 @@ proc newConnectedPeerHandler(
 
 method addReachabilityHandler*(
     self: HPService, handler: ReachabilityHandler
-): SubscriptionId {.discardable.} =
+): bool {.discardable.} =
   self.autonatService.addReachabilityHandler(handler)
 
-method removeReachabilityHandler*(self: HPService, id: SubscriptionId): bool =
-  self.autonatService.removeReachabilityHandler(id)
+method removeReachabilityHandler*(self: HPService, handler: ReachabilityHandler): bool =
+  self.autonatService.removeReachabilityHandler(handler)
 
 method networkReachability*(self: HPService): NetworkReachability =
   self.autonatService.networkReachability
@@ -128,7 +130,9 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   )
 
   self.onNewStatusHandler = proc(
-      networkReachability: NetworkReachability, confidence: Opt[float]
+      networkReachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability == NetworkReachability.NotReachable and
         not self.autoRelayService.isRunning():
@@ -141,7 +145,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  self.autonatService.addStatusAndConfidenceHandler(self.onNewStatusHandler)
+  self.autonatService.addReachabilityHandler(self.onNewStatusHandler)
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.start(switch)

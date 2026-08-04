@@ -31,7 +31,6 @@ import
   crypto/rng
 
 export connmanager, upgrade, dialer, peerstore
-export transport.NetworkReachability
 
 logScope:
   topics = "libp2p switch"
@@ -87,62 +86,6 @@ method stop*(
     self: Service, switch: Switch
 ) {.base, async: (raises: [CancelledError]).} =
   raiseAssert "[Service.stop] abstract method not implemented!"
-
-type
-  ReachabilityHandler* = proc(reachability: NetworkReachability) {.
-    gcsafe, async: (raises: [CancelledError])
-  .}
-
-  SubscriptionId* = distinct int
-
-  Subscribers*[T] = object ## Handlers, each with a handle that unsubscribes it again.
-    entries: seq[tuple[id: SubscriptionId, handler: T]]
-    lastId: int
-
-  ReachabilityService* = ref object of Service
-    ## A Service that observes network reachability and notifies subscribers.
-
-const NoSubscription* = SubscriptionId(0)
-
-proc `==`*(a, b: SubscriptionId): bool {.borrow.}
-
-proc subscribe*[T](self: var Subscribers[T], handler: T): SubscriptionId =
-  ## Appends ``handler``; a nil handler is dropped and yields ``NoSubscription``.
-  if handler.isNil():
-    return NoSubscription
-  inc self.lastId
-  self.entries.add((SubscriptionId(self.lastId), handler))
-  SubscriptionId(self.lastId)
-
-proc unsubscribe*[T](self: var Subscribers[T], id: SubscriptionId): bool =
-  ## Removes the handler that ``id`` identifies. False means no such handler.
-  let before = self.entries.len
-  self.entries.keepItIf(it.id != id)
-  self.entries.len < before
-
-func handlers*[T](self: Subscribers[T]): seq[T] =
-  self.entries.mapIt(it.handler)
-
-method addReachabilityHandler*(
-    self: ReachabilityService, handler: ReachabilityHandler
-): SubscriptionId {.base, gcsafe, discardable.} =
-  raiseAssert(
-    "[ReachabilityService.addReachabilityHandler] abstract method not implemented!"
-  )
-
-method removeReachabilityHandler*(
-    self: ReachabilityService, id: SubscriptionId
-): bool {.base, gcsafe.} =
-  raiseAssert(
-    "[ReachabilityService.removeReachabilityHandler] abstract method not implemented!"
-  )
-
-method networkReachability*(
-    self: ReachabilityService
-): NetworkReachability {.base, gcsafe.} =
-  raiseAssert(
-    "[ReachabilityService.networkReachability] abstract method not implemented!"
-  )
 
 proc addConnEventHandler*(s: Switch, handler: ConnEventHandler, kind: ConnEventKind) =
   ## Adds a ConnEventHandler, which will be triggered when

@@ -108,7 +108,9 @@ proc findNatService(switch: Switch): NATService =
     raiseAssert "NATService not found in switch.services"
 
 proc noopReachabilityHandler(
-    reachability: NetworkReachability
+    reachability: NetworkReachability,
+    confidence: Opt[float],
+    dialBackAddr: Opt[MultiAddress],
 ) {.async: (raises: [CancelledError]).} =
   discard
 
@@ -179,7 +181,7 @@ suite "NATService":
     # No reachability config, so there is nothing to subscribe to.
     let nat = findNatService(switch)
     check:
-      nat.addReachabilityHandler(noopReachabilityHandler) == NoSubscription
+      not nat.addReachabilityHandler(noopReachabilityHandler)
       nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
@@ -345,7 +347,7 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
-      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isNone()
       not dcutrMounted(switch)
       # AutonatService registers exactly one reachability addressMapper.
@@ -360,7 +362,7 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
-      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
       nat.networkReachability == NetworkReachability.Unknown
@@ -373,7 +375,7 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
-      nat.addReachabilityHandler(noopReachabilityHandler) != NoSubscription
+      nat.addReachabilityHandler(noopReachabilityHandler)
       # HPService mounts DCUtR and drives AutoNAT v1, not v2.
       dcutrMounted(switch)
       nat.autonatV2Service.isNone()
@@ -484,46 +486,46 @@ suite "NATService":
 
 type
   StubReachabilityService = ref object of ReachabilityService
-    subs: Subscribers[ReachabilityHandler]
     reachability: NetworkReachability
 
   BareReachabilityService = ref object of ReachabilityService
-
-method addReachabilityHandler(
-    self: StubReachabilityService, handler: ReachabilityHandler
-): SubscriptionId {.discardable.} =
-  self.subs.subscribe(handler)
-
-method removeReachabilityHandler(
-    self: StubReachabilityService, id: SubscriptionId
-): bool =
-  self.subs.unsubscribe(id)
 
 method networkReachability(self: StubReachabilityService): NetworkReachability =
   self.reachability
 
 suite "ReachabilityService":
-  test "a new backend needs no natservice edit":
+  asyncTest "a new backend needs no natservice edit":
     # A backend this module has never heard of serves the same calls.
     let stub = StubReachabilityService(reachability: NetworkReachability.Reachable)
     let service = ReachabilityService(stub)
 
-    let id = service.addReachabilityHandler(noopReachabilityHandler)
+    var seen: seq[NetworkReachability]
+    let handler: ReachabilityHandler = proc(
+        reachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      seen.add(reachability)
 
     check:
-      stub.subs.handlers.len == 1
+      service.addReachabilityHandler(handler)
       service.networkReachability == NetworkReachability.Reachable
       # A nil handler would crash the next dispatch, so it never reaches the seq.
-      service.addReachabilityHandler(nil) == NoSubscription
-      service.removeReachabilityHandler(id)
-      stub.subs.handlers.len == 0
-      # The handle is spent, so a second remove reports that it removed nothing.
-      not service.removeReachabilityHandler(id)
+      not service.addReachabilityHandler(nil)
 
-  test "a backend that implements no method fails loudly":
+    await service.callHandlers(Opt.some(1.0))
+    check seen == @[NetworkReachability.Reachable]
+
+    check:
+      service.removeReachabilityHandler(handler)
+      # The handler is gone, so a second remove reports that it removed nothing.
+      not service.removeReachabilityHandler(handler)
+
+    await service.callHandlers(Opt.some(1.0))
+    check seen == @[NetworkReachability.Reachable]
+
+  test "a backend that reports no reachability fails loudly":
     let service = ReachabilityService(BareReachabilityService())
-    expect AssertionDefect:
-      service.addReachabilityHandler(noopReachabilityHandler)
     expect AssertionDefect:
       discard service.networkReachability
 

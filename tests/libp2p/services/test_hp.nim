@@ -31,19 +31,19 @@ proc createSwitch(
   return switch
 
 type RecordingAutonatService = ref object of AutonatService
-  added: int
-  removed: seq[SubscriptionId]
+  added: seq[ReachabilityHandler]
+  removed: seq[ReachabilityHandler]
 
 method addReachabilityHandler(
     self: RecordingAutonatService, handler: ReachabilityHandler
-): SubscriptionId {.discardable.} =
-  self.added.inc()
-  SubscriptionId(self.added)
+): bool {.discardable.} =
+  self.added.add(handler)
+  true
 
 method removeReachabilityHandler(
-    self: RecordingAutonatService, id: SubscriptionId
+    self: RecordingAutonatService, handler: ReachabilityHandler
 ): bool =
-  self.removed.add(id)
+  self.removed.add(handler)
   true
 
 suite "Hole Punching":
@@ -57,15 +57,19 @@ suite "Hole Punching":
     # A nil AutoRelayService is safe here: only setup() dereferences it.
     let service = ReachabilityService(HPService.new(autonatService, nil))
 
-    let id = service.addReachabilityHandler(
-      proc(reachability: NetworkReachability) {.async: (raises: [CancelledError]).} =
-        discard
-    )
+    let handler: ReachabilityHandler = proc(
+        reachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      discard
+
+    service.addReachabilityHandler(handler)
 
     check:
-      autonatService.added == 1
-      service.removeReachabilityHandler(id)
-      autonatService.removed == @[id]
+      autonatService.added == @[handler]
+      service.removeReachabilityHandler(handler)
+      autonatService.removed == @[handler]
       service.networkReachability == NetworkReachability.Reachable
 
   asyncTest "Direct connection must work when peer address is public":

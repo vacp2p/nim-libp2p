@@ -12,9 +12,9 @@ import ./nat/[portmapper, plum_mapper]
 import ../protocols/connectivity/autonat/[client, service]
 import ../protocols/connectivity/autonatv2/[client, service]
 import ../protocols/connectivity/relay/client as relayclient
-import ./[autorelayservice, hpservice]
+import ./[autorelayservice, hpservice, reachabilityservice]
 
-export portmapper
+export portmapper, reachabilityservice
 export OnReservationHandler, AutonatV2ServiceConfig, AutonatV2Service
 
 logScope:
@@ -100,28 +100,30 @@ proc autonatV2Service*(self: NATService): Opt[AutonatV2Service] =
 
 proc addReachabilityHandler*(
     self: NATService, handler: ReachabilityHandler
-): SubscriptionId {.discardable.} =
-  ## Subscribe ``handler`` to the active reachability service (AutoNAT v1/v2 or
-  ## hole-punching). Yields ``NoSubscription`` when no reachability service is
-  ## configured, or when ``handler`` is nil, so the caller can log that the
-  ## subscription had no effect. Pass the handle to ``removeReachabilityHandler``
-  ## to unsubscribe again.
-  if self.reachability.isNil():
-    return NoSubscription
-  self.reachability.addReachabilityHandler(handler)
-
-proc removeReachabilityHandler*(self: NATService, id: SubscriptionId): bool =
-  ## Unsubscribe the handler that ``id`` identifies. False means no such handler.
+): bool {.discardable.} =
+  ## Subscribes `handler` to the active reachability service (AutoNAT v1/v2 or
+  ## hole-punching). False means no subscription, because no reachability service
+  ## is configured or because `handler` is nil. The caller can then log that the
+  ## subscription had no effect.
   if self.reachability.isNil():
     return false
-  self.reachability.removeReachabilityHandler(id)
+
+  self.reachability.addReachabilityHandler(handler)
+
+proc removeReachabilityHandler*(self: NATService, handler: ReachabilityHandler): bool =
+  ## Unsubscribes `handler`. False means it was not subscribed.
+  if self.reachability.isNil():
+    return false
+
+  self.reachability.removeReachabilityHandler(handler)
 
 proc networkReachability*(self: NATService): NetworkReachability =
-  ## The reachability the active service last observed; ``Unknown`` when no
+  ## The reachability the active service last observed; `Unknown` when no
   ## reachability service is configured. Lets a late subscriber read the current
   ## value instead of waiting for the next change.
   if self.reachability.isNil():
     return NetworkReachability.Unknown
+
   self.reachability.networkReachability()
 
 proc natService*(switch: Switch): Opt[NATService] =

@@ -13,11 +13,13 @@ import
   ../../../peerid,
   ../../../wire,
   ../../../utils/heartbeat,
-  ../../../utils/future,
+  ../../../services/reachabilityservice,
   ../../../crypto/crypto,
   ../autonat/types,
   ./types,
   ./client
+
+export reachabilityservice
 
 declarePublicGauge(
   libp2p_autonat_v2_reachability_confidence,
@@ -45,7 +47,6 @@ type
     config*: AutonatV2ServiceConfig
     confidence: Opt[float]
     newConnectedPeerHandler: PeerEventHandler
-    subscribers: Subscribers[StatusAndConfidenceHandler]
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
     networkReachability*: NetworkReachability
@@ -53,11 +54,9 @@ type
     client*: AutonatV2Client
     rng: Rng
 
-  StatusAndConfidenceHandler* = proc(
-    networkReachability: NetworkReachability,
-    confidence: Opt[float],
-    dialBackAddr: Opt[MultiAddress],
-  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
+  StatusAndConfidenceHandler* = ReachabilityHandler
+    ## The handler of the replaced single-subscriber API. It has the same
+    ## signature as `ReachabilityHandler`; use that name instead.
 
 proc new*(
     T: typedesc[AutonatV2ServiceConfig],
@@ -92,17 +91,6 @@ proc new*(
     answers: initDeque[NetworkReachability](),
     client: client,
     rng: rng,
-  )
-
-proc callHandler(
-    self: AutonatV2Service, dialBackAddr: Opt[MultiAddress]
-) {.async: (raises: [CancelledError]).} =
-  # Handlers start in subscription order, then run concurrently, so a subscriber
-  # that blocks does not delay the subscribers behind it.
-  await allOrCancel(
-    self.subscribers.handlers.mapIt(
-      it(self.networkReachability, self.confidence, dialBackAddr)
-    )
   )
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
@@ -203,7 +191,7 @@ proc askPeer(
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
-    await self.callHandler(dialBackAddr)
+    await self.callHandlers(self.confidence, dialBackAddr)
   await switch.peerInfo.update()
   return ans
 
@@ -291,37 +279,10 @@ method stop*(
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 
-proc addStatusAndConfidenceHandler*(
-    self: AutonatV2Service, handler: StatusAndConfidenceHandler
-): SubscriptionId {.discardable.} =
-  self.subscribers.subscribe(handler)
-
-proc removeStatusAndConfidenceHandler*(
-    self: AutonatV2Service, id: SubscriptionId
-): bool =
-  self.subscribers.unsubscribe(id)
+method networkReachability*(self: AutonatV2Service): NetworkReachability =
+  self.networkReachability
 
 proc setStatusAndConfidenceHandler*(
     self: AutonatV2Service, handler: StatusAndConfidenceHandler
-) {.deprecated: "use addStatusAndConfidenceHandler; it appends, it does not replace".} =
-  self.addStatusAndConfidenceHandler(handler)
-
-method addReachabilityHandler*(
-    self: AutonatV2Service, handler: ReachabilityHandler
-): SubscriptionId {.discardable.} =
-  if handler.isNil():
-    return NoSubscription
-  self.addStatusAndConfidenceHandler(
-    proc(
-        networkReachability: NetworkReachability,
-        confidence: Opt[float],
-        dialBackAddr: Opt[MultiAddress],
-    ) {.async: (raises: [CancelledError]).} =
-      await handler(networkReachability)
-  )
-
-method removeReachabilityHandler*(self: AutonatV2Service, id: SubscriptionId): bool =
-  self.removeStatusAndConfidenceHandler(id)
-
-method networkReachability*(self: AutonatV2Service): NetworkReachability =
-  self.networkReachability
+) {.deprecated: "use addReachabilityHandler; it appends, it does not replace".} =
+  self.addReachabilityHandler(handler)
