@@ -10,10 +10,10 @@ import ../../../wire
 import client
 from types import NetworkReachability, AutonatUnreachableError
 import ../../../utils/heartbeat
-import ../../../services/reachabilityservice
+import ../../../services/reachabilityobservers
 import ../../../crypto/crypto
 
-export reachabilityservice
+export reachabilityobservers
 
 logScope:
   topics = "libp2p autonatservice"
@@ -25,7 +25,8 @@ declarePublicGauge(
 )
 
 type
-  AutonatService* = ref object of ReachabilityService
+  AutonatService* = ref object of Service
+    reachabilityObservers*: ReachabilityObservers
     newConnectedPeerHandler: PeerEventHandler
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
@@ -61,6 +62,7 @@ proc new*(
     enableAddressMapper = true,
 ): T =
   return T(
+    reachabilityObservers: ReachabilityObservers.new(),
     scheduleInterval: scheduleInterval,
     networkReachability: Unknown,
     confidence: Opt.none(float),
@@ -150,7 +152,7 @@ proc askPeer(
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
-    await self.callHandlers(self.confidence)
+    await self.reachabilityObservers.notify(self.networkReachability, self.confidence)
   await switch.peerInfo.update()
   return ans
 
@@ -242,16 +244,13 @@ method stop*(
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 
-method networkReachability*(self: AutonatService): NetworkReachability =
-  self.networkReachability
-
 proc statusAndConfidenceHandler*(
     self: AutonatService, handler: StatusAndConfidenceHandler
-) {.deprecated: "use addReachabilityHandler; it appends, it does not replace".} =
+) {.deprecated: "use reachabilityObservers.add; it appends, it does not replace".} =
   if handler.isNil():
     return
 
-  self.addReachabilityHandler(
+  discard self.reachabilityObservers.add(
     proc(
         networkReachability: NetworkReachability,
         confidence: Opt[float],

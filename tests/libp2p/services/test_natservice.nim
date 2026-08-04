@@ -484,51 +484,6 @@ suite "NATService":
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
 
-type
-  StubReachabilityService = ref object of ReachabilityService
-    reachability: NetworkReachability
-
-  BareReachabilityService = ref object of ReachabilityService
-
-method networkReachability(self: StubReachabilityService): NetworkReachability =
-  self.reachability
-
-suite "ReachabilityService":
-  asyncTest "a new backend needs no natservice edit":
-    # A backend this module has never heard of serves the same calls.
-    let stub = StubReachabilityService(reachability: NetworkReachability.Reachable)
-    let service = ReachabilityService(stub)
-
-    var seen: seq[NetworkReachability]
-    let handler: ReachabilityHandler = proc(
-        reachability: NetworkReachability,
-        confidence: Opt[float],
-        dialBackAddr: Opt[MultiAddress],
-    ) {.async: (raises: [CancelledError]).} =
-      seen.add(reachability)
-
-    check:
-      service.addReachabilityHandler(handler)
-      service.networkReachability == NetworkReachability.Reachable
-      # A nil handler would crash the next dispatch, so it never reaches the seq.
-      not service.addReachabilityHandler(nil)
-
-    await service.callHandlers(Opt.some(1.0))
-    check seen == @[NetworkReachability.Reachable]
-
-    check:
-      service.removeReachabilityHandler(handler)
-      # The handler is gone, so a second remove reports that it removed nothing.
-      not service.removeReachabilityHandler(handler)
-
-    await service.callHandlers(Opt.some(1.0))
-    check seen == @[NetworkReachability.Reachable]
-
-  test "a backend that reports no reachability fails loudly":
-    let service = ReachabilityService(BareReachabilityService())
-    expect AssertionDefect:
-      discard service.networkReachability
-
 proc loopbackAddr(): MultiAddress =
   MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()
 

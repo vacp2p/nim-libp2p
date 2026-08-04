@@ -90,8 +90,7 @@ suite "Autonat Service":
 
     # maxQueueSize 1: a single answer already clears the confidence threshold.
     let autonatService = AutonatService.new(autonatClientStub, rng(), maxQueueSize = 1)
-    # Through the base type, so the test exercises dispatch, not the concrete proc.
-    let service = ReachabilityService(autonatService)
+    let observers = autonatService.reachabilityObservers
 
     let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
@@ -109,7 +108,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       goneCalls.inc()
 
-    service.addReachabilityHandler(
+    discard observers.add(
       proc(
           reachability: NetworkReachability,
           confidence: Opt[float],
@@ -119,8 +118,8 @@ suite "Autonat Service":
         await gate.wait()
         firstDone = true
     )
-    service.addReachabilityHandler(gone)
-    service.addReachabilityHandler(
+    check observers.add(gone)
+    discard observers.add(
       proc(
           reachability: NetworkReachability,
           confidence: Opt[float],
@@ -129,8 +128,8 @@ suite "Autonat Service":
         last.completeOnce(reachability)
     )
     check:
-      service.removeReachabilityHandler(gone)
-      service.networkReachability == NetworkReachability.Unknown
+      observers.remove(gone)
+      autonatService.networkReachability == NetworkReachability.Unknown
 
     await switch1.start()
     await switch2.start()
@@ -144,7 +143,7 @@ suite "Autonat Service":
       lastSeen == NetworkReachability.NotReachable
       not firstDone # the last handler answered while the first one still blocks
       goneCalls == 0
-      service.networkReachability == NetworkReachability.NotReachable
+      autonatService.networkReachability == NetworkReachability.NotReachable
 
     gate.fire()
     await allFuturesRaising(switch1.stop(), switch2.stop())
@@ -171,7 +170,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -228,7 +227,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -277,7 +276,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -324,7 +323,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -372,7 +371,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -433,9 +432,9 @@ suite "Autonat Service":
     check autonatService2.networkReachability == NetworkReachability.Unknown
     check autonatService3.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.addReachabilityHandler(reachabilityHandler1)
-    autonatService2.addReachabilityHandler(reachabilityHandler2)
-    autonatService3.addReachabilityHandler(reachabilityHandler2)
+    check autonatService1.reachabilityObservers.add(reachabilityHandler1)
+    check autonatService2.reachabilityObservers.add(reachabilityHandler2)
+    check autonatService3.reachabilityObservers.add(reachabilityHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -478,7 +477,7 @@ suite "Autonat Service":
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.addReachabilityHandler(reachabilityHandler1)
+    check autonatService1.reachabilityObservers.add(reachabilityHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -528,7 +527,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -571,7 +570,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.addReachabilityHandler(reachabilityHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()

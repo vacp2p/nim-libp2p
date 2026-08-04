@@ -5,7 +5,6 @@
 
 import std/sequtils
 import chronos, results
-import ../switch
 import ../multiaddress
 import ../protocols/connectivity/autonat/types
 import ../utils/future
@@ -22,13 +21,16 @@ type
     ## `confidence` or `dialBackAddr` leaves those parameters unused. AutoNAT v1
     ## reports `dialBackAddr` as none, because it observes no dial-back address.
 
-  ReachabilityService* = ref object of Service
-    ## A Service that observes network reachability and notifies subscribers.
+  ReachabilityObservers* = ref object
+    ## The subscribers of reachability changes. A service that observes
+    ## reachability holds one and notifies it on every change.
     handlers: seq[ReachabilityHandler]
+    reachability: NetworkReachability
 
-method addReachabilityHandler*(
-    self: ReachabilityService, handler: ReachabilityHandler
-): bool {.base, gcsafe, discardable.} =
+proc new*(T: typedesc[ReachabilityObservers]): T =
+  T(reachability: NetworkReachability.Unknown)
+
+proc add*(self: ReachabilityObservers, handler: ReachabilityHandler): bool =
   ## Appends `handler`. False means no subscription: a nil handler is dropped.
   if handler.isNil():
     return false
@@ -36,28 +38,25 @@ method addReachabilityHandler*(
   self.handlers.add(handler)
   true
 
-method removeReachabilityHandler*(
-    self: ReachabilityService, handler: ReachabilityHandler
-): bool {.base, gcsafe.} =
+proc remove*(self: ReachabilityObservers, handler: ReachabilityHandler): bool =
   ## Removes `handler`. False means it was not subscribed.
   let before = self.handlers.len
   self.handlers.keepItIf(it != handler)
   self.handlers.len < before
 
-method networkReachability*(
-    self: ReachabilityService
-): NetworkReachability {.base, gcsafe.} =
-  raiseAssert(
-    "[ReachabilityService.networkReachability] abstract method not implemented!"
-  )
+func lastReachability*(self: ReachabilityObservers): NetworkReachability =
+  ## The reachability of the last `notify`, `Unknown` before the first one. It
+  ## lets a late subscriber read the current value instead of waiting for the
+  ## next change.
+  self.reachability
 
-proc callHandlers*(
-    self: ReachabilityService,
+proc notify*(
+    self: ReachabilityObservers,
+    reachability: NetworkReachability,
     confidence: Opt[float],
     dialBackAddr = Opt.none(MultiAddress),
 ) {.async: (raises: [CancelledError]).} =
+  self.reachability = reachability
   # Handlers start in subscription order, then run concurrently, so a subscriber
   # that blocks does not delay the subscribers behind it.
-  await allOrCancel(
-    self.handlers.mapIt(it(self.networkReachability, confidence, dialBackAddr))
-  )
+  await allOrCancel(self.handlers.mapIt(it(reachability, confidence, dialBackAddr)))

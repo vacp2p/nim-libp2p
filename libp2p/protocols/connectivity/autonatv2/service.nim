@@ -13,13 +13,13 @@ import
   ../../../peerid,
   ../../../wire,
   ../../../utils/heartbeat,
-  ../../../services/reachabilityservice,
+  ../../../services/reachabilityobservers,
   ../../../crypto/crypto,
   ../autonat/types,
   ./types,
   ./client
 
-export reachabilityservice
+export reachabilityobservers
 
 declarePublicGauge(
   libp2p_autonat_v2_reachability_confidence,
@@ -43,7 +43,8 @@ type
     enableAddressMapper: bool
     enableDialableCandidates: bool
 
-  AutonatV2Service* = ref object of ReachabilityService
+  AutonatV2Service* = ref object of Service
+    reachabilityObservers*: ReachabilityObservers
     config*: AutonatV2ServiceConfig
     confidence: Opt[float]
     newConnectedPeerHandler: PeerEventHandler
@@ -85,6 +86,7 @@ proc new*(
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =
   return T(
+    reachabilityObservers: ReachabilityObservers.new(),
     config: config,
     confidence: Opt.none(float),
     networkReachability: Unknown,
@@ -191,7 +193,9 @@ proc askPeer(
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
-    await self.callHandlers(self.confidence, dialBackAddr)
+    await self.reachabilityObservers.notify(
+      self.networkReachability, self.confidence, dialBackAddr
+    )
   await switch.peerInfo.update()
   return ans
 
@@ -279,10 +283,7 @@ method stop*(
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   await switch.peerInfo.update()
 
-method networkReachability*(self: AutonatV2Service): NetworkReachability =
-  self.networkReachability
-
 proc setStatusAndConfidenceHandler*(
     self: AutonatV2Service, handler: StatusAndConfidenceHandler
-) {.deprecated: "use addReachabilityHandler; it appends, it does not replace".} =
-  self.addReachabilityHandler(handler)
+) {.deprecated: "use reachabilityObservers.add; it appends, it does not replace".} =
+  discard self.reachabilityObservers.add(handler)

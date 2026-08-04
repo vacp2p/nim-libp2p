@@ -30,47 +30,19 @@ proc createSwitch(
 
   return switch
 
-type RecordingAutonatService = ref object of AutonatService
-  added: seq[ReachabilityHandler]
-  removed: seq[ReachabilityHandler]
-
-method addReachabilityHandler(
-    self: RecordingAutonatService, handler: ReachabilityHandler
-): bool {.discardable.} =
-  self.added.add(handler)
-  true
-
-method removeReachabilityHandler(
-    self: RecordingAutonatService, handler: ReachabilityHandler
-): bool =
-  self.removed.add(handler)
-  true
-
 suite "Hole Punching":
   teardown:
     checkTrackers()
 
-  test "HPService forwards the reachability interface to its AutonatService":
-    # HPService produces no reachability of its own, so it delegates every call.
-    let autonatService =
-      RecordingAutonatService(networkReachability: NetworkReachability.Reachable)
-    # A nil AutoRelayService is safe here: only setup() dereferences it.
-    let service = ReachabilityService(HPService.new(autonatService, nil))
+  test "HPService shares the observers of its AutonatService":
+    # HPService produces no reachability of its own, so it hands out the
+    # observers of the AutoNAT v1 service that it drives.
+    # A nil client and a nil AutoRelayService are safe here: only setup() and
+    # the probe loop dereference them.
+    let autonatService = AutonatService.new(nil, rng())
+    let hpService = HPService.new(autonatService, nil)
 
-    let handler: ReachabilityHandler = proc(
-        reachability: NetworkReachability,
-        confidence: Opt[float],
-        dialBackAddr: Opt[MultiAddress],
-    ) {.async: (raises: [CancelledError]).} =
-      discard
-
-    service.addReachabilityHandler(handler)
-
-    check:
-      autonatService.added == @[handler]
-      service.removeReachabilityHandler(handler)
-      autonatService.removed == @[handler]
-      service.networkReachability == NetworkReachability.Reachable
+    check hpService.reachabilityObservers == autonatService.reachabilityObservers
 
   asyncTest "Direct connection must work when peer address is public":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)

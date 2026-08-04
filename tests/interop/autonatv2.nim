@@ -52,7 +52,7 @@ proc autonatInteropTest*(
     raiseAssert "expected NATService to be configured"
   let v2 = nat.autonatV2Service.valueOr:
     raiseAssert "expected AutonatV2 service to be configured"
-  v2.addReachabilityHandler(reachabilityHandler)
+  discard v2.reachabilityObservers.add(reachabilityHandler)
 
   await switch.start()
   defer:

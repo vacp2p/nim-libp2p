@@ -130,18 +130,17 @@ suite "AutonatV2 Service":
     discard createSwitch(Opt.some(service))
     check service.networkReachability == NetworkReachability.Unknown
 
-  asyncTest "Every ReachabilityService subscriber gets the answer":
+  asyncTest "Every subscriber gets the answer":
     let
       (v2Service, _) = newService(NetworkReachability.Reachable)
       switch = createSwitch(Opt.some(v2Service))
-      # Through the base type, so the test exercises dispatch, not the concrete proc.
-      service = ReachabilityService(v2Service)
+      observers = v2Service.reachabilityObservers
     var switches = createSwitches(3)
 
     let first = newFuture[NetworkReachability]()
     let second = newFuture[NetworkReachability]()
 
-    service.addReachabilityHandler(
+    discard observers.add(
       proc(
           reachability: NetworkReachability,
           confidence: Opt[float],
@@ -149,7 +148,7 @@ suite "AutonatV2 Service":
       ) {.async: (raises: [CancelledError]).} =
         first.completeOnce(reachability)
     )
-    service.addReachabilityHandler(
+    discard observers.add(
       proc(
           reachability: NetworkReachability,
           confidence: Opt[float],
@@ -158,7 +157,7 @@ suite "AutonatV2 Service":
         second.completeOnce(reachability)
     )
 
-    check service.networkReachability == NetworkReachability.Unknown
+    check v2Service.networkReachability == NetworkReachability.Unknown
 
     await switch.startAndConnect(switches)
 
@@ -168,7 +167,7 @@ suite "AutonatV2 Service":
     check:
       firstSeen == NetworkReachability.Reachable
       secondSeen == NetworkReachability.Reachable
-      service.networkReachability == NetworkReachability.Reachable
+      v2Service.networkReachability == NetworkReachability.Reachable
 
     await switch.stop()
     await switches.stopAll()
@@ -190,7 +189,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -251,7 +250,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         reachableObserved.completeOnce()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
 
     await notReachableObserved
@@ -289,7 +288,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -329,7 +328,7 @@ suite "AutonatV2 Service":
           )
           awaiter.complete()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
     await awaiter
 
@@ -366,7 +365,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -428,9 +427,9 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter2.completeOnce()
 
-    service1.addReachabilityHandler(reachabilityHandler1)
-    service2.addReachabilityHandler(reachabilityHandler2)
-    service3.addReachabilityHandler(reachabilityHandler2)
+    check service1.reachabilityObservers.add(reachabilityHandler1)
+    check service2.reachabilityObservers.add(reachabilityHandler2)
+    check service3.reachabilityObservers.add(reachabilityHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -478,7 +477,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter1.completeOnce()
 
-    service1.addReachabilityHandler(reachabilityHandler1)
+    check service1.reachabilityObservers.add(reachabilityHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -526,7 +525,7 @@ suite "AutonatV2 Service":
           confidence.get() == 1:
         awaiter.completeOnce()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
 
     await switch.start()
     await switches.startAll()
@@ -566,7 +565,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -594,7 +593,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce(dialBackAddr)
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
     let capturedAddr = await awaiter
     await client.finished
@@ -623,7 +622,7 @@ suite "AutonatV2 Service":
           confidence.get() >= 0.3:
         awaiter.completeOnce(dialBackAddr)
 
-    service.addReachabilityHandler(reachabilityHandler)
+    check service.reachabilityObservers.add(reachabilityHandler)
     await switch.startAndConnect(switches)
     let capturedAddr = await awaiter
     await client.finished

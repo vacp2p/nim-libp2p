@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
+{.used.}
+
+import chronos, results
+import ../../../libp2p/multiaddress
+import ../../../libp2p/services/reachabilityobservers
+import ../../tools/unittest
+
+suite "ReachabilityObservers":
+  asyncTest "notify reaches every subscriber, and skips an unsubscribed one":
+    let observers = ReachabilityObservers.new()
+
+    var seen: seq[NetworkReachability]
+    let handler: ReachabilityHandler = proc(
+        reachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      seen.add(reachability)
+
+    check:
+      observers.add(handler)
+      observers.lastReachability() == NetworkReachability.Unknown
+      # A nil handler would crash the next dispatch, so it never reaches the seq.
+      not observers.add(nil)
+
+    await observers.notify(NetworkReachability.Reachable, Opt.some(1.0))
+    check:
+      seen == @[NetworkReachability.Reachable]
+      observers.lastReachability() == NetworkReachability.Reachable
+
+    check:
+      observers.remove(handler)
+      # The handler is gone, so a second remove reports that it removed nothing.
+      not observers.remove(handler)
+
+    await observers.notify(NetworkReachability.NotReachable, Opt.some(1.0))
+    check:
+      seen == @[NetworkReachability.Reachable]
+      observers.lastReachability() == NetworkReachability.NotReachable
