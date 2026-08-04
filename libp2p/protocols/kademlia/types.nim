@@ -558,9 +558,11 @@ type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
 type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
 type KadMode* {.pure.} = enum
-  Client ## never serves queries; only issues them
-  Server ## always serves queries
-  Auto ## serves queries only while the node is reachable (driven by autonat)
+  Client ## does not serve queries; only issues them
+  Server ## serves queries
+  Auto
+    ## configuration only: serves queries while the node is reachable (driven by
+    ## autonat). ``KadDHT.mode`` never holds this value.
 
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
@@ -588,15 +590,12 @@ type KadDHT* = ref object of LPProtocol
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
     ## still false while bootstrap admits its seed peers during ``start``.
   mode*: KadMode
-    ## Configured client/server mode.
-    ## ``Auto`` changes to ``Server`` when node is reachable
-    ## or to ``Client`` when not is not reachable;
-    ## ``Client`` and ``Server`` pin it.
-  serving*: bool
-    ## Whether the node currently answers inbound queries. Under ``Auto`` this
-    ## tracks reachability; otherwise it is fixed by ``mode``.
+    ## Current mode, either ``Client`` or ``Server``, never ``Auto``. ``Server``
+    ## means the node answers inbound queries. A node configured as ``Auto``
+    ## starts as ``Client`` and follows reachability from there.
+  autoMode*: bool ## Whether autonat reachability drives ``mode``.
   serverStreams*: HashSet[Stream]
-    ## Open inbound server streams, reset on a downgrade to client mode.
+    ## Open inbound server streams, reset when the mode changes to ``Client``.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is

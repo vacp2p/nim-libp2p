@@ -180,9 +180,9 @@ proc new*(
     nsEstimator: NetworkSizeEstimator.new(config.replication),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
-    mode: mode,
     # Auto starts as a client until autonat proves the node reachable.
-    serving: mode == KadMode.Server,
+    mode: if mode == KadMode.Auto: KadMode.Client else: mode,
+    autoMode: mode == KadMode.Auto,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -193,7 +193,7 @@ proc new*(
   kad.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
-    if not kad.serving:
+    if kad.mode != KadMode.Server:
       trace "Refusing inbound query while not in server mode", stream, mode = kad.mode
       await stream.reset()
       return
@@ -243,43 +243,40 @@ proc new*(
 
   return kad
 
-func isServer*(kad: KadDHT): bool =
-  ## Whether the node currently answers inbound queries.
-  kad.serving
-
-proc moveToServerMode*(kad: KadDHT) =
-  ## Start answering inbound queries. The handler is always mounted, so this
-  ## only flips the serving flag.
-  if kad.serving:
-    return
-  kad.serving = true
-  debug "Kad DHT moved to server mode"
-
-proc moveToClientMode*(kad: KadDHT) {.async: (raises: []).} =
-  ## Stop serving inbound queries and reset any in-flight server streams. The
-  ## codec stays mounted (no unmount exists), so peers drop us once we stop serving.
-  if not kad.serving:
-    return
-  kad.serving = false
-
+proc resetServerStreams(kad: KadDHT) {.async: (raises: []).} =
+  # HashSet has no mapIt, so collect the streams into a seq first.
   let streams = kad.serverStreams.toSeq()
   kad.serverStreams.clear()
   await noCancel allFutures(streams.mapIt(it.reset()))
-  debug "Kad DHT moved to client mode", resetStreams = streams.len
+  debug "Reset inbound Kad DHT streams", streams = streams.len
+
+proc changeMode*(kad: KadDHT, newMode: KadMode): Future[bool] {.async: (raises: []).} =
+  ## Move the node to ``newMode`` and report whether the mode changed. ``Auto``
+  ## is a configuration value only, so it changes nothing here. Moving to
+  ## ``Client`` resets the in-flight inbound streams; the codec stays mounted
+  ## (no unmount exists), so peers drop us once the handler refuses to serve.
+  if newMode == KadMode.Auto or newMode == kad.mode:
+    return false
+
+  kad.mode = newMode
+  if newMode == KadMode.Client:
+    await kad.resetServerStreams()
+  debug "Kad DHT changed mode", mode = newMode
+  true
 
 proc onReachabilityChanged*(
     kad: KadDHT, reachability: NetworkReachability
 ) {.async: (raises: []).} =
-  ## Wire this to the autonat reachability handler. Only ``Auto`` mode reacts;
-  ## ``Client`` and ``Server`` ignore reachability changes.
-  if kad.mode != KadMode.Auto:
+  ## Wire this to the autonat reachability handler. Only a node configured as
+  ## ``Auto`` reacts; ``Client`` and ``Server`` ignore reachability changes.
+  if not kad.autoMode:
     return
 
   case reachability
   of NetworkReachability.Reachable:
-    kad.moveToServerMode()
+    discard await kad.changeMode(KadMode.Server)
   of NetworkReachability.NotReachable:
-    await kad.moveToClientMode()
+    discard await kad.changeMode(KadMode.Client)
   of NetworkReachability.Unknown:
     discard
 

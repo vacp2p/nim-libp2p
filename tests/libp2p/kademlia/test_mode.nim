@@ -43,39 +43,43 @@ suite "KadDHT dynamic mode":
   teardown:
     checkTrackers()
 
-  test "initial serving state follows the configured mode":
+  test "initial mode follows the configured mode":
     check:
-      setupKad(mode = KadMode.Server).isServer()
-      not setupKad(mode = KadMode.Client).isServer()
-      not setupKad(mode = KadMode.Auto).isServer() # client until reachable
+      setupKad(mode = KadMode.Server).mode == KadMode.Server
+      setupKad(mode = KadMode.Client).mode == KadMode.Client
+      setupKad(mode = KadMode.Auto).mode == KadMode.Client # client until reachable
 
-  test "moveToServerMode/moveToClientMode flip the serving flag":
+  test "changeMode reports whether the mode changed":
     let kad = setupKad(mode = KadMode.Client)
-    check not kad.isServer()
 
-    kad.moveToServerMode()
-    check kad.isServer()
+    check (waitFor kad.changeMode(KadMode.Server))
+    check kad.mode == KadMode.Server
 
-    waitFor kad.moveToClientMode()
-    check not kad.isServer()
+    # Same mode twice changes nothing, and Auto is a configuration value only.
+    check not (waitFor kad.changeMode(KadMode.Server))
+    check not (waitFor kad.changeMode(KadMode.Auto))
+    check kad.mode == KadMode.Server
 
-  test "onReachabilityChanged only drives Auto mode":
+    check (waitFor kad.changeMode(KadMode.Client))
+    check kad.mode == KadMode.Client
+
+  test "onReachabilityChanged only drives a node configured as Auto":
     let auto = setupKad(mode = KadMode.Auto)
     waitFor auto.onReachabilityChanged(NetworkReachability.Reachable)
-    check auto.isServer()
+    check auto.mode == KadMode.Server
     waitFor auto.onReachabilityChanged(NetworkReachability.NotReachable)
-    check not auto.isServer()
+    check auto.mode == KadMode.Client
     waitFor auto.onReachabilityChanged(NetworkReachability.Unknown)
-    check not auto.isServer() # Unknown leaves the current mode untouched
+    check auto.mode == KadMode.Client # Unknown leaves the current mode untouched
 
     # Pinned modes ignore reachability changes.
     let server = setupKad(mode = KadMode.Server)
     waitFor server.onReachabilityChanged(NetworkReachability.NotReachable)
-    check server.isServer()
+    check server.mode == KadMode.Server
 
     let client = setupKad(mode = KadMode.Client)
     waitFor client.onReachabilityChanged(NetworkReachability.Reachable)
-    check not client.isServer()
+    check client.mode == KadMode.Client
 
   asyncTest "server answers queries, client resets them":
     let querier = setupKad()
@@ -93,10 +97,10 @@ suite "KadDHT dynamic mode":
 
     check (await querier.dialFindNode(server)).isSome()
 
-    await server.moveToClientMode()
+    check (await server.changeMode(KadMode.Client))
     check (await querier.dialFindNode(server)).isNone()
 
-    server.moveToServerMode()
+    check (await server.changeMode(KadMode.Server))
     check (await querier.dialFindNode(server)).isSome()
 
   asyncTest "downgrade resets an in-flight inbound stream":
@@ -121,7 +125,7 @@ suite "KadDHT dynamic mode":
     checkUntilTimeout:
       server.serverStreams.len == 1
 
-    await server.moveToClientMode()
+    check (await server.changeMode(KadMode.Client))
     check server.serverStreams.len == 0
 
     # The downgrade must reset the parked stream: the querier's next read ends in
