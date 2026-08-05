@@ -241,7 +241,7 @@ proc new*(
   return kad
 
 proc resetServerStreams(kad: KadDHT) {.async: (raises: []).} =
-  let streams = kad.serverStreams.toSeq() # HashSet has no mapIt
+  let streams = kad.serverStreams
   kad.serverStreams.clear()
   await noCancel allFutures(streams.mapIt(it.reset()))
   debug "Reset inbound Kad DHT streams", streams = streams.len

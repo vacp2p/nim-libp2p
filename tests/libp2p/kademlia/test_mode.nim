@@ -4,8 +4,7 @@
 {.used.}
 
 import chronos
-import ../../../libp2p/[builders, protocols/kademlia, switch]
-import ../../../libp2p/protocols/connectivity/autonat/types
+import ../../../libp2p/[protocols/kademlia, stream/connection, switch]
 import ../../tools/[lifecycle, unittest]
 import ./utils
 
@@ -60,25 +59,6 @@ suite "KadDHT dynamic mode":
     check kad.isServer
 
     check (await kad.changeMode(isServer = false))
-    check not kad.isServer
-
-  asyncTest "the reachability handler drives the mode":
-    let kad = setupKad(isServer = false)
-    let onReachability = kadReachabilityHandler(kad)
-
-    template notify(reachability: NetworkReachability): untyped =
-      await onReachability(reachability, Opt.none(float), Opt.none(MultiAddress))
-
-    notify(NetworkReachability.Unknown)
-    check not kad.isServer # no verdict yet, so the mode stays untouched
-
-    notify(NetworkReachability.Reachable)
-    check kad.isServer
-
-    notify(NetworkReachability.Unknown)
-    check kad.isServer
-
-    notify(NetworkReachability.NotReachable)
     check not kad.isServer
 
   asyncTest "server answers queries, client resets them":

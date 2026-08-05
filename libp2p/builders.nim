@@ -41,8 +41,7 @@ export
   natservice.NATService, natservice.natConfig, natservice.upnpConfig,
   natservice.natPmpConfig, natservice.explicitIpConfig, natservice.autonatConfig,
   natservice.holePunchingConfig, natservice.AutonatV2ServiceConfig,
-  natservice.AutonatV2Service, natservice.natService, natservice.ReachabilityHandler,
-  natservice.addReachabilityHandler
+  natservice.AutonatV2Service, natservice.natService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -60,6 +59,11 @@ type
 
   SecureProtocol* {.pure.} = enum
     Noise
+
+  KadMode* {.pure.} = enum
+    Client ## never serves queries; only issues them
+    Server ## always serves queries
+    Auto ## serves queries while autonat reports the node reachable
 
   KadInfo = object
     config*: KadDHTConfig
@@ -535,7 +539,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   for service in switch.services:
     service.setup(switch)
 
-proc kadReachabilityHandler*(kad: KadDHT): ReachabilityHandler =
+proc makeKadReachabilityHandler(kad: KadDHT): ReachabilityHandler =
   ## Handler for ``KadMode.Auto``: the node serves queries while it is
   ## reachable, and stops serving when it is not. ``Unknown`` keeps the current
   ## mode, since it means autonat has no verdict yet.
@@ -589,7 +593,7 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     if kadInfo.mode == KadMode.Auto:
       var wired = false
       switch.natService().withValue(nat):
-        wired = nat.addReachabilityHandler(kadReachabilityHandler(kad))
+        wired = nat.addReachabilityHandler(makeKadReachabilityHandler(kad))
       if not wired:
         warn "Kad-DHT auto mode has no reachability service; it stays a client",
           hint = "configure withNAT reachability or hole-punching"

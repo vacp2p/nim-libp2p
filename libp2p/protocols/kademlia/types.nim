@@ -557,12 +557,6 @@ type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
 
 type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
-type KadMode* {.pure.} = enum
-  ## Configuration only: how the switch builder sets up the Kad-DHT node.
-  Client ## never serves queries; only issues them
-  Server ## always serves queries
-  Auto ## serves queries while autonat reports the node reachable
-
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: Rng
