@@ -264,8 +264,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         kad.launchLivenessProbe(peerId)
 
     if kad.livenessProbes.len > 0:
-      debug "Waiting for in-flight liveness probes",
-        inFlight = kad.livenessProbes.len
+      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
       let inFlight = kad.livenessProbes.values.toSeq()
       try:
         discard await one(inFlight)
