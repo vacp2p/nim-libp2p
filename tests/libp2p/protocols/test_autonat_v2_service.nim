@@ -131,8 +131,9 @@ suite "AutonatV2 Service":
     check service.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Every subscriber gets the answer":
+    const answer = NetworkReachability.Reachable
     let
-      (v2Service, _) = newService(NetworkReachability.Reachable)
+      (v2Service, _) = newService(answer)
       switch = createSwitch(Opt.some(v2Service))
       observers = v2Service.reachabilityObservers
     var switches = createSwitches(3)
@@ -140,34 +141,31 @@ suite "AutonatV2 Service":
     let first = newFuture[NetworkReachability]()
     let second = newFuture[NetworkReachability]()
 
-    discard observers.add(
-      proc(
-          reachability: NetworkReachability,
-          confidence: Opt[float],
-          dialBackAddr: Opt[MultiAddress],
-      ) {.async: (raises: [CancelledError]).} =
-        first.completeOnce(reachability)
-    )
-    discard observers.add(
-      proc(
-          reachability: NetworkReachability,
-          confidence: Opt[float],
-          dialBackAddr: Opt[MultiAddress],
-      ) {.async: (raises: [CancelledError]).} =
-        second.completeOnce(reachability)
-    )
-
-    check v2Service.networkReachability == NetworkReachability.Unknown
+    check:
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          first.completeOnce(reachability)
+      )
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          second.completeOnce(reachability)
+      )
+      v2Service.networkReachability == NetworkReachability.Unknown
 
     await switch.startAndConnect(switches)
 
-    let
-      firstSeen = await first.wait(5.seconds)
-      secondSeen = await second.wait(5.seconds)
     check:
-      firstSeen == NetworkReachability.Reachable
-      secondSeen == NetworkReachability.Reachable
-      v2Service.networkReachability == NetworkReachability.Reachable
+      (await first.wait(5.seconds)) == answer
+      (await second.wait(5.seconds)) == answer
+      v2Service.networkReachability == answer
 
     await switch.stop()
     await switches.stopAll()

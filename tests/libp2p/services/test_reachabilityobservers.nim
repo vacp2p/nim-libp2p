@@ -25,6 +25,8 @@ suite "ReachabilityObservers":
       observers.lastReachability() == NetworkReachability.Unknown
       # A nil handler would crash the next dispatch, so it never reaches the seq.
       not observers.add(nil)
+      # One handler holds one subscription, so a second add changes nothing.
+      not observers.add(handler)
 
     await observers.notify(NetworkReachability.Reachable, Opt.some(1.0))
     check:

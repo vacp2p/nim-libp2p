@@ -7,7 +7,7 @@ import std/sequtils
 import chronos, results
 import ../multiaddress
 import ../protocols/connectivity/autonat/types
-import ../utils/future
+import ../utils/[collections, future]
 
 export types.NetworkReachability
 
@@ -31,8 +31,9 @@ proc new*(T: typedesc[ReachabilityObservers]): T =
   T(reachability: NetworkReachability.Unknown)
 
 proc add*(self: ReachabilityObservers, handler: ReachabilityHandler): bool =
-  ## Appends `handler`. False means no subscription: a nil handler is dropped.
-  if handler.isNil():
+  ## Appends `handler`. False means no subscription: a nil handler is dropped,
+  ## and so is a handler that is subscribed already.
+  if handler.isNil() or handler in self.handlers:
     return false
 
   self.handlers.add(handler)
@@ -40,9 +41,7 @@ proc add*(self: ReachabilityObservers, handler: ReachabilityHandler): bool =
 
 proc remove*(self: ReachabilityObservers, handler: ReachabilityHandler): bool =
   ## Removes `handler`. False means it was not subscribed.
-  let before = self.handlers.len
-  self.handlers.keepItIf(it != handler)
-  self.handlers.len < before
+  self.handlers.removeFirstIfIt(it == handler)
 
 func lastReachability*(self: ReachabilityObservers): NetworkReachability =
   ## The reachability of the last `notify`, `Unknown` before the first one. It

@@ -98,7 +98,6 @@ suite "Autonat Service":
     let gate = newAsyncEvent()
     let first = newFuture[NetworkReachability]()
     let last = newFuture[NetworkReachability]()
-    var firstDone = false
     var goneCalls = 0
 
     let gone: ReachabilityHandler = proc(
@@ -108,26 +107,26 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       goneCalls.inc()
 
-    discard observers.add(
-      proc(
-          reachability: NetworkReachability,
-          confidence: Opt[float],
-          dialBackAddr: Opt[MultiAddress],
-      ) {.async: (raises: [CancelledError]).} =
-        first.completeOnce(reachability)
-        await gate.wait()
-        firstDone = true
-    )
-    check observers.add(gone)
-    discard observers.add(
-      proc(
-          reachability: NetworkReachability,
-          confidence: Opt[float],
-          dialBackAddr: Opt[MultiAddress],
-      ) {.async: (raises: [CancelledError]).} =
-        last.completeOnce(reachability)
-    )
     check:
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          first.completeOnce(reachability)
+          # Block the first handler: the last one still gets the answer.
+          await gate.wait()
+      )
+      observers.add(gone)
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          last.completeOnce(reachability)
+      )
       observers.remove(gone)
       autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -135,15 +134,11 @@ suite "Autonat Service":
     await switch2.start()
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
 
-    let
-      firstSeen = await first.wait(5.seconds)
-      lastSeen = await last.wait(5.seconds)
     check:
-      firstSeen == NetworkReachability.NotReachable
-      lastSeen == NetworkReachability.NotReachable
-      not firstDone # the last handler answered while the first one still blocks
+      (await first.wait(5.seconds)) == autonatClientStub.answer
+      (await last.wait(5.seconds)) == autonatClientStub.answer
       goneCalls == 0
-      autonatService.networkReachability == NetworkReachability.NotReachable
+      autonatService.networkReachability == autonatClientStub.answer
 
     gate.fire()
     await allFuturesRaising(switch1.stop(), switch2.stop())

@@ -32,6 +32,16 @@ suite "Utility":
       a.take(0).len == 0
       a.take(-1).len == 0
 
+  test "removeFirstIfIt":
+    var a = @[1, 2, 3, 2]
+    check:
+      a.removeFirstIfIt(it == 2)
+      a == @[1, 3, 2]
+      a.removeFirstIfIt(it == 2)
+      a == @[1, 3]
+      not a.removeFirstIfIt(it == 2)
+      a == @[1, 3]
+
 suite "withValue and valueOr templates":
   type TestObj = ref object
     x: int
