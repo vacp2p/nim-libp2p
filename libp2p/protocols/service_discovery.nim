@@ -77,7 +77,11 @@ proc new*(
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(replication = config.replication),
+    config = RoutingTableConfig.new(
+      replication = config.replication,
+      usefulnessGracePeriod = config.usefulnessGracePeriod,
+      bucketStaleTime = config.bucketStaleTime,
+    ),
   )
 
   let disco = ServiceDiscovery(
