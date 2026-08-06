@@ -31,6 +31,15 @@ suite "KadDHT Routing Table":
   proc keyInBucket(rt: RoutingTable, bucket: int): Key =
     randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
 
+  proc agePastGrace(rt: RoutingTable, bucketIdx: int) =
+    ## Push every peer past the usefulness grace period so eviction can act.
+    let past = Moment.now() - 2.hours
+    for nodeId in rt.buckets[bucketIdx].peers:
+      rt.registry.peers.withValue(nodeId, record):
+        record[].addedAt = past
+        record[].lastUsefulAt = Opt.none(Moment)
+        record[].lastSeen = past
+
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId)
@@ -41,7 +50,8 @@ suite "KadDHT Routing Table":
     check:
       rt.buckets.len > idx
       rt.buckets[idx].peers.len == 1
-      rt.buckets[idx].peers[0].nodeId == other
+      rt.buckets[idx].peers[0] == other
+      other in rt.registry
 
   test "does not insert self":
     let selfId = testKey(0)
@@ -61,13 +71,6 @@ suite "KadDHT Routing Table":
     let bucket = rt.buckets[TargetBucket]
     check bucket.peers.len <= config.replication
 
-  proc agePastGrace(rt: RoutingTable, bucketIdx: int) =
-    ## Push every peer past the usefulness grace period so eviction can act.
-    var bucket = rt.buckets[bucketIdx]
-    for i in 0 ..< bucket.peers.len:
-      bucket.peers[i].addedAt = Moment.now() - 2.hours
-    rt.buckets[bucketIdx] = bucket
-
   test "evicts oldest replaceable key at max capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
@@ -81,13 +84,13 @@ suite "KadDHT Routing Table":
     # Age fresh peers past the grace period so they become evictable.
     rt.agePastGrace(TargetBucket)
 
-    let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
+    let (oldest, _) = rt.oldestPeer(TargetBucket)
 
     check rt.insert(rt.keyInBucket(TargetBucket))
 
     check:
       rt.buckets[TargetBucket].peers.len == config.replication
-      not rt.buckets[TargetBucket].allKeys().contains(oldest.nodeId)
+      not rt.buckets[TargetBucket].allKeys().contains(oldest)
 
   test "retains peers still within the usefulness grace period":
     let selfId = testKey(0)
@@ -115,11 +118,11 @@ suite "KadDHT Routing Table":
     rt.agePastGrace(TargetBucket)
 
     # Marking the oldest-seen peer useful spares it and evicts a different one.
-    let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
-    rt.markUseful(oldest.nodeId)
+    let (oldest, _) = rt.oldestPeer(TargetBucket)
+    rt.markUseful(oldest)
 
     check rt.insert(rt.keyInBucket(TargetBucket))
-    check rt.buckets[TargetBucket].allKeys().contains(oldest.nodeId)
+    check rt.buckets[TargetBucket].allKeys().contains(oldest)
 
   test "re-insert existing key updates lastSeen":
     let selfId = testKey(0)
@@ -134,16 +137,16 @@ suite "KadDHT Routing Table":
     discard rt.insert(key2)
     discard rt.insert(key3)
 
-    check rt.buckets[TargetBucket].peers[0].nodeId == key1
+    check rt.buckets[TargetBucket].peers[0] == key1
 
-    let previousLastSeen = rt.buckets[TargetBucket].peers[0].lastSeen
+    let previousLastSeen = rt.registry.get(key1).get().lastSeen
 
     discard rt.insert(key1)
 
-    # Re-inserting existing key updates lastSeen timestamp without changing bucket position
+    # Re-inserting existing key updates lastSeen without changing bucket position
     check:
-      rt.buckets[TargetBucket].peers[0].nodeId == key1
-      rt.buckets[TargetBucket].peers[0].lastSeen > previousLastSeen
+      rt.buckets[TargetBucket].peers[0] == key1
+      rt.registry.get(key1).get().lastSeen > previousLastSeen
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
@@ -206,14 +209,21 @@ suite "KadDHT Routing Table":
     check res == expected
 
   test "isStale returns true for empty or old keys":
+    let registry = PeerRegistry.new()
     var bucket: Bucket
-    check isStale(bucket) == true
+    check isStale(bucket, registry) == true
 
-    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now() - 40.minutes)]
-    check isStale(bucket) == true
+    let oldKey = testKey(1)
+    discard registry.ensure(oldKey)
+    registry.peers.withValue(oldKey, record):
+      record[].lastSeen = Moment.now() - 40.minutes
+    bucket.peers = @[oldKey]
+    check isStale(bucket, registry) == true
 
-    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now())]
-    check isStale(bucket) == false
+    let freshKey = testKey(2)
+    discard registry.ensure(freshKey)
+    bucket.peers = @[freshKey]
+    check isStale(bucket, registry) == false
 
   test "removePeer removes an existing entry":
     let selfId = testKey(0)
@@ -224,10 +234,12 @@ suite "KadDHT Routing Table":
     check:
       rt.insert(key)
       key in rt
+      key in rt.registry
 
     check:
       rt.removePeer(key)
       key notin rt
+      key notin rt.registry
 
     check not rt.removePeer(key) # already gone
 
@@ -241,21 +253,59 @@ suite "KadDHT Routing Table":
 
   test "isReplaceable follows grace period from last activity":
     let now = Moment.now()
-    var entry = NodeEntry(
+    var record = PeerRecord(
       nodeId: testKey(1),
       lastSeen: now,
       addedAt: now - 2.hours,
       lastUsefulAt: Opt.none(Moment),
     )
-    check entry.isReplaceable(1.hours, now)
+    check record.isReplaceable(1.hours, now)
 
-    entry = NodeEntry(
+    record = PeerRecord(
       nodeId: testKey(1),
       lastSeen: now,
       addedAt: now - 2.hours,
       lastUsefulAt: Opt.some(now - 30.minutes),
     )
-    check not entry.isReplaceable(1.hours, now)
+    check not record.isReplaceable(1.hours, now)
+
+  test "shared registry: one peer row across two tables":
+    let registry = PeerRegistry.new()
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var mainRt = RoutingTable.new(testKey(0), config, registry = registry)
+    var serviceRt = RoutingTable.new(
+      testKey(0xFF),
+      RoutingTableConfig.new(
+        hasher = Opt.some(noOpHasher), maxBuckets = 16, selfIdPreHashed = true
+      ),
+      localNodeId = Opt.some(mainRt.localNodeId),
+      registry = registry,
+    )
+
+    let peer = testKey(1)
+    check mainRt.insert(peer)
+    check serviceRt.insert(peer)
+
+    check:
+      registry.len == 1
+      peer in mainRt
+      peer in serviceRt
+      registry.tableIds(peer).len == 2
+
+    mainRt.markUseful(peer)
+    check registry.get(peer).get().lastUsefulAt.isSome()
+
+    check serviceRt.removePeer(peer)
+    check:
+      peer in mainRt
+      peer notin serviceRt
+      peer in registry
+      registry.tableIds(peer).len == 1
+
+    check mainRt.removePeer(peer)
+    check:
+      peer notin registry
+      registry.len == 0
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)

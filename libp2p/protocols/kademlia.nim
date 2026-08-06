@@ -7,12 +7,15 @@ import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
 import
-  ./kademlia/[routing_table, protobuf, types, find, get, put, keyspace, provider, ping]
-import ./kademlia/[kademlia_metrics, netsize]
+  ./kademlia/[
+    routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
+    ping,
+  ]
+import ./kademlia/kademlia_metrics
 
 export
-  chronicles, routing_table, protobuf, types, find, get, put, keyspace, provider, ping,
-  kademlia_metrics, netsize
+  chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
+  provider, ping, kademlia_metrics
 
 logScope:
   topics = "kad-dht"
@@ -26,14 +29,16 @@ proc peersInGracePeriod(
   let now = Moment.now()
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
-    for entry in bucket.peers:
-      if not entry.isReplaceable(gracePeriod, now):
+    for nodeId in bucket.peers:
+      if not rtable.registry.isReplaceable(nodeId, gracePeriod, now):
         continue
-      entry.nodeId.toPeerId().withValue(pid):
+      nodeId.toPeerId().withValue(pid):
         peers.add(pid)
   peers
 
-method maintainableTables*(kad: KadDHT): seq[RoutingTable] {.base, gcsafe, raises: [].} =
+method maintainableTables*(
+    kad: KadDHT
+): seq[RoutingTable] {.base, gcsafe, raises: [].} =
   ## Routing tables the liveness loop should keep healthy. Service discovery
   ## overrides this to include per-service tables.
   @[kad.rtable]
@@ -98,8 +103,7 @@ proc checkAndEvictPeer(
     if rtable.isReplaceable(peerId, grace, Moment.now()):
       dueTables.add(rtable)
   if dueTables.len == 0:
-    debug "Liveness probe skipped: peer no longer replaceable",
-      peer = peerId.shortLog()
+    debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
   # Candidate list is a snapshot; the peer may have been refreshed (markUseful)
@@ -134,13 +138,11 @@ proc checkAndEvictPeer(
         peer = peerId.shortLog()
     return
 
-  debug "Probing peer for liveness",
-    peer = peerId.shortLog(), tables = dueTables.len
+  debug "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
     debug "Liveness probe succeeded", peer = peerId.shortLog()
-    # Peer is reachable: refresh usefulness on every table that holds it.
-    for rtable in kad.maintainableTables():
-      rtable.markUseful(peerId)
+    # Peer is reachable: one registry write refreshes usefulness for every index.
+    kad.rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
 
@@ -265,8 +267,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         kad.launchLivenessProbe(peerId)
 
     if kad.livenessProbes.len > 0:
-      debug "Waiting for in-flight liveness probes",
-        inFlight = kad.livenessProbes.len
+      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
       let inFlight = kad.livenessProbes.values.toSeq()
       try:
         discard await one(inFlight)
@@ -294,7 +295,7 @@ proc refreshTable*(
       continue
 
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
-    if not (forceRefresh or bucket.isStale(rtable.config.bucketStaleTime)):
+    if not (forceRefresh or rtable.isStale(i)):
       continue
 
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
