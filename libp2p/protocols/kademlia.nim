@@ -81,8 +81,7 @@ proc checkAndEvictPeer(
     if rtable.isReplaceable(peerId, grace, Moment.now()):
       dueTables.add(rtable)
   if dueTables.len == 0:
-    debug "Liveness probe skipped: peer no longer replaceable",
-      peer = peerId.shortLog()
+    debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
@@ -103,8 +102,7 @@ proc checkAndEvictPeer(
         peer = peerId.shortLog()
     return
 
-  debug "Probing peer for liveness",
-    peer = peerId.shortLog(), tables = dueTables.len
+  debug "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
     debug "Liveness probe succeeded", peer = peerId.shortLog()
     # Peer is reachable: refresh usefulness on every table that holds it.
@@ -195,8 +193,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         kad.launchLivenessProbe(peerId)
 
     if kad.livenessProbes.len > 0:
-      debug "Waiting for in-flight liveness probes",
-        inFlight = kad.livenessProbes.len
+      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
       let inFlight = kad.livenessProbes.values.toSeq()
       try:
         discard await one(inFlight)
