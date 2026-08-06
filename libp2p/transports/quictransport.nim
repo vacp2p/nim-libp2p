@@ -124,7 +124,11 @@ method write*(
 
   let bytesLen = bytes.len
   try:
-    await stream.stream.write(bytes)
+    if bytesLen > 0:
+      # Pointer overload: it borrows this buffer rather than copying it. `bytes`
+      # is a parameter of this method, so it lives in the async environment for
+      # the whole call - which is exactly the lifetime the borrow requires.
+      await stream.stream.write(bytes[0].addr, bytesLen)
     libp2p_network_bytes.inc(bytesLen.int64, labelValues = ["out"])
     when defined(libp2p_agents_metrics):
       stream.session.trackPeerIdentity()
