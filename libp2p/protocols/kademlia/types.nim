@@ -406,7 +406,8 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
-  maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
+  maxConcurrentProbes*: int
+    ## Maximum number of concurrent FIND_NODE admission probes.
   maxConcurrentLivenessProbes*: int
     ## Maximum number of concurrent liveness/eviction probes. Independent of
     ## ``maxConcurrentProbes`` so admission is never starved by eviction.
@@ -592,13 +593,17 @@ type KadDHT* = ref object of LPProtocol
     ## Reuses one outbound stream per peer across every RPC sent to it.
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
-  probeSem*: AsyncSemaphore
-    ## Bounds concurrent admission and liveness probes to
-    ## ``config.limits.maxConcurrentProbes``.
+  admissionSem*: AsyncSemaphore
+    ## Bounds concurrent admission probes to ``config.limits.maxConcurrentProbes``.
+  livenessSem*: AsyncSemaphore
+    ## Bounds concurrent liveness/eviction probes to
+    ## ``config.limits.maxConcurrentLivenessProbes``. Independent of
+    ## ``admissionSem`` so eviction never starves routing-table admission.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
-  livenessProbes*: Table[ProbeKey, Future[void]]
-    ## In-flight routing-table liveness probes, keyed by target table and peer.
+  livenessProbes*: Table[PeerId, Future[void]]
+    ## In-flight liveness probes, keyed by peer only. A peer shared across
+    ## multiple routing tables (main Kad + service tables) is probed once.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
