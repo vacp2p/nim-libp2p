@@ -91,6 +91,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    msgSender: MessageSender.new(switch, codec, MaxMsgSize),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
     rtManager: ServiceRoutingTableManager.new(),

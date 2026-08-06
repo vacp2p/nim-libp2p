@@ -105,7 +105,8 @@ suite "KadDHT - Get Providers":
       kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers uses multihash for CID convergence":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -134,7 +135,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[1])
 
   asyncTest "Get providers includes self when querying node is a provider":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
