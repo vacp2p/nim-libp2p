@@ -1144,15 +1144,16 @@ proc libp2pCreateCid*(
   ok($cid)
 
 proc libp2pNewPrivateKey*(
-    lib: LibP2P, req: NewPrivateKeyRequest
-): Future[Result[seq[byte], string]] {.ffi.} =
-  ## Generates a private key from the node's RNG. `scheme` is one of the
+    req: NewPrivateKeyRequest
+): Future[Result[seq[byte], string]] {.ffiStatic.} =
+  ## Generates a private key. `scheme` is one of the
   ## `KEY_SCHEME_*` constants.
   if req.scheme < ord(low(PKScheme)) or req.scheme > ord(high(PKScheme)):
     return err("invalid key scheme")
   let scheme = PKScheme(req.scheme)
 
-  let key = PrivateKey.random(scheme, lib.rng).valueOr:
+  let rng = newRng()
+  let key = PrivateKey.random(scheme, rng).valueOr:
     return err("could not generate private key")
 
   let keyData = key.getBytes().valueOr:
@@ -1242,7 +1243,7 @@ proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
         )
   entries
 
-proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+proc libp2pCollectMetrics*(): Future[Result[string, string]] {.ffiStatic.} =
   ## A JSON snapshot of the Prometheus registry, one object per metric sample.
   var jsonText: string
   try:

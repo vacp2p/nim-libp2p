@@ -9,18 +9,20 @@ import chronos, chronicles
 
 import ../switch, ../wire
 import ../protocols/rendezvous
-import ../services/autorelayservice
+import ../services/[autorelayservice, reachabilityobservers]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
 import ../multicodec
+
+export reachabilityobservers
 
 logScope:
   topics = "libp2p hpservice"
 
 type HPService* = ref object of Service
   newConnectedPeerHandler: PeerEventHandler
-  onNewStatusHandler: StatusAndConfidenceHandler
+  onNewStatusHandler: ReachabilityHandler
   autoRelayService: AutoRelayService
   autonatService: AutonatService
 
@@ -95,6 +97,10 @@ proc newConnectedPeerHandler(
   except CatchableError as err:
     debug "Hole punching failed during dcutr", description = err.msg
 
+proc reachabilityObservers*(self: HPService): ReachabilityObservers =
+  ## The observers of the AutoNAT v1 service that drives hole punching.
+  self.autonatService.reachabilityObservers
+
 method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.autonatService.setup(switch)
   self.autoRelayService.setup(switch)
@@ -117,7 +123,9 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   )
 
   self.onNewStatusHandler = proc(
-      networkReachability: NetworkReachability, confidence: Opt[float]
+      networkReachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability == NetworkReachability.NotReachable and
         not self.autoRelayService.isRunning():
@@ -130,7 +138,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
+  discard self.reachabilityObservers.add(self.onNewStatusHandler)
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.start(switch)
