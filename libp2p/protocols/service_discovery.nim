@@ -101,7 +101,8 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
-    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
+    admissionSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
+    livenessSem: newAsyncSemaphore(config.limits.maxConcurrentLivenessProbes),
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),

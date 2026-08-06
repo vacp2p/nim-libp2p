@@ -63,6 +63,8 @@ const
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
   DefaultMaxConcurrentProbes* = 20
     ## upper bound on concurrent routing-table admission probes (lookupCheck)
+  DefaultMaxConcurrentLivenessProbes* = 20
+    ## upper bound on concurrent routing-table liveness/eviction probes
   DefaultMaxPeersPerIp* = 4
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
@@ -404,7 +406,11 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
-  maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
+  maxConcurrentProbes*: int
+    ## Maximum number of concurrent FIND_NODE admission probes.
+  maxConcurrentLivenessProbes*: int
+    ## Maximum number of concurrent liveness/eviction probes. Independent of
+    ## ``maxConcurrentProbes`` so admission is never starved by eviction.
   maxPeersPerIp*: int
     ## Maximum number of Kademlia routing-table peers sharing one exact IP.
   maxPeersPerIpv4Subnet*: int
@@ -425,6 +431,7 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
     maxConcurrentProbes: DefaultMaxConcurrentProbes,
+    maxConcurrentLivenessProbes: DefaultMaxConcurrentLivenessProbes,
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
@@ -523,6 +530,8 @@ proc new*(
     "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
   doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
   doAssert actualLimits.maxConcurrentProbes > 0, "maxConcurrentProbes must be > 0"
+  doAssert actualLimits.maxConcurrentLivenessProbes > 0,
+    "maxConcurrentLivenessProbes must be > 0"
   doAssert actualLimits.maxPeersPerIp > 0, "maxPeersPerIp must be > 0"
   doAssert actualLimits.maxPeersPerIpv4Subnet > 0, "maxPeersPerIpv4Subnet must be > 0"
   doAssert actualLimits.maxPeersPerIpv6Subnet > 0, "maxPeersPerIpv6Subnet must be > 0"
@@ -582,13 +591,17 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
-  probeSem*: AsyncSemaphore
-    ## Bounds concurrent admission and liveness probes to
-    ## ``config.limits.maxConcurrentProbes``.
+  admissionSem*: AsyncSemaphore
+    ## Bounds concurrent admission probes to ``config.limits.maxConcurrentProbes``.
+  livenessSem*: AsyncSemaphore
+    ## Bounds concurrent liveness/eviction probes to
+    ## ``config.limits.maxConcurrentLivenessProbes``. Independent of
+    ## ``admissionSem`` so eviction never starves routing-table admission.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
-  livenessProbes*: Table[ProbeKey, Future[void]]
-    ## In-flight routing-table liveness probes, keyed by target table and peer.
+  livenessProbes*: Table[PeerId, Future[void]]
+    ## In-flight liveness probes, keyed by peer only. A peer shared across
+    ## multiple routing tables (main Kad + service tables) is probed once.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
