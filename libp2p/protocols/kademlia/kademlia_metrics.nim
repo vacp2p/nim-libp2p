@@ -19,6 +19,10 @@ declarePublicHistogram kad_message_duration_ms,
 declarePublicCounter kad_responses_with_closer_peers,
   "responses with closer peers", ["type"]
 
+# Lookup metrics
+declarePublicCounter kad_lookup_followups,
+  "iterative lookups that entered the k-closest follow-up phase"
+
 # Provider record metrics
 declarePublicCounter kad_provider_rejections_sent,
   "ADD_PROVIDER messages rejected due to per-key limit"

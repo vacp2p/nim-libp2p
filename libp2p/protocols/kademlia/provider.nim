@@ -203,11 +203,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
   let peers =
     if kad.config.providerRejection:
       # Spillover needs the peers past the closest `replication` ones too.
-      (
-        await kad.iterativeLookup(
-          key, findNodeDispatch, noopReply, closestAvailableStop
-        )
-      ).allSortedPeers()
+      (await kad.iterativeLookup(key, findNodeDispatch, noopReply)).allSortedPeers()
     else:
       await kad.findNode(key)
   await kad.storeProviderAt(key, peers)
@@ -249,11 +245,8 @@ proc republishRegion(
   if keys.len == 0:
     return
 
-  let regionPeers = (
-    await kad.iterativeLookup(
-      keys[0], findNodeDispatch, noopReply, closestAvailableStop
-    )
-  ).allSortedPeers()
+  let regionPeers =
+    (await kad.iterativeLookup(keys[0], findNodeDispatch, noopReply)).allSortedPeers()
 
   kad_provider_republish_regions.inc()
   kad_provider_republish_keys.inc(keys.len.int64)
@@ -451,10 +444,10 @@ proc getProviders*(
         continue
       allProviders.incl(provider)
 
-  let stop = proc(state: LookupState): bool {.gcsafe.} =
+  let enoughProviders = proc(state: LookupState): bool {.gcsafe.} =
     allProviders.len() >= kad.config.replication
 
-  discard await kad.iterativeLookup(key, dispatchGetProviders, onReply, stop)
+  discard await kad.iterativeLookup(key, dispatchGetProviders, onReply, enoughProviders)
 
   return allProviders
 
