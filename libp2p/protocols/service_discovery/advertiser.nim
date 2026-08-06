@@ -126,7 +126,7 @@ proc maintainRegistrations*(
       for t in disco.advertiser.running:
         if t.serviceId == sid and t.bucketIdx == bucketIdx and not t.fut.finished:
           let regKey = t.registrar.toKey()
-          if not bucket.peers.anyIt(it.nodeId == regKey):
+          if regKey notin bucket.peers:
             stale.add(t)
       for t in stale:
         t.fut.cancelSoon()
@@ -140,8 +140,8 @@ proc maintainRegistrations*(
         continue
 
       var candidates: seq[PeerId]
-      for p in bucket.peers:
-        let pid = p.nodeId.toPeerId().valueOr:
+      for nodeId in bucket.peers:
+        let pid = nodeId.toPeerId().valueOr:
           continue
         if pid notin active and pid != selfPeer:
           candidates.add(pid)
@@ -336,8 +336,8 @@ proc addProvidedService*(
     let peers = disco.rng.pick(bucket.peers, disco.discoConfig.kRegister).valueOr:
       continue
 
-    for peer in peers:
-      let registrar = peer.nodeId.toPeerId().valueOr:
+    for nodeId in peers:
+      let registrar = nodeId.toPeerId().valueOr:
         error "cannot convert key to peer id", error
         continue
 

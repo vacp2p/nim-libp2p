@@ -217,16 +217,27 @@ proc xorDistance*(a, b: PeerId, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b.toKey(), hasher)
 
 type
-  NodeEntry* = object
+  ## DHT peer row: liveness/usefulness state lives once, independent of which
+  ## routing tables index the peer. Tables only store ``Key`` references.
+  PeerRecord* = object
     nodeId*: Key
     lastSeen*: Moment
     addedAt*: Moment
     lastUsefulAt*: Opt[Moment]
       ## Set when the peer answers a query; `Opt.none` until then, which makes it
-      ## replaceable once past the grace period since it was added.
+      ## replaceable once past the grace period since it was first recorded.
 
+  ## Shared store of peer rows plus reverse membership (which table selfIds
+  ## index each peer). Owned by ``KadDHT``; every ``RoutingTable`` shares it.
+  PeerRegistry* = ref object
+    peers*: Table[Key, PeerRecord]
+    tablesByPeer*: Table[Key, HashSet[Key]]
+      ## peer key → set of routing-table ``selfId``s that reference the peer.
+
+  ## A k-bucket is an index partition: keys only, ordered for eviction by
+  ## looking up ``PeerRecord`` timestamps in the shared registry.
   Bucket* = object
-    peers*: seq[NodeEntry]
+    peers*: seq[Key]
 
   RoutingTableConfig* = ref object
     replication*: int
@@ -236,11 +247,14 @@ type
     usefulnessGracePeriod*: Duration
     bucketStaleTime*: Duration
 
+  ## Virtual routing table: k-bucket index over a shared ``PeerRegistry``.
+  ## Peers are not owned by the table; membership is a reference into the registry.
   RoutingTable* = ref object
     selfId*: Key
     localNodeId*: Key
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
+    registry*: PeerRegistry
 
   Provider* = Peer
 
@@ -272,22 +286,10 @@ proc new*(
 
   return pm
 
-type
-  NetSizeMeasurement* = object
-    distance*: float64 ## normalized XOR distance to a lookup target, in ``[0, 1]``
-    weight*: float64
-    timestamp*: Moment
-
-  NetworkSizeEstimator* = ref object
-    ## Network size from the distances of the closest peers seen across lookups.
-    ## See ``netsize.nim`` for the math.
-    bucketSize*: int
-    measurements*: seq[seq[NetSizeMeasurement]] ## one bucket per closest-peer index
-
-proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
-  var peerIds = newSeqOfCap[PeerId](entries.len)
-  for e in entries:
-    let peerId = e.nodeId.toPeerId().valueOr:
+proc toPeerIds*(keys: seq[Key]): seq[PeerId] =
+  var peerIds = newSeqOfCap[PeerId](keys.len)
+  for k in keys:
+    let peerId = k.toPeerId().valueOr:
       error "cannot convert key to peer id", error
       continue
     peerIds.add(peerId)

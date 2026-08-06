@@ -149,6 +149,29 @@ suite "ServiceRoutingTableManager":
       peer1 in peers
       peer2 in peers
 
+  test "addService shares registry with main table (no peer-row copies)":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let peer2 = makeKey(2)
+    let mainRt = makeMainTable(selfId, @[peer1, peer2])
+    let registryLenBefore = mainRt.registry.len
+
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let serviceTable = manager.getTable(serviceId).get()
+    check:
+      serviceTable.registry == mainRt.registry
+      mainRt.registry.len == registryLenBefore
+      mainRt.registry.tableIds(peer1).len == 2
+      mainRt.registry.tableIds(peer2).len == 2
+
+    mainRt.markUseful(peer1)
+    check serviceTable.registry.get(peer1).get().lastUsefulAt.isSome()
+
   test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
@@ -441,7 +464,7 @@ suite "ServiceRoutingTableManager - service id hashing":
     check:
       preHashBucket != doubleHashBucket
       serviceTable.buckets[preHashBucket].peers.len == 1
-      serviceTable.buckets[preHashBucket].peers[0].nodeId == peer
+      serviceTable.buckets[preHashBucket].peers[0] == peer
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let
@@ -462,7 +485,7 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     var actual = -1
     for i, b in table.buckets:
-      if b.peers.anyIt(it.nodeId == peer):
+      if peer in b.peers:
         actual = i
         break
     check actual == expectedScaled
