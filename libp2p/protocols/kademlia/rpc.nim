@@ -6,7 +6,7 @@
 ## decode the reply.
 
 import chronos, results
-import ../../[peerid, switch]
+import ../../[multiaddress, peerid, switch]
 import ./[protobuf, types, kademlia_metrics]
 
 proc countSent*[T](
