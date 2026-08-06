@@ -68,7 +68,7 @@ suite "Service Discovery Component - Client Mode":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    serverAdvertiser.addProvidedService(service)
+    check serverAdvertiser.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       serverRegistrar.countAdsInCache(serviceId) == 1

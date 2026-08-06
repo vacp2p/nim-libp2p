@@ -168,7 +168,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
     disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
 
   for serviceInfo in disco.services:
-    disco.addProvidedService(serviceInfo)
+    disco.addProvidedService(serviceInfo).isOkOr:
+      error "cannot advertise configured service", service = serviceInfo.id, error
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()

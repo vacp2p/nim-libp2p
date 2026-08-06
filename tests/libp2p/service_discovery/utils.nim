@@ -89,6 +89,18 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
+proc makeOversizedAdvertisement*(
+    serviceId: string, privateKey: PrivateKey = PrivateKey.random(rng()).get()
+): Advertisement =
+  ## Decodes cleanly but fails `isValid`: its service data exceeds `MaxServiceDataSize`.
+  let extRecord = ExtendedPeerRecord(
+    peerId: PeerId.init(privateKey).get(),
+    seqNo: 1,
+    addresses: @[],
+    services: @[ServiceInfo(id: serviceId, data: newSeq[byte](MaxServiceDataSize + 1))],
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
 proc createSwitch*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],

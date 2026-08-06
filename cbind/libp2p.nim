@@ -171,6 +171,7 @@ type ExtendedRecordsResponse {.ffi.} = object
 type StartAdvertisingRequest {.ffi.} = object
   serviceId: string
   serviceData: seq[byte]
+  advertisement: seq[byte]
 
 type CreateXprRequest {.ffi.} = object
   addrs: seq[string]
@@ -914,12 +915,24 @@ proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} 
 proc libp2pServiceDiscoStartAdvertising*(
     lib: LibP2P, req: StartAdvertisingRequest
 ): Future[Result[bool, string]] {.ffi.} =
-  ## Advertises `serviceId` (with optional `serviceData`) in this node's record.
+  ## Advertises `serviceId` (with `serviceData`, which may be empty) in this
+  ## node's record. A non-empty `advertisement` is a signed extended peer record,
+  ## published verbatim instead of this node's own record; it fails when that
+  ## record does not decode, is oversized, or does not list `serviceId`.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
+
+  let advert =
+    if req.advertisement.len == 0:
+      Opt.none(seq[byte])
+    else:
+      Opt.some(req.advertisement)
+
   disco.startAdvertising(
-    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
-  )
+    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData)), advert
+  ).isOkOr:
+    return err(error)
+
   ok(true)
 
 proc libp2pServiceDiscoStopAdvertising*(

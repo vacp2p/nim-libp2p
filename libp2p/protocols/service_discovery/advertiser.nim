@@ -292,17 +292,35 @@ proc advertiseToRegistrar*(
       debug "registrar rejection, aborting", serviceId, registrar
       return
 
+proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, string] =
+  ## Applies the checks a registrar applies in `isValidAdvertisement`, so a bad
+  ## record fails here instead of being republished on every rotation.
+  let ad = Advertisement.decode(advert).valueOr:
+    return err("cannot decode advertisement: " & $error)
+
+  if not ad.isValid():
+    return err(
+      "oversized advertisement: the record must stay under " & $MaxXPRSize &
+        " bytes and each service data under " & $MaxServiceDataSize & " bytes"
+    )
+
+  if not ad.advertisesService(service.id.hashServiceId()):
+    return err("advertisement does not advertise service '" & service.id & "'")
+
+  ok()
+
 proc addProvidedService*(
     disco: ServiceDiscovery,
     service: ServiceInfo,
     advert: Opt[seq[byte]] = Opt.none(seq[byte]),
-) =
+): Result[void, string] =
   doAssert not disco.clientMode, "not supported in client mode"
 
   if not service.isValid():
-    error "rejecting service with oversized data",
-      service = service.id, dataLen = service.data.get().len, max = MaxServiceDataSize
-    return
+    return err("service data exceeds the maximum of " & $MaxServiceDataSize & " bytes")
+
+  if advert.isSome():
+    ?validateAdvert(advert.get(), service)
 
   let serviceId = service.id.hashServiceId()
 
@@ -310,7 +328,7 @@ proc addProvidedService*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Provided,
   ):
-    return
+    return ok()
 
   debug "added provided service", service = service.id, serviceId
 
@@ -318,8 +336,7 @@ proc addProvidedService*(
   cd_advertiser_services_added.inc()
 
   let advTable = disco.rtManager.getTable(serviceId).valueOr:
-    error "service not found", serviceId
-    return
+    return err("routing table missing for service '" & service.id & "'")
 
   # When a caller supplied an explicit advert we store it so that future
   # rotations / replacements (maintenance) reuse exactly the same bytes.
@@ -327,7 +344,7 @@ proc addProvidedService*(
     disco.advertiser.providedAdverts[serviceId] = advert.get()
 
   let advertBytes = disco.getAdvertBytes(advert).valueOr:
-    return
+    return err("cannot build the extended peer record to advertise")
 
   for bucketIdx, bucket in advTable.buckets.pairs:
     if bucket.peers.len == 0:
@@ -353,6 +370,8 @@ proc addProvidedService*(
   # We start it when we add the first provided service.
   if disco.services.len == 1: # we just added the first one
     disco.startLocalRegistration()
+
+  ok()
 
 proc removeProvidedService*(
     disco: ServiceDiscovery, serviceId: string
@@ -390,7 +409,7 @@ proc startAdvertising*(
     disco: ServiceDiscovery,
     service: ServiceInfo,
     advert: Opt[seq[byte]] = Opt.none(seq[byte]),
-) =
+): Result[void, string] =
   disco.addProvidedService(service, advert = advert)
 
 proc stopAdvertising*(
