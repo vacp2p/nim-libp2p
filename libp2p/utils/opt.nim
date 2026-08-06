@@ -28,6 +28,13 @@ proc toOpt*[T: ref object](x: T): Opt[T] =
   else:
     Opt.some(x)
 
+func noneWhenEmpty*[T](O: type Opt, v: seq[T]): Opt[seq[T]] =
+  ## `Opt.none` for an empty `v`, `Opt.some(v)` otherwise.
+  if v.len == 0:
+    Opt.none(seq[T])
+  else:
+    Opt.some(v)
+
 template withValue*[T](self: Opt[T], value, body: untyped): untyped =
   ## This template provides a convenient way to work with `Opt` types in Nim.
   ## It allows you to execute a block of code (`body`) only when the `Opt` is not empty.

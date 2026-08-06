@@ -922,14 +922,9 @@ proc libp2pServiceDiscoStartAdvertising*(
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
 
-  let advert =
-    if req.advertisement.len == 0:
-      Opt.none(seq[byte])
-    else:
-      Opt.some(req.advertisement)
-
   disco.startAdvertising(
-    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData)), advert
+    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData)),
+    Opt.noneWhenEmpty(req.advertisement),
   ).isOkOr:
     return err(error)
 
