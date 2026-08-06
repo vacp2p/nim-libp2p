@@ -255,8 +255,6 @@ suite "Service Discovery Component - Register":
     #   ~2s: retry with ticket → Confirmed (ticket cleared)
     #   ~4s: sleep advertExpiry done; re-register with no ticket
     # Task must still be running after the refresh.
-    await sleepAsync(minTaskTime)
-
-    check not fut.finished
+    check not (await fut.withTimeout(minTaskTime))
 
     await fut.cancelAndWait()
