@@ -262,15 +262,20 @@ proc optimisticStop(
   let k = os.kad.config.replication
   let hasher = os.kad.rtable.config.hasher
 
-  # Zero-padded to k so an under-filled shortlist keeps the average meaningful.
-  var distances = newSeq[float64](k)
-  for i, pid in state.allSortedPeers().take(k):
+  let closest = state.allSortedPeers().take(k)
+  var distances = newSeq[float64](closest.len)
+  for i, pid in closest:
     distances[i] = normedDistance(xorDistance(pid, state.target, hasher))
     if pid notin os.scheduled and distances[i] <= os.individualThreshold:
       os.schedulePut(pid)
 
   if os.scheduled.len - os.failed >= k:
     return true
+
+  # Judge the set only on k real distances. A shorter shortlist has to grow
+  # first, otherwise the missing entries would end the walk too early.
+  if closest.len < k:
+    return false
 
   (distances.sum() / float64(distances.len)) < os.setThreshold
 

@@ -19,6 +19,7 @@ const
   MinMeasurementsThreshold = 5 ## per index, before an estimate is produced
   MaxMeasurementsThreshold = 150 ## newest kept per index
   TopBytesScale = 18446744073709551616.0 ## 2^64, the float64-usable distance part
+  MinStdDev = 1e-12 ## floor that keeps an inverse-variance weight finite
 
 func new*(T: typedesc[NetworkSizeEstimator], bucketSize: int): T =
   NetworkSizeEstimator(
@@ -83,7 +84,8 @@ func weightedStats(obs: seq[NetSizeMeasurement]): (float64, float64) =
 
 proc networkSize*(est: NetworkSizeEstimator): Result[int, string] =
   ## Current estimate, or an error while there is not enough data yet.
-  # Linear regression through the origin, standard deviations as fit weights.
+  # Linear regression through the origin, inverse variances as fit weights: a
+  # noisier index pulls the fit less than a stable one.
   let maxAgeTs = Moment.now() - MaxMeasurementAge
   var x2Sum, xySum = 0.0
   for i in 0 ..< est.bucketSize:
@@ -92,9 +94,11 @@ proc networkSize*(est: NetworkSizeEstimator): Result[int, string] =
       return err("not enough data")
 
     let (avg, stddev) = est.measurements[i].weightedStats()
+    let stddevFloored = max(stddev, MinStdDev)
+    let fitWeight = 1.0 / (stddevFloored * stddevFloored)
     let x = float64(i + 1)
-    xySum += stddev * x * avg
-    x2Sum += stddev * x * x
+    xySum += fitWeight * x * avg
+    x2Sum += fitWeight * x * x
 
   if xySum <= 0.0:
     return err("degenerate regression")
