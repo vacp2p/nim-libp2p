@@ -128,10 +128,10 @@ proc getValue*(
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
-  let stop = proc(state: LookupState): bool {.gcsafe.} =
+  let quorumReached = proc(state: LookupState): bool {.gcsafe.} =
     received.len >= quorum
 
-  discard await kad.iterativeLookup(key, dispatchGetVal, onReply, stop)
+  discard await kad.iterativeLookup(key, dispatchGetVal, onReply, quorumReached)
 
   let best = ?kad.bestValidRecord(key, received, quorum)
 
