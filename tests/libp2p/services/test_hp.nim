@@ -34,6 +34,16 @@ suite "Hole Punching":
   teardown:
     checkTrackers()
 
+  test "HPService shares the observers of its AutonatService":
+    # HPService produces no reachability of its own, so it hands out the
+    # observers of the AutoNAT v1 service that it drives.
+    # A nil client and a nil AutoRelayService are safe here: only setup() and
+    # the probe loop dereference them.
+    let autonatService = AutonatService.new(nil, rng())
+    let hpService = HPService.new(autonatService, nil)
+
+    check hpService.reachabilityObservers == autonatService.reachabilityObservers
+
   asyncTest "Direct connection must work when peer address is public":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable

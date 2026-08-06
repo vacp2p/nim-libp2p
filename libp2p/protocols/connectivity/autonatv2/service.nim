@@ -13,10 +13,13 @@ import
   ../../../peerid,
   ../../../wire,
   ../../../utils/heartbeat,
+  ../../../services/reachabilityobservers,
   ../../../crypto/crypto,
   ../autonat/types,
   ./types,
   ./client
+
+export reachabilityobservers
 
 declarePublicGauge(
   libp2p_autonat_v2_reachability_confidence,
@@ -41,10 +44,10 @@ type
     enableDialableCandidates: bool
 
   AutonatV2Service* = ref object of Service
+    reachabilityObservers*: ReachabilityObservers
     config*: AutonatV2ServiceConfig
     confidence: Opt[float]
     newConnectedPeerHandler: PeerEventHandler
-    statusAndConfidenceHandler: StatusAndConfidenceHandler
     addressMapper: AddressMapper
     scheduleHandle: Future[void]
     networkReachability*: NetworkReachability
@@ -52,11 +55,9 @@ type
     client*: AutonatV2Client
     rng: Rng
 
-  StatusAndConfidenceHandler* = proc(
-    networkReachability: NetworkReachability,
-    confidence: Opt[float],
-    dialBackAddr: Opt[MultiAddress],
-  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
+  StatusAndConfidenceHandler* = ReachabilityHandler
+    ## The handler of the replaced single-subscriber API. It has the same
+    ## signature as `ReachabilityHandler`; use that name instead.
 
 proc new*(
     T: typedesc[AutonatV2ServiceConfig],
@@ -85,6 +86,7 @@ proc new*(
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =
   return T(
+    reachabilityObservers: ReachabilityObservers.new(),
     config: config,
     confidence: Opt.none(float),
     networkReachability: Unknown,
@@ -92,14 +94,6 @@ proc new*(
     client: client,
     rng: rng,
   )
-
-proc callHandler(
-    self: AutonatV2Service, dialBackAddr: Opt[MultiAddress]
-) {.async: (raises: [CancelledError]).} =
-  if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(
-      self.networkReachability, self.confidence, dialBackAddr
-    )
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
@@ -199,7 +193,9 @@ proc askPeer(
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
-    await self.callHandler(dialBackAddr)
+    await self.reachabilityObservers.notify(
+      self.networkReachability, self.confidence, dialBackAddr
+    )
   await switch.peerInfo.update()
   return ans
 
@@ -288,6 +284,6 @@ method stop*(
   await switch.peerInfo.update()
 
 proc setStatusAndConfidenceHandler*(
-    self: AutonatV2Service, statusAndConfidenceHandler: StatusAndConfidenceHandler
-) =
-  self.statusAndConfidenceHandler = statusAndConfidenceHandler
+    self: AutonatV2Service, handler: StatusAndConfidenceHandler
+) {.deprecated: "use reachabilityObservers.add; it appends, it does not replace".} =
+  discard self.reachabilityObservers.add(handler)

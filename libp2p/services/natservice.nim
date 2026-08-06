@@ -12,9 +12,9 @@ import ./nat/[portmapper, plum_mapper]
 import ../protocols/connectivity/autonat/[client, service]
 import ../protocols/connectivity/autonatv2/[client, service]
 import ../protocols/connectivity/relay/client as relayclient
-import ./[autorelayservice, hpservice]
+import ./[autorelayservice, hpservice, reachabilityobservers]
 
-export portmapper
+export portmapper, reachabilityobservers
 export OnReservationHandler, AutonatV2ServiceConfig, AutonatV2Service
 
 logScope:
@@ -71,6 +71,7 @@ type
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
     reachability: Service # active AutoNAT v1 / v2 / HP, started/stopped polymorphically
+    observers: ReachabilityObservers # shared with the active service at setup
 
 const
   DefaultDiscoveryTimeout* = 10.seconds
@@ -89,13 +90,41 @@ proc new*(
     rng: Rng,
     portMapperFactory: PortMapperFactory = nil,
 ): T =
-  T(config: config, rng: rng, portMapperFactory: portMapperFactory)
+  T(
+    config: config,
+    rng: rng,
+    portMapperFactory: portMapperFactory,
+    observers: ReachabilityObservers.new(),
+  )
 
 proc autonatV2Service*(self: NATService): Opt[AutonatV2Service] =
   ## The live AutoNAT v2 service when reachability uses AutonatV2, else none.
   if self.reachability of AutonatV2Service:
     return Opt.some(AutonatV2Service(self.reachability))
   Opt.none(AutonatV2Service)
+
+func hasReachabilityService(self: NATService): bool =
+  self.config.reachability.isSome() or self.config.holePunching.isSome()
+
+proc addReachabilityHandler*(self: NATService, handler: ReachabilityHandler): bool =
+  ## Subscribes `handler` to the reachability service (AutoNAT v1/v2 or
+  ## hole-punching). False means no subscription, because no reachability
+  ## service is configured, because `handler` is nil, or because it is
+  ## subscribed already. The caller can then log that the subscription had no
+  ## effect.
+  if not self.hasReachabilityService():
+    return false
+
+  self.observers.add(handler)
+
+proc removeReachabilityHandler*(self: NATService, handler: ReachabilityHandler): bool =
+  ## Unsubscribes `handler`. False means it was not subscribed.
+  self.observers.remove(handler)
+
+proc networkReachability*(self: NATService): NetworkReachability =
+  ## The reachability the active service last observed; `Unknown` when no
+  ## reachability service is configured.
+  self.observers.lastReachability()
 
 proc natService*(switch: Switch): Opt[NATService] =
   ## The switch's NATService, if one was configured.
@@ -382,6 +411,8 @@ proc setupHolePunching(
       hp.maxNumRelays, RelayClient.new(), hp.onReservation, self.rng
     )
     hpService = HPService.new(autonatService, autoRelayService)
+  # Share before setup: HPService subscribes its own handler there.
+  autonatService.reachabilityObservers = self.observers
   hpService.setup(switch)
   self.reachability = hpService
 
@@ -390,6 +421,7 @@ proc setupAutonatV1(
 ) {.raises: [].} =
   let autonatService =
     AutonatService.new(AutonatClient(), self.rng, scheduleInterval = r.scheduleInterval)
+  autonatService.reachabilityObservers = self.observers
   autonatService.setup(switch)
   self.reachability = autonatService
 
@@ -409,6 +441,7 @@ proc setupAutonatV2(
     raise newException(
       ServiceSetupError, "NATService failed to mount AutonatV2Client: " & e.msg
     )
+  autonatV2Service.reachabilityObservers = self.observers
   autonatV2Service.setup(switch)
   self.reachability = autonatV2Service
 
