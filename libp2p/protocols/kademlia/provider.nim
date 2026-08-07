@@ -9,12 +9,12 @@
 ## advertisements are dropped without a reply.
 ## Re-advertisements are always accepted.
 
-import std/[sequtils, tables, sets, heapqueue]
+import std/[math, sequtils, tables, sets, heapqueue]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
-import ../../utils/[heartbeat, future]
+import ../../utils/[collections, heartbeat, future]
 import ../protocol
-import ./[protobuf, types, find, keyspace, kademlia_metrics]
+import ./[protobuf, types, find, keyspace, netsize, kademlia_metrics]
 
 logScope:
   topics = "kad-dht provider"
@@ -199,13 +199,132 @@ proc storeProviderAt(
       debug "ADD_PROVIDER batch fully rejected, spilling over",
         key = key, batchSize = chunk.len
 
+const
+  CertaintyPeerIsInClosestSet = 0.9
+  ProbabilityOfStoppingWhileCloserPeersExist = 0.1
+  FractionOfPutsAwaitedBeforeReturn = 0.75
+
+type OptimisticState = ref object
+  kad: KadDHT
+  key: Key
+  individualThreshold: float64 ## a peer closer than this is stored with right away
+  setThreshold: float64 ## once the k closest average below this, the walk stops
+  returnThreshold: int ## completed RPCs to wait for before returning
+  scheduled: HashSet[PeerId]
+  failed: int
+  puts: seq[Future[void]]
+  completed: int
+  doneEvent: AsyncEvent
+
+proc new(
+    T: typedesc[OptimisticState], kad: KadDHT, key: Key, netSize: int
+): T {.raises: [].} =
+  let k = float64(kad.config.replication)
+  let scale = 1.0 / float64(netSize)
+  T(
+    kad: kad,
+    key: key,
+    individualThreshold: gammaIncRegInv(k, 1.0 - CertaintyPeerIsInClosestSet) * scale,
+    setThreshold:
+      gammaIncRegInv(k / 2.0 + 1.0, 1.0 - ProbabilityOfStoppingWhileCloserPeersExist) *
+      scale,
+    returnThreshold: int(ceil(k * FractionOfPutsAwaitedBeforeReturn)),
+    doneEvent: newAsyncEvent(),
+  )
+
+proc putProviderRecord(
+    os: OptimisticState, pid: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## A rejected record still counts: the walk only needs the peer to answer.
+  if (await os.kad.dispatchAddProvider(pid, os.key)).isErr():
+    os.failed.inc()
+  os.completed.inc()
+  os.doneEvent.fire()
+
+proc schedulePut(os: OptimisticState, pid: PeerId) {.raises: [].} =
+  os.scheduled.incl(pid)
+  os.puts.add(os.putProviderRecord(pid))
+
+proc maybeTrackNetsize(kad: KadDHT, key: Key, closest: seq[PeerId]) =
+  ## Feed a converged lookup's closest-first peers into the estimator, so classic
+  ## provides bootstrap the estimate that optimistic provide needs. `track`
+  ## rejects a short list on its own.
+  discard kad.nsEstimator.track(kad.rtable, key, closest.take(kad.config.replication))
+  kad.nsEstimator.networkSize().withValue(ns):
+    kad_network_size_estimate.set(ns.float64)
+
+proc optimisticStop(
+    os: OptimisticState, state: LookupState
+): bool {.raises: [], gcsafe.} =
+  ## Stop condition that doubles as the mid-walk store trigger: schedule
+  ## ADD_PROVIDER with any new peer inside the individual threshold, and stop
+  ## once enough peers are covered.
+  let k = os.kad.config.replication
+  let hasher = os.kad.rtable.config.hasher
+
+  let closest = state.allSortedPeers().take(k)
+  var distances = newSeq[float64](closest.len)
+  for i, pid in closest:
+    distances[i] = normedDistance(xorDistance(pid, state.target, hasher))
+    if pid notin os.scheduled and distances[i] <= os.individualThreshold:
+      os.schedulePut(pid)
+
+  if os.scheduled.len - os.failed >= k:
+    return true
+
+  # Judge the set only on k real distances. A shorter shortlist has to grow
+  # first, otherwise the missing entries would end the walk too early.
+  if closest.len < k:
+    return false
+
+  (distances.sum() / float64(distances.len)) < os.setThreshold
+
+proc waitForReturn(os: OptimisticState) {.async: (raises: [CancelledError]).} =
+  ## Return once ``returnThreshold`` RPCs completed, or all of them if fewer ran.
+  ## `completed` only grows and is re-read after each clear, so no wakeup is lost.
+  let target = min(os.returnThreshold, os.puts.len)
+  while os.completed < target:
+    await os.doneEvent.wait()
+    os.doneEvent.clear()
+
+proc optimisticProvide(
+    kad: KadDHT, key: Key, netSize: int
+) {.async: (raises: [CancelledError]), gcsafe.} =
+  let os = OptimisticState.new(kad, key, netSize)
+  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    os.optimisticStop(state)
+
+  let state = await kad.iterativeLookup(key, findNodeDispatch, noopReply, stop)
+
+  # Store with any of the final closest peers we did not reach during the walk.
+  let closest = state.allSortedPeers()
+  for pid in closest.take(kad.config.replication):
+    if pid notin os.scheduled:
+      os.schedulePut(pid)
+
+  await os.waitForReturn()
+  kad.maybeTrackNetsize(key, closest)
+
+  # Keep the still-running puts alive and cancellable on `stop`.
+  for fut in os.puts:
+    kad.provideTasks.trackFut(fut)
+
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
+  if kad.config.optimisticProvide:
+    kad.nsEstimator.networkSize().withValue(ns):
+      await kad.optimisticProvide(key, ns)
+      return
+
+  let state = await kad.iterativeLookup(key, findNodeDispatch, noopReply)
+  let closest = state.allSortedPeers()
+  kad.maybeTrackNetsize(key, closest)
+
   let peers =
     if kad.config.providerRejection:
       # Spillover needs the peers past the closest `replication` ones too.
-      (await kad.iterativeLookup(key, findNodeDispatch, noopReply)).allSortedPeers()
+      closest
     else:
-      await kad.findNode(key)
+      state.selectCloserPeers(kad.config.replication, excludeResponded = false)
   await kad.storeProviderAt(key, peers)
 
 proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =

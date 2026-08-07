@@ -266,6 +266,18 @@ proc new*(
 
   return pm
 
+type
+  NetSizeMeasurement* = object
+    distance*: float64 ## normalized XOR distance to a lookup target, in ``[0, 1]``
+    weight*: float64
+    timestamp*: Moment
+
+  NetworkSizeEstimator* = ref object
+    ## Network size from the distances of the closest peers seen across lookups.
+    ## See ``netsize.nim`` for the math.
+    bucketSize*: int
+    measurements*: seq[seq[NetSizeMeasurement]] ## one bucket per closest-peer index
+
 proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
   var peerIds = newSeqOfCap[PeerId](entries.len)
   for e in entries:
@@ -451,6 +463,11 @@ type KadDHTConfig* = object
     ## republish regions, one DHT walk each. ``Opt.none`` derives it from the
     ## routing table; too few bits advertise a key to peers that are not its
     ## closest.
+  optimisticProvide*: bool
+    ## Dispatch ADD_PROVIDER mid-lookup to peers that pass an "in the k-closest
+    ## set" probability threshold, and return once a fraction of the RPCs
+    ## complete. Provides fall back to the classic path while the estimator has
+    ## no network size yet.
   limits*: KadDHTLimits
 
 proc new*(
@@ -479,6 +496,7 @@ proc new*(
     disableBootstrapping: bool = false,
     providerRejection: bool = false,
     republishRegionBits: Opt[int] = Opt.none(int),
+    optimisticProvide: bool = true,
     limits: Opt[KadDHTLimits] = Opt.none(KadDHTLimits),
 ): K {.raises: [].} =
   let actualLimits = limits.valueOr:
@@ -531,6 +549,7 @@ proc new*(
     disableBootstrapping: disableBootstrapping,
     providerRejection: providerRejection,
     republishRegionBits: republishRegionBits,
+    optimisticProvide: optimisticProvide,
     limits: actualLimits,
   )
 
@@ -548,6 +567,10 @@ type KadDHT* = ref object of LPProtocol
   recordExpirationLoop*: Future[void]
   dataTable*: LocalTable
   providerManager*: ProviderManager
+  nsEstimator*: NetworkSizeEstimator
+    ## Drives the optimistic-provide distance thresholds.
+  provideTasks*: seq[Future[void]]
+    ## ADD_PROVIDER RPCs still running after an early ``optimisticProvide``.
   config*: KadDHTConfig
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
@@ -559,6 +582,9 @@ type KadDHT* = ref object of LPProtocol
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
     ## still false while bootstrap admits its seed peers during ``start``.
+  isServer*: bool ## Whether the node answers inbound queries.
+  serverStreams*: HashSet[Stream]
+    ## Open inbound server streams, reset when the node stops serving.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is

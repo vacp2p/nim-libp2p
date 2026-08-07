@@ -93,9 +93,10 @@ proc testKadConfig*(
 proc setupKad*(
     config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    isServer: bool = true,
 ): KadDHT =
   let switch = makeStandardSwitch(TcpAutoAddress)
-  let kad = KadDHT.new(switch, bootstrapNodes, config, rng = rng())
+  let kad = KadDHT.new(switch, bootstrapNodes, config, rng(), isServer)
   kad.switch.mount(kad)
   kad
 
@@ -348,3 +349,15 @@ proc sendAddProviderAndGetStatus*(
   let reply = Message.decode(readRes.value).valueOr:
     return ok(AddProviderStatus.accepted)
   return ok(reply.providerStatus.get(AddProviderStatus.accepted))
+
+proc seedLinearMeasurements*(est: NetworkSizeEstimator, netSize: int) =
+  ## Fill every closest-peer index with the profile the estimator models: index
+  ## `i` (1-based) at distance `i / (netSize + 1)`, plus a spread so the
+  ## regression is well posed.
+  let now = Moment.now()
+  for i in 0 ..< est.bucketSize:
+    let base = float64(i + 1) / float64(netSize + 1)
+    for delta in [-2e-4, -1e-4, 0.0, 1e-4, 2e-4]:
+      est.measurements[i].add(
+        NetSizeMeasurement(distance: base + delta, weight: 1.0, timestamp: now)
+      )
