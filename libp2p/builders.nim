@@ -60,9 +60,15 @@ type
   SecureProtocol* {.pure.} = enum
     Noise
 
+  KadMode* {.pure.} = enum
+    Client ## never serves queries; only issues them
+    Server ## always serves queries
+    Auto ## serves queries while autonat reports the node reachable
+
   KadInfo = object
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+    mode*: KadMode
 
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
@@ -395,8 +401,9 @@ proc withKademlia*(
     b: SwitchBuilder,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
+    mode: KadMode = KadMode.Server,
 ): SwitchBuilder =
-  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
+  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes, mode: mode))
   b
 
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -532,6 +539,23 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   for service in switch.services:
     service.setup(switch)
 
+proc makeKadReachabilityHandler(kad: KadDHT): ReachabilityHandler =
+  ## Handler for ``KadMode.Auto``: the node serves queries while it is
+  ## reachable, and stops serving when it is not. ``Unknown`` keeps the current
+  ## mode, since it means autonat has no verdict yet.
+  proc(
+      reachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
+  ) {.async: (raises: [CancelledError]).} =
+    case reachability
+    of NetworkReachability.Reachable:
+      discard await kad.changeMode(isServer = true)
+    of NetworkReachability.NotReachable:
+      discard await kad.changeMode(isServer = false)
+    of NetworkReachability.Unknown:
+      discard
+
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
@@ -557,9 +581,22 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     var config = kadInfo.config
     config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = config,
+      rng = b.rng,
+      # Auto starts as a client until autonat proves the node reachable.
+      isServer = kadInfo.mode == KadMode.Server,
     )
     switch.mount(kad)
+
+    if kadInfo.mode == KadMode.Auto:
+      var wired = false
+      switch.natService().withValue(nat):
+        wired = nat.addReachabilityHandler(makeKadReachabilityHandler(kad))
+      if not wired:
+        warn "Kad-DHT auto mode has no reachability service; it stays a client",
+          hint = "configure withNAT reachability or hole-punching"
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var switch = b.buildSwitch()

@@ -158,7 +158,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: Rng,
-    client: bool = false,
+    isServer: bool = true,
     codec: string = KadCodec,
 ): K {.raises: [].} =
   var rtable = RoutingTable.new(
@@ -179,19 +179,25 @@ proc new*(
     nsEstimator: NetworkSizeEstimator.new(config.replication),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
+    isServer: isServer,
   )
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if client:
-    return kad
 
   kad.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
+    if not kad.isServer:
+      trace "Refusing inbound query while not serving", stream
+      await stream.reset()
+      return
+
+    kad.serverStreams.incl(stream)
     defer:
+      kad.serverStreams.excl(stream)
       await stream.close()
     while not stream.atEof:
       var buf =
@@ -233,6 +239,25 @@ proc new*(
         continue
 
   return kad
+
+proc resetServerStreams(kad: KadDHT) {.async: (raises: []).} =
+  let streams = kad.serverStreams
+  kad.serverStreams.clear()
+  await noCancel allFutures(streams.mapIt(it.reset()))
+  debug "Reset inbound Kad DHT streams", streams = streams.len
+
+proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []).} =
+  ## Start or stop serving inbound queries, and report whether the mode changed.
+  ## Stopping resets the in-flight inbound streams; the codec stays mounted (no
+  ## unmount exists), so peers drop us once the handler refuses to serve.
+  if isServer == kad.isServer:
+    return false
+
+  kad.isServer = isServer
+  if not isServer:
+    await kad.resetServerStreams()
+  debug "Kad DHT changed mode", isServer
+  true
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   if kad.started:

@@ -582,6 +582,9 @@ type KadDHT* = ref object of LPProtocol
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
     ## still false while bootstrap admits its seed peers during ``start``.
+  isServer*: bool ## Whether the node answers inbound queries.
+  serverStreams*: HashSet[Stream]
+    ## Open inbound server streams, reset when the node stops serving.
 
 template withRpcSlot*(kad: KadDHT) =
   ## Acquire one ``rpcSem`` slot until the enclosing scope exits. The slot is
