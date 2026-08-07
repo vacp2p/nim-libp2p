@@ -31,6 +31,8 @@ declarePublicCounter kad_provider_spillover_rounds,
 declarePublicCounter kad_provider_republish_regions,
   "keyspace regions republished, one DHT walk each"
 declarePublicCounter kad_provider_republish_keys, "provided keys republished"
+declarePublicGauge kad_network_size_estimate,
+  "estimated network size from lookup closest-peer distances"
 
 # Routing table metrics
 declarePublicGauge kad_routing_table_peers, "total peers in routing table"
