@@ -105,7 +105,7 @@ proc init*(
     disconnectBadPeers = false,
     enablePX = false,
     bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
-    overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
+    overheadRateLimit = Opt.none(RateLimit),
     disconnectPeerAboveRateLimit = false,
     maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,

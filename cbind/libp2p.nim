@@ -311,7 +311,7 @@ proc mountServiceDiscovery(
   ok()
 
 proc mountProtocols(lib: LibP2P, cfg: ParsedConfig): Result[void, string] =
-  if cfg.mountGossipsub:
+  if cfg.gossipsub.mount:
     ?mountGossipsub(lib, cfg.gossipsub)
 
   if cfg.mountServiceDiscovery:
@@ -447,14 +447,20 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
 # config without the generated header. Not layout-compatible with the generated
 # `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
 # `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
+type CRateLimitConfig {.exportc: "libp2p_rate_limit_config", bycopy.} = object
+  bytes: cint
+  intervalMs: int64
+
+type CGossipsubConfig {.exportc: "libp2p_gossipsub_config", bycopy.} = object
+  mount: cint
+  triggerSelf: cint
+  maxMessageSize: cint
+  overheadRateLimit: CRateLimitConfig
+  disconnectPeerAboveRateLimit: cint
+
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   logLevel: cint
-  mountGossipsub: cint
-  gossipsubTriggerSelf: cint
-  gossipsubMaxMessageSize: cint
-  gossipsubOverheadRateLimitBytes: cint
-  gossipsubOverheadRateLimitIntervalMs: int64
-  gossipsubDisconnectPeerAboveRateLimit: cint
+  gossipsub: CGossipsubConfig
   mountKad: cint
   mountServiceDiscovery: cint
   dnsResolver: cstring

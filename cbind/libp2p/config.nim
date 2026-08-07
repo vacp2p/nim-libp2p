@@ -28,25 +28,22 @@ type BootstrapNode {.ffi.} = object
   peerId: string
   multiaddrs: seq[string]
 
+type RateLimitConfig {.ffi.} = object
+  ## Token bucket. Set both fields or neither; all zero disables the limit.
+  bytes: int
+  intervalMs: int64
+
+type GossipsubConfig {.ffi.} = object
+  mount: bool
+  triggerSelf: bool ## Deliver locally published messages to self.
+  maxMessageSize: int ## 0 uses the core default; capped at `MAX_GOSSIPSUB_MESSAGE_SIZE`.
+  overheadRateLimit: RateLimitConfig ## Per-peer protocol-overhead budget, on ingress.
+  disconnectPeerAboveRateLimit: bool
+    ## False leaves the budget as a metric; nothing enforces it.
+
 type Libp2pConfig {.ffi.} = object
   logLevel: int ## Chronicles runtime log level to apply before node construction.
-  mountGossipsub: bool
-    ## Mount GossipSub for publishing and receiving messages via pubsub.
-  gossipsubTriggerSelf: bool ## Deliver locally published GossipSub messages to self.
-  gossipsubMaxMessageSize: int
-    ## Largest GossipSub message accepted or sent, in bytes. 0 uses the core
-    ## default; the ceiling is `MAX_GOSSIPSUB_MESSAGE_SIZE`. A limit fails
-    ## closed here, so a negative value is an error rather than a default.
-  gossipsubOverheadRateLimitBytes: int
-    ## Per-peer budget of protocol-overhead bytes per interval. 0 disables the
-    ## ingress rate limit; a negative value is an error.
-  gossipsubOverheadRateLimitIntervalMs: int64
-    ## Refill interval of the per-peer overhead budget, up to
-    ## `MAX_OVERHEAD_RATE_LIMIT_INTERVAL_MS`. Needed with the bytes above.
-  gossipsubDisconnectPeerAboveRateLimit: bool
-    ## Disconnect a peer that spends its overhead budget. Needs the two fields
-    ## above. Leave it false and the budget only feeds the
-    ## `libp2p_gossipsub_peers_rate_limit_hits` metric: nothing enforces it.
+  gossipsub: GossipsubConfig ## Mounting and ingress limits for GossipSub.
   mountKad: bool ## Mount the Kademlia DHT service.
   mountServiceDiscovery: bool ## Mount random-find based service discovery.
   dnsResolver: string ## DNS server address; empty uses the core defaults.
@@ -86,15 +83,11 @@ type Libp2pConfig {.ffi.} = object
   natHolePunchingScheduleIntervalMs: int64
     ## Hole-punch reachability probe interval; <= 0 disables scheduling override.
 
-type OverheadRateLimit = tuple[bytes: int, interval: Duration]
-  ## GossipSub's per-peer overhead budget: `bytes` of protocol overhead per `interval`.
-
 type ParsedGossipsub = object
-  ## GossipSub's slice of the config: how to mount it, and the ingress limits
-  ## that bound what an untrusted peer can push at the node.
+  mount: bool
   triggerSelf: bool
   maxMessageSize: int
-  overheadRateLimit: Opt[OverheadRateLimit]
+  overheadRateLimit: Opt[RateLimit]
   disconnectPeerAboveRateLimit: bool
 
 type ParsedTransport = object
@@ -124,7 +117,6 @@ type ParsedConfig = object
   autonat: bool
   nat: Opt[NATConfig]
   autonatV2Server: bool
-  mountGossipsub: bool
   gossipsub: ParsedGossipsub
   mountKad: bool
   mountServiceDiscovery: bool
@@ -165,82 +157,64 @@ proc parsePrivateKey(raw: seq[byte]): Result[Opt[PrivateKey], string] =
 
 const
   MaxGossipsubMessageSize {.ffiConst.} = 64 * 1024 * 1024
-    ## A peer can make us preallocate one message of this size before a single
-    ## byte is validated, so cap what a host can ask for.
+    ## A peer can make us preallocate this much before a byte is validated.
   MaxOverheadRateLimitIntervalMs {.ffiConst.} = 60 * 60 * 1000
-    ## `chronos.milliseconds` multiplies by a million without checking, so an
-    ## unbounded interval overflows `Duration` and raises a Defect no caller
-    ## catches. An hour is already a quota rather than a rate limit.
+    ## Above an hour `chronos.milliseconds` overflows `Duration` and raises a Defect.
 
-func requireGossipsubMount(config: Libp2pConfig): Result[void, string] =
-  if config.mountGossipsub:
+func requireMount(cfg: GossipsubConfig): Result[void, string] =
+  if cfg.mount:
     return ok()
-  if config.gossipsubMaxMessageSize != 0 or config.gossipsubOverheadRateLimitBytes != 0 or
-      config.gossipsubOverheadRateLimitIntervalMs != 0 or
-      config.gossipsubDisconnectPeerAboveRateLimit:
-    return err("gossipsub limits require mountGossipsub")
+  if cfg.maxMessageSize != 0 or cfg.overheadRateLimit.bytes != 0 or
+      cfg.overheadRateLimit.intervalMs != 0 or cfg.disconnectPeerAboveRateLimit:
+    return err("gossipsub limits require gossipsub.mount")
   ok()
 
-func parseMaxMessageSize(config: Libp2pConfig): Result[int, string] =
-  if config.gossipsubMaxMessageSize < 0:
-    return err("gossipsubMaxMessageSize must be 0 or greater")
-  if config.gossipsubMaxMessageSize == 0:
+func parseMaxMessageSize(size: int): Result[int, string] =
+  if size < 0:
+    return err("maxMessageSize must be 0 or greater")
+  if size == 0:
     return ok(DefaultPubSubMaxMessageSize)
-  if config.gossipsubMaxMessageSize > MaxGossipsubMessageSize:
-    return err(
-      "gossipsubMaxMessageSize must be at most " & $MaxGossipsubMessageSize & " bytes"
-    )
-  ok(config.gossipsubMaxMessageSize)
+  if size > MaxGossipsubMessageSize:
+    return err("maxMessageSize must be at most " & $MaxGossipsubMessageSize & " bytes")
+  ok(size)
 
-func checkRateLimitRange(config: Libp2pConfig): Result[void, string] =
-  if config.gossipsubOverheadRateLimitBytes < 0:
-    return err("gossipsubOverheadRateLimitBytes must be 0 or greater")
-  if config.gossipsubOverheadRateLimitIntervalMs < 0:
-    return err("gossipsubOverheadRateLimitIntervalMs must be 0 or greater")
-  if config.gossipsubOverheadRateLimitIntervalMs > MaxOverheadRateLimitIntervalMs:
+func checkRange(limit: RateLimitConfig): Result[void, string] =
+  if limit.bytes < 0:
+    return err("overheadRateLimit.bytes must be 0 or greater")
+  if limit.intervalMs < 0:
+    return err("overheadRateLimit.intervalMs must be 0 or greater")
+  if limit.intervalMs > MaxOverheadRateLimitIntervalMs:
     return err(
-      "gossipsubOverheadRateLimitIntervalMs must be at most " &
-        $MaxOverheadRateLimitIntervalMs & " ms"
+      "overheadRateLimit.intervalMs must be at most " & $MaxOverheadRateLimitIntervalMs
     )
   ok()
 
-func parseOverheadRateLimit(
-    config: Libp2pConfig
-): Result[Opt[OverheadRateLimit], string] =
-  ## The per-peer token bucket bounding protocol overhead an untrusted peer can
-  ## push at us: `bytes` per `interval`. Both halves are needed, or neither.
-  ?checkRateLimitRange(config)
-  if config.gossipsubOverheadRateLimitBytes == 0:
-    if config.gossipsubOverheadRateLimitIntervalMs > 0:
-      return err(
-        "gossipsubOverheadRateLimitIntervalMs requires gossipsubOverheadRateLimitBytes"
-      )
-    if config.gossipsubDisconnectPeerAboveRateLimit:
-      return err(
-        "gossipsubDisconnectPeerAboveRateLimit requires gossipsubOverheadRateLimitBytes"
-      )
-    return ok(Opt.none(OverheadRateLimit))
-  if config.gossipsubOverheadRateLimitIntervalMs == 0:
-    return err(
-      "gossipsubOverheadRateLimitBytes requires gossipsubOverheadRateLimitIntervalMs"
-    )
+func parseRateLimit(cfg: GossipsubConfig): Result[Opt[RateLimit], string] =
+  let limit = cfg.overheadRateLimit
+  ?checkRange(limit)
+  if limit.bytes == 0:
+    if limit.intervalMs > 0:
+      return err("overheadRateLimit.intervalMs requires overheadRateLimit.bytes")
+    if cfg.disconnectPeerAboveRateLimit:
+      return err("disconnectPeerAboveRateLimit requires overheadRateLimit.bytes")
+    return ok(Opt.none(RateLimit))
+  if limit.intervalMs == 0:
+    return err("overheadRateLimit.bytes requires overheadRateLimit.intervalMs")
   ok(
     Opt.some(
-      (
-        bytes: config.gossipsubOverheadRateLimitBytes,
-        interval: chronos.milliseconds(config.gossipsubOverheadRateLimitIntervalMs),
-      )
+      RateLimit(bytes: limit.bytes, interval: chronos.milliseconds(limit.intervalMs))
     )
   )
 
-func parseGossipsub(config: Libp2pConfig): Result[ParsedGossipsub, string] =
-  ?requireGossipsubMount(config)
+func parseGossipsub(cfg: GossipsubConfig): Result[ParsedGossipsub, string] =
+  ?requireMount(cfg)
   ok(
     ParsedGossipsub(
-      triggerSelf: config.gossipsubTriggerSelf,
-      maxMessageSize: ?parseMaxMessageSize(config),
-      overheadRateLimit: ?parseOverheadRateLimit(config),
-      disconnectPeerAboveRateLimit: config.gossipsubDisconnectPeerAboveRateLimit,
+      mount: cfg.mount,
+      triggerSelf: cfg.triggerSelf,
+      maxMessageSize: ?parseMaxMessageSize(cfg.maxMessageSize),
+      overheadRateLimit: ?parseRateLimit(cfg),
+      disconnectPeerAboveRateLimit: cfg.disconnectPeerAboveRateLimit,
     )
   )
 
@@ -421,8 +395,7 @@ proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
       autonat: config.autonat,
       nat: ?parseNATConfig(config),
       autonatV2Server: config.autonatV2Server,
-      mountGossipsub: config.mountGossipsub,
-      gossipsub: ?parseGossipsub(config),
+      gossipsub: ?parseGossipsub(config.gossipsub),
       mountKad: config.mountKad,
       mountServiceDiscovery: config.mountServiceDiscovery,
     )

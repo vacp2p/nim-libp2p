@@ -524,7 +524,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
@@ -557,7 +557,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
@@ -586,7 +586,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
