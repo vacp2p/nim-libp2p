@@ -172,7 +172,7 @@ const
     ## unbounded interval overflows `Duration` and raises a Defect no caller
     ## catches. An hour is already a quota rather than a rate limit.
 
-func requireGossipsubForLimits(config: Libp2pConfig): Result[void, string] =
+func requireGossipsubMount(config: Libp2pConfig): Result[void, string] =
   if config.mountGossipsub:
     return ok()
   if config.gossipsubMaxMessageSize != 0 or config.gossipsubOverheadRateLimitBytes != 0 or
@@ -181,7 +181,7 @@ func requireGossipsubForLimits(config: Libp2pConfig): Result[void, string] =
     return err("gossipsub limits require mountGossipsub")
   ok()
 
-func parseGossipsubMaxMessageSize(config: Libp2pConfig): Result[int, string] =
+func parseMaxMessageSize(config: Libp2pConfig): Result[int, string] =
   if config.gossipsubMaxMessageSize < 0:
     return err("gossipsubMaxMessageSize must be 0 or greater")
   if config.gossipsubMaxMessageSize == 0:
@@ -192,7 +192,7 @@ func parseGossipsubMaxMessageSize(config: Libp2pConfig): Result[int, string] =
     )
   ok(config.gossipsubMaxMessageSize)
 
-func validateOverheadRateLimitRange(config: Libp2pConfig): Result[void, string] =
+func checkRateLimitRange(config: Libp2pConfig): Result[void, string] =
   if config.gossipsubOverheadRateLimitBytes < 0:
     return err("gossipsubOverheadRateLimitBytes must be 0 or greater")
   if config.gossipsubOverheadRateLimitIntervalMs < 0:
@@ -204,12 +204,12 @@ func validateOverheadRateLimitRange(config: Libp2pConfig): Result[void, string] 
     )
   ok()
 
-func parseGossipsubOverheadRateLimit(
+func parseOverheadRateLimit(
     config: Libp2pConfig
 ): Result[Opt[OverheadRateLimit], string] =
   ## The per-peer token bucket bounding protocol overhead an untrusted peer can
   ## push at us: `bytes` per `interval`. Both halves are needed, or neither.
-  ?validateOverheadRateLimitRange(config)
+  ?checkRateLimitRange(config)
   if config.gossipsubOverheadRateLimitBytes == 0:
     if config.gossipsubOverheadRateLimitIntervalMs > 0:
       return err(
@@ -233,13 +233,13 @@ func parseGossipsubOverheadRateLimit(
     )
   )
 
-func parseGossipsubConfig(config: Libp2pConfig): Result[ParsedGossipsub, string] =
-  ?requireGossipsubForLimits(config)
+func parseGossipsub(config: Libp2pConfig): Result[ParsedGossipsub, string] =
+  ?requireGossipsubMount(config)
   ok(
     ParsedGossipsub(
       triggerSelf: config.gossipsubTriggerSelf,
-      maxMessageSize: ?parseGossipsubMaxMessageSize(config),
-      overheadRateLimit: ?parseGossipsubOverheadRateLimit(config),
+      maxMessageSize: ?parseMaxMessageSize(config),
+      overheadRateLimit: ?parseOverheadRateLimit(config),
       disconnectPeerAboveRateLimit: config.gossipsubDisconnectPeerAboveRateLimit,
     )
   )
@@ -422,7 +422,7 @@ proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
       nat: ?parseNATConfig(config),
       autonatV2Server: config.autonatV2Server,
       mountGossipsub: config.mountGossipsub,
-      gossipsub: ?parseGossipsubConfig(config),
+      gossipsub: ?parseGossipsub(config),
       mountKad: config.mountKad,
       mountServiceDiscovery: config.mountServiceDiscovery,
     )
