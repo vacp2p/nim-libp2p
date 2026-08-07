@@ -157,7 +157,7 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
     disco1.switch.peerInfo.addrs
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
-  rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerKey))
+  peerKey in rtable
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:

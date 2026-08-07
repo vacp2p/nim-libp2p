@@ -84,6 +84,7 @@ proc new*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
+  let registry = PeerRegistry.new()
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(
@@ -91,6 +92,7 @@ proc new*(
       usefulnessGracePeriod = config.usefulnessGracePeriod,
       bucketStaleTime = config.bucketStaleTime,
     ),
+    registry = registry,
   )
 
   let disco = ServiceDiscovery(

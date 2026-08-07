@@ -1,9 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+## Routing tables are virtual indexes over a shared ``PeerRegistry``.
+## Buckets hold peer ``Key`` references only; liveness state lives on the
+## registry row. Multiple tables (main Kad + per-service) share one registry.
+
 import algorithm, sequtils
 import chronos, chronicles, results
 import ./types
+import ./peer_registry
 import ./kademlia_metrics
 import ../../peerid
 import ../../crypto/crypto
@@ -41,9 +46,16 @@ proc new*(
     selfId: Key,
     config: RoutingTableConfig = RoutingTableConfig.new(),
     localNodeId: Opt[Key] = Opt.none(Key),
+    registry: PeerRegistry = PeerRegistry.new(),
 ): T =
+  ## ``registry`` is shared across tables on the same node. Unit tests may omit
+  ## it and get a private registry for a single-table setup.
   RoutingTable(
-    selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
+    selfId: selfId,
+    localNodeId: localNodeId.get(selfId),
+    buckets: @[],
+    config: config,
+    registry: registry,
   )
 
 func bucketCount(maxBuckets: int): int =
@@ -76,71 +88,80 @@ func nPeersForCpl*(rtable: RoutingTable, cpl: int): int =
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
-    if p.nodeId == nodeId:
+    if p == nodeId:
       return Opt.some(i)
   return Opt.none(int)
 
-proc oldestPeer*(bucket: Bucket): (NodeEntry, int) =
+proc oldestPeer*(bucket: Bucket, registry: PeerRegistry): (Key, int) =
+  ## Least-recently-seen peer key in the bucket (by registry ``lastSeen``).
   var oldestIdx = 0
-  var oldest = bucket.peers[0]
+  var oldestKey = bucket.peers[0]
+  var oldestSeen = Moment.now()
+  registry.get(oldestKey).withValue(record):
+    oldestSeen = record.lastSeen
   for i, p in bucket.peers:
-    if p.lastSeen < oldest.lastSeen:
-      oldest = p
+    var seen = Moment.now()
+    registry.get(p).withValue(record):
+      seen = record.lastSeen
+    if seen < oldestSeen:
+      oldestKey = p
       oldestIdx = i
-  (oldest, oldestIdx)
+      oldestSeen = seen
+  (oldestKey, oldestIdx)
 
-func lastActivity*(entry: NodeEntry): Moment =
-  ## Most recent time the peer answered a DHT query, or when it was admitted.
-  entry.lastUsefulAt.get(entry.addedAt)
-
-func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
-  ## Replaceable once past `gracePeriod` in the table without proving useful; a
-  ## peer that answered recently or was just added is retained. Also used to
-  ## select peers for liveness probes by the background liveness loop.
-  now - entry.lastActivity() > gracePeriod
+proc oldestPeer*(rtable: RoutingTable, bucketIndex: int): (Key, int) =
+  rtable.buckets[bucketIndex].oldestPeer(rtable.registry)
 
 proc isReplaceable*(
     rtable: RoutingTable, peerId: PeerId, gracePeriod: Duration, now: Moment
 ): bool =
-  ## Live-table check: false when the peer is missing or still within grace.
+  ## Live-index check: false when the peer is missing from this table or still
+  ## within the global usefulness grace period on its registry row.
   let nodeId = peerId.toKey()
   let idx = rtable.bucketIndex(nodeId)
   if idx >= rtable.buckets.len:
     return false
-  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
+  if peerIndexInBucket(rtable.buckets[idx], nodeId).isNone():
     return false
-  rtable.buckets[idx].peers[pos].isReplaceable(gracePeriod, now)
+  rtable.registry.isReplaceable(nodeId, gracePeriod, now)
 
-proc replaceableCandidate(bucket: Bucket, gracePeriod: Duration): Opt[int] =
-  ## Least-recently-seen peer past the grace period, i.e. the best eviction
-  ## candidate. `Opt.none` when every peer is still useful/fresh.
+proc replaceableCandidate(
+    bucket: Bucket, registry: PeerRegistry, gracePeriod: Duration
+): Opt[int] =
+  ## Least-recently-seen peer past the grace period. ``Opt.none`` when every
+  ## peer is still useful/fresh.
   let now = Moment.now()
   var candidateIdx = -1
   var oldestSeen: Moment
-  for i, p in bucket.peers:
-    if not p.isReplaceable(gracePeriod, now):
+  for i, nodeId in bucket.peers:
+    let record = registry.get(nodeId).valueOr:
       continue
-    if candidateIdx == -1 or p.lastSeen < oldestSeen:
+    if not record.isReplaceable(gracePeriod, now):
+      continue
+    if candidateIdx == -1 or record.lastSeen < oldestSeen:
       candidateIdx = i
-      oldestSeen = p.lastSeen
+      oldestSeen = record.lastSeen
   if candidateIdx == -1:
     return Opt.none(int)
   Opt.some(candidateIdx)
 
 proc tryReplaceStalePeer(
-    bucket: var Bucket, newNodeId: Key, config: RoutingTableConfig
+    rtable: RoutingTable, bucket: var Bucket, newNodeId: Key
 ): bool =
-  if bucket.peers.len < config.replication:
+  if bucket.peers.len < rtable.config.replication:
     trace "Skipping replace: bucket is not full", newNodeId = newNodeId
     return false
 
-  let idx = bucket.replaceableCandidate(config.usefulnessGracePeriod).valueOr:
+  let idx = bucket.replaceableCandidate(
+    rtable.registry, rtable.config.usefulnessGracePeriod
+  ).valueOr:
     trace "Skipping replace: no peer past usefulness grace period",
       newNodeId = newNodeId
     return false
 
-  let now = Moment.now()
-  bucket.peers[idx] = NodeEntry(nodeId: newNodeId, lastSeen: now, addedAt: now)
+  let oldId = bucket.peers[idx]
+  bucket.peers[idx] = newNodeId
+  discard rtable.registry.removeMembership(oldId, rtable.selfId)
   true
 
 proc updateRoutingTableMetrics*(rtable: RoutingTable) =
@@ -168,17 +189,22 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   var bucket = rtable.buckets[idx]
   let keyx = peerIndexInBucket(bucket, nodeId)
   if keyx.isSome:
-    bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
+    rtable.registry.touch(nodeId)
+    return true
   elif bucket.peers.len < rtable.config.replication:
-    let now = Moment.now()
-    bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: now, addedAt: now))
+    discard rtable.registry.ensure(nodeId)
+    bucket.peers.add(nodeId)
+    rtable.registry.addMembership(nodeId, rtable.selfId)
     kad_routing_table_insertions.inc()
   else:
     # Full bucket with no replaceable peer: reject rather than evict a useful one.
-    if not bucket.tryReplaceStalePeer(nodeId, rtable.config):
+    # Leave any pre-existing registry row alone; do not create a row without membership.
+    if not rtable.tryReplaceStalePeer(bucket, nodeId):
       debug "Cannot insert, no replaceable peer in bucket",
         bucket = idx, nodeId = nodeId
       return false
+    discard rtable.registry.ensure(nodeId)
+    rtable.registry.addMembership(nodeId, rtable.selfId)
     kad_routing_table_replacements.inc()
 
   rtable.buckets[idx] = bucket
@@ -189,7 +215,8 @@ proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc removePeer*(rtable: RoutingTable, nodeId: Key, reason = "remove"): bool =
-  ## Removes `nodeId` from the routing table. Returns true if it was present.
+  ## Removes ``nodeId`` from this index. Returns true if it was present.
+  ## Drops the registry row when no other table still references the peer.
   ## ``reason`` labels the ``kad_routing_table_evictions`` metric
   ## (e.g. ``"liveness"``, ``"remove"``).
   if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
@@ -203,6 +230,7 @@ proc removePeer*(rtable: RoutingTable, nodeId: Key, reason = "remove"): bool =
     return false
 
   rtable.buckets[idx].peers.delete(pos)
+  discard rtable.registry.removeMembership(nodeId, rtable.selfId)
   kad_routing_table_evictions.inc(labelValues = [reason])
   updateRoutingTableMetrics(rtable)
   true
@@ -218,16 +246,10 @@ proc contains*(rtable: RoutingTable, nodeId: Key): bool =
   peerIndexInBucket(rtable.buckets[idx], nodeId).isSome()
 
 proc markUseful*(rtable: RoutingTable, nodeId: Key) =
-  ## Records that `nodeId` answered a query, refreshing its usefulness so it
-  ## survives eviction. No-op when the peer is not in the table.
-  let idx = rtable.bucketIndex(nodeId)
-  if idx >= rtable.buckets.len:
-    return
-  let pos = peerIndexInBucket(rtable.buckets[idx], nodeId).valueOr:
-    return
-  let now = Moment.now()
-  rtable.buckets[idx].peers[pos].lastUsefulAt = Opt.some(now)
-  rtable.buckets[idx].peers[pos].lastSeen = now
+  ## Records that ``nodeId`` answered a query. Updates the shared registry row
+  ## so every index that references the peer sees the new usefulness.
+  ## No-op when the peer has no registry row (not in any table).
+  rtable.registry.markUseful(nodeId)
 
 proc markUseful*(rtable: RoutingTable, peerId: PeerId) =
   rtable.markUseful(peerId.toKey())
@@ -238,7 +260,7 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 
   for bucket in rtable.buckets:
     for p in bucket.peers:
-      allNodes.add(p.nodeId)
+      allNodes.add(p)
 
   let hasher = rtable.config.hasher
   let targetHash =
@@ -285,8 +307,8 @@ proc randomPeersClosestFirst*(
 
     let take = min(remaining, min(maxPerBucket, bucket.peers.len))
     let picked = rng.pick(bucket.peers, take).valueOr(@[])
-    for entry in picked:
-      selected.add(entry.nodeId)
+    for nodeId in picked:
+      selected.add(nodeId)
       remaining.dec
       if remaining <= 0:
         break
@@ -301,21 +323,25 @@ proc randomPeersClosestFirstPeerIds*(
     .filterIt(it.isOk)
     .mapIt(it.value())
 
-proc isStale*(bucket: Bucket, staleTime: Duration = DefaultBucketStaleTime): bool =
+proc isStale*(
+    bucket: Bucket, registry: PeerRegistry, staleTime: Duration = DefaultBucketStaleTime
+): bool =
   ## True when the bucket is empty or any peer has not been seen for longer than
-  ## `staleTime`. Used only to decide whether to refresh the bucket, not to
+  ## ``staleTime``. Used only to decide whether to refresh the bucket, not to
   ## remove peers.
   if bucket.peers.len == 0:
     return true
-  for p in bucket.peers:
-    if Moment.now() - p.lastSeen > staleTime:
+  for nodeId in bucket.peers:
+    let record = registry.get(nodeId).valueOr:
+      return true
+    if Moment.now() - record.lastSeen > staleTime:
       return true
   return false
 
 proc isStale*(rtable: RoutingTable, bucketIndex: int): bool =
   if bucketIndex notin 0 ..< rtable.buckets.len:
     return true
-  rtable.buckets[bucketIndex].isStale(rtable.config.bucketStaleTime)
+  rtable.buckets[bucketIndex].isStale(rtable.registry, rtable.config.bucketStaleTime)
 
 proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
   let lz = clamp(bucketIndex, 0, bucketCount(rtable.config.maxBuckets) - 1)
@@ -335,16 +361,13 @@ proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[K
   Opt.none(Key)
 
 proc allKeys*(bucket: Bucket): seq[Key] =
-  return bucket.peers.mapIt(it.nodeId)
+  return bucket.peers
 
 proc allKeys*(rtable: RoutingTable): seq[Key] =
   rtable.buckets.mapIt(it.allKeys()).concat()
 
 proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
-  rng.pickOne(bucket.peers).map(
-    proc(e: NodeEntry): Key =
-      e.nodeId
-  )
+  rng.pickOne(bucket.peers)
 
 proc refreshTarget*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
   ## Key to run a findNode against in order to refresh `bucketIndex`.

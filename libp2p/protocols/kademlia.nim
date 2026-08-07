@@ -7,12 +7,15 @@ import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash]
 import ./protocol
 import
-  ./kademlia/[routing_table, protobuf, types, find, get, put, keyspace, provider, ping]
-import ./kademlia/[kademlia_metrics, netsize]
+  ./kademlia/[
+    routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
+    ping,
+  ]
+import ./kademlia/kademlia_metrics
 
 export
-  chronicles, routing_table, protobuf, types, find, get, put, keyspace, provider, ping,
-  kademlia_metrics, netsize
+  chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
+  provider, ping, kademlia_metrics
 
 logScope:
   topics = "kad-dht"
@@ -26,10 +29,10 @@ proc peersInGracePeriod(
   let now = Moment.now()
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
-    for entry in bucket.peers:
-      if not entry.isReplaceable(gracePeriod, now):
+    for nodeId in bucket.peers:
+      if not rtable.registry.isReplaceable(nodeId, gracePeriod, now):
         continue
-      entry.nodeId.toPeerId().withValue(pid):
+      nodeId.toPeerId().withValue(pid):
         peers.add(pid)
   peers
 
@@ -71,8 +74,8 @@ proc checkAndEvictPeer(
     except AsyncSemaphoreError:
       raiseAssert "livenessSem released without acquire"
 
-  # Candidate list is a snapshot; the peer may have been refreshed (markUseful)
-  # or removed since it was selected.
+  # Candidate list is a snapshot; by the time a slot is free the peer may have
+  # been refreshed (markUseful) or removed, and stop may have begun.
   if kad.stopping:
     return
   let grace = kad.config.livenessGracePeriod
@@ -105,9 +108,8 @@ proc checkAndEvictPeer(
   debug "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
     debug "Liveness probe succeeded", peer = peerId.shortLog()
-    # Peer is reachable: refresh usefulness on every table that holds it.
-    for rtable in kad.maintainableTables():
-      rtable.markUseful(peerId)
+    # Peer is reachable: one registry write refreshes usefulness for every index.
+    kad.rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
 
@@ -182,6 +184,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     await sleepAsync(kad.config.livenessIdleInterval)
 
     let grace = kad.config.livenessGracePeriod
+    var saturated = false
 
     for rtable in kad.maintainableTables():
       if kad.stopping:
@@ -221,7 +224,7 @@ proc refreshTable*(
       continue
 
     # skip if refresh conditions not met (forceRefresh OR stale bucket)
-    if not (forceRefresh or bucket.isStale(rtable.config.bucketStaleTime)):
+    if not (forceRefresh or rtable.isStale(i)):
       continue
 
     let target = rtable.refreshTarget(i, kad.rng).valueOr:
@@ -261,6 +264,7 @@ proc new*(
     client: bool = false,
     codec: string = KadCodec,
 ): K {.raises: [].} =
+  let registry = PeerRegistry.new()
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(
@@ -268,6 +272,7 @@ proc new*(
       usefulnessGracePeriod = config.usefulnessGracePeriod,
       bucketStaleTime = config.bucketStaleTime,
     ),
+    registry = registry,
   )
   let kad = K(
     rng: rng,
