@@ -16,6 +16,15 @@ export chronicles, random_find, types, discoverer, advertiser, advertisement_cac
 logScope:
   topics = "service-discovery"
 
+method maintainableTables*(
+    disco: ServiceDiscovery
+): seq[RoutingTable] {.gcsafe, raises: [].} =
+  ## Main Kad table plus every per-service routing table.
+  var tables = @[disco.rtable]
+  for table in disco.rtManager.tables.values:
+    tables.add(table)
+  return tables
+
 proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
@@ -92,7 +101,8 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
-    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
+    admissionSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
+    livenessSem: newAsyncSemaphore(config.limits.maxConcurrentLivenessProbes),
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),

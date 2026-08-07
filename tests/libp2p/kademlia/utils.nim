@@ -72,6 +72,9 @@ proc testKadConfig*(
     recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
     republishRegionBits: Opt[int] = Opt.none(int),
+    livenessGracePeriod: Duration = DefaultLivenessGracePeriod,
+    livenessIdleInterval: Duration = DefaultLivenessIdleInterval,
+    disableBootstrapping: bool = false,
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
@@ -88,6 +91,9 @@ proc testKadConfig*(
     recordExpirationInterval = recordExpirationInterval,
     cleanupDataEntriesInterval = cleanupDataEntriesInterval,
     republishRegionBits = republishRegionBits,
+    livenessGracePeriod = livenessGracePeriod,
+    livenessIdleInterval = livenessIdleInterval,
+    disableBootstrapping = disableBootstrapping,
   )
 
 proc setupKad*(
@@ -255,10 +261,14 @@ proc makeBucketStale*(bucket: var Bucket) =
   for peer in bucket.peers.mitems:
     peer.lastSeen = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
 
-proc agePeerPastLivenessGrace*(rtable: var RoutingTable, key: Key) =
-  ## Age a routing-table entry past the default liveness grace so the next
-  ## maintenance pass will probe it.
-  let past = Moment.now() - (DefaultLivenessGracePeriod + 1.minutes)
+proc agePeerPastLivenessGrace*(
+    rtable: var RoutingTable,
+    key: Key,
+    gracePeriod: Duration = DefaultLivenessGracePeriod,
+) =
+  ## Age a routing-table entry past the liveness grace so the next
+  ## liveness pass / continuous loop will probe it.
+  let past = Moment.now() - (gracePeriod + 1.minutes)
   for b in rtable.buckets.mitems:
     for p in b.peers.mitems:
       if p.nodeId == key:

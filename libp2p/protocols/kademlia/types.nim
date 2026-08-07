@@ -27,8 +27,12 @@ const
     ## New peers resist eviction until in the table this long without proving
   DefaultLivenessGracePeriod* = 1.hours
     ## Peers with no successful outbound DHT activity within this window are
-    ## probed for liveness during maintenance; failures are removed from the
-    ## routing table.
+    ## probed for liveness by the background liveness loop; failures are
+    ## removed from the routing table.
+  DefaultLivenessIdleInterval* = 30.seconds
+    ## Maximum sleep between liveness-loop iterations when no peer needs a
+    ## probe. Bound so a newly replaceable peer is noticed without waiting
+    ## for the next bucket-refresh tick.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -59,6 +63,8 @@ const
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
   DefaultMaxConcurrentProbes* = 20
     ## upper bound on concurrent routing-table admission probes (lookupCheck)
+  DefaultMaxConcurrentLivenessProbes* = 20
+    ## upper bound on concurrent routing-table liveness/eviction probes
   DefaultMaxPeersPerIp* = 4
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
@@ -401,6 +407,9 @@ type KadDHTLimits* = object
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
   maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
+  maxConcurrentLivenessProbes*: int
+    ## Maximum number of concurrent liveness/eviction probes. Independent of
+    ## ``maxConcurrentProbes`` so admission is never starved by eviction.
   maxPeersPerIp*: int
     ## Maximum number of Kademlia routing-table peers sharing one exact IP.
   maxPeersPerIpv4Subnet*: int
@@ -421,6 +430,7 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxLocalRecords: Opt.some(DefaultMaxLocalRecords),
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
     maxConcurrentProbes: DefaultMaxConcurrentProbes,
+    maxConcurrentLivenessProbes: DefaultMaxConcurrentLivenessProbes,
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
@@ -434,6 +444,7 @@ type KadDHTConfig* = object
   bucketStaleTime*: chronos.Duration
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
+  livenessIdleInterval*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
@@ -479,6 +490,7 @@ proc new*(
     bucketStaleTime: chronos.Duration = DefaultBucketStaleTime,
     usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
     livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
+    livenessIdleInterval: chronos.Duration = DefaultLivenessIdleInterval,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -517,6 +529,8 @@ proc new*(
     "maxLocalRecords must be > 0; use Opt.none(int) for unlimited"
   doAssert actualLimits.maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
   doAssert actualLimits.maxConcurrentProbes > 0, "maxConcurrentProbes must be > 0"
+  doAssert actualLimits.maxConcurrentLivenessProbes > 0,
+    "maxConcurrentLivenessProbes must be > 0"
   doAssert actualLimits.maxPeersPerIp > 0, "maxPeersPerIp must be > 0"
   doAssert actualLimits.maxPeersPerIpv4Subnet > 0, "maxPeersPerIpv4Subnet must be > 0"
   doAssert actualLimits.maxPeersPerIpv6Subnet > 0, "maxPeersPerIpv6Subnet must be > 0"
@@ -532,6 +546,7 @@ proc new*(
     bucketStaleTime: bucketStaleTime,
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
+    livenessIdleInterval: livenessIdleInterval,
     retries: retries,
     replication: replication,
     alpha: alpha,
@@ -562,6 +577,7 @@ type KadDHT* = ref object of LPProtocol
   rng*: Rng
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
+  livenessLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   recordExpirationLoop*: Future[void]
@@ -574,10 +590,17 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
   rpcSem*: AsyncSemaphore
     ## Bounds in-flight outbound RPCs to ``config.limits.maxConcurrentRpcs``.
-  probeSem*: AsyncSemaphore
-    ## Bounds admission probes to ``config.limits.maxConcurrentProbes``.
+  admissionSem*: AsyncSemaphore
+    ## Bounds concurrent admission probes to ``config.limits.maxConcurrentProbes``.
+  livenessSem*: AsyncSemaphore
+    ## Bounds concurrent liveness/eviction probes to
+    ## ``config.limits.maxConcurrentLivenessProbes``. Independent of
+    ## ``admissionSem`` so eviction never starves routing-table admission.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
+  livenessProbes*: Table[PeerId, Future[void]]
+    ## In-flight liveness probes, keyed by peer only. A peer shared across
+    ## multiple routing tables (main Kad + service tables) is probed once.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
     ## letting the shutdown drain terminate. Distinct from ``started``, which is
