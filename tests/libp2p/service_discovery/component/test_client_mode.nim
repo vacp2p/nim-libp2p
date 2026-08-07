@@ -6,6 +6,7 @@ import chronos, results, std/sequtils
 import
   ../../../../libp2p/[
     peerinfo,
+    protocols/kademlia,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/types,
@@ -18,8 +19,8 @@ suite "Service Discovery Component - Client Mode":
   teardown:
     checkTrackers()
 
-  asyncTest "client-mode node does not advertise the service-discovery codec":
-    # Client mode is consumer-only, it doesn't serve REGISTER.
+  asyncTest "client-mode node does not serve REGISTER":
+    # The codec stays mounted, because there is no multistream unmount.
     let clientNode = setupServiceDiscoveryNode(client = true)
     let serverNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[clientNode, serverNode])
@@ -27,7 +28,7 @@ suite "Service Discovery Component - Client Mode":
 
     check:
       ExtendedServiceDiscoveryCodec in serverNode.switch.peerInfo.protocols
-      ExtendedServiceDiscoveryCodec notin clientNode.switch.peerInfo.protocols
+      ExtendedServiceDiscoveryCodec in clientNode.switch.peerInfo.protocols
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
@@ -44,7 +45,7 @@ suite "Service Discovery Component - Client Mode":
     startAndDeferStop(@[clientNode, discovererNode])
     await connect(discovererNode, clientNode)
 
-    check ExtendedServiceDiscoveryCodec notin clientNode.switch.peerInfo.protocols
+    check ExtendedServiceDiscoveryCodec in clientNode.switch.peerInfo.protocols
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
@@ -68,7 +69,7 @@ suite "Service Discovery Component - Client Mode":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    serverAdvertiser.addProvidedService(service)
+    check serverAdvertiser.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       serverRegistrar.countAdsInCache(serviceId) == 1
@@ -76,3 +77,31 @@ suite "Service Discovery Component - Client Mode":
     let found = await clientDiscoverer.lookup(serviceId)
     check:
       found.get().anyIt(it.data.peerId == serverAdvertiser.switch.peerInfo.peerId)
+
+  asyncTest "client-mode node rejects addProvidedService":
+    let clientNode = setupServiceDiscoveryNode(client = true)
+    startAndDeferStop(@[clientNode])
+
+    let service = makeServiceInfo("service")
+
+    check clientNode.addProvidedService(service).isErr()
+    check not clientNode.rtManager.hasService(service.id.hashServiceId())
+
+  asyncTest "a downgrade to client mode stops new advertising":
+    let advertiserNode = setupServiceDiscoveryNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[advertiserNode, registrarNode])
+    await connect(advertiserNode, registrarNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    check advertiserNode.addProvidedService(service).isOk()
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(serviceId) == 1
+
+    check await advertiserNode.changeMode(isServer = false)
+
+    let other = makeServiceInfo("other-service")
+    check advertiserNode.addProvidedService(other).isErr()
+    check registrarNode.countAdsInCache(other.id.hashServiceId()) == 0

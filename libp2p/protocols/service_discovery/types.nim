@@ -106,7 +106,6 @@ type
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
     serviceBootstrapFuts*: seq[Future[void]]
-    clientMode*: bool
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
