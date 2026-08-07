@@ -139,8 +139,7 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  if not client:
-    switch.mount(node)
+  switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(

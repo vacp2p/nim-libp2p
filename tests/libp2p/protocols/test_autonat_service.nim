@@ -15,7 +15,7 @@ import
   ]
 import ../../../libp2p/utils/future
 import ../../stubs/autonatclientstub
-import ../../tools/[unittest, futures, crypto]
+import ../../tools/[unittest, futures, crypto, reachability]
 
 proc createSwitch(
     autonatSvc: Opt[AutonatService] = Opt.none(AutonatService),
@@ -159,8 +159,7 @@ suite "Autonat Service":
         confidence: Opt[float],
         dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.Reachable, confidence):
         awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
@@ -211,12 +210,11 @@ suite "Autonat Service":
         confidence: Opt[float],
         dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.NotReachable, confidence):
         autonatClientStub.answer = Reachable
         notReachableAwaiter.completeOnce()
-      elif networkReachability == NetworkReachability.Reachable and confidence.isSome() and
-          confidence.get() >= 0.3 and reachableConfidence.isNone():
+      elif settled(networkReachability, NetworkReachability.Reachable, confidence) and
+          reachableConfidence.isNone():
         reachableConfidence = confidence
         reachableAwaiter.completeOnce()
 
@@ -311,8 +309,7 @@ suite "Autonat Service":
         confidence: Opt[float],
         dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.NotReachable, confidence):
         autonatClientStub.answer = Unknown
         awaiter.completeOnce()
 

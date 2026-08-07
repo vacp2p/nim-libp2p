@@ -233,7 +233,9 @@ proc advertiseToRegistrar*(
     ticket: Opt[Ticket],
     advert: seq[byte],
 ) {.async: (raises: [CancelledError]).} =
-  doAssert not disco.clientMode, "not supported in client mode"
+  if not disco.isServer:
+    debug "not advertising while in client mode", serviceId, registrar
+    return
 
   if not disco.rtManager.hasService(serviceId):
     error "no service routing table found", serviceId
@@ -314,7 +316,8 @@ proc addProvidedService*(
     service: ServiceInfo,
     advert: Opt[seq[byte]] = Opt.none(seq[byte]),
 ): Result[void, string] =
-  doAssert not disco.clientMode, "not supported in client mode"
+  if not disco.isServer:
+    return err("cannot advertise in client mode")
 
   if not service.isValid():
     return err("service data exceeds the maximum of " & $MaxServiceDataSize & " bytes")
@@ -376,8 +379,6 @@ proc addProvidedService*(
 proc removeProvidedService*(
     disco: ServiceDiscovery, serviceId: string
 ) {.async: (raises: [CancelledError]).} =
-  doAssert not disco.clientMode, "not supported in client mode"
-
   let sid = serviceId.hashServiceId()
 
   var toRemove: HashSet[AdvertiseTask]

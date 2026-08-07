@@ -94,7 +94,7 @@ proc new*(
     rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
     rtManager: ServiceRoutingTableManager.new(),
-    clientMode: client,
+    isServer: not client,
     advertiser: Advertiser.new(),
     registrar: Registrar.new(discoConfig.advertCacheCap),
     services: toHashSet(services),
@@ -112,13 +112,18 @@ proc new*(
     disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
 
   disco.codec = codec
-  if client:
-    return disco
 
   disco.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
+    if not disco.isServer:
+      trace "Refusing inbound query while not serving", stream
+      await stream.reset()
+      return
+
+    disco.serverStreams.incl(stream)
     defer:
+      disco.serverStreams.excl(stream)
       await stream.close()
     while not stream.atEof:
       let buf =
