@@ -150,6 +150,28 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       kad.config.bucketRefreshTime
     )
 
+proc initKadBase*(
+    kad: KadDHT, switch: Switch, config: KadDHTConfig, rng: Rng, isServer: bool
+) {.raises: [].} =
+  ## Set the shared fields in one place, so a new base field cannot miss a constructor.
+  kad.rng = rng
+  kad.switch = switch
+  kad.rtable = RoutingTable.new(
+    switch.peerInfo.peerId.toKey(),
+    config = RoutingTableConfig.new(
+      replication = config.replication,
+      usefulnessGracePeriod = config.usefulnessGracePeriod,
+      bucketStaleTime = config.bucketStaleTime,
+    ),
+  )
+  kad.config = config
+  kad.providerManager =
+    ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity)
+  kad.nsEstimator = NetworkSizeEstimator.new(config.replication)
+  kad.rpcSem = newAsyncSemaphore(config.limits.maxConcurrentRpcs)
+  kad.probeSem = newAsyncSemaphore(config.limits.maxConcurrentProbes)
+  kad.isServer = isServer
+
 # K instead of T to avoid clashing with the T type param in withValue[T] when
 # called inside a withValue block, which causes a compiler error under --lineDir:on
 proc new*(
@@ -161,26 +183,8 @@ proc new*(
     isServer: bool = true,
     codec: string = KadCodec,
 ): K {.raises: [].} =
-  var rtable = RoutingTable.new(
-    switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(
-      replication = config.replication,
-      usefulnessGracePeriod = config.usefulnessGracePeriod,
-      bucketStaleTime = config.bucketStaleTime,
-    ),
-  )
-  let kad = K(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    config: config,
-    providerManager:
-      ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    nsEstimator: NetworkSizeEstimator.new(config.replication),
-    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
-    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
-    isServer: isServer,
-  )
+  let kad = K()
+  kad.initKadBase(switch, config, rng, isServer)
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
