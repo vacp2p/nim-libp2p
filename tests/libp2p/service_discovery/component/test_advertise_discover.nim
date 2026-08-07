@@ -39,7 +39,7 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("e2e-test-service")
     let serviceId = service.id.hashServiceId()
 
-    advertiserNode.addProvidedService(service)
+    check advertiserNode.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       registrarNode1.countAdsInCache(serviceId) == 1 or
@@ -99,8 +99,8 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("shared-service")
     let serviceId = service.id.hashServiceId()
 
-    advertiserA.addProvidedService(service)
-    advertiserB.addProvidedService(service)
+    check advertiserA.addProvidedService(service).isOk()
+    check advertiserB.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       block:
@@ -129,12 +129,12 @@ suite "Service Discovery Component - Advertise Discover":
     let svcAId = svcA.id.hashServiceId()
     let svcBId = svcB.id.hashServiceId()
 
-    advertiserNode.addProvidedService(svcA)
+    check advertiserNode.addProvidedService(svcA).isOk()
 
     checkUntilTimeout:
       registrarNode.countAdsInCache(svcAId) == 1
 
-    advertiserNode.addProvidedService(svcB)
+    check advertiserNode.addProvidedService(svcB).isOk()
 
     checkUntilTimeout:
       registrarNode.countAdsInCache(svcBId) == 1
@@ -208,7 +208,7 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service-A")
     let serviceId = service.id.hashServiceId()
 
-    advertiserNode.addProvidedService(service)
+    check advertiserNode.addProvidedService(service).isOk()
 
     let otherKey = otherNode.switch.peerInfo.peerId.toKey()
     checkUntilTimeout:
@@ -227,7 +227,7 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    advertiserNode.addProvidedService(service)
+    check advertiserNode.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       registrarNode.countAdsInCache(serviceId) == 1
@@ -245,7 +245,7 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    advertiserNode.addProvidedService(service)
+    check advertiserNode.addProvidedService(service).isOk()
 
     # Wait for the first registration to succeed on the remote registrar
     checkUntilTimeout:
@@ -376,7 +376,7 @@ suite "Service Discovery Component - Advertise Discover":
     let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
-    advertiserNode.addProvidedService(service)
+    check advertiserNode.addProvidedService(service).isOk()
 
     checkUntilTimeout:
       initialRegistrar.countAdsInCache(serviceId) == 1
@@ -403,13 +403,13 @@ suite "Service Discovery Component - Advertise Discover":
 
     let firstService = makeServiceInfo("ipv6-service-1")
     let firstServiceId = firstService.id.hashServiceId()
-    advertiserNode.addProvidedService(firstService)
+    check advertiserNode.addProvidedService(firstService).isOk()
     checkUntilTimeout:
       registrarNode.countAdsInCache(firstServiceId) == 1
 
     let secondService = makeServiceInfo("ipv6-service-2")
     let secondServiceId = secondService.id.hashServiceId()
-    advertiserNode.addProvidedService(secondService)
+    check advertiserNode.addProvidedService(secondService).isOk()
     checkUntilTimeout:
       registrarNode.registrar.boundService.hasKey(secondServiceId)
     check registrarNode.countAdsInCache(secondServiceId) == 0
@@ -423,13 +423,13 @@ suite "Service Discovery Component - Advertise Discover":
 
     let firstService = makeServiceInfo("dual-stack-service-1")
     let firstServiceId = firstService.id.hashServiceId()
-    advertiserNode.addProvidedService(firstService)
+    check advertiserNode.addProvidedService(firstService).isOk()
     checkUntilTimeout:
       registrarNode.countAdsInCache(firstServiceId) == 1
 
     let secondService = makeServiceInfo("dual-stack-service-2")
     let secondServiceId = secondService.id.hashServiceId()
-    advertiserNode.addProvidedService(secondService)
+    check advertiserNode.addProvidedService(secondService).isOk()
     # The registrar answered Wait, not Confirmed: it records the Wait in
     # boundService and does not admit the second ad to the cache.
     checkUntilTimeout:
