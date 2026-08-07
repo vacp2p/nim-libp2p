@@ -408,8 +408,7 @@ type KadDHTLimits* = object
   maxConcurrentRpcs*: int
     ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
     ## across the whole node. Excess calls wait on a shared semaphore.
-  maxConcurrentProbes*: int
-    ## Maximum number of concurrent FIND_NODE admission probes.
+  maxConcurrentProbes*: int ## Maximum number of concurrent FIND_NODE admission probes.
   maxConcurrentLivenessProbes*: int
     ## Maximum number of concurrent liveness/eviction probes. Independent of
     ## ``maxConcurrentProbes`` so admission is never starved by eviction.

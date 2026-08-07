@@ -277,9 +277,8 @@ suite "KadDHT Bootstrap Component":
       )
     )
     let leaf = setupKad(
-      config = testKadConfig(
-        timeout = chronos.milliseconds(200), disableBootstrapping = true
-      )
+      config =
+        testKadConfig(timeout = chronos.milliseconds(200), disableBootstrapping = true)
     )
     startAndDeferStop(@[hub, leaf])
     await connect(hub, leaf)
