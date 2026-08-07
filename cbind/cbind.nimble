@@ -10,8 +10,8 @@ import os, strutils
 
 requires "taskpools >= 0.1.0",
   "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc",
-  # nim-ffi head of the unmerged `fix/cbor-non-canonical`; repin to a tag on merge
-  "https://github.com/logos-messaging/nim-ffi#b95e2b04a63fbd417938bf3ec0ac14be7935e21b"
+  # nim-ffi v0.3.0-rc.2
+  "https://github.com/logos-messaging/nim-ffi#53515de17af0ef3e88b2aec9675b8163dddc14ae"
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
