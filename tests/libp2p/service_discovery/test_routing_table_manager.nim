@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, tables, sequtils
+import chronos, results, sets, tables
 import
   ../../../libp2p/[peerinfo],
   ../../../libp2p/protocols/kademlia,
