@@ -45,6 +45,13 @@ static LibP2PCtx *gossipsubNode(const char *listenAddr, const char *label) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.mountGossipsub = true;
   cfg.gossipsubTriggerSelf = true;
+  // Bound the inbound side: one message is at most 1 MiB, and a peer gets
+  // 64 KiB of protocol overhead per second. The budget only counts overhead
+  // until gossipsubDisconnectPeerAboveRateLimit enforces it, which this demo
+  // leaves off so a slow CI runner cannot drop its own peer.
+  cfg.gossipsubMaxMessageSize = 1024 * 1024;
+  cfg.gossipsubOverheadRateLimitBytes = 64 * 1024;
+  cfg.gossipsubOverheadRateLimitIntervalMs = 1000;
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
   cfg.muxer = MUXER_TYPE_MPLEX;

@@ -33,6 +33,20 @@ type Libp2pConfig {.ffi.} = object
   mountGossipsub: bool
     ## Mount GossipSub for publishing and receiving messages via pubsub.
   gossipsubTriggerSelf: bool ## Deliver locally published GossipSub messages to self.
+  gossipsubMaxMessageSize: int
+    ## Largest GossipSub message accepted or sent, in bytes. 0 uses the core
+    ## default; the ceiling is `MAX_GOSSIPSUB_MESSAGE_SIZE`. A limit fails
+    ## closed here, so a negative value is an error rather than a default.
+  gossipsubOverheadRateLimitBytes: int
+    ## Per-peer budget of protocol-overhead bytes per interval. 0 disables the
+    ## ingress rate limit; a negative value is an error.
+  gossipsubOverheadRateLimitIntervalMs: int64
+    ## Refill interval of the per-peer overhead budget, up to
+    ## `MAX_OVERHEAD_RATE_LIMIT_INTERVAL_MS`. Needed with the bytes above.
+  gossipsubDisconnectPeerAboveRateLimit: bool
+    ## Disconnect a peer that spends its overhead budget. Needs the two fields
+    ## above. Leave it false and the budget only feeds the
+    ## `libp2p_gossipsub_peers_rate_limit_hits` metric: nothing enforces it.
   mountKad: bool ## Mount the Kademlia DHT service.
   mountServiceDiscovery: bool ## Mount random-find based service discovery.
   dnsResolver: string ## DNS server address; empty uses the core defaults.
@@ -72,6 +86,17 @@ type Libp2pConfig {.ffi.} = object
   natHolePunchingScheduleIntervalMs: int64
     ## Hole-punch reachability probe interval; <= 0 disables scheduling override.
 
+type OverheadRateLimit = tuple[bytes: int, interval: Duration]
+  ## GossipSub's per-peer overhead budget: `bytes` of protocol overhead per `interval`.
+
+type ParsedGossipsub = object
+  ## GossipSub's slice of the config: how to mount it, and the ingress limits
+  ## that bound what an untrusted peer can push at the node.
+  triggerSelf: bool
+  maxMessageSize: int
+  overheadRateLimit: Opt[OverheadRateLimit]
+  disconnectPeerAboveRateLimit: bool
+
 type ParsedTransport = object
   ## The transport to build, plus the muxer it needs. A muxer is only used with
   ## TCP, so the variant makes "no muxer for QUIC" unrepresentable rather than
@@ -100,7 +125,7 @@ type ParsedConfig = object
   nat: Opt[NATConfig]
   autonatV2Server: bool
   mountGossipsub: bool
-  gossipsubTriggerSelf: bool
+  gossipsub: ParsedGossipsub
   mountKad: bool
   mountServiceDiscovery: bool
 
@@ -137,6 +162,87 @@ proc parsePrivateKey(raw: seq[byte]): Result[Opt[PrivateKey], string] =
   let key = PrivateKey.init(raw).valueOr:
     return err("invalid private key: " & $error)
   ok(Opt.some(key))
+
+const
+  MaxGossipsubMessageSize {.ffiConst.} = 64 * 1024 * 1024
+    ## A peer can make us preallocate one message of this size before a single
+    ## byte is validated, so cap what a host can ask for.
+  MaxOverheadRateLimitIntervalMs {.ffiConst.} = 60 * 60 * 1000
+    ## `chronos.milliseconds` multiplies by a million without checking, so an
+    ## unbounded interval overflows `Duration` and raises a Defect no caller
+    ## catches. An hour is already a quota rather than a rate limit.
+
+func requireGossipsubForLimits(config: Libp2pConfig): Result[void, string] =
+  if config.mountGossipsub:
+    return ok()
+  if config.gossipsubMaxMessageSize != 0 or config.gossipsubOverheadRateLimitBytes != 0 or
+      config.gossipsubOverheadRateLimitIntervalMs != 0 or
+      config.gossipsubDisconnectPeerAboveRateLimit:
+    return err("gossipsub limits require mountGossipsub")
+  ok()
+
+func parseGossipsubMaxMessageSize(config: Libp2pConfig): Result[int, string] =
+  if config.gossipsubMaxMessageSize < 0:
+    return err("gossipsubMaxMessageSize must be 0 or greater")
+  if config.gossipsubMaxMessageSize == 0:
+    return ok(DefaultPubSubMaxMessageSize)
+  if config.gossipsubMaxMessageSize > MaxGossipsubMessageSize:
+    return err(
+      "gossipsubMaxMessageSize must be at most " & $MaxGossipsubMessageSize & " bytes"
+    )
+  ok(config.gossipsubMaxMessageSize)
+
+func validateOverheadRateLimitRange(config: Libp2pConfig): Result[void, string] =
+  if config.gossipsubOverheadRateLimitBytes < 0:
+    return err("gossipsubOverheadRateLimitBytes must be 0 or greater")
+  if config.gossipsubOverheadRateLimitIntervalMs < 0:
+    return err("gossipsubOverheadRateLimitIntervalMs must be 0 or greater")
+  if config.gossipsubOverheadRateLimitIntervalMs > MaxOverheadRateLimitIntervalMs:
+    return err(
+      "gossipsubOverheadRateLimitIntervalMs must be at most " &
+        $MaxOverheadRateLimitIntervalMs & " ms"
+    )
+  ok()
+
+func parseGossipsubOverheadRateLimit(
+    config: Libp2pConfig
+): Result[Opt[OverheadRateLimit], string] =
+  ## The per-peer token bucket bounding protocol overhead an untrusted peer can
+  ## push at us: `bytes` per `interval`. Both halves are needed, or neither.
+  ?validateOverheadRateLimitRange(config)
+  if config.gossipsubOverheadRateLimitBytes == 0:
+    if config.gossipsubOverheadRateLimitIntervalMs > 0:
+      return err(
+        "gossipsubOverheadRateLimitIntervalMs requires gossipsubOverheadRateLimitBytes"
+      )
+    if config.gossipsubDisconnectPeerAboveRateLimit:
+      return err(
+        "gossipsubDisconnectPeerAboveRateLimit requires gossipsubOverheadRateLimitBytes"
+      )
+    return ok(Opt.none(OverheadRateLimit))
+  if config.gossipsubOverheadRateLimitIntervalMs == 0:
+    return err(
+      "gossipsubOverheadRateLimitBytes requires gossipsubOverheadRateLimitIntervalMs"
+    )
+  ok(
+    Opt.some(
+      (
+        bytes: config.gossipsubOverheadRateLimitBytes,
+        interval: chronos.milliseconds(config.gossipsubOverheadRateLimitIntervalMs),
+      )
+    )
+  )
+
+func parseGossipsubConfig(config: Libp2pConfig): Result[ParsedGossipsub, string] =
+  ?requireGossipsubForLimits(config)
+  ok(
+    ParsedGossipsub(
+      triggerSelf: config.gossipsubTriggerSelf,
+      maxMessageSize: ?parseGossipsubMaxMessageSize(config),
+      overheadRateLimit: ?parseGossipsubOverheadRateLimit(config),
+      disconnectPeerAboveRateLimit: config.gossipsubDisconnectPeerAboveRateLimit,
+    )
+  )
 
 func parseTransportConfig(config: Libp2pConfig): ParsedTransport =
   # A muxer is only used with TCP, so a QUIC config's `muxer` is ignored.
@@ -316,7 +422,7 @@ proc parse(config: Libp2pConfig): Result[ParsedConfig, string] =
       nat: ?parseNATConfig(config),
       autonatV2Server: config.autonatV2Server,
       mountGossipsub: config.mountGossipsub,
-      gossipsubTriggerSelf: config.gossipsubTriggerSelf,
+      gossipsub: ?parseGossipsubConfig(config),
       mountKad: config.mountKad,
       mountServiceDiscovery: config.mountServiceDiscovery,
     )

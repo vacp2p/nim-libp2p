@@ -252,8 +252,18 @@ const MaxReadBytes {.ffiConst.} = 64 * 1024 * 1024
   ## Caps the buffer an untrusted peer can make us pre-allocate before any byte
   ## arrives; well above libp2p's largest framed messages.
 
-proc mountGossipsub(lib: LibP2P, triggerSelf: bool): Result[void, string] =
-  let gs = GossipSub.init(switch = lib.switch, triggerSelf = triggerSelf, rng = lib.rng)
+proc mountGossipsub(lib: LibP2P, cfg: ParsedGossipsub): Result[void, string] =
+  # `init` marks the set explicit, so every parameter left out keeps its default.
+  let gs = GossipSub.init(
+    switch = lib.switch,
+    triggerSelf = cfg.triggerSelf,
+    maxMessageSize = cfg.maxMessageSize,
+    rng = lib.rng,
+    parameters = GossipSubParams.init(
+      overheadRateLimit = cfg.overheadRateLimit,
+      disconnectPeerAboveRateLimit = cfg.disconnectPeerAboveRateLimit,
+    ),
+  )
   try:
     lib.switch.mount(gs)
   except LPError as e:
@@ -302,7 +312,7 @@ proc mountServiceDiscovery(
 
 proc mountProtocols(lib: LibP2P, cfg: ParsedConfig): Result[void, string] =
   if cfg.mountGossipsub:
-    ?mountGossipsub(lib, cfg.gossipsubTriggerSelf)
+    ?mountGossipsub(lib, cfg.gossipsub)
 
   if cfg.mountServiceDiscovery:
     ?mountServiceDiscovery(lib, cfg.bootstrapNodes)
@@ -441,6 +451,10 @@ type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   logLevel: cint
   mountGossipsub: cint
   gossipsubTriggerSelf: cint
+  gossipsubMaxMessageSize: cint
+  gossipsubOverheadRateLimitBytes: cint
+  gossipsubOverheadRateLimitIntervalMs: int64
+  gossipsubDisconnectPeerAboveRateLimit: cint
   mountKad: cint
   mountServiceDiscovery: cint
   dnsResolver: cstring
