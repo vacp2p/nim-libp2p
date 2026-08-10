@@ -378,6 +378,44 @@ suite "GossipSubParams validation":
     params.maxLowPriorityQueueLen = 1
     check params.validateParameters().isOk()
 
+  test "overheadRateLimit.bytes fails when zero":
+    const errorMessage =
+      "gossipsub: overheadRateLimit.bytes parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 0, interval: 1.seconds))
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "overheadRateLimit.interval fails when zero":
+    const errorMessage =
+      "gossipsub: overheadRateLimit.interval parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: ZeroDuration))
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "overheadRateLimit succeeds when both fields are positive":
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: 1.seconds))
+    check params.validateParameters().isOk()
+
+  test "disconnectPeerAboveRateLimit fails without overheadRateLimit":
+    const errorMessage =
+      "gossipsub: disconnectPeerAboveRateLimit parameter error, Requires overheadRateLimit"
+    var params = newDefaultValidParams()
+    params.disconnectPeerAboveRateLimit = true
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "disconnectPeerAboveRateLimit succeeds with overheadRateLimit":
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: 1.seconds))
+    params.disconnectPeerAboveRateLimit = true
+    check params.validateParameters().isOk()
+
 suite "TopicParams validation":
   proc newDefaultValidTopicParams(): TopicParams =
     TopicParams.init()

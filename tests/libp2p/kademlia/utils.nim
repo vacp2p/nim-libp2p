@@ -293,21 +293,12 @@ proc seedRoutingTable*(kad: KadDHT, count: int, target: Key): seq[PeerId] =
 proc seedRoutingTableBelow*(
     kad: KadDHT, count: int, target: Key
 ): tuple[closest: PeerId, seeded: seq[PeerId]] =
-  ## Seeds the routing table as `seedRoutingTable` does, and draws one more peer
-  ## that is closer to `target` than all of them. That peer is left out of the
-  ## routing table, so only a reply can bring it into a lookup.
-  const maxDraws = 1000
-  let peers = kad.seedRoutingTable(count, target)
-  let hasher = kad.rtable.config.hasher
-  let closestSeeded = xorDistance(peers[0], target, hasher)
-
-  for _ in 0 ..< maxDraws:
-    let candidate = randomPeerId()
-    if xorDistance(candidate, target, hasher) < closestSeeded:
-      return (candidate, peers)
-
-  raiseAssert "no peer closer than the " & $count & " seeded ones in " & $maxDraws &
-    " draws"
+  ## Seeds `count` peers plus a closer one that only a reply can bring into a
+  ## lookup, since it is held out of the routing table.
+  let drawn = kad.seedRoutingTable(count + 1, target)
+  doAssert kad.rtable.removePeer(drawn[0]),
+    "the closest drawn peer is missing from the routing table"
+  (drawn[0], drawn[1 .. ^1])
 
 proc addRandomPeers*(
     state: LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
