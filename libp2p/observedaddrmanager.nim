@@ -16,33 +16,23 @@ type
     maxSize*: int = DefaultObservedAddrMaxSize
     minCount*: int = DefaultObservedAddrMinCount
 
-  ObservedAddrManagerState = enum
-    Fresh ## accepts observations: a manager seeded before the start is valid
-    Started
-    Stopped
-
   ObservedAddrManager* = ref object of RootObj
     observedIPsAndPorts: seq[MultiAddress]
     maxSize: int
     minCount: int
-    state: ObservedAddrManagerState
-
-func namesDialableAddr(observedAddr: MultiAddress): bool =
-  # a remote peer picks what it reports, and the window holds maxSize entries,
-  # so an address which no getter can return would only evict a useful one
-  let code = (observedAddr[0].flatMap(protoCode)).valueOr:
-    return false
-  if code != multiCodec("ip4") and code != multiCodec("ip6"):
-    return false
-  observedAddr.len().get(0) > 1
+    started: bool
 
 proc addObservation*(self: ObservedAddrManager, observedAddr: MultiAddress): bool =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
-  ## Returns false when the manager is stopped, or when the address names no dialable address.
-  if self.state == Stopped:
+  ## Returns false when the manager is not started, or when the address is not a direct IP address with a transport.
+  if not self.started:
     return false
-  if not observedAddr.namesDialableAddr():
+
+  # a remote peer picks what it reports: junk would only evict a useful entry
+  if not (observedAddr.hasIp() and observedAddr.hasTransport()) or
+      observedAddr.contains(multiCodec("p2p-circuit")).get(false):
     return false
+
   if self.observedIPsAndPorts.len >= self.maxSize:
     self.observedIPsAndPorts.del(0)
   self.observedIPsAndPorts.add(observedAddr)
@@ -104,17 +94,13 @@ proc guessDialableAddr*(self: ObservedAddrManager, ma: MultiAddress): MultiAddre
     ma
 
 func isStarted*(self: ObservedAddrManager): bool =
-  self.state == Started
+  self.started
 
-proc start*(self: ObservedAddrManager) {.async: (raises: [CancelledError]).} =
-  if self.state == Started:
-    return
-  self.state = Started
+proc start*(self: ObservedAddrManager) =
+  self.started = true
 
-proc stop*(self: ObservedAddrManager) {.async: (raises: [CancelledError]).} =
-  if self.state != Started:
-    return
-  self.state = Stopped
+proc stop*(self: ObservedAddrManager) =
+  self.started = false
   self.observedIPsAndPorts.setLen(0)
 
 proc `$`*(self: ObservedAddrManager): string =
@@ -123,12 +109,9 @@ proc `$`*(self: ObservedAddrManager): string =
 
 proc new*(
     T: typedesc[ObservedAddrManager],
-    maxSize = DefaultObservedAddrMaxSize,
-    minCount = DefaultObservedAddrMinCount,
+    config: ObservedAddrManagerConfig = ObservedAddrManagerConfig(),
 ): T =
-  return
-    T(observedIPsAndPorts: newSeq[MultiAddress](), maxSize: maxSize, minCount: minCount)
-
-proc new*(T: typedesc[ObservedAddrManager], config: ObservedAddrManagerConfig): T =
-  ## Creates a new ObservedAddrManager from a switch-level config.
-  T.new(maxSize = config.maxSize, minCount = config.minCount)
+  ## Creates a new ObservedAddrManager. A threshold below one is raised to one:
+  ## an empty window has nothing to evict, and a minCount of zero would let a
+  ## single peer decide the external address.
+  T(maxSize: max(config.maxSize, 1), minCount: max(config.minCount, 1))

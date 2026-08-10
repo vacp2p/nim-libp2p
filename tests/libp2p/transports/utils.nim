@@ -136,6 +136,17 @@ template noExceptionWithStreamClose*(stream: Stream, body) =
   finally:
     await noCancel stream.close()
 
+template noExceptionWithStreamClose*(stream: Stream, handlerDone: Future[void], body) =
+  ## Variant for a handler whose peer must wait for it. The scenarios tear the
+  ## connection down as soon as the client handler returns, which cancels a
+  ## server handler that still runs, so the peer awaits `handlerDone` before it
+  ## returns. The signal fires on every exit path, also on a failed check, so
+  ## the peer cannot hang and turn a failure into a timeout.
+  try:
+    noExceptionWithStreamClose(stream, body)
+  finally:
+    handlerDone.complete()
+
 proc serverHandlerSingleStream*(
     server: Transport, streamProvider: StreamProvider, handler: StreamHandler
 ) {.async: (raises: []).} =

@@ -1138,6 +1138,14 @@ proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   let res = matchPart(pat, protos)
   res.flag
 
+proc hasIp*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` starts with an IP4 or IP6 component.
+  IP.matchPartial(ma)
+
+proc hasTransport*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` carries a transport, as in ``/ip4/1.2.3.4/tcp/1``.
+  Reliable.matchPartial(ma) or Unreliable.matchPartial(ma)
+
 proc `$`*(pat: MaPattern): string =
   ## Return pattern ``pat`` as string.
   var sub = newSeq[string]()

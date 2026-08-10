@@ -45,6 +45,9 @@ logScope:
 const ConcurrentUpgrades* = 32
 const UpgradeTimeout* = 30.seconds
 
+# a Switch built field by field, as TorSwitch and SwitchStub do, must copy it
+const MissingObservedAddrManager = "switch has no ObservedAddrManager"
+
 type
   Switch* = ref object of Dial
     peerInfo*: PeerInfo
@@ -357,8 +360,8 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   await s.ms.stop()
 
   # stopped last, after every component which can still observe an address
-  if not s.observedAddrManager.isNil():
-    await s.observedAddrManager.stop()
+  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
+  s.observedAddrManager.stop()
 
   s.peerStore.close()
 
@@ -372,11 +375,9 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   debug "starting switch for peer", peerInfo = s.peerInfo
 
-  if s.observedAddrManager.isNil():
-    s.observedAddrManager = ObservedAddrManager.new()
-
   # started first, so that identify can feed it as soon as a peer connects
-  await s.observedAddrManager.start()
+  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
+  s.observedAddrManager.start()
 
   # start services and transports without await to prevent any
   # issues when one needs another to start first.

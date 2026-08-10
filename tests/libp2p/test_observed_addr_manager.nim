@@ -7,12 +7,26 @@ import chronos
 import ../../libp2p/[multiaddress, multicodec, observedaddrmanager, switch]
 import ../tools/[unittest, switch_builder, multiaddress]
 
+proc newManager(
+    maxSize = DefaultObservedAddrMaxSize, minCount = DefaultObservedAddrMinCount
+): ObservedAddrManager =
+  ObservedAddrManager.new(
+    ObservedAddrManagerConfig(maxSize: maxSize, minCount: minCount)
+  )
+
+proc newStartedManager(
+    maxSize = DefaultObservedAddrMaxSize, minCount = DefaultObservedAddrMinCount
+): ObservedAddrManager =
+  let observedAddrManager = newManager(maxSize, minCount)
+  observedAddrManager.start()
+  observedAddrManager
+
 suite "ObservedAddrManager":
   teardown:
     checkTrackers()
 
   asyncTest "Calculate the most oberserved IP correctly":
-    let observedAddrManager = ObservedAddrManager.new(minCount = 3)
+    let observedAddrManager = newStartedManager(minCount = 3)
 
     # Calculate the most oberserved IP4 correctly
     let mostObservedIP4AndPort = MultiAddress.init("/ip4/1.2.3.0/tcp/1").get()
@@ -58,7 +72,7 @@ suite "ObservedAddrManager":
         @[mostObservedIP4AndPort, mostObservedIP6AndPort]
 
   asyncTest "replace first proto value by most observed when there is only one protocol":
-    let observedAddrManager = ObservedAddrManager.new(minCount = 3)
+    let observedAddrManager = newStartedManager(minCount = 3)
     let mostObservedIP4AndPort = MultiAddress.init("/ip4/1.2.3.4/tcp/1").get()
 
     check:
@@ -69,95 +83,91 @@ suite "ObservedAddrManager":
       observedAddrManager.guessDialableAddr(MultiAddress.init("/ip4/0.0.0.0").get()) ==
         MultiAddress.init("/ip4/1.2.3.4").get()
 
-  asyncTest "an address which names no dialable address is rejected":
+  asyncTest "an address which is not a direct IP address with a transport is rejected":
     let
-      observedAddrManager = ObservedAddrManager.new(maxSize = 2, minCount = 1)
+      observedAddrManager = newStartedManager(maxSize = 2, minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     check observedAddrManager.addObservation(observed)
 
-    # a peer reports what it wants, and the window is small: junk must neither
-    # be counted nor evict the useful observation
+    # the window is small: junk must neither be counted nor evict the good entry
     for _ in 0 ..< 4:
       check:
         not observedAddrManager.addObservation(ma("/dns4/example.com/tcp/1"))
         not observedAddrManager.addObservation(ma("/ip4/1.2.3.4"))
+        not observedAddrManager.addObservation(ma("/ip4/1.2.3.4/tcp/1/p2p-circuit"))
 
     check observedAddrManager.getMostObservedProtosAndPorts() == @[observed]
 
+  asyncTest "a threshold below one is raised to one":
+    let
+      observedAddrManager = newStartedManager(maxSize = 0, minCount = 0)
+      firstObserved = ma("/ip4/1.2.3.4/tcp/1")
+      lastObserved = ma("/ip4/5.6.7.8/tcp/1")
+
+    check:
+      observedAddrManager.addObservation(firstObserved)
+      observedAddrManager.addObservation(lastObserved)
+      observedAddrManager.getMostObservedProtosAndPorts() == @[lastObserved]
+
   asyncTest "a stopped manager rejects observations until it starts again":
     let
-      observedAddrManager = ObservedAddrManager.new(minCount = 1)
+      observedAddrManager = newManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
-    await observedAddrManager.start()
+    observedAddrManager.start()
     check observedAddrManager.addObservation(observed)
 
-    await observedAddrManager.stop()
+    observedAddrManager.stop()
     check:
       not observedAddrManager.addObservation(observed)
       observedAddrManager.getMostObservedProtosAndPorts().len == 0
 
-    await observedAddrManager.start()
+    observedAddrManager.start()
     check:
       observedAddrManager.addObservation(observed)
       observedAddrManager.getMostObservedProtosAndPorts() == @[observed]
 
-    await observedAddrManager.stop()
+    observedAddrManager.stop()
 
   asyncTest "start and stop are idempotent":
     let
-      observedAddrManager = ObservedAddrManager.new(minCount = 1)
+      observedAddrManager = newManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
-    await observedAddrManager.stop()
+    observedAddrManager.stop()
     check not observedAddrManager.isStarted()
 
-    await observedAddrManager.start()
-    await observedAddrManager.start()
+    observedAddrManager.start()
+    observedAddrManager.start()
 
     check:
       observedAddrManager.isStarted()
       observedAddrManager.addObservation(observed)
       observedAddrManager.getMostObservedProtosAndPorts() == @[observed]
 
-    await observedAddrManager.stop()
-    await observedAddrManager.stop()
+    observedAddrManager.stop()
+    observedAddrManager.stop()
 
     check:
       not observedAddrManager.isStarted()
       observedAddrManager.getMostObservedProtosAndPorts().len == 0
 
-  asyncTest "starting keeps the observations made before the start":
+  asyncTest "a manager which never started rejects observations":
     let
-      observedAddrManager = ObservedAddrManager.new(minCount = 1)
+      observedAddrManager = newManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
+    check:
+      not observedAddrManager.isStarted()
+      not observedAddrManager.addObservation(observed)
+      observedAddrManager.getMostObservedProtosAndPorts().len == 0
+
+    observedAddrManager.start()
+
     check observedAddrManager.addObservation(observed)
-    await observedAddrManager.start()
 
-    check observedAddrManager.getMostObservedProtosAndPorts() == @[observed]
-
-    await observedAddrManager.stop()
-
-type LifecycleProbe = ref object of Service
-  ## Records the state of the manager at the moment the switch starts and stops
-  ## the services.
-  managerStartedOnServiceStart: bool
-  managerStartedOnServiceStop: bool
-
-method setup(self: LifecycleProbe, switch: Switch) {.raises: [].} =
-  discard
-
-method start(
-    self: LifecycleProbe, switch: Switch
-) {.async: (raises: [CancelledError]).} =
-  self.managerStartedOnServiceStart = switch.observedAddrManager.isStarted()
-
-method stop(
-    self: LifecycleProbe, switch: Switch
-) {.async: (raises: [CancelledError]).} =
-  self.managerStartedOnServiceStop = switch.observedAddrManager.isStarted()
+    observedAddrManager.stop()
 
 suite "Switch-owned ObservedAddrManager":
   teardown:
@@ -197,6 +207,10 @@ suite "Switch-owned ObservedAddrManager":
       firstObserved = ma("/ip4/1.2.3.4/tcp/1")
       lastObserved = ma("/ip4/5.6.7.8/tcp/1")
 
+    await switch.start()
+    defer:
+      await switch.stop()
+
     # minCount is 1, so a single observation is enough
     check:
       switch.observedAddrManager.addObservation(firstObserved)
@@ -209,7 +223,7 @@ suite "Switch-owned ObservedAddrManager":
       switch.observedAddrManager.getMostObservedProtosAndPorts() == @[lastObserved]
 
   asyncTest "the deprecated builder hook still wires the given manager":
-    let observedAddrManager = ObservedAddrManager.new(maxSize = 1, minCount = 1)
+    let observedAddrManager = newManager(maxSize = 1, minCount = 1)
 
     {.push warning[Deprecated]: off.}
     let switch = makeStandardSwitchBuilder(ma("/memorytransport/*"))
@@ -221,21 +235,16 @@ suite "Switch-owned ObservedAddrManager":
       switch.observedAddrManager == observedAddrManager
       switch.peerStore.identify.observedAddrManager == observedAddrManager
 
-  asyncTest "the manager starts before the services and stops after them":
-    let
-      switch = makeStandardSwitch(ma("/memorytransport/*"))
-      probe = LifecycleProbe()
-    switch.services.add(probe)
+  asyncTest "the switch starts and stops the manager":
+    let switch = makeStandardSwitch(ma("/memorytransport/*"))
+
+    check not switch.observedAddrManager.isStarted()
 
     await switch.start()
     check switch.observedAddrManager.isStarted()
 
     await switch.stop()
-
-    check:
-      probe.managerStartedOnServiceStart
-      probe.managerStartedOnServiceStop
-      not switch.observedAddrManager.isStarted()
+    check not switch.observedAddrManager.isStarted()
 
   asyncTest "stopping the switch drops the observations":
     let
