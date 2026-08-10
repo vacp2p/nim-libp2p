@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sets
+import chronos, results, sets, tables
 import
   ../../../libp2p/[
     extended_peer_record,
@@ -24,7 +24,7 @@ suite "Advertiser - addProvidedService":
     let serviceId = service.id.hashServiceId()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
 
     check disco.rtManager.hasService(serviceId)
 
@@ -33,7 +33,7 @@ suite "Advertiser - addProvidedService":
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
 
     check disco.rtManager.hasService(serviceId)
     check disco.advertiser.running.len() == 0
@@ -44,7 +44,7 @@ suite "Advertiser - addProvidedService":
     let serviceId = service.id.hashServiceId()
 
     disco.populateAdvertisementTable(serviceId)
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
 
     check disco.advertiser.running.len() == disco.discoConfig.kRegister
 
@@ -71,7 +71,7 @@ suite "Advertiser - addProvidedService":
         overpopulatedBuckets.inc
     check overpopulatedBuckets > 0
 
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
 
     check disco.advertiser.running.len() == overpopulatedBuckets * kRegister
 
@@ -81,10 +81,10 @@ suite "Advertiser - addProvidedService":
     let serviceId = service.id.hashServiceId()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
     let runningAfterFirst = disco.advertiser.running.len()
 
-    disco.addProvidedService(service)
+    check disco.addProvidedService(service).isOk()
 
     check disco.rtManager.hasService(serviceId)
     check disco.advertiser.running.len() == runningAfterFirst
@@ -96,14 +96,51 @@ suite "Advertiser - addProvidedService":
     let s3 = makeServiceInfo("svc-3")
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
-    disco.addProvidedService(s3)
+    check disco.addProvidedService(s1).isOk()
+    check disco.addProvidedService(s2).isOk()
+    check disco.addProvidedService(s3).isOk()
 
     check disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.hasService(s3.id.hashServiceId())
     check disco.advertiser.running.len() == 3
+
+suite "Advertiser - caller-supplied advertisement":
+  teardown:
+    checkTrackers()
+
+  test "stores a valid advertisement for reuse on rotation":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let advert = makeAdvertisement(service.id).encode()
+
+    disco.populateRoutingTable(1)
+
+    check disco.addProvidedService(service, Opt.some(advert)).isOk()
+    check disco.advertiser.providedAdverts[service.id.hashServiceId()] == advert
+
+  test "rejects an advertisement that does not decode":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+
+    check disco.addProvidedService(service, Opt.some(@[1'u8, 2, 3, 4])).isErr()
+    check not disco.rtManager.hasService(service.id.hashServiceId())
+
+  test "rejects an advertisement for another service":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo("wanted-service")
+    let advert = makeAdvertisement("other-service").encode()
+
+    check disco.addProvidedService(service, Opt.some(advert)).isErr()
+    check not disco.rtManager.hasService(service.id.hashServiceId())
+
+  test "rejects an advertisement with oversized service data":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let advert = makeOversizedAdvertisement(service.id).encode()
+
+    check disco.addProvidedService(service, Opt.some(advert)).isErr()
+    check not disco.rtManager.hasService(service.id.hashServiceId())
 
 suite "Advertiser - removeProvidedService":
   teardown:
@@ -117,8 +154,8 @@ suite "Advertiser - removeProvidedService":
     let sid2 = s2.id.hashServiceId()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
+    check disco.addProvidedService(s1).isOk()
+    check disco.addProvidedService(s2).isOk()
 
     await disco.removeProvidedService(s1.id)
     disco.unregisterInterest(s1.id) # local registrar has interest too
@@ -141,8 +178,8 @@ suite "Advertiser - removeProvidedService":
     let s2 = makeServiceInfo("svc-2")
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
+    check disco.addProvidedService(s1).isOk()
+    check disco.addProvidedService(s2).isOk()
 
     await disco.removeProvidedService(s1.id)
     disco.unregisterInterest(s1.id) # local registrar has interest too

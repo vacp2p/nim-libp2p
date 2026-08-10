@@ -75,32 +75,15 @@ proc new*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(
-    switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(
-      replication = config.replication,
-      usefulnessGracePeriod = config.usefulnessGracePeriod,
-      bucketStaleTime = config.bucketStaleTime,
-    ),
-  )
-
   let disco = ServiceDiscovery(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    config: config,
-    providerManager:
-      ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
-    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
     rtManager: ServiceRoutingTableManager.new(),
-    clientMode: client,
     advertiser: Advertiser.new(),
     registrar: Registrar.new(discoConfig.advertCacheCap),
     services: toHashSet(services),
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
+  disco.initKadBase(switch, config, rng, isServer = not client)
 
   # Fill up buckets with initial bootstrap nodes
   disco.updatePeers(bootstrapNodes)
@@ -112,13 +95,18 @@ proc new*(
     disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
 
   disco.codec = codec
-  if client:
-    return disco
 
   disco.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
+    if not disco.isServer:
+      trace "Refusing inbound query while not serving", stream
+      await stream.reset()
+      return
+
+    disco.serverStreams.incl(stream)
     defer:
+      disco.serverStreams.excl(stream)
       await stream.close()
     while not stream.atEof:
       let buf =
@@ -168,7 +156,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
     disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
 
   for serviceInfo in disco.services:
-    disco.addProvidedService(serviceInfo)
+    disco.addProvidedService(serviceInfo).isOkOr:
+      error "cannot advertise configured service", service = serviceInfo.id, error
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()
