@@ -203,8 +203,7 @@ proc generateNodes*(
     fanoutTTL = 1.minutes,
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
-    overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
-      Opt.none(tuple[bytes: int, interval: Duration]),
+    overheadRateLimit: Opt[RateLimit] = Opt.none(RateLimit),
     codecs: seq[string] = @[],
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,

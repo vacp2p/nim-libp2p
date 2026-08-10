@@ -253,8 +253,23 @@ const MaxReadBytes {.ffiConst.} = 64 * 1024 * 1024
   ## Caps the buffer an untrusted peer can make us pre-allocate before any byte
   ## arrives; well above libp2p's largest framed messages.
 
-proc mountGossipsub(lib: LibP2P, triggerSelf: bool): Result[void, string] =
-  let gs = GossipSub.init(switch = lib.switch, triggerSelf = triggerSelf, rng = lib.rng)
+proc mountGossipsub(lib: LibP2P, cfg: ParsedGossipsub): Result[void, string] =
+  # `init` marks the set explicit, so every parameter left out keeps its default.
+  # It also runs `validateParameters`, which rejects an inconsistent rate limit.
+  let gs =
+    try:
+      GossipSub.init(
+        switch = lib.switch,
+        triggerSelf = cfg.triggerSelf,
+        maxMessageSize = cfg.maxMessageSize,
+        rng = lib.rng,
+        parameters = GossipSubParams.init(
+          overheadRateLimit = cfg.overheadRateLimit,
+          disconnectPeerAboveRateLimit = cfg.disconnectPeerAboveRateLimit,
+        ),
+      )
+    except InitializationError as e:
+      return err(e.msg)
   try:
     lib.switch.mount(gs)
   except LPError as e:
@@ -302,8 +317,8 @@ proc mountServiceDiscovery(
   ok()
 
 proc mountProtocols(lib: LibP2P, cfg: ParsedConfig): Result[void, string] =
-  if cfg.mountGossipsub:
-    ?mountGossipsub(lib, cfg.gossipsubTriggerSelf)
+  if cfg.gossipsub.mount:
+    ?mountGossipsub(lib, cfg.gossipsub)
 
   if cfg.mountServiceDiscovery:
     ?mountServiceDiscovery(lib, cfg.bootstrapNodes)
@@ -438,10 +453,20 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
 # config without the generated header. Not layout-compatible with the generated
 # `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
 # `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
+type CRateLimitConfig {.exportc: "libp2p_rate_limit_config", bycopy.} = object
+  bytes: cint
+  intervalMs: int64
+
+type CGossipsubConfig {.exportc: "libp2p_gossipsub_config", bycopy.} = object
+  mount: cint
+  triggerSelf: cint
+  maxMessageSize: cint
+  overheadRateLimit: CRateLimitConfig
+  disconnectPeerAboveRateLimit: cint
+
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
   logLevel: cint
-  mountGossipsub: cint
-  gossipsubTriggerSelf: cint
+  gossipsub: CGossipsubConfig
   mountKad: cint
   mountServiceDiscovery: cint
   dnsResolver: cstring
