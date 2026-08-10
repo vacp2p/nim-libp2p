@@ -92,6 +92,23 @@ suite "Advertiser - addProvidedService":
     await disco.removeProvidedService(service.id)
     check disco.addProvidedService(service).isOk()
 
+  test "a failed record build leaves no half-added service behind":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    var addrs: seq[MultiAddress]
+    for _ in 1 .. 200: # enough that the record no longer fits MaxXPRSize
+      addrs.add(makeMultiAddress("10.0.0.1"))
+    disco.switch.peerInfo.addrs = addrs
+    check disco.record().isErr()
+
+    check disco.addProvidedService(service).isErr()
+    check not disco.rtManager.hasService(serviceId)
+
+    disco.switch.peerInfo.addrs = @[makeMultiAddress("10.0.0.1")]
+    check disco.addProvidedService(service).isOk()
+
   test "multiple distinct services each get their own routing table":
     let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
@@ -163,6 +180,7 @@ suite "Advertiser - caller-supplied advertisement":
     let serviceId = service.id.hashServiceId()
     let first = makeAdvertisement(service.id).encode()
     let second = makeAdvertisement(service.id).encode()
+    check first != second # each helper call signs with a fresh key
 
     disco.populateRoutingTable(1)
 

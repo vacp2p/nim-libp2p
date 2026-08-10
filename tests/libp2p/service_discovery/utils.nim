@@ -104,11 +104,11 @@ proc makeOversizedAdvertisement*(
 
 const UnknownEnvelopeField = 15 ## no `Envelope` field carries this number
 
-proc padAdvertisement*(advert: seq[byte], padding: int): seq[byte] =
+proc padAdvertisement*(advert: seq[byte], paddingBytes: int): seq[byte] =
   ## Grows the encoded record with a field the decoder skips, so only its
   ## incoming length reveals the padding.
   var pb = initProtoBuffer()
-  pb.write(UnknownEnvelopeField, newSeq[byte](padding))
+  pb.write(UnknownEnvelopeField, newSeq[byte](paddingBytes))
   pb.finish()
   advert & pb.buffer
 

@@ -51,8 +51,8 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
 
 proc advertFor(disco: ServiceDiscovery, serviceId: ServiceId): seq[byte] =
   ## The caller's own bytes when it supplied them, this node's record otherwise.
-  if serviceId in disco.advertiser.providedAdverts:
-    return disco.advertiser.providedAdverts.getOrDefault(serviceId)
+  disco.advertiser.providedAdverts.withValue(serviceId, stored):
+    return stored[]
 
   disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
 
@@ -64,11 +64,27 @@ proc advertiseToRegistrar*(
   advert: seq[byte],
 ) {.async: (raises: [CancelledError]).}
 
+proc trackAdvertiseTask(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    registrar: PeerId,
+    bucketIdx: int,
+    advertBytes: seq[byte],
+) =
+  let fut =
+    disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advertBytes)
+  disco.advertiser.running.incl(
+    AdvertiseTask(
+      fut: fut, serviceId: serviceId, registrar: registrar, bucketIdx: bucketIdx
+    )
+  )
+  cd_advertiser_pending_actions.inc()
+
 proc startLocalRegistration(disco: ServiceDiscovery) =
   ## Starts (or restarts) the single long-lived local self-registration task.
 
   if not disco.isServer:
-    trace "not registering locally while in client mode"
+    trace "not registering locally while in client mode", services = disco.services.len
     return
 
   if not disco.localRegistrationLoop.isNil and not disco.localRegistrationLoop.finished:
@@ -164,13 +180,7 @@ proc maintainRegistrations*(
         continue
 
       for registrar in toAdd:
-        let fut =
-          disco.advertiseToRegistrar(sid, registrar, Opt.none(Ticket), advertBytes)
-        let task = AdvertiseTask(
-          fut: fut, serviceId: sid, registrar: registrar, bucketIdx: bucketIdx
-        )
-        disco.advertiser.running.incl(task)
-        cd_advertiser_pending_actions.inc()
+        disco.trackAdvertiseTask(sid, registrar, bucketIdx, advertBytes)
 
   # Defensive restart of the local registration loop if it died unexpectedly
   # while we still provide services.
@@ -307,8 +317,7 @@ proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, strin
   # measured before the decode, which skips (and so hides) unknown fields
   if advert.len > MaxXPRSize:
     return err(
-      "oversized advertisement: the encoded record must stay under " & $MaxXPRSize &
-        " bytes"
+      "oversized advertisement: " & $advert.len & " bytes, the limit is " & $MaxXPRSize
     )
 
   let ad = Advertisement.decode(advert).valueOr:
@@ -316,8 +325,8 @@ proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, strin
 
   if not ad.isValid():
     return err(
-      "oversized advertisement: the record must stay under " & $MaxXPRSize &
-        " bytes and each service data under " & $MaxServiceDataSize & " bytes"
+      "invalid advertisement: the record must stay at most " & $MaxXPRSize &
+        " bytes and each service data at most " & $MaxServiceDataSize & " bytes"
     )
 
   if not ad.advertisesService(service.id.hashServiceId()):
@@ -344,13 +353,16 @@ proc scheduleRegistrations(
         error "cannot convert key to peer id", error
         continue
 
-      let fut =
-        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advertBytes)
-      let task = AdvertiseTask(
-        fut: fut, serviceId: serviceId, registrar: registrar, bucketIdx: bucketIdx
-      )
-      disco.advertiser.running.incl(task)
-      cd_advertiser_pending_actions.inc()
+      disco.trackAdvertiseTask(serviceId, registrar, bucketIdx, advertBytes)
+
+proc undoProvidedService(
+    disco: ServiceDiscovery, service: ServiceInfo, serviceId: ServiceId
+) =
+  ## Undoes what `addProvidedService` changed before it failed, so the caller can
+  ## retry instead of meeting "already advertised" on the next attempt.
+  disco.advertiser.providedAdverts.del(serviceId)
+  disco.rtManager.removeService(serviceId, Provided)
+  disco.services.excl(service)
 
 proc addProvidedService*(
     disco: ServiceDiscovery,
@@ -374,12 +386,10 @@ proc addProvidedService*(
   ):
     return err("service '" & service.id & "' is already advertised, stop it first")
 
-  debug "added provided service", service = service.id, serviceId
-
   disco.services.incl(service)
-  cd_advertiser_services_added.inc()
 
   let advTable = disco.rtManager.getTable(serviceId).valueOr:
+    disco.undoProvidedService(service, serviceId)
     return err("routing table missing for service '" & service.id & "'")
 
   # When a caller supplied an explicit advert we store it so that future
@@ -388,7 +398,11 @@ proc addProvidedService*(
     disco.advertiser.providedAdverts[serviceId] = advert.get()
 
   let advertBytes = disco.getAdvertBytes(advert).valueOr:
+    disco.undoProvidedService(service, serviceId)
     return err("cannot build the extended peer record to advertise")
+
+  debug "added provided service", service = service.id, serviceId
+  cd_advertiser_services_added.inc()
 
   disco.scheduleRegistrations(serviceId, advTable, advertBytes)
 
