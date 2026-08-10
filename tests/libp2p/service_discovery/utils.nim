@@ -12,6 +12,7 @@ import
     multiaddress,
     peerid,
     peerinfo,
+    protobuf/minprotobuf,
     protocols/kademlia,
     protocols/kademlia/protobuf,
     protocols/service_discovery,
@@ -100,6 +101,16 @@ proc makeOversizedAdvertisement*(
     services: @[ServiceInfo(id: serviceId, data: newSeq[byte](MaxServiceDataSize + 1))],
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+const UnknownEnvelopeField = 15 ## no `Envelope` field carries this number
+
+proc padAdvertisement*(advert: seq[byte], padding: int): seq[byte] =
+  ## Grows the encoded record with a field the decoder skips, so only its
+  ## incoming length reveals the padding.
+  var pb = initProtoBuffer()
+  pb.write(UnknownEnvelopeField, newSeq[byte](padding))
+  pb.finish()
+  advert & pb.buffer
 
 proc createSwitch*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),

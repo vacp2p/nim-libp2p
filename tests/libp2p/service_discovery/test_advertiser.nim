@@ -75,7 +75,7 @@ suite "Advertiser - addProvidedService":
 
     check disco.advertiser.running.len() == overpopulatedBuckets * kRegister
 
-  test "adding same service twice is idempotent":
+  asyncTest "adding the same service twice fails until it is removed":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
@@ -84,10 +84,13 @@ suite "Advertiser - addProvidedService":
     check disco.addProvidedService(service).isOk()
     let runningAfterFirst = disco.advertiser.running.len()
 
-    check disco.addProvidedService(service).isOk()
+    check disco.addProvidedService(service).isErr()
 
     check disco.rtManager.hasService(serviceId)
     check disco.advertiser.running.len() == runningAfterFirst
+
+    await disco.removeProvidedService(service.id)
+    check disco.addProvidedService(service).isOk()
 
   test "multiple distinct services each get their own routing table":
     let disco = setupServiceDiscoveryNode()
@@ -141,6 +144,63 @@ suite "Advertiser - caller-supplied advertisement":
 
     check disco.addProvidedService(service, Opt.some(advert)).isErr()
     check not disco.rtManager.hasService(service.id.hashServiceId())
+
+  test "rejects an advertisement padded past MaxXPRSize with unknown fields":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let advert = padAdvertisement(makeAdvertisement(service.id).encode(), MaxXPRSize)
+
+    # the decoder skips the padding, so only the incoming length rejects this
+    check advert.len > MaxXPRSize
+    check Advertisement.decode(advert).isOk()
+
+    check disco.addProvidedService(service, Opt.some(advert)).isErr()
+    check not disco.rtManager.hasService(service.id.hashServiceId())
+
+  asyncTest "a new advertisement needs a stop before a restart":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+    let first = makeAdvertisement(service.id).encode()
+    let second = makeAdvertisement(service.id).encode()
+
+    disco.populateRoutingTable(1)
+
+    check disco.startAdvertising(service, Opt.some(first)).isOk()
+    check disco.startAdvertising(service, Opt.some(second)).isErr()
+    check disco.advertiser.providedAdverts[serviceId] == first
+
+    await disco.stopAdvertising(service.id)
+
+    check disco.startAdvertising(service, Opt.some(second)).isOk()
+    check disco.advertiser.providedAdverts[serviceId] == second
+
+suite "Advertiser - maintainRegistrations":
+  teardown:
+    checkTrackers()
+
+  asyncTest "stops scheduling in client mode and resumes on an upgrade":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+
+    disco.populateAdvertisementTable(service.id.hashServiceId())
+    check disco.addProvidedService(service).isOk()
+
+    await disco.advertiser.clear()
+    await disco.localRegistrationLoop.cancelAndWait()
+    check await disco.changeMode(isServer = false)
+
+    await disco.maintainRegistrations()
+
+    check disco.advertiser.running.len() == 0
+    check disco.localRegistrationLoop.finished()
+
+    check await disco.changeMode(isServer = true)
+
+    await disco.maintainRegistrations()
+
+    check disco.advertiser.running.len() > 0
+    check not disco.localRegistrationLoop.finished()
 
 suite "Advertiser - removeProvidedService":
   teardown:

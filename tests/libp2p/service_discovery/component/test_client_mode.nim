@@ -105,3 +105,25 @@ suite "Service Discovery Component - Client Mode":
     let other = makeServiceInfo("other-service")
     check advertiserNode.addProvidedService(other).isErr()
     check registrarNode.countAdsInCache(other.id.hashServiceId()) == 0
+
+  asyncTest "a downgrade to client mode ends the running registrations":
+    # a task already inside its loop stops at its next refresh
+    let conf = ServiceDiscoveryConfig.new(advertExpiry = 100.millis)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[advertiserNode, registrarNode])
+    await connect(advertiserNode, registrarNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    check advertiserNode.addProvidedService(service).isOk()
+    check advertiserNode.advertiser.running.len() > 0
+    checkUntilTimeout:
+      advertiserNode.countAdsInCache(serviceId) == 1
+
+    check await advertiserNode.changeMode(isServer = false)
+
+    checkUntilTimeout:
+      advertiserNode.localRegistrationLoop.finished()
+      advertiserNode.advertiser.running.allIt(it.fut.finished())

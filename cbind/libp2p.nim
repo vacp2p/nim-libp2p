@@ -919,6 +919,8 @@ proc libp2pServiceDiscoStartAdvertising*(
   ## node's record. A non-empty `advertisement` is a signed extended peer record,
   ## published verbatim instead of this node's own record; it fails when that
   ## record does not decode, is oversized, or does not list `serviceId`.
+  ## A service that is already advertised fails here: stop it first, then start
+  ## it again with the new advertisement.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
 

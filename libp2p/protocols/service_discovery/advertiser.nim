@@ -49,6 +49,13 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
     return Opt.none(seq[byte])
   Opt.some(extRecord.encode())
 
+proc advertFor(disco: ServiceDiscovery, serviceId: ServiceId): seq[byte] =
+  ## The caller's own bytes when it supplied them, this node's record otherwise.
+  if serviceId in disco.advertiser.providedAdverts:
+    return disco.advertiser.providedAdverts.getOrDefault(serviceId)
+
+  disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
+
 proc advertiseToRegistrar*(
   disco: ServiceDiscovery,
   serviceId: ServiceId,
@@ -60,6 +67,10 @@ proc advertiseToRegistrar*(
 proc startLocalRegistration(disco: ServiceDiscovery) =
   ## Starts (or restarts) the single long-lived local self-registration task.
 
+  if not disco.isServer:
+    trace "not registering locally while in client mode"
+    return
+
   if not disco.localRegistrationLoop.isNil and not disco.localRegistrationLoop.finished:
     return
   if disco.services.len == 0:
@@ -68,12 +79,7 @@ proc startLocalRegistration(disco: ServiceDiscovery) =
   let someService = disco.services.toSeq()[0]
   let sid = someService.id.hashServiceId()
 
-  let advertBytes = (
-    if sid in disco.advertiser.providedAdverts:
-      disco.advertiser.providedAdverts.getOrDefault(sid)
-    else:
-      disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
-  )
+  let advertBytes = disco.advertFor(sid)
   if advertBytes.len == 0:
     return
 
@@ -101,6 +107,10 @@ proc maintainRegistrations*(
   ## maintenance loop can rotate the slot to another peer in the bucket.
 
   cleanupFinishedTasks(disco.advertiser)
+
+  if not disco.isServer:
+    trace "no registration maintenance while in client mode"
+    return
 
   let selfPeer = disco.switch.peerInfo.peerId
 
@@ -146,12 +156,7 @@ proc maintainRegistrations*(
         if pid notin active and pid != selfPeer:
           candidates.add(pid)
 
-      let advertBytes = (
-        if sid in disco.advertiser.providedAdverts:
-          disco.advertiser.providedAdverts.getOrDefault(sid)
-        else:
-          disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
-      )
+      let advertBytes = disco.advertFor(sid)
       if advertBytes.len == 0:
         continue
 
@@ -233,10 +238,6 @@ proc advertiseToRegistrar*(
     ticket: Opt[Ticket],
     advert: seq[byte],
 ) {.async: (raises: [CancelledError]).} =
-  if not disco.isServer:
-    debug "not advertising while in client mode", serviceId, registrar
-    return
-
   if not disco.rtManager.hasService(serviceId):
     error "no service routing table found", serviceId
     return
@@ -248,7 +249,12 @@ proc advertiseToRegistrar*(
 
   debug "registering advert", serviceId, registrar, isSelf
 
+  # `changeMode` can flip the mode at any point, so every iteration re-reads it
   while true:
+    if not disco.isServer:
+      trace "not advertising while in client mode", serviceId, registrar
+      return
+
     let response = (
       await disco.sendRegister(registrar, serviceId, advert, currentTicket)
     ).valueOr:
@@ -297,6 +303,14 @@ proc advertiseToRegistrar*(
 proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, string] =
   ## Applies the checks a registrar applies in `isValidAdvertisement`, so a bad
   ## record fails here instead of being republished on every rotation.
+
+  # measured before the decode, which skips (and so hides) unknown fields
+  if advert.len > MaxXPRSize:
+    return err(
+      "oversized advertisement: the encoded record must stay under " & $MaxXPRSize &
+        " bytes"
+    )
+
   let ad = Advertisement.decode(advert).valueOr:
     return err("cannot decode advertisement: " & $error)
 
@@ -310,6 +324,33 @@ proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, strin
     return err("advertisement does not advertise service '" & service.id & "'")
 
   ok()
+
+proc scheduleRegistrations(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    table: RoutingTable,
+    advertBytes: seq[byte],
+) =
+  ## Spawns up to kRegister registration tasks per populated bucket.
+  for bucketIdx, bucket in table.buckets.pairs:
+    if bucket.peers.len == 0:
+      continue
+
+    let peers = disco.rng.pick(bucket.peers, disco.discoConfig.kRegister).valueOr:
+      continue
+
+    for peer in peers:
+      let registrar = peer.nodeId.toPeerId().valueOr:
+        error "cannot convert key to peer id", error
+        continue
+
+      let fut =
+        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advertBytes)
+      let task = AdvertiseTask(
+        fut: fut, serviceId: serviceId, registrar: registrar, bucketIdx: bucketIdx
+      )
+      disco.advertiser.running.incl(task)
+      cd_advertiser_pending_actions.inc()
 
 proc addProvidedService*(
     disco: ServiceDiscovery,
@@ -331,7 +372,7 @@ proc addProvidedService*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Provided,
   ):
-    return ok()
+    return err("service '" & service.id & "' is already advertised, stop it first")
 
   debug "added provided service", service = service.id, serviceId
 
@@ -349,25 +390,7 @@ proc addProvidedService*(
   let advertBytes = disco.getAdvertBytes(advert).valueOr:
     return err("cannot build the extended peer record to advertise")
 
-  for bucketIdx, bucket in advTable.buckets.pairs:
-    if bucket.peers.len == 0:
-      continue
-
-    let peers = disco.rng.pick(bucket.peers, disco.discoConfig.kRegister).valueOr:
-      continue
-
-    for peer in peers:
-      let registrar = peer.nodeId.toPeerId().valueOr:
-        error "cannot convert key to peer id", error
-        continue
-
-      let fut =
-        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advertBytes)
-      let task = AdvertiseTask(
-        fut: fut, serviceId: serviceId, registrar: registrar, bucketIdx: bucketIdx
-      )
-      disco.advertiser.running.incl(task)
-      cd_advertiser_pending_actions.inc()
+  disco.scheduleRegistrations(serviceId, advTable, advertBytes)
 
   # Ensure the single local registration loop is running.
   # We start it when we add the first provided service.
