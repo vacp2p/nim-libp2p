@@ -75,32 +75,15 @@ proc new*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(
-    switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(
-      replication = config.replication,
-      usefulnessGracePeriod = config.usefulnessGracePeriod,
-      bucketStaleTime = config.bucketStaleTime,
-    ),
-  )
-
   let disco = ServiceDiscovery(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    config: config,
-    providerManager:
-      ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
-    probeSem: newAsyncSemaphore(config.limits.maxConcurrentProbes),
     rtManager: ServiceRoutingTableManager.new(),
-    isServer: not client,
     advertiser: Advertiser.new(),
     registrar: Registrar.new(discoConfig.advertCacheCap),
     services: toHashSet(services),
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
+  disco.initKadBase(switch, config, rng, isServer = not client)
 
   # Fill up buckets with initial bootstrap nodes
   disco.updatePeers(bootstrapNodes)
