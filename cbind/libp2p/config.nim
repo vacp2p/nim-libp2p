@@ -158,8 +158,8 @@ proc parsePrivateKey(raw: seq[byte]): Result[Opt[PrivateKey], string] =
 const
   MaxGossipsubMessageSize {.ffiConst.} = 64 * 1024 * 1024
     ## A peer can make us preallocate this much before a byte is validated.
-  MaxOverheadRateLimitIntervalMs {.ffiConst.} = 60 * 60 * 1000
-    ## Above an hour `chronos.milliseconds` overflows `Duration` and raises a Defect.
+  MaxOverheadRateLimitIntervalMs {.ffiConst.} = high(int64) div 1_000_000
+    ## `chronos.milliseconds` scales to the nanoseconds a `Duration` holds.
 
 func requireMount(cfg: GossipsubConfig): Result[void, string] =
   if cfg.mount:
@@ -178,29 +178,21 @@ func parseMaxMessageSize(size: int): Result[int, string] =
     return err("maxMessageSize must be at most " & $MaxGossipsubMessageSize & " bytes")
   ok(size)
 
-func validateLimit(cfg: GossipsubConfig): Result[void, string] =
-  let limit = cfg.overheadRateLimit
-  if limit.bytes < 0:
-    return err("overheadRateLimit.bytes must be 0 or greater")
-  if limit.intervalMs < 0:
-    return err("overheadRateLimit.intervalMs must be 0 or greater")
+func validateLimit(limit: RateLimitConfig): Result[void, string] =
+  ## Rules of the wire shape only; `GossipSubParams.validateParameters` checks
+  ## the limit itself.
   if limit.intervalMs > MaxOverheadRateLimitIntervalMs:
     return err(
       "overheadRateLimit.intervalMs must be at most " & $MaxOverheadRateLimitIntervalMs
     )
-  if limit.bytes == 0:
-    if limit.intervalMs > 0:
-      return err("overheadRateLimit.intervalMs requires overheadRateLimit.bytes")
-    if cfg.disconnectPeerAboveRateLimit:
-      return err("disconnectPeerAboveRateLimit requires overheadRateLimit.bytes")
-    return ok()
-  if limit.intervalMs == 0:
+  if limit.bytes == 0 and limit.intervalMs != 0:
+    return err("overheadRateLimit.intervalMs requires overheadRateLimit.bytes")
+  if limit.bytes != 0 and limit.intervalMs == 0:
     return err("overheadRateLimit.bytes requires overheadRateLimit.intervalMs")
   ok()
 
-func parseRateLimit(cfg: GossipsubConfig): Result[Opt[RateLimit], string] =
-  ?validateLimit(cfg)
-  let limit = cfg.overheadRateLimit
+func parseRateLimit(limit: RateLimitConfig): Result[Opt[RateLimit], string] =
+  ?validateLimit(limit)
   if limit.bytes == 0:
     return ok(Opt.none(RateLimit))
   ok(
@@ -216,7 +208,7 @@ func parseGossipsub(cfg: GossipsubConfig): Result[ParsedGossipsub, string] =
       mount: cfg.mount,
       triggerSelf: cfg.triggerSelf,
       maxMessageSize: ?parseMaxMessageSize(cfg.maxMessageSize),
-      overheadRateLimit: ?parseRateLimit(cfg),
+      overheadRateLimit: ?parseRateLimit(cfg.overheadRateLimit),
       disconnectPeerAboveRateLimit: cfg.disconnectPeerAboveRateLimit,
     )
   )

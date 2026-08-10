@@ -255,16 +255,21 @@ const MaxReadBytes {.ffiConst.} = 64 * 1024 * 1024
 
 proc mountGossipsub(lib: LibP2P, cfg: ParsedGossipsub): Result[void, string] =
   # `init` marks the set explicit, so every parameter left out keeps its default.
-  let gs = GossipSub.init(
-    switch = lib.switch,
-    triggerSelf = cfg.triggerSelf,
-    maxMessageSize = cfg.maxMessageSize,
-    rng = lib.rng,
-    parameters = GossipSubParams.init(
-      overheadRateLimit = cfg.overheadRateLimit,
-      disconnectPeerAboveRateLimit = cfg.disconnectPeerAboveRateLimit,
-    ),
-  )
+  # It also runs `validateParameters`, which rejects an inconsistent rate limit.
+  let gs =
+    try:
+      GossipSub.init(
+        switch = lib.switch,
+        triggerSelf = cfg.triggerSelf,
+        maxMessageSize = cfg.maxMessageSize,
+        rng = lib.rng,
+        parameters = GossipSubParams.init(
+          overheadRateLimit = cfg.overheadRateLimit,
+          disconnectPeerAboveRateLimit = cfg.disconnectPeerAboveRateLimit,
+        ),
+      )
+    except InitializationError as e:
+      return err(e.msg)
   try:
     lib.switch.mount(gs)
   except LPError as e:
