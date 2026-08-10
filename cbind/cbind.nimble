@@ -8,9 +8,7 @@ license = "MIT"
 
 import os, strutils
 
-requires "taskpools >= 0.1.0",
-  "ffi >= 0.3.0",
-  "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc"
+requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
@@ -35,8 +33,8 @@ proc findInstalledPkgDir(prefix: string): string =
   )
 
 proc ffiDepPaths(): string =
-  # `setup` does not put direct Git URL deps on nimble.paths; point the compiler
-  # at the installed copies.
+  # A global install writes no nimble.paths; point the compiler at the installed
+  # copies.
   " --path:" & findInstalledPkgDir("ffi-") & " --path:" &
     findInstalledPkgDir("cbor_serialization-")
 
