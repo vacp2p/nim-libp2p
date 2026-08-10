@@ -286,6 +286,18 @@ proc new*(
 
   return pm
 
+type
+  NetSizeMeasurement* = object
+    distance*: float64 ## normalized XOR distance to a lookup target, in ``[0, 1]``
+    weight*: float64
+    timestamp*: Moment
+
+  NetworkSizeEstimator* = ref object
+    ## Network size from the distances of the closest peers seen across lookups.
+    ## See ``netsize.nim`` for the math.
+    bucketSize*: int
+    measurements*: seq[seq[NetSizeMeasurement]] ## one bucket per closest-peer index
+
 proc toPeerIds*(keys: seq[Key]): seq[PeerId] =
   var peerIds = newSeqOfCap[PeerId](keys.len)
   for k in keys:

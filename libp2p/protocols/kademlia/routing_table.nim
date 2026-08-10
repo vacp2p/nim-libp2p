@@ -83,7 +83,7 @@ func nPeersForCpl*(rtable: RoutingTable, cpl: int): int =
   ## Fullness of the bucket holding the peers that share `cpl` bits with self.
   var count = 0
   for bucket in rtable.buckets:
-    count += bucket.peers.countIt(rtable.commonPrefixLen(it.nodeId) == cpl)
+    count += bucket.peers.countIt(rtable.commonPrefixLen(it) == cpl)
   count
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =

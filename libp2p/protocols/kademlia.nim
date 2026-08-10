@@ -11,11 +11,11 @@ import
     routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
     ping,
   ]
-import ./kademlia/kademlia_metrics
+import ./kademlia/[kademlia_metrics, netsize]
 
 export
   chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
-  provider, ping, kademlia_metrics
+  provider, ping, kademlia_metrics, netsize
 
 logScope:
   topics = "kad-dht"
@@ -255,7 +255,6 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     await sleepAsync(kad.config.livenessIdleInterval)
 
     let grace = kad.config.livenessGracePeriod
-    var saturated = false
 
     for rtable in kad.maintainableTables():
       if kad.stopping:
