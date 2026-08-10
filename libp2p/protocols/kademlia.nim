@@ -286,7 +286,7 @@ proc new*(
 ): K {.raises: [].} =
   let kad = K()
   kad.initKadBase(switch, config, rng, isServer)
-  
+
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
@@ -415,3 +415,7 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
       admissionProbes.values.toSeq().cancelAndWait(),
       livenessProbes.values.toSeq().cancelAndWait(),
     )
+
+  # Optimistic provide returns before its ADD_PROVIDER RPCs finish.
+  let provideTasks = move kad.provideTasks
+  await noCancel provideTasks.cancelAndWait()
