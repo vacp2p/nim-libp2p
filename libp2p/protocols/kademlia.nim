@@ -177,9 +177,11 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## bucket refresh so dead peers are not held until the next refresh tick.
   ## At most one probe is in flight per peer across all maintainable tables.
 
+  var idle = true
   while not kad.stopping:
-    # Initial idle: let start() finish bootstrap before the first scan.
-    await sleepAsync(kad.config.livenessIdleInterval)
+    if idle:
+      # Initial idle: let start() finish bootstrap before the first scan.
+      await sleepAsync(kad.config.livenessIdleInterval)
 
     let grace = kad.config.livenessGracePeriod
 
@@ -203,6 +205,9 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       except CancelledError as exc:
         await noCancel inFlight.cancelAndWait()
         raise exc
+      idle = false
+    else:
+      idle = true
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
