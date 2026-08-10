@@ -198,6 +198,32 @@ suite "KadDHT message sender":
     ).isOk()
     check proto.streams == 2
 
+  asyncTest "a cancelled RPC leaves the peer's connection up":
+    let proto = newCountingEcho()
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await sender.stop()
+
+    await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
+
+    # The cancellation lands in the dial, which is where it hurts: `Dialer.dial`
+    # closes the connection it reused when it is cancelled, which would take
+    # down every other stream the peer holds on that connection.
+    let cancelled = sender.sendRequest(
+      server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 5.seconds
+    )
+    await cancelled.cancelAndWait()
+
+    check client.isConnected(server.peerInfo.peerId)
+
+    let reply = await sender.sendRequest(
+      server.peerInfo.peerId, server.peerInfo.addrs, @[byte 2], 5.seconds
+    )
+    check reply.tryGet() == @[byte 2]
+
   asyncTest "a stopped sender refuses to dial":
     let proto = newCountingEcho()
     let (client, server) = setupPair(proto)
