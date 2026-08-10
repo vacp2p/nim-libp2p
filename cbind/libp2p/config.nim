@@ -178,7 +178,8 @@ func parseMaxMessageSize(size: int): Result[int, string] =
     return err("maxMessageSize must be at most " & $MaxGossipsubMessageSize & " bytes")
   ok(size)
 
-func checkRange(limit: RateLimitConfig): Result[void, string] =
+func validateLimit(cfg: GossipsubConfig): Result[void, string] =
+  let limit = cfg.overheadRateLimit
   if limit.bytes < 0:
     return err("overheadRateLimit.bytes must be 0 or greater")
   if limit.intervalMs < 0:
@@ -187,19 +188,21 @@ func checkRange(limit: RateLimitConfig): Result[void, string] =
     return err(
       "overheadRateLimit.intervalMs must be at most " & $MaxOverheadRateLimitIntervalMs
     )
-  ok()
-
-func parseRateLimit(cfg: GossipsubConfig): Result[Opt[RateLimit], string] =
-  let limit = cfg.overheadRateLimit
-  ?checkRange(limit)
   if limit.bytes == 0:
     if limit.intervalMs > 0:
       return err("overheadRateLimit.intervalMs requires overheadRateLimit.bytes")
     if cfg.disconnectPeerAboveRateLimit:
       return err("disconnectPeerAboveRateLimit requires overheadRateLimit.bytes")
-    return ok(Opt.none(RateLimit))
+    return ok()
   if limit.intervalMs == 0:
     return err("overheadRateLimit.bytes requires overheadRateLimit.intervalMs")
+  ok()
+
+func parseRateLimit(cfg: GossipsubConfig): Result[Opt[RateLimit], string] =
+  ?validateLimit(cfg)
+  let limit = cfg.overheadRateLimit
+  if limit.bytes == 0:
+    return ok(Opt.none(RateLimit))
   ok(
     Opt.some(
       RateLimit(bytes: limit.bytes, interval: chronos.milliseconds(limit.intervalMs))
