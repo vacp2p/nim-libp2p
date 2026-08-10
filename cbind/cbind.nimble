@@ -8,7 +8,8 @@ license = "MIT"
 
 import os, strutils
 
-requires "taskpools >= 0.1.0", "ffi >= 0.3.0",
+requires "taskpools >= 0.1.0",
+  "ffi >= 0.3.0",
   "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc"
 
 proc findInstalledPkgDir(prefix: string): string =
