@@ -42,6 +42,7 @@ const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
   DefaultTopicsHigh* = 1024 ## max topics a single peer may subscribe to
+  DefaultPubSubMaxMessageSize* = 1024 * 1024 ## max size of a single pubsub message
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -718,7 +719,7 @@ proc init*[PubParams: object | bool](
     sign: bool = true,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
-    maxMessageSize: int = 1024 * 1024,
+    maxMessageSize: int = DefaultPubSubMaxMessageSize,
     rng: Rng,
     parameters: PubParams = false,
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),

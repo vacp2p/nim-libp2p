@@ -105,7 +105,7 @@ proc init*(
     disconnectBadPeers = false,
     enablePX = false,
     bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
-    overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
+    overheadRateLimit = Opt.none(RateLimit),
     disconnectPeerAboveRateLimit = false,
     maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
@@ -162,6 +162,19 @@ proc init*(
     pingpongExtensionConfig: pingpongExtensionConfig,
   )
 
+func validateOverheadRateLimit(parameters: GossipSubParams): Result[void, cstring] =
+  let limit = parameters.overheadRateLimit.valueOr:
+    if parameters.disconnectPeerAboveRateLimit:
+      return err(
+        "gossipsub: disconnectPeerAboveRateLimit parameter error, Requires overheadRateLimit"
+      )
+    return ok()
+  if limit.bytes <= 0:
+    return err("gossipsub: overheadRateLimit.bytes parameter error, Must be > 0")
+  if limit.interval <= ZeroDuration:
+    return err("gossipsub: overheadRateLimit.interval parameter error, Must be > 0")
+  ok()
+
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
   if (parameters.dOut >= parameters.dLow) or (parameters.dOut > (parameters.d div 2)):
     err(
@@ -210,7 +223,7 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
   elif parameters.maxLowPriorityQueueLen <= 0:
     err("gossipsub: maxLowPriorityQueueLen parameter error, Must be > 0")
   else:
-    ok()
+    validateOverheadRateLimit(parameters)
 
 proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
   if parameters.timeInMeshWeight <= 0.0 or parameters.timeInMeshWeight > 1.0:
