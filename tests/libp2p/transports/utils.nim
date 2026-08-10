@@ -205,8 +205,8 @@ proc runSingleStreamScenario*(
     server, transportProvider, streamProvider, clientStreamHandler
   )
   await clientTask
-  await serverTask
   await server.stop()
+  await serverTask
 
 proc dualStackStreamScenario*(
     listenAddrs: seq[MultiAddress],
