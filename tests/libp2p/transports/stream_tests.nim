@@ -399,12 +399,16 @@ template streamTransportTest*(
     )
 
   asyncTest "multiple empty writes before closeWrite":
+    var serverHandlerDone = newFuture[void]()
+
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Even with multiple empty writes, reading should eventually get EOF
         var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
         check bytesRead == 0 # Should get EOF
+
+        serverHandlerDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -413,6 +417,7 @@ template streamTransportTest*(
         await stream.write(@[])
         await stream.write(@[])
         await stream.closeWrite()
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       @[addressIP4],
@@ -423,6 +428,8 @@ template streamTransportTest*(
     )
 
   asyncTest "closeWrite immediately after newStream":
+    var serverHandlerDone = newFuture[void]()
+
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Should get EOF immediately
@@ -430,10 +437,13 @@ template streamTransportTest*(
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
         check bytesRead == 0
 
+        serverHandlerDone.complete()
+
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Close write immediately without any data
         await stream.closeWrite()
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       @[addressIP4],

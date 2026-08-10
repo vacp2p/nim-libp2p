@@ -180,7 +180,9 @@ proc schedule(
     await service.askConnectedPeers(switch)
 
 proc addressMapper(
-    self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
+    self: AutonatService,
+    observedAddrManager: ObservedAddrManager,
+    listenAddrs: seq[MultiAddress],
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   if self.networkReachability != NetworkReachability.Reachable:
     return listenAddrs
@@ -191,7 +193,7 @@ proc addressMapper(
     try:
       if not listenAddr.isPublicMA() and
           self.networkReachability == NetworkReachability.Reachable:
-        processedMA = peerStore.guessDialableAddr(listenAddr)
+        processedMA = observedAddrManager.guessDialableAddr(listenAddr)
           # handle manual port forwarding
     except CatchableError as exc:
       debug "Error while handling address mapper", description = exc.msg
@@ -204,7 +206,7 @@ method setup*(self: AutonatService, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, switch.peerStore, listenAddrs)
+    return await addressMapper(self, switch.observedAddrManager, listenAddrs)
 
   if self.askNewConnectedPeers:
     self.newConnectedPeerHandler = proc(

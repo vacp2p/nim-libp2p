@@ -7,19 +7,46 @@ import std/[sequtils, tables, sugar]
 import chronos
 import multiaddress, multicodec
 
+const
+  DefaultObservedAddrMaxSize* = 10
+  DefaultObservedAddrMinCount* = 3
+
 type
-  ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
+  ObservedAddrManagerConfig* = object
+    maxSize*: int = DefaultObservedAddrMaxSize
+    minCount*: int = DefaultObservedAddrMinCount
+
+  ObservedAddrManagerState = enum
+    Fresh ## accepts observations: a manager seeded before the start is valid
+    Started
+    Stopped
+
   ObservedAddrManager* = ref object of RootObj
     observedIPsAndPorts: seq[MultiAddress]
     maxSize: int
     minCount: int
+    state: ObservedAddrManagerState
+
+func namesDialableAddr(observedAddr: MultiAddress): bool =
+  # a remote peer picks what it reports, and the window holds maxSize entries,
+  # so an address which no getter can return would only evict a useful one
+  let code = (observedAddr[0].flatMap(protoCode)).valueOr:
+    return false
+  if code != multiCodec("ip4") and code != multiCodec("ip6"):
+    return false
+  observedAddr.len().get(0) > 1
 
 proc addObservation*(self: ObservedAddrManager, observedAddr: MultiAddress): bool =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
+  ## Returns false when the manager is stopped, or when the address names no dialable address.
+  if self.state == Stopped:
+    return false
+  if not observedAddr.namesDialableAddr():
+    return false
   if self.observedIPsAndPorts.len >= self.maxSize:
     self.observedIPsAndPorts.del(0)
   self.observedIPsAndPorts.add(observedAddr)
-  return true
+  true
 
 proc getProtocol(
     self: ObservedAddrManager, observations: seq[MultiAddress], multiCodec: MultiCodec
@@ -76,11 +103,32 @@ proc guessDialableAddr*(self: ObservedAddrManager, ma: MultiAddress): MultiAddre
   return concat(observedIP, maRest).valueOr:
     ma
 
+func isStarted*(self: ObservedAddrManager): bool =
+  self.state == Started
+
+proc start*(self: ObservedAddrManager) {.async: (raises: [CancelledError]).} =
+  if self.state == Started:
+    return
+  self.state = Started
+
+proc stop*(self: ObservedAddrManager) {.async: (raises: [CancelledError]).} =
+  if self.state != Started:
+    return
+  self.state = Stopped
+  self.observedIPsAndPorts.setLen(0)
+
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.
   return "IPs and Ports: " & $self.observedIPsAndPorts
 
-proc new*(T: typedesc[ObservedAddrManager], maxSize = 10, minCount = 3): T =
-  ## Creates a new ObservedAddrManager.
+proc new*(
+    T: typedesc[ObservedAddrManager],
+    maxSize = DefaultObservedAddrMaxSize,
+    minCount = DefaultObservedAddrMinCount,
+): T =
   return
     T(observedIPsAndPorts: newSeq[MultiAddress](), maxSize: maxSize, minCount: minCount)
+
+proc new*(T: typedesc[ObservedAddrManager], config: ObservedAddrManagerConfig): T =
+  ## Creates a new ObservedAddrManager from a switch-level config.
+  T.new(maxSize = config.maxSize, minCount = config.minCount)

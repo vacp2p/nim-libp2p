@@ -160,10 +160,10 @@ proc askPeer(
     # the chicken-and-egg.
     var observedCandidates: seq[MultiAddress]
     for listenAddr in switch.peerInfo.listenAddrs:
-      let guessed = switch.peerStore.guessDialableAddr(listenAddr)
+      let guessed = switch.observedAddrManager.guessDialableAddr(listenAddr)
       if guessed != listenAddr:
         observedCandidates.add(guessed)
-    observedCandidates &= switch.peerStore.getMostObservedProtosAndPorts()
+    observedCandidates &= switch.observedAddrManager.getMostObservedProtosAndPorts()
 
     reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
         switch.peerInfo.addressPolicy(it)
@@ -223,7 +223,9 @@ proc schedule(
     await service.askConnectedPeers(switch)
 
 proc addressMapper(
-    self: AutonatV2Service, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
+    self: AutonatV2Service,
+    observedAddrManager: ObservedAddrManager,
+    listenAddrs: seq[MultiAddress],
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   if not self.networkReachability.isReachable():
     return listenAddrs
@@ -233,7 +235,7 @@ proc addressMapper(
     if listenAddr.isPublicMA() or not self.networkReachability.isReachable():
       addrs.add(listenAddr)
     else:
-      addrs.add(peerStore.guessDialableAddr(listenAddr))
+      addrs.add(observedAddrManager.guessDialableAddr(listenAddr))
   return addrs
 
 method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
@@ -242,7 +244,7 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, switch.peerStore, listenAddrs)
+    return await addressMapper(self, switch.observedAddrManager, listenAddrs)
 
   if self.config.askNewConnectedPeers:
     self.newConnectedPeerHandler = proc(
