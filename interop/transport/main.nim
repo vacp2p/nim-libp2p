@@ -14,6 +14,17 @@ let testTimeout =
   except CatchableError:
     3.minutes
 
+proc openRedis(host: string, port: Port): Redis =
+  # redis may not be listening yet when this container starts
+  let deadline = Moment.now() + 30.seconds
+  while true:
+    try:
+      return open(host, port)
+    except CatchableError as e:
+      if Moment.now() >= deadline:
+        raise e
+      sleep(200)
+
 proc main() {.async.} =
   let
     transport = getEnv("transport")
@@ -36,7 +47,7 @@ proc main() {.async.} =
 
     # using synchronous redis because async redis is based on
     # asyncdispatch instead of chronos
-    redisClient = open(redisAddr[0], Port(parseInt(redisAddr[1])))
+    redisClient = openRedis(redisAddr[0], Port(parseInt(redisAddr[1])))
 
     switchBuilder = SwitchBuilder.new()
 
