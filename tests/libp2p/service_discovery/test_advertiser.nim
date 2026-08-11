@@ -250,12 +250,13 @@ suite "Advertiser - removeProvidedService":
 
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
+    check disco.registerInterest(service.id)
 
     let bootstrapFut = newFuture[void]("test service bootstrap")
     disco.serviceBootstrapFuts[sid] = bootstrapFut
 
     await disco.removeProvidedService(service.id)
-    check sid in disco.serviceBootstrapFuts # the local registrar still has interest
+    check sid in disco.serviceBootstrapFuts # interest keeps the table alive
 
     disco.unregisterInterest(service.id)
     await sleepAsync(0.millis) # let the pending cancellation run
