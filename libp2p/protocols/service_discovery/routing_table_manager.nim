@@ -167,7 +167,8 @@ proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] =
   return manager.tables.keys.toSeq()
 
 proc clear*(manager: ServiceRoutingTableManager) =
-  manager.tables.values.allIt(it.detachAll())
+  for table in manager.tables.values:
+    table.detachAll()
   manager.tables.clear()
   manager.serviceStatus.clear()
   manager.updateServiceTablesMetrics()
