@@ -268,12 +268,12 @@ proc contains*(rtable: RoutingTable, nodeId: Key): bool =
   peerIndexInBucket(rtable.buckets[idx], nodeId).isSome()
 
 proc markUseful*(rtable: RoutingTable, nodeId: Key) =
-    ## Records that ``nodeId`` answered a query. Updates the shared registry row
-    ## so every index that references the peer sees the new usefulness. No-op when
-    ## the table is detached or the peer has no registry row (not in any table).
-    if rtable.detached:
-      return
-    rtable.registry.markUseful(nodeId)
+  ## Records that ``nodeId`` answered a query. Updates the shared registry row
+  ## so every index that references the peer sees the new usefulness. No-op when
+  ## the table is detached or the peer has no registry row (not in any table).
+  if rtable.detached:
+    return
+  rtable.registry.markUseful(nodeId)
 
 proc markUseful*(rtable: RoutingTable, peerId: PeerId) =
   rtable.markUseful(peerId.toKey())
