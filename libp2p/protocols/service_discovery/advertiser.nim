@@ -349,7 +349,7 @@ proc scheduleRegistrations(
       continue
 
     for peer in peers:
-      let registrar = peer.nodeId.toPeerId().valueOr:
+      let registrar = peer.toPeerId().valueOr:
         error "cannot convert key to peer id", error
         continue
 
