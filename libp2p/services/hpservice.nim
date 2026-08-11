@@ -80,7 +80,7 @@ proc newConnectedPeerHandler(
       return
 
     let dcutrClient = DcutrClient.new()
-    var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+    var natAddrs = switch.observedAddrManager.getMostObservedProtosAndPorts()
     if natAddrs.len == 0:
       # Prefer the explicit/expanded announce set when nothing has been
       # observed yet — it honors withAnnouncedAddresses and any address
@@ -89,7 +89,9 @@ proc newConnectedPeerHandler(
         if switch.peerInfo.addrs.len > 0:
           switch.peerInfo.addrs
         else:
-          switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+          switch.peerInfo.listenAddrs.mapIt(
+            switch.observedAddrManager.guessDialableAddr(it)
+          )
     await dcutrClient.startSync(switch, peerId, natAddrs)
     await closeRelayConn(relayedConn)
   except CancelledError as err:

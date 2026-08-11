@@ -27,10 +27,11 @@ import
   errors,
   results,
   dialer,
+  observedaddrmanager,
   utils/future,
   crypto/rng
 
-export connmanager, upgrade, dialer, peerstore
+export connmanager, upgrade, dialer, peerstore, observedaddrmanager
 
 logScope:
   topics = "libp2p switch"
@@ -44,6 +45,9 @@ logScope:
 const ConcurrentUpgrades* = 32
 const UpgradeTimeout* = 30.seconds
 
+# a Switch built field by field, as TorSwitch and SwitchStub do, must copy it
+const MissingObservedAddrManager = "switch has no ObservedAddrManager"
+
 type
   Switch* = ref object of Dial
     peerInfo*: PeerInfo
@@ -56,6 +60,7 @@ type
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
+    observedAddrManager*: ObservedAddrManager
     started: bool
     services*: seq[Service]
     rng*: Rng
@@ -354,6 +359,10 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   await s.ms.stop()
 
+  # stopped last, after every component which can still observe an address
+  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
+  s.observedAddrManager.stop()
+
   s.peerStore.close()
 
   trace "Switch stopped"
@@ -365,6 +374,10 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     return
 
   debug "starting switch for peer", peerInfo = s.peerInfo
+
+  # started first, so that identify can feed it as soon as a peer connects
+  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
+  s.observedAddrManager.start()
 
   # start services and transports without await to prevent any
   # issues when one needs another to start first.

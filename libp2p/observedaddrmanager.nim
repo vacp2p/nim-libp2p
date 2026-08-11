@@ -7,19 +7,36 @@ import std/[sequtils, tables, sugar]
 import chronos
 import multiaddress, multicodec
 
+const
+  DefaultObservedAddrMaxSize* = 10
+  DefaultObservedAddrMinCount* = 3
+
 type
-  ## Manages observed MultiAddresses by reomte peers. It keeps track of the most observed IP and IP/Port.
+  ObservedAddrManagerConfig* = object
+    maxSize*: int = DefaultObservedAddrMaxSize
+    minCount*: int = DefaultObservedAddrMinCount
+
   ObservedAddrManager* = ref object of RootObj
     observedIPsAndPorts: seq[MultiAddress]
     maxSize: int
     minCount: int
+    started: bool
 
 proc addObservation*(self: ObservedAddrManager, observedAddr: MultiAddress): bool =
   ## Adds a new observed MultiAddress. If the number of observations exceeds maxSize, the oldest one is removed.
+  ## Returns false when the manager is not started, or when the address is not a direct IP address with a transport.
+  if not self.started:
+    return false
+
+  # a remote peer picks what it reports: junk would only evict a useful entry
+  if not (observedAddr.hasIp() and observedAddr.hasTransport()) or
+      observedAddr.contains(multiCodec("p2p-circuit")).get(false):
+    return false
+
   if self.observedIPsAndPorts.len >= self.maxSize:
     self.observedIPsAndPorts.del(0)
   self.observedIPsAndPorts.add(observedAddr)
-  return true
+  true
 
 proc getProtocol(
     self: ObservedAddrManager, observations: seq[MultiAddress], multiCodec: MultiCodec
@@ -76,11 +93,26 @@ proc guessDialableAddr*(self: ObservedAddrManager, ma: MultiAddress): MultiAddre
   return concat(observedIP, maRest).valueOr:
     ma
 
+when defined(libp2p_testing):
+  func isStarted*(self: ObservedAddrManager): bool =
+    self.started
+
+proc start*(self: ObservedAddrManager) =
+  self.started = true
+
+proc stop*(self: ObservedAddrManager) =
+  self.started = false
+  self.observedIPsAndPorts.setLen(0)
+
 proc `$`*(self: ObservedAddrManager): string =
   ## Returns a string representation of the ObservedAddrManager.
   return "IPs and Ports: " & $self.observedIPsAndPorts
 
-proc new*(T: typedesc[ObservedAddrManager], maxSize = 10, minCount = 3): T =
-  ## Creates a new ObservedAddrManager.
-  return
-    T(observedIPsAndPorts: newSeq[MultiAddress](), maxSize: maxSize, minCount: minCount)
+proc new*(
+    T: typedesc[ObservedAddrManager],
+    config: ObservedAddrManagerConfig = ObservedAddrManagerConfig(),
+): T =
+  ## Creates a new ObservedAddrManager. A threshold below one is raised to one:
+  ## an empty window has nothing to evict, and a minCount of zero would let a
+  ## single peer decide the external address.
+  T(maxSize: max(config.maxSize, 1), minCount: max(config.minCount, 1))

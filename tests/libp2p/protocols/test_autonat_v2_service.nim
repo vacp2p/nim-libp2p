@@ -642,13 +642,19 @@ suite "AutonatV2 Service":
       switch = createSwitch(Opt.some(service))
       switches = @[createSwitch()]
 
+    await switch.start()
+
     # Simulate identify reports from other peers: the same public address
-    # must be observed at least quorum times to become a candidate.
+    # must be observed at least quorum times to become a candidate. The manager
+    # takes observations only while it runs, so the switch starts first.
     let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
     for _ in 0 ..< ObservedAddrQuorum:
-      discard switch.peerStore.identify.observedAddrManager.addObservation(observedAddr)
+      check switch.observedAddrManager.addObservation(observedAddr)
 
-    await switch.startAndConnect(switches)
+    await switches.startAll()
+    for peer in switches:
+      await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
+
     await client.finished
 
     let tcpPart = switch.peerInfo.listenAddrs[0][1].tryGet()

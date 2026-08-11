@@ -98,6 +98,7 @@ type
     kad: Opt[KadInfo]
     identifyPusherEnabled: bool
     observedAddrManager: ObservedAddrManager
+    observedAddrConfig: Opt[ObservedAddrManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
 
@@ -124,6 +125,7 @@ proc new*(T: type[SwitchBuilder]): T =
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
+    observedAddrConfig: Opt.none(ObservedAddrManagerConfig),
   )
 
 proc withPrivateKey*(
@@ -415,8 +417,19 @@ proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder 
   b
 
 proc withObservedAddrManager*(
-    b: SwitchBuilder, observedAddrManager: ObservedAddrManager
+    b: SwitchBuilder, config: ObservedAddrManagerConfig
 ): SwitchBuilder =
+  ## Set the thresholds of the observed address manager.
+  b.observedAddrManager = nil
+  b.observedAddrConfig = Opt.some(config)
+  b
+
+proc withObservedAddrManager*(
+    b: SwitchBuilder, observedAddrManager: ObservedAddrManager
+): SwitchBuilder {.
+    deprecated: "the switch owns the manager; pass an ObservedAddrManagerConfig"
+.} =
+  b.observedAddrConfig = Opt.none(ObservedAddrManagerConfig)
   b.observedAddrManager = observedAddrManager
   b
 
@@ -435,6 +448,12 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## - Private addresses received from other peers are discarded
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
+
+proc buildObservedAddrManager(b: SwitchBuilder): ObservedAddrManager =
+  if b.observedAddrManager.isNil():
+    return
+      ObservedAddrManager.new(b.observedAddrConfig.get(ObservedAddrManagerConfig()))
+  b.observedAddrManager
 
 proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
@@ -463,11 +482,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     announcedAddrs = b.announcedAddrs,
   )
 
-  let identify =
-    if b.observedAddrManager != nil:
-      Identify.new(peerInfo, b.sendSignedPeerRecord, b.observedAddrManager)
-    else:
-      Identify.new(peerInfo, b.sendSignedPeerRecord)
+  let observedAddrManager = b.buildObservedAddrManager()
+  let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, observedAddrManager)
 
   var peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -522,6 +538,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
     services: services,
+    observedAddrManager: observedAddrManager,
   )
 
   return switch

@@ -48,5 +48,6 @@ proc new*(
     dialer: switch.dialer,
     nameResolver: switch.nameResolver,
     services: switch.services,
+    observedAddrManager: switch.observedAddrManager,
     connectStub: connectStub,
   )

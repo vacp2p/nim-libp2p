@@ -570,10 +570,14 @@ proc identify*(
     else:
       await noCancel stream.reset()
 
-proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
+proc getMostObservedProtosAndPorts*(
+    self: PeerStore
+): seq[MultiAddress] {.deprecated: "use switch.observedAddrManager".} =
   return self.identify.observedAddrManager.getMostObservedProtosAndPorts()
 
-proc guessDialableAddr*(self: PeerStore, ma: MultiAddress): MultiAddress =
+proc guessDialableAddr*(
+    self: PeerStore, ma: MultiAddress
+): MultiAddress {.deprecated: "use switch.observedAddrManager".} =
   return self.identify.observedAddrManager.guessDialableAddr(ma)
 
 proc extend*[T](self: SeqPeerBook[T], key: PeerId, new: seq[T]) =

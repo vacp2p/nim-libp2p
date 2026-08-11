@@ -181,7 +181,7 @@ suite "Autonat Service":
     check reachabilityConfidence(NetworkReachability.Reachable) == 0.3
 
     check switch1.peerInfo.addrs ==
-      switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
+      switch1.peerInfo.addrs.mapIt(switch1.observedAddrManager.guessDialableAddr(it))
 
     await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()

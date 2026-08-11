@@ -206,14 +206,13 @@ template streamTransportTest*(
     )
 
   asyncTest "Connection.reset aborts the initiator stream":
-    var serverResetDone = newFuture[void]()
+    let serverResetDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverResetDone):
         let msg = await stream.readLp(100)
         check msg == fromHex("1234")
         await stream.reset()
-        serverResetDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -235,10 +234,10 @@ template streamTransportTest*(
     )
 
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
-    var serverHandlerDone = newFuture[void]()
+    let serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         check (await stream.readExactlyAsStr(serverMessage.len)) == serverMessage
 
         var buffer: array[1, byte]
@@ -253,8 +252,6 @@ template streamTransportTest*(
         # # Attempting readExactly at EOF
         expect LPStreamRemoteClosedError:
           await stream.readExactly(addr buffer, 1)
-
-        serverHandlerDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -335,10 +332,10 @@ template streamTransportTest*(
     await server.stop()
 
   asyncTest "incomplete read":
-    var serverHandlerDone = newFuture[void]()
+    let serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         var buffer: array[2 * serverMessage.len, byte]
 
         expect LPStreamIncompleteError:
@@ -346,8 +343,6 @@ template streamTransportTest*(
 
         # Verify that partial data was read before EOF
         check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
-
-        serverHandlerDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -399,8 +394,10 @@ template streamTransportTest*(
     )
 
   asyncTest "multiple empty writes before closeWrite":
+    let serverHandlerDone = newFuture[void]()
+
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         # Even with multiple empty writes, reading should eventually get EOF
         var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
@@ -413,6 +410,7 @@ template streamTransportTest*(
         await stream.write(@[])
         await stream.write(@[])
         await stream.closeWrite()
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       @[addressIP4],
@@ -423,8 +421,10 @@ template streamTransportTest*(
     )
 
   asyncTest "closeWrite immediately after newStream":
+    let serverHandlerDone = newFuture[void]()
+
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         # Should get EOF immediately
         var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
@@ -434,6 +434,7 @@ template streamTransportTest*(
       noExceptionWithStreamClose(stream):
         # Close write immediately without any data
         await stream.closeWrite()
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       @[addressIP4],
@@ -497,14 +498,13 @@ template streamTransportTest*(
     const messageSize = 2048
     const chunkSize = 256
     let message = newData(messageSize)
-    var serverHandlerDone = newFuture[void]()
+    let serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
         check receivedData == message
-        serverHandlerDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -523,10 +523,10 @@ template streamTransportTest*(
     const messageSize = 2 * 1024 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
-    var serverHandlerDone = newFuture[void]()
+    let serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
+      noExceptionWithStreamClose(stream, serverHandlerDone):
         const expectedSize = messageSize * parallelWrites
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, expectedSize)
@@ -543,8 +543,6 @@ template streamTransportTest*(
             check receivedData[offset + j] == expectedValue
             if receivedData[offset + j] != expectedValue:
               break # stop on first mismatch (not to pollute stdout)
-
-        serverHandlerDone.complete()
 
     proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
