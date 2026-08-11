@@ -68,25 +68,6 @@ proc checkAndEvictPeer(
     debug "Liveness probe skipped: no free slot", peer = peerId.shortLog()
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
-  kad.livenessProbes[probeKey] = probe
-  probe.addCallback(
-    proc(udata: pointer) {.gcsafe, raises: [].} =
-      if kad.livenessProbes.getOrDefault(peerId) == probe:
-        kad.livenessProbes.del(peerId)
-  )
-
-proc checkAndEvictPeer(
-    kad: KadDHT, peerId: PeerId
-) {.async: (raises: [CancelledError]).} =
-  ## Probes a peer once and applies the result to every maintainable table
-  ## where that peer is past the liveness grace period. Returns immediately
-  ## when all liveness probe slots are occupied.
-  if kad.stopping:
-    return
-  if not kad.livenessSem.tryAcquire():
-    debug "Liveness probe skipped: no free slot", peer = peerId.shortLog()
-    kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
-    return
   defer:
     try:
       kad.livenessSem.release()
@@ -104,20 +85,6 @@ proc checkAndEvictPeer(
       dueTables.add(rtable)
   if dueTables.len == 0:
     debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
-    return
-
-  # Candidate list is a snapshot; the peer may have been refreshed (markUseful)
-  # or removed since it was selected.
-  if kad.stopping:
-    return
-  let grace = kad.config.livenessGracePeriod
-  var dueTables: seq[RoutingTable]
-  for rtable in kad.maintainableTables():
-    if rtable.isReplaceable(peerId, grace, Moment.now()):
-      dueTables.add(rtable)
-  if dueTables.len == 0:
-    debug "Liveness probe skipped: peer no longer replaceable",
-      peer = peerId.shortLog()
     return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
@@ -212,39 +179,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## bucket refresh so dead peers are not held until the next refresh tick.
   ## At most one probe is in flight per peer across all maintainable tables.
 
-  while not kad.stopping:
-    # Initial idle: let start() finish bootstrap before the first scan.
-    await sleepAsync(kad.config.livenessIdleInterval)
-
-    let grace = kad.config.livenessGracePeriod
-
-    for rtable in kad.maintainableTables():
-      if kad.stopping:
-        return
-      let peers = rtable.peersPastGracePeriod(grace)
-      if peers.len > 0:
-        debug "Liveness scan found replaceable peers", peers = peers.len
-      for peerId in peers:
-        kad.launchLivenessProbe(peerId)
-
-    if kad.livenessProbes.len > 0:
-      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
-      let inFlight = kad.livenessProbes.values.toSeq()
-      try:
-        discard await one(inFlight)
-      except ValueError:
-        # All futures already finished between the snapshot and the wait.
-        discard
-      except CancelledError as exc:
-        await noCancel inFlight.cancelAndWait()
-        raise exc
-
-proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  ## Continuous background task: drain replaceable peers via liveness probes
-  ## as soon as they become due, bounded by ``livenessSem``. Independent of
-  ## bucket refresh so dead peers are not held until the next refresh tick.
-  ## At most one probe is in flight per peer across all maintainable tables.
-
+  var idle = true
   while not kad.stopping:
     if idle:
       # Initial idle: let start() finish bootstrap before the first scan.
@@ -255,7 +190,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     for rtable in kad.maintainableTables():
       if kad.stopping:
         return
-      let peers = rtable.peersInGracePeriod(grace)
+      let peers = rtable.peersPastGracePeriod(grace)
       if peers.len > 0:
         debug "Liveness scan found replaceable peers", peers = peers.len
       for peerId in peers:
