@@ -46,6 +46,7 @@ type
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
+    onServiceTableRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   Advertisement* = SignedExtendedPeerRecord
 
@@ -105,7 +106,7 @@ type
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
-    serviceBootstrapFuts*: seq[Future[void]]
+    serviceBootstrapFuts*: Table[ServiceId, Future[void]]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
