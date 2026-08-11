@@ -74,6 +74,9 @@ proc removeService*(
 ) =
   manager.serviceStatus.withValue(serviceId, currentStatus):
     if currentStatus[] == status:
+      manager.tables.withValue(serviceId, table):
+        # Drop reverse memberships so the shared registry does not leak rows.
+        table[].detachAll()
       manager.tables.del(serviceId)
       manager.serviceStatus.del(serviceId)
       manager.updateServiceTablesMetrics()
@@ -164,6 +167,8 @@ proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] =
   return manager.tables.keys.toSeq()
 
 proc clear*(manager: ServiceRoutingTableManager) =
+  for table in manager.tables.values:
+    table.detachAll()
   manager.tables.clear()
   manager.serviceStatus.clear()
   manager.updateServiceTablesMetrics()

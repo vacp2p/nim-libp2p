@@ -304,7 +304,7 @@ suite "KadDHT Bootstrap Component":
     check kad.rtable.insert(peer)
     agePeerPastLivenessGrace(kad.rtable, peer.toKey())
 
-    let hang = newFuture[void]()
+    let hang = newFuture[void]("liveness-probe-dedup-hang")
     kad.livenessProbes[peer] = hang
 
     let batch = kad.probeAndEvictPeers(kad.rtable)

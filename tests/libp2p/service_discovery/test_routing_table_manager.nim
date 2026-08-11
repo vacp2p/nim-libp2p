@@ -3,10 +3,11 @@
 
 {.used.}
 
-import chronos, results, sets, tables
+import chronos, results, sets, tables, sequtils
 import
-  ../../../libp2p/[peerinfo],
+  ../../../libp2p/[peerinfo, peerid],
   ../../../libp2p/protocols/kademlia,
+  ../../../libp2p/protocols/service_discovery,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
@@ -171,6 +172,40 @@ suite "ServiceRoutingTableManager":
 
     mainRt.markUseful(peer1)
     check serviceTable.registry.get(peer1).get().lastUsefulAt.isSome()
+
+  test "removeService detaches table memberships from shared registry":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let mainRt = makeMainTable(selfId, @[peer1])
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    check mainRt.registry.tableIds(peer1).len == 2
+
+    manager.removeService(serviceId, Interest)
+    check:
+      not manager.hasService(serviceId)
+      peer1 in mainRt
+      peer1 in mainRt.registry
+      mainRt.registry.tableIds(peer1).len == 1
+      serviceId notin mainRt.registry.tableIds(peer1)
+
+  test "clear detaches all service tables from shared registry":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let mainRt = makeMainTable(selfId, @[peer1])
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    manager.clear()
+    check:
+      manager.count() == 0
+      peer1 in mainRt.registry
+      mainRt.registry.tableIds(peer1).len == 1
 
   test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
@@ -489,3 +524,51 @@ suite "ServiceRoutingTableManager - service id hashing":
         actual = i
         break
     check actual == expectedScaled
+
+suite "ServiceDiscovery liveness over service tables":
+  asyncTest "maintainableTables includes service tables":
+    let disco = setupServiceDiscoveryNode()
+    startAndDeferStop(@[disco])
+
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+      Interest,
+    )
+
+    let tables = disco.maintainableTables()
+    check:
+      tables.len == 2
+      tables.anyIt(it.selfId == disco.rtable.selfId)
+      tables.anyIt(it.selfId == serviceId)
+
+  asyncTest "probeAndEvictPeers removes aged peer from service table":
+    ## Dynamic dispatch through maintainableTables must cover per-service indexes.
+    let grace = 50.milliseconds
+    let disco = setupServiceDiscoveryNode(
+      kadConfig = KadDHTConfig.new(
+        ExtEntryValidator(),
+        ExtEntrySelector(),
+        timeout = 200.milliseconds,
+        livenessGracePeriod = grace,
+        livenessIdleInterval = 1.hours,
+        disableBootstrapping = true,
+      )
+    )
+    startAndDeferStop(@[disco])
+
+    let serviceId = makeServiceId(7)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+      Interest,
+    )
+    let serviceTable = disco.rtManager.getTable(serviceId).get()
+
+    let peer = randomPeerId()
+    check serviceTable.insert(peer)
+    # No addresses → liveness path evicts without dialling.
+    agePeerPastLivenessGrace(serviceTable, peer.toKey(), grace)
+
+    check peer.toKey() in serviceTable
+    await disco.probeAndEvictPeers(serviceTable)
+    check peer.toKey() notin serviceTable

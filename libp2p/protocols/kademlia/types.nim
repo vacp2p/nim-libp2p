@@ -217,22 +217,27 @@ proc xorDistance*(a, b: PeerId, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b.toKey(), hasher)
 
 type
+  ## Per-table index membership. ``addedAt`` is when *this* table indexed the
+  ## peer and starts that table's usefulness grace window.
+  Membership* = object
+    addedAt*: Moment
+
   ## DHT peer row: liveness/usefulness state lives once, independent of which
   ## routing tables index the peer. Tables only store ``Key`` references.
   PeerRecord* = object
     nodeId*: Key
     lastSeen*: Moment
-    addedAt*: Moment
     lastUsefulAt*: Opt[Moment]
-      ## Set when the peer answers a query; `Opt.none` until then, which makes it
-      ## replaceable once past the grace period since it was first recorded.
+      ## Set when the peer answers a query. Global: one successful answer
+      ## refreshes usefulness for every table that indexes the peer.
+      ## ``Opt.none`` until then; grace then uses membership ``addedAt``.
 
   ## Shared store of peer rows plus reverse membership (which table selfIds
   ## index each peer). Owned by ``KadDHT``; every ``RoutingTable`` shares it.
   PeerRegistry* = ref object
     peers*: Table[Key, PeerRecord]
-    tablesByPeer*: Table[Key, HashSet[Key]]
-      ## peer key → set of routing-table ``selfId``s that reference the peer.
+    tablesByPeer*: Table[Key, Table[Key, Membership]]
+      ## peer key → table selfId → membership (with per-table addedAt).
 
   ## A k-bucket is an index partition: keys only, ordered for eviction by
   ## looking up ``PeerRecord`` timestamps in the shared registry.
@@ -255,6 +260,9 @@ type
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
     registry*: PeerRegistry
+    detached*: bool
+      ## Set by ``detachAll`` when the table is destroyed. Blocks further inserts
+      ## so late admission probes cannot resurrect memberships.
 
   Provider* = Peer
 
@@ -275,6 +283,29 @@ type
     providerRecords*: ProviderRecords
     providedKeys*: ProvidedKeys
     knownKeys*: Table[Key, HashSet[Provider]]
+
+func len*(bucket: Bucket): int =
+  bucket.peers.len
+
+func contains*(bucket: Bucket, nodeId: Key): bool =
+  nodeId in bucket.peers
+
+iterator items*(bucket: Bucket): Key =
+  for nodeId in bucket.peers:
+    yield nodeId
+
+iterator items*(registry: PeerRegistry): PeerRecord =
+  for record in registry.peers.values:
+    yield record
+
+iterator pairs*(registry: PeerRegistry): (Key, PeerRecord) =
+  for nodeId, record in registry.peers:
+    yield (nodeId, record)
+
+template withRecord*(registry: PeerRegistry, nodeId: Key, record, body: untyped) =
+  ## Mutable access to one row. ``record`` is a ``ptr PeerRecord``; body uses ``record[]``.
+  registry.peers.withValue(nodeId, record):
+    body
 
 proc new*(
     T: typedesc[ProviderManager], providerRecordCapacity: int, providedKeyCapacity: int
@@ -552,6 +583,7 @@ proc new*(
     "maxShortlistSize must be >= replication so the shortlist can hold the target k-bucket"
   doAssert actualLimits.maxReceivedSize >= quorum,
     "maxReceivedSize must be >= quorum so getValue can ever satisfy quorum"
+  doAssert livenessIdleInterval > 0.nanoseconds, "livenessIdleInterval must be > 0"
   KadDHTConfig(
     validator: validator,
     selector: selector,

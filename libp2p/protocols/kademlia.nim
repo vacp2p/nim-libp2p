@@ -22,7 +22,7 @@ logScope:
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 
-proc peersInGracePeriod(
+proc peersPastGracePeriod(
     rtable: RoutingTable, gracePeriod: Duration
 ): seq[PeerId] {.raises: [].} =
   ## Peers past the liveness grace period that should be probed.
@@ -30,7 +30,7 @@ proc peersInGracePeriod(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for nodeId in bucket.peers:
-      if not rtable.registry.isReplaceable(nodeId, gracePeriod, now):
+      if not rtable.isReplaceable(nodeId, gracePeriod, now):
         continue
       nodeId.toPeerId().withValue(pid):
         peers.add(pid)
@@ -183,7 +183,7 @@ proc probeAndEvictPeers*(
   if kad.stopping:
     return
 
-  let peers = rtable.peersInGracePeriod(kad.config.livenessGracePeriod)
+  let peers = rtable.peersPastGracePeriod(kad.config.livenessGracePeriod)
   if peers.len == 0:
     return
 
@@ -221,7 +221,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     for rtable in kad.maintainableTables():
       if kad.stopping:
         return
-      let peers = rtable.peersInGracePeriod(grace)
+      let peers = rtable.peersPastGracePeriod(grace)
       if peers.len > 0:
         debug "Liveness scan found replaceable peers", peers = peers.len
       for peerId in peers:

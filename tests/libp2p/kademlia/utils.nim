@@ -257,21 +257,21 @@ proc nonEmptyBuckets*(kad: KadDHT): seq[int] =
 proc makeBucketStale*(rtable: RoutingTable, bucketIdx: int) =
   let past = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
   for nodeId in rtable.buckets[bucketIdx].peers:
-    rtable.registry.peers.withValue(nodeId, record):
+    rtable.registry.withRecord(nodeId, record):
       record[].lastSeen = past
 
 proc agePeerPastLivenessGrace*(
-    rtable: var RoutingTable,
-    key: Key,
-    gracePeriod: Duration = DefaultLivenessGracePeriod,
+    rtable: RoutingTable, key: Key, gracePeriod: Duration = DefaultLivenessGracePeriod
 ) =
-  ## Age a routing-table entry past the liveness grace so the next
+  ## Age a routing-table membership past the liveness grace so the next
   ## liveness pass / continuous loop will probe it.
   let past = Moment.now() - (gracePeriod + 1.minutes)
-  rtable.registry.peers.withValue(key, record):
-    record[].addedAt = past
+  rtable.registry.withRecord(key, record):
     record[].lastUsefulAt = Opt.none(Moment)
     record[].lastSeen = past
+  rtable.registry.tablesByPeer.withValue(key, tables):
+    tables[].withValue(rtable.selfId, m):
+      m[].addedAt = past
 
 proc isPeerUseful*(kad: KadDHT, key: Key): bool =
   let record = kad.rtable.registry.get(key).valueOr:

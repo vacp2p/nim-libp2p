@@ -3,6 +3,7 @@
 
 ## Shared DHT peer row store. Routing tables are indexes over this registry:
 ## they hold ``Key`` references only; liveness/usefulness state lives here once.
+## Usefulness grace is membership-local via ``Membership.addedAt``.
 
 import std/[tables, sets]
 import chronos, results
@@ -13,7 +14,8 @@ import ../../peerid
 
 proc new*(T: typedesc[PeerRegistry]): PeerRegistry =
   PeerRegistry(
-    peers: initTable[Key, PeerRecord](), tablesByPeer: initTable[Key, HashSet[Key]]()
+    peers: initTable[Key, PeerRecord](),
+    tablesByPeer: initTable[Key, Table[Key, Membership]](),
   )
 
 func contains*(registry: PeerRegistry, nodeId: Key): bool =
@@ -27,32 +29,36 @@ func get*(registry: PeerRegistry, nodeId: Key): Opt[PeerRecord] =
 func len*(registry: PeerRegistry): int =
   registry.peers.len
 
-func lastActivity*(record: PeerRecord): Moment =
-  ## Most recent time the peer answered a DHT query, or when it was first recorded.
-  record.lastUsefulAt.get(record.addedAt)
+func membership*(registry: PeerRegistry, nodeId: Key, tableId: Key): Opt[Membership] =
+  registry.tablesByPeer.withValue(nodeId, tables):
+    tables[].withValue(tableId, m):
+      return Opt.some(m[])
+  Opt.none(Membership)
 
-func isReplaceable*(record: PeerRecord, gracePeriod: Duration, now: Moment): bool =
-  ## Replaceable once past ``gracePeriod`` without proving useful. Grace is global
-  ## (from first registry sighting), not per routing-table membership.
-  now - record.lastActivity() > gracePeriod
+func lastActivity*(record: PeerRecord, membership: Membership): Moment =
+  ## Most recent useful answer, else when this table first indexed the peer.
+  record.lastUsefulAt.get(membership.addedAt)
 
-proc ensure*(registry: PeerRegistry, nodeId: Key, now = Moment.now()): PeerRecord =
-  ## Return existing record or create a fresh one. Does not add table membership.
+func isReplaceable*(
+    record: PeerRecord, membership: Membership, gracePeriod: Duration, now: Moment
+): bool =
+  ## Replaceable once past ``gracePeriod`` without proving useful. Grace starts
+  ## at membership ``addedAt`` (per table), not at first global sighting.
+  now - record.lastActivity(membership) > gracePeriod
+
+proc upsert*(registry: PeerRegistry, nodeId: Key, now = Moment.now()): PeerRecord =
+  ## Insert a new peer row, or refresh ``lastSeen`` if one already exists.
+  ## Does not add table membership.
   registry.peers.withValue(nodeId, existing):
+    existing[].lastSeen = now
     return existing[]
-  let record = PeerRecord(
-    nodeId: nodeId, lastSeen: now, addedAt: now, lastUsefulAt: Opt.none(Moment)
-  )
+  let record = PeerRecord(nodeId: nodeId, lastSeen: now, lastUsefulAt: Opt.none(Moment))
   registry.peers[nodeId] = record
   record
 
-proc touch*(registry: PeerRegistry, nodeId: Key, now = Moment.now()) =
-  ## Bump ``lastSeen`` when the peer is observed again. No-op if missing.
-  registry.peers.withValue(nodeId, record):
-    record[].lastSeen = now
-
 proc markUseful*(registry: PeerRegistry, nodeId: Key, now = Moment.now()) =
-  ## Peer answered a query: refresh usefulness so it survives eviction.
+  ## Peer answered a query: refresh usefulness so it survives eviction in every
+  ## table that indexes it.
   registry.peers.withValue(nodeId, record):
     record[].lastUsefulAt = Opt.some(now)
     record[].lastSeen = now
@@ -60,25 +66,42 @@ proc markUseful*(registry: PeerRegistry, nodeId: Key, now = Moment.now()) =
 proc markUseful*(registry: PeerRegistry, peerId: PeerId, now = Moment.now()) =
   registry.markUseful(peerId.toKey(), now)
 
-proc addMembership*(registry: PeerRegistry, nodeId: Key, tableId: Key) =
-  ## Record that ``tableId`` indexes ``nodeId``.
-  registry.tablesByPeer.mgetOrPut(nodeId, initHashSet[Key]()).incl(tableId)
-
-proc removeMembership*(registry: PeerRegistry, nodeId: Key, tableId: Key): bool =
-  ## Drop one table's reference. When no tables remain, delete the peer row.
-  ## Returns true if the peer was removed from the registry entirely.
+proc addMembership*(
+    registry: PeerRegistry, nodeId: Key, tableId: Key, now = Moment.now()
+) =
+  ## Record that ``tableId`` indexes ``nodeId``. Fresh membership starts grace.
+  ## No-op when the peer is already a member of this table.
+  if nodeId notin registry.tablesByPeer:
+    registry.tablesByPeer[nodeId] = initTable[Key, Membership]()
   registry.tablesByPeer.withValue(nodeId, tables):
-    tables[].excl(tableId)
+    if tableId in tables[]:
+      return
+    tables[][tableId] = Membership(addedAt: now)
+
+proc removeMembership*(registry: PeerRegistry, nodeId: Key, tableId: Key) =
+  ## Drop one table's reference. When no tables remain, delete the peer row.
+  registry.tablesByPeer.withValue(nodeId, tables):
+    tables[].del(tableId)
     if tables[].len > 0:
-      return false
+      return
     registry.tablesByPeer.del(nodeId)
     registry.peers.del(nodeId)
-    return true
+    return
   # Membership missing but a row may still exist (failed insert path).
   if nodeId in registry.peers and nodeId notin registry.tablesByPeer:
     registry.peers.del(nodeId)
-    return true
-  false
+
+proc dropTable*(registry: PeerRegistry, tableId: Key) =
+  ## Remove every membership for ``tableId``. Deletes peer rows that lose their
+  ## last table reference. Call when a routing table is destroyed.
+  var emptyPeers: seq[Key]
+  for nodeId, tables in registry.tablesByPeer.mpairs:
+    tables.del(tableId)
+    if tables.len == 0:
+      emptyPeers.add(nodeId)
+  for nodeId in emptyPeers:
+    registry.tablesByPeer.del(nodeId)
+    registry.peers.del(nodeId)
 
 proc dropPeer*(registry: PeerRegistry, nodeId: Key) =
   ## Remove the peer row and all membership tracking. Callers must also drop
@@ -87,16 +110,31 @@ proc dropPeer*(registry: PeerRegistry, nodeId: Key) =
   registry.tablesByPeer.del(nodeId)
 
 func tableIds*(registry: PeerRegistry, nodeId: Key): HashSet[Key] =
-  registry.tablesByPeer.getOrDefault(nodeId)
+  result = initHashSet[Key]()
+  registry.tablesByPeer.withValue(nodeId, tables):
+    for tableId in tables[].keys:
+      result.incl(tableId)
 
 func isReplaceable*(
-    registry: PeerRegistry, nodeId: Key, gracePeriod: Duration, now: Moment
+    registry: PeerRegistry,
+    nodeId: Key,
+    tableId: Key,
+    gracePeriod: Duration,
+    now: Moment,
 ): bool =
+  ## True when the peer is past grace for ``tableId``. Missing row or membership
+  ## (orphan index entry) is treated as replaceable so eviction can clean it up.
+  let membership = registry.membership(nodeId, tableId).valueOr:
+    return true
   let record = registry.get(nodeId).valueOr:
-    return false
-  record.isReplaceable(gracePeriod, now)
+    return true
+  record.isReplaceable(membership, gracePeriod, now)
 
 func isReplaceable*(
-    registry: PeerRegistry, peerId: PeerId, gracePeriod: Duration, now: Moment
+    registry: PeerRegistry,
+    peerId: PeerId,
+    tableId: Key,
+    gracePeriod: Duration,
+    now: Moment,
 ): bool =
-  registry.isReplaceable(peerId.toKey(), gracePeriod, now)
+  registry.isReplaceable(peerId.toKey(), tableId, gracePeriod, now)

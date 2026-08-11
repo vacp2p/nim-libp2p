@@ -35,10 +35,12 @@ suite "KadDHT Routing Table":
     ## Push every peer past the usefulness grace period so eviction can act.
     let past = Moment.now() - 2.hours
     for nodeId in rt.buckets[bucketIdx].peers:
-      rt.registry.peers.withValue(nodeId, record):
-        record[].addedAt = past
+      rt.registry.withRecord(nodeId, record):
         record[].lastUsefulAt = Opt.none(Moment)
         record[].lastSeen = past
+      rt.registry.tablesByPeer.withValue(nodeId, tables):
+        tables[].withValue(rt.selfId, m):
+          m[].addedAt = past
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
@@ -214,14 +216,14 @@ suite "KadDHT Routing Table":
     check isStale(bucket, registry) == true
 
     let oldKey = testKey(1)
-    discard registry.ensure(oldKey)
+    discard registry.upsert(oldKey)
     registry.peers.withValue(oldKey, record):
       record[].lastSeen = Moment.now() - 40.minutes
     bucket.peers = @[oldKey]
     check isStale(bucket, registry) == true
 
     let freshKey = testKey(2)
-    discard registry.ensure(freshKey)
+    discard registry.upsert(freshKey)
     bucket.peers = @[freshKey]
     check isStale(bucket, registry) == false
 
@@ -251,23 +253,17 @@ suite "KadDHT Routing Table":
       not rt.removePeer(selfId)
       not rt.removePeer(localNodeId)
 
-  test "isReplaceable follows grace period from last activity":
+  test "isReplaceable follows grace period from membership addedAt":
     let now = Moment.now()
-    var record = PeerRecord(
-      nodeId: testKey(1),
-      lastSeen: now,
-      addedAt: now - 2.hours,
-      lastUsefulAt: Opt.none(Moment),
-    )
-    check record.isReplaceable(1.hours, now)
+    let record =
+      PeerRecord(nodeId: testKey(1), lastSeen: now, lastUsefulAt: Opt.none(Moment))
+    let oldMembership = Membership(addedAt: now - 2.hours)
+    check record.isReplaceable(oldMembership, 1.hours, now)
 
-    record = PeerRecord(
-      nodeId: testKey(1),
-      lastSeen: now,
-      addedAt: now - 2.hours,
-      lastUsefulAt: Opt.some(now - 30.minutes),
+    let useful = PeerRecord(
+      nodeId: testKey(1), lastSeen: now, lastUsefulAt: Opt.some(now - 30.minutes)
     )
-    check not record.isReplaceable(1.hours, now)
+    check not useful.isReplaceable(oldMembership, 1.hours, now)
 
   test "shared registry: one peer row across two tables":
     let registry = PeerRegistry.new()
@@ -306,6 +302,75 @@ suite "KadDHT Routing Table":
     check:
       peer notin registry
       registry.len == 0
+
+  test "seeded service membership gets fresh grace window":
+    ## An aged main-table peer must not be immediately replaceable in a new
+    ## service table that just indexed it.
+    let registry = PeerRegistry.new()
+    let config = RoutingTableConfig.new(
+      hasher = Opt.some(noOpHasher), usefulnessGracePeriod = 1.hours
+    )
+    var mainRt = RoutingTable.new(testKey(0), config, registry = registry)
+    let peer = testKey(1)
+    check mainRt.insert(peer)
+
+    let past = Moment.now() - 2.hours
+    registry.withRecord(peer, record):
+      record[].lastUsefulAt = Opt.none(Moment)
+      record[].lastSeen = past
+    registry.tablesByPeer.withValue(peer, tables):
+      tables[].withValue(mainRt.selfId, m):
+        m[].addedAt = past
+
+    check mainRt.isReplaceable(peer, 1.hours, Moment.now())
+
+    var serviceRt = RoutingTable.new(
+      testKey(0xFF),
+      RoutingTableConfig.new(
+        hasher = Opt.some(noOpHasher),
+        maxBuckets = 16,
+        selfIdPreHashed = true,
+        usefulnessGracePeriod = 1.hours,
+      ),
+      localNodeId = Opt.some(mainRt.localNodeId),
+      registry = registry,
+    )
+    check serviceRt.insert(peer)
+    check not serviceRt.isReplaceable(peer, 1.hours, Moment.now())
+
+  test "orphan bucket key is replaceable and preferred for eviction":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(rt.keyInBucket(TargetBucket))
+
+    # Corrupt: leave a key in the bucket but drop its registry row.
+    let orphan = rt.buckets[TargetBucket].peers[0]
+    rt.registry.dropPeer(orphan)
+    check rt.registry.isReplaceable(
+      orphan, rt.selfId, config.usefulnessGracePeriod, Moment.now()
+    )
+
+    let newcomer = rt.keyInBucket(TargetBucket)
+    check rt.insert(newcomer)
+    check:
+      newcomer in rt.buckets[TargetBucket].peers
+      orphan notin rt.buckets[TargetBucket].peers
+
+  test "detachAll drops memberships and blocks further inserts":
+    let registry = PeerRegistry.new()
+    var rt = RoutingTable.new(testKey(0), registry = registry)
+    let peer = testKey(1)
+    check rt.insert(peer)
+    check peer in registry
+
+    rt.detachAll()
+    check:
+      rt.detached
+      peer notin registry
+      rt.buckets.len == 0
+      not rt.insert(testKey(2))
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
