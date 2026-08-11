@@ -93,8 +93,9 @@ proc guessDialableAddr*(self: ObservedAddrManager, ma: MultiAddress): MultiAddre
   return concat(observedIP, maRest).valueOr:
     ma
 
-func isStarted*(self: ObservedAddrManager): bool =
-  self.started
+when defined(libp2p_testing):
+  func isStarted*(self: ObservedAddrManager): bool =
+    self.started
 
 proc start*(self: ObservedAddrManager) =
   self.started = true

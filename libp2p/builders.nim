@@ -420,6 +420,7 @@ proc withObservedAddrManager*(
     b: SwitchBuilder, config: ObservedAddrManagerConfig
 ): SwitchBuilder =
   ## Set the thresholds of the observed address manager.
+  b.observedAddrManager = nil
   b.observedAddrConfig = Opt.some(config)
   b
 
@@ -428,6 +429,7 @@ proc withObservedAddrManager*(
 ): SwitchBuilder {.
     deprecated: "the switch owns the manager; pass an ObservedAddrManagerConfig"
 .} =
+  b.observedAddrConfig = Opt.none(ObservedAddrManagerConfig)
   b.observedAddrManager = observedAddrManager
   b
 
@@ -451,9 +453,6 @@ proc buildObservedAddrManager(b: SwitchBuilder): ObservedAddrManager =
   if b.observedAddrManager.isNil():
     return
       ObservedAddrManager.new(b.observedAddrConfig.get(ObservedAddrManagerConfig()))
-
-  if b.observedAddrConfig.isSome():
-    warn "the deprecated withObservedAddrManager(instance) drops the given config"
   b.observedAddrManager
 
 proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
