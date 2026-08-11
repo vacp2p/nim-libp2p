@@ -6,7 +6,7 @@
 {.push gcsafe.}
 {.push raises: [].}
 
-import std/oids
+import std/[oids, strutils]
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint, ../peerinfo, ../multiaddress, ../utils/shortlog, ../errors
@@ -66,6 +66,9 @@ type
     opened*: uint64
     closed*: uint64
 
+func metricLabel*(dir: Direction): string =
+  ($dir).toLowerAscii()
+
 proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
   newException(LPStreamIncompleteError, "Incomplete data received")
 
@@ -107,7 +110,7 @@ method initStream*(s: LPStream) {.base.} =
   s.closeEvent = newAsyncEvent()
   s.oid = genOid()
 
-  libp2p_open_streams.inc(labelValues = [s.objName, $s.dir])
+  libp2p_open_streams.inc(labelValues = [s.objName, metricLabel(s.dir)])
   trackCounter(s.objName)
   trace "Stream created", s, objName = s.objName, dir = $s.dir
 
@@ -266,7 +269,7 @@ proc write*(
 method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
   ## Implementation of close - called only once
   trace "Closing stream", s, objName = s.objName, dir = $s.dir
-  libp2p_open_streams.dec(labelValues = [s.objName, $s.dir])
+  libp2p_open_streams.dec(labelValues = [s.objName, metricLabel(s.dir)])
   untrackCounter(s.objName)
   s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
@@ -298,7 +301,7 @@ proc resetStream(s: LPStream): Future[void] {.async: (raises: [], raw: true).} =
 
   s.isClosed = true
   s.isResetLocally = true
-  libp2p_stream_resets.inc(labelValues = [s.objName, $s.dir])
+  libp2p_stream_resets.inc(labelValues = [s.objName, metricLabel(s.dir)])
   resetImpl(s)
 
 template reset*[T: LPStream](s: T): untyped =

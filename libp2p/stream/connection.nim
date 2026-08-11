@@ -116,7 +116,7 @@ proc pollActivity(s: Connection): Future[bool] {.async: (raises: []).} =
   # Inactivity timeout happened, call timeout monitor
 
   trace "Connection timed out", s
-  libp2p_stream_timeouts.inc(labelValues = [s.objName, $s.dir])
+  libp2p_stream_timeouts.inc(labelValues = [s.objName, metricLabel(s.dir)])
   if s.timeoutHandler != nil:
     trace "Calling timeout handler", s
     await s.timeoutHandler()

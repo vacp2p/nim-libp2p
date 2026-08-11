@@ -425,7 +425,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
     if removed:
-      libp2p_connections_closed.inc(labelValues = [$mux.connection.dir])
+      libp2p_connections_closed.inc(labelValues = [metricLabel(mux.connection.dir)])
     if removed and c.muxerStore.count(peerId) == 0:
       await c.onPeerDisconnected(peerId)
     await noCancel c.triggerConnEvent(
@@ -491,7 +491,7 @@ proc storeMuxer*(
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
-  libp2p_connections_opened.inc(labelValues = [$dir])
+  libp2p_connections_opened.inc(labelValues = [metricLabel(dir)])
 
   if isNewPeer and not c.peerStore.isNil:
     c.peerStore.markPeerConnected(peerId)
