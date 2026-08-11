@@ -7,7 +7,7 @@ import
     builders,
     switch,
     multicodec,
-    observedaddrmanager,
+    addressmanager,
     services/hpservice,
     services/autorelayservice,
     protocols/connectivity/relay/client,
@@ -25,7 +25,7 @@ proc createSwitch(
     config: BaseConfig, relayClient: Relay = nil, hpService: Service = nil
 ): Switch =
   var s = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
-    .withObservedAddrManager(ObservedAddrManagerConfig(maxSize: 1, minCount: 1))
+    .withAddressManager(AddressManagerConfig(maxSize: 1, minCount: 1))
     .withAutonat()
     .withCircuitRelay(relayClient)
     .build()

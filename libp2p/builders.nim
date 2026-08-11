@@ -27,7 +27,7 @@ import
   services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
-  observedaddrmanager,
+  addressmanager,
   autotls/service,
   nameresolving/nameresolver,
   errors,
@@ -97,8 +97,8 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     identifyPusherEnabled: bool
-    observedAddrManager: ObservedAddrManager
-    observedAddrConfig: Opt[ObservedAddrManagerConfig]
+    addressManager: AddressManager
+    addressManagerConfig: Opt[AddressManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
 
@@ -125,7 +125,7 @@ proc new*(T: type[SwitchBuilder]): T =
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
-    observedAddrConfig: Opt.none(ObservedAddrManagerConfig),
+    addressManagerConfig: Opt.none(AddressManagerConfig),
   )
 
 proc withPrivateKey*(
@@ -416,21 +416,26 @@ proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder 
   b.identifyPusherEnabled = enabled
   b
 
-proc withObservedAddrManager*(
-    b: SwitchBuilder, config: ObservedAddrManagerConfig
+proc withAddressManager*(
+    b: SwitchBuilder, config: AddressManagerConfig
 ): SwitchBuilder =
-  ## Set the thresholds of the observed address manager.
-  b.observedAddrManager = nil
-  b.observedAddrConfig = Opt.some(config)
+  ## Set the thresholds of the address manager.
+  b.addressManager = nil
+  b.addressManagerConfig = Opt.some(config)
   b
 
 proc withObservedAddrManager*(
-    b: SwitchBuilder, observedAddrManager: ObservedAddrManager
+    b: SwitchBuilder, config: AddressManagerConfig
+): SwitchBuilder {.deprecated: "use withAddressManager".} =
+  b.withAddressManager(config)
+
+proc withObservedAddrManager*(
+    b: SwitchBuilder, addressManager: AddressManager
 ): SwitchBuilder {.
-    deprecated: "the switch owns the manager; pass an ObservedAddrManagerConfig"
+    deprecated: "the switch owns the manager; pass an AddressManagerConfig"
 .} =
-  b.observedAddrConfig = Opt.none(ObservedAddrManagerConfig)
-  b.observedAddrManager = observedAddrManager
+  b.addressManagerConfig = Opt.none(AddressManagerConfig)
+  b.addressManager = addressManager
   b
 
 proc withAddressPolicy*(
@@ -449,11 +454,10 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
-proc buildObservedAddrManager(b: SwitchBuilder): ObservedAddrManager =
-  if b.observedAddrManager.isNil():
-    return
-      ObservedAddrManager.new(b.observedAddrConfig.get(ObservedAddrManagerConfig()))
-  b.observedAddrManager
+proc buildAddressManager(b: SwitchBuilder): AddressManager =
+  if b.addressManager.isNil():
+    return AddressManager.new(b.addressManagerConfig.get(AddressManagerConfig()))
+  b.addressManager
 
 proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
@@ -482,8 +486,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     announcedAddrs = b.announcedAddrs,
   )
 
-  let observedAddrManager = b.buildObservedAddrManager()
-  let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, observedAddrManager)
+  let addressManager = b.buildAddressManager()
+  let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, addressManager)
 
   var peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -538,7 +542,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
     services: services,
-    observedAddrManager: observedAddrManager,
+    addressManager: addressManager,
   )
 
   return switch

@@ -19,6 +19,8 @@ export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, res
 
 const p2pMultiCodec = multiCodec("p2p")
 
+const DefaultNotifyDebounce* = 100.milliseconds
+
 type
   PeerInfoError* = object of LPError
 
@@ -34,6 +36,8 @@ type
     ## 1. Automatically after a call to `PeerInfo.update`, which may change the
     ##    resolved `addrs` list.
     ## 2. Manually when `PeerInfo.notifyObservers` is called explicitly.
+    ##
+    ## `notifyDebounce` coalesces a burst of both into a single trailing call.
 
   PeerInfo* = ref object ## PeerInfo represents our local peer info
     peerId*: PeerId
@@ -41,9 +45,10 @@ type
     ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
     announcedAddrs*: seq[MultiAddress]
     ## explicit addresses to announce to peers, distinct from listenAddrs.
-    ## When non-empty, these replace the output of the addressMappers chain in `expandAddrs`,
-    ## allowing a node to advertise (e.g.) a public NAT-mapped address while binding locally.
-    ## The addressPolicy filter is still applied. Leave empty to use mapper-chain output.
+    ## When non-empty, these replace the output of the mapper chain, allowing a
+    ## node to advertise (e.g.) a public NAT-mapped address while binding
+    ## locally. The `AddressManager` applies them; a `PeerInfo` which runs no
+    ## mapper applies them itself. The addressPolicy filter is still applied.
     addrs*: seq[MultiAddress]
     ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
@@ -57,6 +62,12 @@ type
     publicKey*: PublicKey
     signedPeerRecord*: SignedPeerRecord
     observers: seq[PeerInfoObserver]
+    notifyDebounce*: Duration
+    ## the shortest interval between two notifications. The first one is
+    ## immediate; the ones raised during the interval are coalesced into a
+    ## single notification at its end.
+    notifyFut: Future[void]
+    notifyPending: bool
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -79,22 +90,51 @@ proc addObserver*(p: PeerInfo, observer: PeerInfoObserver) =
 proc removeObserver*(p: PeerInfo, observer: PeerInfoObserver) =
   p.observers.keepItIf(it != observer)
 
-proc notifyObservers*(p: PeerInfo) =
+proc notifyNow(p: PeerInfo) =
   for observer in p.observers:
     observer(p)
+
+proc quietPeriod(p: PeerInfo) {.async: (raises: []).} =
+  try:
+    await sleepAsync(p.notifyDebounce)
+  except CancelledError:
+    return
+  if p.notifyPending:
+    p.notifyPending = false
+    p.notifyNow()
+
+proc notifyObservers*(p: PeerInfo) =
+  if p.notifyDebounce <= ZeroDuration:
+    p.notifyNow()
+    return
+
+  if p.notifyFut.isNil() or p.notifyFut.finished():
+    p.notifyNow()
+    p.notifyFut = p.quietPeriod()
+    return
+
+  p.notifyPending = true
+
+proc stopNotifications*(p: PeerInfo) {.async: (raises: []).} =
+  p.notifyPending = false
+  if p.notifyFut.isNil():
+    return
+  await p.notifyFut.cancelAndWait()
+  p.notifyFut = nil
 
 proc expandAddrs*(
     p: PeerInfo
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  var addrs: seq[MultiAddress]
+  var addrs = p.listenAddrs
+  for mapper in p.addressMappers:
+    addrs = await mapper(addrs)
+
+  # the mappers still run: a port mapper has to map the bound ports even when
+  # the operator picks what is announced
   if p.announcedAddrs.len > 0:
     addrs = p.announcedAddrs
-  else:
-    addrs = p.listenAddrs
-    for mapper in p.addressMappers:
-      addrs = await mapper(addrs)
-  addrs = p.addressPolicy.filterAddrs(addrs)
-  return addrs
+
+  p.addressPolicy.filterAddrs(addrs)
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   var hasChanged: bool
@@ -175,6 +215,7 @@ proc new*(
     addressMappers = newSeq[AddressMapper](),
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     announcedAddrs: openArray[MultiAddress] = [],
+    notifyDebounce = DefaultNotifyDebounce,
 ): PeerInfo {.raises: [LPError].} =
   let pubkey = key.getPublicKey().valueOr:
     raise
@@ -195,4 +236,5 @@ proc new*(
     protocols: @protocols,
     addressMappers: addressMappers,
     addressPolicy: addressPolicy,
+    notifyDebounce: notifyDebounce,
   )

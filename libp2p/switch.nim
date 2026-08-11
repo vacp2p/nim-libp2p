@@ -27,11 +27,11 @@ import
   errors,
   results,
   dialer,
-  observedaddrmanager,
+  addressmanager,
   utils/future,
   crypto/rng
 
-export connmanager, upgrade, dialer, peerstore, observedaddrmanager
+export connmanager, upgrade, dialer, peerstore, addressmanager
 
 logScope:
   topics = "libp2p switch"
@@ -46,7 +46,7 @@ const ConcurrentUpgrades* = 32
 const UpgradeTimeout* = 30.seconds
 
 # a Switch built field by field, as TorSwitch and SwitchStub do, must copy it
-const MissingObservedAddrManager = "switch has no ObservedAddrManager"
+const MissingAddressManager = "switch has no AddressManager"
 
 type
   Switch* = ref object of Dial
@@ -60,7 +60,7 @@ type
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
-    observedAddrManager*: ObservedAddrManager
+    addressManager*: AddressManager
     started: bool
     services*: seq[Service]
     rng*: Rng
@@ -91,6 +91,11 @@ method stop*(
     self: Service, switch: Switch
 ) {.base, async: (raises: [CancelledError]).} =
   raiseAssert "[Service.stop] abstract method not implemented!"
+
+proc observedAddrManager*(
+    s: Switch
+): AddressManager {.deprecated: "use switch.addressManager".} =
+  s.addressManager
 
 proc addConnEventHandler*(s: Switch, handler: ConnEventHandler, kind: ConnEventKind) =
   ## Adds a ConnEventHandler, which will be triggered when
@@ -359,9 +364,11 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   await s.ms.stop()
 
-  # stopped last, after every component which can still observe an address
-  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
-  s.observedAddrManager.stop()
+  await s.peerInfo.stopNotifications()
+
+  # stopped last, after every component which can still feed an address
+  doAssert not s.addressManager.isNil(), MissingAddressManager
+  s.addressManager.stop()
 
   s.peerStore.close()
 
@@ -375,9 +382,9 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   debug "starting switch for peer", peerInfo = s.peerInfo
 
-  # started first, so that identify can feed it as soon as a peer connects
-  doAssert not s.observedAddrManager.isNil(), MissingObservedAddrManager
-  s.observedAddrManager.start()
+  # started first, so that it owns the mapper chain before any service adds one
+  doAssert not s.addressManager.isNil(), MissingAddressManager
+  s.addressManager.start(s.peerInfo)
 
   # start services and transports without await to prevent any
   # issues when one needs another to start first.

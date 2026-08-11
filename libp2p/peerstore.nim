@@ -572,13 +572,13 @@ proc identify*(
 
 proc getMostObservedProtosAndPorts*(
     self: PeerStore
-): seq[MultiAddress] {.deprecated: "use switch.observedAddrManager".} =
-  return self.identify.observedAddrManager.getMostObservedProtosAndPorts()
+): seq[MultiAddress] {.deprecated: "use switch.addressManager".} =
+  return self.identify.addressManager.getMostObservedProtosAndPorts()
 
 proc guessDialableAddr*(
     self: PeerStore, ma: MultiAddress
-): MultiAddress {.deprecated: "use switch.observedAddrManager".} =
-  return self.identify.observedAddrManager.guessDialableAddr(ma)
+): MultiAddress {.deprecated: "use switch.addressManager.externalAddrFor".} =
+  return self.identify.addressManager.externalAddrFor(ma)
 
 proc extend*[T](self: SeqPeerBook[T], key: PeerId, new: seq[T]) =
   var extended: HashSet[T]

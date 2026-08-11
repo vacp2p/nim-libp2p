@@ -160,10 +160,10 @@ proc askPeer(
     # the chicken-and-egg.
     var observedCandidates: seq[MultiAddress]
     for listenAddr in switch.peerInfo.listenAddrs:
-      let guessed = switch.observedAddrManager.guessDialableAddr(listenAddr)
+      let guessed = switch.addressManager.externalAddrFor(listenAddr)
       if guessed != listenAddr:
         observedCandidates.add(guessed)
-    observedCandidates &= switch.observedAddrManager.getMostObservedProtosAndPorts()
+    observedCandidates &= switch.addressManager.getMostObservedProtosAndPorts()
 
     reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
         switch.peerInfo.addressPolicy(it)
@@ -224,7 +224,7 @@ proc schedule(
 
 proc addressMapper(
     self: AutonatV2Service,
-    observedAddrManager: ObservedAddrManager,
+    addressManager: AddressManager,
     listenAddrs: seq[MultiAddress],
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   if not self.networkReachability.isReachable():
@@ -235,7 +235,7 @@ proc addressMapper(
     if listenAddr.isPublicMA() or not self.networkReachability.isReachable():
       addrs.add(listenAddr)
     else:
-      addrs.add(observedAddrManager.guessDialableAddr(listenAddr))
+      addrs.add(addressManager.externalAddrFor(listenAddr))
   return addrs
 
 method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
@@ -244,7 +244,7 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, switch.observedAddrManager, listenAddrs)
+    return await addressMapper(self, switch.addressManager, listenAddrs)
 
   if self.config.askNewConnectedPeers:
     self.newConnectedPeerHandler = proc(
@@ -262,7 +262,7 @@ method start*(
   )
 
   if self.config.enableAddressMapper:
-    switch.peerInfo.addressMappers.add(self.addressMapper)
+    switch.addressManager.addMapper(self.addressMapper, AddrSource.IdentifyObserved)
     await switch.peerInfo.update()
 
   self.config.scheduleInterval.withValue(interval):
@@ -282,7 +282,7 @@ method stop*(
       self.newConnectedPeerHandler, PeerEventKind.Joined
     )
   if self.config.enableAddressMapper:
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+    switch.addressManager.removeMapper(self.addressMapper)
   await switch.peerInfo.update()
 
 proc setStatusAndConfidenceHandler*(

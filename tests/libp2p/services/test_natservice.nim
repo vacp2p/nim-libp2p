@@ -265,7 +265,7 @@ suite "NATService":
       await switch.stop()
 
     # No addressMapper installed; peerInfo.addrs falls back to listenAddrs.
-    check switch.peerInfo.addressMappers.len == 0
+    check switch.addressManager.mapperSources().len == 0
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
 
   asyncTest "stop unmaps active mappings and closes the mapper":
@@ -407,7 +407,8 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() ==
+        @[AddrSource.Upnp, AddrSource.IdentifyObserved]
 
   asyncTest "autonat v1 survives stop/start cycle":
     let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
@@ -476,7 +477,8 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() ==
+        @[AddrSource.Upnp, AddrSource.IdentifyObserved]
 
   test "withNAT configuring the same concern twice is a programmer error":
     expect AssertionDefect:

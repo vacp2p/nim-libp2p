@@ -507,6 +507,13 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
     return Opt.none(PortMapper)
   Opt.some(PortMapper(mapper))
 
+func portMappingSource(mode: PortMappingMode): AddrSource =
+  case mode
+  of ExplicitIp: AddrSource.Announced
+  of NatPmp: AddrSource.NatPmp
+  of Upnp, Auto: AddrSource.Upnp
+    # libplum does not report which protocol answered in Auto mode
+
 proc startPortMapping(self: NATService, switch: Switch) =
   ## (Re)build the addressMapper here, not in setup, so a stop/start cycle
   ## re-creates it after stop() tears it down.
@@ -520,8 +527,8 @@ proc startPortMapping(self: NATService, switch: Switch) =
         return
       self.addressMapper = self.portMappingMapper()
 
-  if not self.addressMapper.isNil():
-    switch.peerInfo.addressMappers.add(self.addressMapper)
+    if not self.addressMapper.isNil():
+      switch.addressManager.addMapper(self.addressMapper, portMappingSource(pm.mode))
 
 proc startReachability(
     self: NATService, switch: Switch
@@ -543,11 +550,11 @@ proc stopPortMapping(
     case pm.mode
     of ExplicitIp:
       if not self.addressMapper.isNil():
-        switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+        switch.addressManager.removeMapper(self.addressMapper)
         self.addressMapper = nil
     of Upnp, NatPmp, Auto:
       if not self.addressMapper.isNil():
-        switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+        switch.addressManager.removeMapper(self.addressMapper)
         self.addressMapper = nil
       if not self.mapper.isNil():
         await self.unmapAll()

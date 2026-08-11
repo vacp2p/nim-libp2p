@@ -18,9 +18,9 @@ import
   ../protocols/protocol,
   ../utils/[opt, protobuf],
   ../errors,
-  ../observedaddrmanager
+  ../addressmanager
 
-export observedaddrmanager
+export addressmanager
 
 logScope:
   topics = "libp2p identify"
@@ -66,7 +66,7 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
     sendSignedPeerRecord*: bool
-    observedAddrManager*: ObservedAddrManager
+    addressManager*: AddressManager
 
   IdentifyPushHandler* =
     proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
@@ -126,12 +126,12 @@ proc new*(
     T: typedesc[Identify],
     peerInfo: PeerInfo,
     sendSignedPeerRecord = false,
-    observedAddrManager = ObservedAddrManager.new(),
+    addressManager = AddressManager.new(),
 ): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
-    observedAddrManager: observedAddrManager,
+    addressManager: addressManager,
   )
   identify.init()
   identify
@@ -184,7 +184,7 @@ proc identify*(
     peer = remotePeerId
 
   identifyMsg.observedAddr.withValue(observed):
-    if not self.observedAddrManager.addObservation(observed):
+    if not self.addressManager.addObservation(observed, stream.localAddr):
       trace "Observed address is not valid.", observedAddr = observed
 
   return makeIdentifyInfo(peer, identifyMsg)

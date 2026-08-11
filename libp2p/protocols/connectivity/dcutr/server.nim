@@ -34,7 +34,7 @@ proc new*(
 
       debug "Dcutr receiver received a Connect message.", connectMsg
 
-      var ourAddrs = switch.observedAddrManager.getMostObservedProtosAndPorts()
+      var ourAddrs = switch.addressManager.getMostObservedProtosAndPorts()
         # likely empty when the peer is reachable
       if ourAddrs.len == 0:
         # this list should be the same as the peer's public addrs when it is reachable;
@@ -44,9 +44,7 @@ proc new*(
           if switch.peerInfo.addrs.len > 0:
             switch.peerInfo.addrs
           else:
-            switch.peerInfo.listenAddrs.mapIt(
-              switch.observedAddrManager.guessDialableAddr(it)
-            )
+            switch.peerInfo.listenAddrs.mapIt(switch.addressManager.externalAddrFor(it))
       var ourDialableAddrs = getHolePunchableAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
         debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.",
