@@ -7,8 +7,7 @@ import metrics
 
 export metrics
 
-declarePublicGauge libp2p_relay_reservations_active,
-  "active circuit-relay reservations"
+declarePublicGauge libp2p_relay_reservations_active, "active circuit-relay reservations"
 declarePublicCounter libp2p_relay_reservation_attempts,
   "circuit-relay reservation attempts", ["result"]
 declarePublicGauge libp2p_relay_circuits_active, "active circuit-relay circuits"
