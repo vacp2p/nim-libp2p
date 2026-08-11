@@ -89,7 +89,7 @@ jobs:
           go mod tidy
           go run testautonatv2.go &
           cd ../nim-peer
-          nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
+          nim r -d:chronicles_log_level=DEBUG src/nim_peer.nim $(cat ../go-peer/peer.id)
 
   run-kad-interop:
     name: Run Kademlia DHT interoperability tests
@@ -120,7 +120,7 @@ jobs:
           cargo run &
 
           cd ../nim-peer
-          nim r src/nim_peer.nim
+          nim r -d:chronicles_log_level=DEBUG src/nim_peer.nim
 
   run-partial-message-interop:
     name: Run Partial Message interoperability tests
@@ -150,6 +150,6 @@ jobs:
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/partial-message
-          nim c ./nim-peer/src/peer.nim
+          nim c -d:chronicles_log_level=DEBUG ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go
           ./go-peer/peer & ./nim-peer/src/peer
