@@ -256,7 +256,12 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     )
 
 proc initKadBase*(
-    kad: KadDHT, switch: Switch, config: KadDHTConfig, rng: Rng, isServer: bool
+    kad: KadDHT,
+    switch: Switch,
+    config: KadDHTConfig,
+    rng: Rng,
+    isServer: bool,
+    codec: string,
 ) {.raises: [].} =
   ## Set the shared fields in one place, so a new base field cannot miss a constructor.
   kad.rng = rng
@@ -277,6 +282,8 @@ proc initKadBase*(
   kad.admissionSem = newAsyncSemaphore(config.limits.maxConcurrentProbes)
   kad.livenessSem = newAsyncSemaphore(config.limits.maxConcurrentLivenessProbes)
   kad.isServer = isServer
+  kad.codec = codec
+  kad.msgSender = MessageSender.new(switch, codec, MaxMsgSize)
 
 # K instead of T to avoid clashing with the T type param in withValue[T] when
 # called inside a withValue block, which causes a compiler error under --lineDir:on
@@ -290,12 +297,10 @@ proc new*(
     codec: string = KadCodec,
 ): K {.raises: [].} =
   let kad = K()
-  kad.initKadBase(switch, config, rng, isServer)
+  kad.initKadBase(switch, config, rng, isServer, codec)
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
-
-  kad.codec = codec
 
   kad.handler = proc(
       stream: Stream, proto: string
@@ -375,6 +380,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   kad.stopping = false
+  kad.msgSender.start()
 
   if not kad.config.disableBootstrapping:
     discard
@@ -424,3 +430,6 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   # Optimistic provide returns before its ADD_PROVIDER RPCs finish.
   let provideTasks = move kad.provideTasks
   await noCancel provideTasks.cancelAndWait()
+
+  # After the drain: nothing is left to reuse a stream, and `stop` refuses new ones.
+  await kad.msgSender.stop()
