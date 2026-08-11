@@ -96,7 +96,7 @@ func lastActivity*(entry: NodeEntry): Moment =
 func isReplaceable*(entry: NodeEntry, gracePeriod: Duration, now: Moment): bool =
   ## Replaceable once past `gracePeriod` in the table without proving useful; a
   ## peer that answered recently or was just added is retained. Also used to
-  ## select peers for liveness probes during maintenance.
+  ## select peers for liveness probes by the background liveness loop.
   now - entry.lastActivity() > gracePeriod
 
 proc isReplaceable*(
