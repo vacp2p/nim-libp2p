@@ -77,6 +77,8 @@ proc removeService*(
       manager.tables.del(serviceId)
       manager.serviceStatus.del(serviceId)
       manager.updateServiceTablesMetrics()
+      if not manager.onServiceTableRemoved.isNil():
+        manager.onServiceTableRemoved(serviceId)
       return
 
     if (currentStatus[], status) == (Both, Interest):

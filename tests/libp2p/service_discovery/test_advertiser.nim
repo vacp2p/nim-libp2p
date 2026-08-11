@@ -243,6 +243,27 @@ suite "Advertiser - removeProvidedService":
       disco.rtManager.hasService(sid2)
       disco.advertiser.running.len() == 1
 
+  asyncTest "cancels the service bootstrap future once the table is gone":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let sid = service.id.hashServiceId()
+
+    disco.populateRoutingTable(1)
+    check disco.addProvidedService(service).isOk()
+
+    let bootstrapFut = newFuture[void]("test service bootstrap")
+    disco.serviceBootstrapFuts[sid] = bootstrapFut
+
+    await disco.removeProvidedService(service.id)
+    check sid in disco.serviceBootstrapFuts # the local registrar still has interest
+
+    disco.unregisterInterest(service.id)
+    await sleepAsync(0.millis) # let the pending cancellation run
+
+    check:
+      sid notin disco.serviceBootstrapFuts
+      bootstrapFut.cancelled()
+
   asyncTest "removing non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()

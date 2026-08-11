@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets
+import chronos, chronicles, results, sets, tables, sequtils
 import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
@@ -92,7 +92,12 @@ proc new*(
     if disco.config.disableBootstrapping:
       return
 
-    disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
+    disco.serviceBootstrapFuts[serviceId] = disco.bootstrapServiceTable(serviceId)
+
+  disco.rtManager.onServiceTableRemoved = proc(serviceId: ServiceId) =
+    disco.serviceBootstrapFuts.withValue(serviceId, fut):
+      fut[].cancelSoon()
+    disco.serviceBootstrapFuts.del(serviceId)
 
   disco.codec = codec
 
@@ -178,7 +183,7 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   await disco.advertiser.clear()
 
   let serviceBootstrapFuts = move disco.serviceBootstrapFuts
-  await noCancel serviceBootstrapFuts.cancelAndWait()
+  await noCancel serviceBootstrapFuts.values.toSeq().cancelAndWait()
 
   if not disco.selfSignedPeerRecordLoop.isNil:
     await disco.selfSignedPeerRecordLoop.cancelAndWait()
