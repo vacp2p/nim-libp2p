@@ -30,7 +30,7 @@ proc peersPastGracePeriod(
   var peers: seq[PeerId]
   for bucket in rtable.buckets:
     for nodeId in bucket.peers:
-      if not rtable.isReplaceable(nodeId, gracePeriod, now):
+      if not rtable.registry.isReplaceable(nodeId, rtable.selfId, gracePeriod, now):
         continue
       nodeId.toPeerId().withValue(pid):
         peers.add(pid)
@@ -115,7 +115,7 @@ proc checkAndEvictPeer(
 
   # Probe can race with unrelated traffic that markUseful'd the peer mid-flight.
   var evicted = 0
-  for rtable in kad.maintainableTables():
+  for rtable in dueTables:
     if not rtable.isReplaceable(peerId, grace, Moment.now()):
       continue
     discard rtable.removePeer(peerId, reason = "liveness")

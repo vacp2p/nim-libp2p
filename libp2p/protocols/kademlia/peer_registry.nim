@@ -110,10 +110,10 @@ proc dropPeer*(registry: PeerRegistry, nodeId: Key) =
   registry.tablesByPeer.del(nodeId)
 
 func tableIds*(registry: PeerRegistry, nodeId: Key): HashSet[Key] =
-  result = initHashSet[Key]()
+  var ids = initHashSet[Key]()
   registry.tablesByPeer.withValue(nodeId, tables):
     for tableId in tables[].keys:
-      result.incl(tableId)
+      ids.incl(tableId)
 
 func isReplaceable*(
     registry: PeerRegistry,
