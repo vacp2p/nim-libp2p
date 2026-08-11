@@ -16,6 +16,12 @@ declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles"
 declareCounter(
   libp2p_connmgr_pruned_peers_total, "total peers pruned by connection manager"
 )
+declarePublicCounter(
+  libp2p_connections_opened, "connections opened", labels = ["direction"]
+)
+declarePublicCounter(
+  libp2p_connections_closed, "connections closed", labels = ["direction"]
+)
 
 const
   DefaultMaxConnections = 50
@@ -418,6 +424,8 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
   finally:
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
+    if removed:
+      libp2p_connections_closed.inc(labelValues = [metricLabel(mux.connection.dir)])
     if removed and c.muxerStore.count(peerId) == 0:
       await c.onPeerDisconnected(peerId)
     await noCancel c.triggerConnEvent(
@@ -483,6 +491,7 @@ proc storeMuxer*(
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
+  libp2p_connections_opened.inc(labelValues = [metricLabel(dir)])
 
   if isNewPeer and not c.peerStore.isNil:
     c.peerStore.markPeerConnected(peerId)

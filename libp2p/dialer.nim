@@ -29,6 +29,11 @@ logScope:
 declareCounter(libp2p_total_dial_attempts, "total attempted dials")
 declareCounter(libp2p_successful_dials, "dialed successful peers")
 declareCounter(libp2p_failed_dials, "failed dials")
+declarePublicHistogram libp2p_dial_duration_ms,
+  "dial and connection upgrade duration in milliseconds",
+  ["result"],
+  buckets =
+    [10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 30000.0]
 
 type Dialer* = ref object of Dial
   localPeerId*: PeerId
@@ -52,6 +57,7 @@ proc dialAndUpgrade*(
 
   for transport in self.transports: # for each transport
     if transport.handles(addrs): # check if it can dial it
+      let dialStarted = Moment.now()
       trace "Dialing address", addrs, peerId, hostname
       let dialed =
         try:
@@ -64,6 +70,9 @@ proc dialAndUpgrade*(
           debug "Dialing failed",
             description = exc.msg, peerId = peerId, address = addrs, hostname
           libp2p_failed_dials.inc()
+          libp2p_dial_duration_ms.observe(
+            (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
+          )
           return nil # Try the next address
 
       libp2p_successful_dials.inc()
@@ -89,12 +98,18 @@ proc dialAndUpgrade*(
             libp2p_failed_upgrades_outgoing.inc()
           else:
             libp2p_failed_upgrades_incoming.inc()
+          libp2p_dial_duration_ms.observe(
+            (Moment.now() - dialStarted).milliseconds, labelValues = ["upgrade_failed"]
+          )
 
           # Try other address
           return nil
 
       doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
       debug "Dial successful", peerId = mux.connection.peerId
+      libp2p_dial_duration_ms.observe(
+        (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
+      )
       let filtered = self.peerStore.addressPolicy.filterAddrs(@[addrs])
       if filtered.len > 0:
         self.peerStore[AddressBook].markConnected(mux.connection.peerId, filtered[0])
