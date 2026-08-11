@@ -15,7 +15,7 @@ suite "KadDHT - Limits":
 
   asyncTest "admitPeers spawns at most maxConcurrentProbes probes":
     let kad = setupKad()
-    kad.probeSem = newAsyncSemaphore(2)
+    kad.admissionSem = newAsyncSemaphore(2)
 
     let peers = (0 ..< 5).mapIt(
       PeerInfo(
@@ -30,6 +30,28 @@ suite "KadDHT - Limits":
 
     let probes = move kad.admissionProbes
     await noCancel probes.values.toSeq().cancelAndWait()
+
+  asyncTest "liveness probes do not consume admissionSem slots":
+    ## Admission and eviction use independent semaphores: a saturated
+    ## livenessSem must not prevent admitPeers from launching probes.
+    let kad = setupKad()
+    kad.admissionSem = newAsyncSemaphore(2)
+    kad.livenessSem = newAsyncSemaphore(1)
+    check kad.livenessSem.tryAcquire() # hold the only liveness slot
+
+    let peers = (0 ..< 3).mapIt(
+      PeerInfo(
+        peerId: randomPeerId(),
+        addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
+      )
+    )
+    kad.admitPeers(peers)
+
+    check kad.admissionProbes.len == 2
+
+    let probes = move kad.admissionProbes
+    await noCancel probes.values.toSeq().cancelAndWait()
+    kad.livenessSem.release()
 
   test "updateShortlist caps shortlist at maxShortlistSize":
     let kad = setupKad()

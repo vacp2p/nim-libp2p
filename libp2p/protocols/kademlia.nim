@@ -19,7 +19,7 @@ logScope:
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 
-proc livenessCandidates(
+proc peersInGracePeriod(
     rtable: RoutingTable, gracePeriod: Duration
 ): seq[PeerId] {.raises: [].} =
   ## Peers past the liveness grace period that should be probed.
@@ -33,67 +33,135 @@ proc livenessCandidates(
         peers.add(pid)
   peers
 
-template withProbeSlotOrReturn*(kad: KadDHT) =
-  ## Acquire one ``probeSem`` slot for the enclosing scope, or return without
-  ## probing. Non-blocking: candidates that find no free slot are retried on a
-  ## later pass rather than queued.
-  if not kad.probeSem.tryAcquire():
+method maintainableTables*(
+    kad: KadDHT
+): seq[RoutingTable] {.base, gcsafe, raises: [].} =
+  ## Routing tables the liveness loop should keep healthy. Service discovery
+  ## overrides this to include per-service tables.
+  @[kad.rtable]
+
+proc trackLivenessProbe(
+    kad: KadDHT, peerId: PeerId, probe: Future[void]
+) {.raises: [].} =
+  ## ``probe`` may already be done — a dial can fail without ever suspending.
+  if probe.finished():
+    return
+  kad.livenessProbes[peerId] = probe
+  probe.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      if kad.livenessProbes.getOrDefault(peerId) == probe:
+        kad.livenessProbes.del(peerId)
+  )
+
+proc checkAndEvictPeer(
+    kad: KadDHT, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## Probes a peer once and applies the result to every maintainable table
+  ## where that peer is past the liveness grace period. Returns immediately
+  ## when all liveness probe slots are occupied.
+  if kad.stopping:
+    return
+  if not kad.livenessSem.tryAcquire():
+    debug "Liveness probe skipped: no free slot", peer = peerId.shortLog()
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
   defer:
     try:
-      kad.probeSem.release()
+      kad.livenessSem.release()
     except AsyncSemaphoreError:
-      raiseAssert "probeSem released without acquire"
+      raiseAssert "livenessSem released without acquire"
 
-proc checkAndEvictPeer(
-    kad: KadDHT, rtable: RoutingTable, peerId: PeerId
-) {.async: (raises: [CancelledError]).} =
-  withProbeSlotOrReturn(kad)
-
-  # Candidate list is a snapshot; by the time a slot is free the peer may have
-  # been refreshed (markUseful) or removed, and stop may have begun.
+  # Candidate list is a snapshot; the peer may have been refreshed (markUseful)
+  # or removed since it was selected.
   if kad.stopping:
     return
   let grace = kad.config.livenessGracePeriod
-  if not rtable.isReplaceable(peerId, grace, Moment.now()):
+  var dueTables: seq[RoutingTable]
+  for rtable in kad.maintainableTables():
+    if rtable.isReplaceable(peerId, grace, Moment.now()):
+      dueTables.add(rtable)
+  if dueTables.len == 0:
+    debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
-    trace "Evicting peer with no known addresses", peer = peerId.shortLog()
-    discard rtable.removePeer(peerId, reason = "liveness")
-    kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
+    var evicted = 0
+    for rtable in dueTables:
+      # Re-check: peer may have been markUseful'd after the snapshot.
+      if not rtable.isReplaceable(peerId, grace, Moment.now()):
+        continue
+      discard rtable.removePeer(peerId, reason = "liveness")
+      inc evicted
+    if evicted > 0:
+      debug "Evicting peer with no known addresses",
+        peer = peerId.shortLog(), tables = evicted
+      kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
+    else:
+      debug "Liveness probe skipped: peer no longer replaceable",
+        peer = peerId.shortLog()
     return
 
+  debug "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
-    rtable.markUseful(peerId)
+    debug "Liveness probe succeeded", peer = peerId.shortLog()
+    # Peer is reachable: refresh usefulness on every table that holds it.
+    for rtable in kad.maintainableTables():
+      rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
     return
 
   # Probe can race with unrelated traffic that markUseful'd the peer mid-flight.
-  if not rtable.isReplaceable(peerId, grace, Moment.now()):
+  var evicted = 0
+  for rtable in kad.maintainableTables():
+    if not rtable.isReplaceable(peerId, grace, Moment.now()):
+      continue
+    discard rtable.removePeer(peerId, reason = "liveness")
+    inc evicted
+  if evicted == 0:
+    debug "Liveness probe failed but peer refreshed mid-flight",
+      peer = peerId.shortLog()
     return
 
-  trace "Evicting unresponsive peer after liveness probe", peer = peerId.shortLog()
-  discard rtable.removePeer(peerId, reason = "liveness")
+  debug "Evicting unresponsive peer after liveness probe",
+    peer = peerId.shortLog(), tables = evicted
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
+
+proc launchLivenessProbe(kad: KadDHT, peerId: PeerId) {.raises: [].} =
+  ## Starts a liveness probe unless one is already in flight for this peer.
+  if kad.livenessProbes.hasKey(peerId):
+    debug "Liveness probe already in flight", peer = peerId.shortLog()
+    return
+  if kad.stopping:
+    return
+  debug "Launching liveness probe", peer = peerId.shortLog()
+  kad.trackLivenessProbe(peerId, kad.checkAndEvictPeer(peerId))
 
 proc probeAndEvictPeers*(
     kad: KadDHT, rtable: RoutingTable
 ) {.async: (raises: [CancelledError]).} =
-  ## Probes routing-table peers that have been quiet longer than the liveness
-  ## grace period and removes those that fail to answer a FIND_NODE.
+  ## One-shot batch: probes routing-table peers past the liveness grace period
+  ## and removes those that fail to answer a FIND_NODE. Used by tests and any
+  ## explicit maintenance call; production traffic uses ``maintainLiveness``.
+  ## Peers already being probed (e.g. from another table) are awaited, not
+  ## re-probed.
   if kad.stopping:
     return
 
-  let candidates = rtable.livenessCandidates(kad.config.livenessGracePeriod)
-  if candidates.len == 0:
+  let peers = rtable.peersInGracePeriod(kad.config.livenessGracePeriod)
+  if peers.len == 0:
     return
 
-  var futs = newSeqOfCap[Future[void]](candidates.len)
-  for peerId in candidates:
-    futs.add(kad.checkAndEvictPeer(rtable, peerId))
+  debug "Liveness batch starting", peers = peers.len
+  var futs = newSeqOfCap[Future[void]](peers.len)
+  for peerId in peers:
+    kad.livenessProbes.withValue(peerId, existing):
+      debug "Liveness batch reusing in-flight probe", peer = peerId.shortLog()
+      futs.add(existing[])
+      continue
+    let fut = kad.checkAndEvictPeer(peerId)
+    kad.trackLivenessProbe(peerId, fut)
+    futs.add(fut)
 
   if futs.len > 0:
     try:
@@ -101,14 +169,51 @@ proc probeAndEvictPeers*(
     except CancelledError as exc:
       await noCancel futs.cancelAndWait()
       raise exc
+  debug "Liveness batch complete", peers = peers.len
+
+proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  ## Continuous background task: drain replaceable peers via liveness probes
+  ## as soon as they become due, bounded by ``livenessSem``. Independent of
+  ## bucket refresh so dead peers are not held until the next refresh tick.
+  ## At most one probe is in flight per peer across all maintainable tables.
+
+  var idle = true
+  while not kad.stopping:
+    if idle:
+      # Initial idle: let start() finish bootstrap before the first scan.
+      await sleepAsync(kad.config.livenessIdleInterval)
+
+    let grace = kad.config.livenessGracePeriod
+
+    for rtable in kad.maintainableTables():
+      if kad.stopping:
+        return
+      let peers = rtable.peersInGracePeriod(grace)
+      if peers.len > 0:
+        debug "Liveness scan found replaceable peers", peers = peers.len
+      for peerId in peers:
+        kad.launchLivenessProbe(peerId)
+
+    if kad.livenessProbes.len > 0:
+      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
+      let inFlight = kad.livenessProbes.values.toSeq()
+      try:
+        discard await one(inFlight)
+      except ValueError:
+        # All futures already finished between the snapshot and the wait.
+        discard
+      except CancelledError as exc:
+        await noCancel inFlight.cancelAndWait()
+        raise exc
+      idle = false
+    else:
+      idle = true
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
-  ## Also sends a findNode to find a random key for each non-empty k-bucket
-
-  await kad.probeAndEvictPeers(rtable)
+  ## Also sends a findNode to find a random key for each non-empty k-bucket.
 
   discard await kad.findNode(rtable.selfId)
 
@@ -169,7 +274,8 @@ proc initKadBase*(
     ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity)
   kad.nsEstimator = NetworkSizeEstimator.new(config.replication)
   kad.rpcSem = newAsyncSemaphore(config.limits.maxConcurrentRpcs)
-  kad.probeSem = newAsyncSemaphore(config.limits.maxConcurrentProbes)
+  kad.admissionSem = newAsyncSemaphore(config.limits.maxConcurrentProbes)
+  kad.livenessSem = newAsyncSemaphore(config.limits.maxConcurrentLivenessProbes)
   kad.isServer = isServer
 
 # K instead of T to avoid clashing with the T type param in withValue[T] when
@@ -275,6 +381,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       await kad.bootstrap(forceRefresh = true).withTimeout(kad.config.bucketRefreshTime)
 
   kad.maintenanceLoop = kad.maintainBuckets()
+  kad.livenessLoop = kad.maintainLiveness()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
   kad.recordExpirationLoop = kad.manageExpiredRecords()
@@ -294,19 +401,25 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
 
   await noCancel allFutures(
     kad.maintenanceLoop.cancelAndWait(),
+    kad.livenessLoop.cancelAndWait(),
     kad.republishLoop.cancelAndWait(),
     kad.expiredLoop.cancelAndWait(),
     kad.recordExpirationLoop.cancelAndWait(),
   )
   kad.maintenanceLoop = nil
+  kad.livenessLoop = nil
   kad.republishLoop = nil
   kad.expiredLoop = nil
   kad.recordExpirationLoop = nil
 
   # loop: a handler racing shutdown can register a probe while we await a batch
-  while kad.admissionProbes.len > 0:
+  while kad.admissionProbes.len > 0 or kad.livenessProbes.len > 0:
     let admissionProbes = move kad.admissionProbes
-    await noCancel admissionProbes.values.toSeq().cancelAndWait()
+    let livenessProbes = move kad.livenessProbes
+    await noCancel allFutures(
+      admissionProbes.values.toSeq().cancelAndWait(),
+      livenessProbes.values.toSeq().cancelAndWait(),
+    )
 
   # Optimistic provide returns before its ADD_PROVIDER RPCs finish.
   let provideTasks = move kad.provideTasks
