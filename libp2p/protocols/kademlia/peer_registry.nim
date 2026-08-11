@@ -115,6 +115,8 @@ func tableIds*(registry: PeerRegistry, nodeId: Key): HashSet[Key] =
     for tableId in tables[].keys:
       ids.incl(tableId)
 
+  return ids
+
 func isReplaceable*(
     registry: PeerRegistry,
     nodeId: Key,
