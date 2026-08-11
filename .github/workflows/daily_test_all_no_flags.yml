@@ -57,7 +57,7 @@ jobs:
         
       - name: Build without feature flags
         run: |
-          nim c --mm:refc --cc:clang ./tests/test_all
+          nim c --mm:refc --cc:clang -d:chronicles_log_level=DEBUG ./tests/test_all
 
       - name: Run tests
         run: |
