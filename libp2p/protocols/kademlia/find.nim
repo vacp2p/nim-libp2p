@@ -439,12 +439,12 @@ proc admitPeer(
     addrs: seq[MultiAddress],
     onAdmit: AdmitHook,
 ) {.async: (raises: []).} =
-  ## Takes ownership of one ``probeSem`` slot already acquired by the caller.
+  ## Takes ownership of one ``admissionSem`` slot already acquired by the caller.
   defer:
     try:
-      kad.probeSem.release()
+      kad.admissionSem.release()
     except AsyncSemaphoreError:
-      raiseAssert "probeSem released without acquire"
+      raiseAssert "admissionSem released without acquire"
 
   let reachable =
     try:
@@ -499,7 +499,7 @@ proc admitPeers*(
     let probeKey: ProbeKey = (rtable.selfId, p.peerId)
     if kad.admissionProbes.hasKey(probeKey):
       continue
-    if not kad.probeSem.tryAcquire():
+    if not kad.admissionSem.tryAcquire():
       break
     pending.add(p.peerId)
     kad.trackProbe(probeKey, kad.admitPeer(rtable, p.peerId, addrs, onAdmit))
