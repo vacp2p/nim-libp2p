@@ -16,6 +16,15 @@ export chronicles, random_find, types, discoverer, advertiser, advertisement_cac
 logScope:
   topics = "service-discovery"
 
+method maintainableTables*(
+    disco: ServiceDiscovery
+): seq[RoutingTable] {.gcsafe, raises: [].} =
+  ## Main Kad table plus every per-service routing table.
+  var tables = @[disco.rtable]
+  for table in disco.rtManager.tables.values:
+    tables.add(table)
+  return tables
+
 proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
