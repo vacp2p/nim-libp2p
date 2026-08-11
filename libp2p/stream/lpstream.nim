@@ -15,6 +15,8 @@ import ../utils/future
 export errors
 
 declareGauge libp2p_open_streams, "open stream instances", labels = ["type", "dir"]
+declarePublicCounter libp2p_stream_resets,
+  "streams reset locally", labels = ["type", "direction"]
 
 export oids
 
@@ -296,6 +298,7 @@ proc resetStream(s: LPStream): Future[void] {.async: (raises: [], raw: true).} =
 
   s.isClosed = true
   s.isResetLocally = true
+  libp2p_stream_resets.inc(labelValues = [s.objName, $s.dir])
   resetImpl(s)
 
 template reset*[T: LPStream](s: T): untyped =

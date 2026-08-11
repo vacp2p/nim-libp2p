@@ -60,6 +60,8 @@ chronicles.formatIt(Connection):
   shortLog(it)
 
 declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
+declarePublicCounter libp2p_stream_timeouts,
+  "stream inactivity timeouts", labels = ["type", "direction"]
 
 when defined(libp2p_agents_metrics):
   declarePublicGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
@@ -114,6 +116,7 @@ proc pollActivity(s: Connection): Future[bool] {.async: (raises: []).} =
   # Inactivity timeout happened, call timeout monitor
 
   trace "Connection timed out", s
+  libp2p_stream_timeouts.inc(labelValues = [s.objName, $s.dir])
   if s.timeoutHandler != nil:
     trace "Calling timeout handler", s
     await s.timeoutHandler()

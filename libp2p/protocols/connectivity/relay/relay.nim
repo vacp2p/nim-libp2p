@@ -11,6 +11,7 @@ import
   ./messages,
   ./rconn,
   ./utils,
+  ./relay_metrics,
   ../../../peerinfo,
   ../../../switch,
   ../../../multiaddress,
@@ -106,11 +107,13 @@ proc handleReserve(
     r: Relay, stream: Stream
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   if stream.isRelayed():
+    libp2p_relay_reservation_attempts.inc(labelValues = ["permission_denied"])
     trace "reservation attempt over relay connection", pid = stream.peerId
     await sendHopStatus(stream, PermissionDenied)
     return
 
   if r.peerCount[stream.peerId] + r.rsvp.len() >= r.maxCircuit:
+    libp2p_relay_reservation_attempts.inc(labelValues = ["limit"])
     trace "Too many reservations", pid = stream.peerId
     await sendHopStatus(stream, ReservationRefused)
     return
@@ -119,16 +122,20 @@ proc handleReserve(
     pid = stream.peerId
     expire = now().utc + r.reservationTTL
     msg = r.createReserveResponse(pid, expire).valueOr:
+      libp2p_relay_reservation_attempts.inc(labelValues = ["signing_error"])
       trace "error signing the voucher", pid
       return
 
   r.rsvp[pid] = expire
+  libp2p_relay_reservations_active.set(r.rsvp.len.int64)
+  libp2p_relay_reservation_attempts.inc(labelValues = ["success"])
   await stream.writeLp(encode(msg))
 
 proc handleConnect(
     r: Relay, srcStream: Stream, msg: HopMessage
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   if srcStream.isRelayed():
+    libp2p_relay_connections.inc(labelValues = ["permission_denied"])
     trace "connection attempt over relay connection"
     await sendHopStatus(srcStream, PermissionDenied)
     return
@@ -141,6 +148,7 @@ proc handleConnect(
       return
     src = srcStream.peerId
   if dst notin r.rsvp:
+    libp2p_relay_connections.inc(labelValues = ["no_reservation"])
     trace "refusing connection, no reservation", src, dst
     await sendHopStatus(srcStream, NoReservation)
     return
@@ -152,6 +160,7 @@ proc handleConnect(
     r.peerCount.inc(dst, -1)
 
   if r.peerCount[src] > r.maxCircuitPerPeer or r.peerCount[dst] > r.maxCircuitPerPeer:
+    libp2p_relay_connections.inc(labelValues = ["limit"])
     trace "too many connections",
       src = r.peerCount[src], dst = r.peerCount[dst], max = r.maxCircuitPerPeer
     await sendHopStatus(srcStream, ResourceLimitExceeded)
@@ -197,6 +206,10 @@ proc handleConnect(
     return
 
   trace "relaying connection", src, dst
+  libp2p_relay_connections.inc(labelValues = ["success"])
+  libp2p_relay_circuits_active.inc()
+  defer:
+    libp2p_relay_circuits_active.dec()
   let
     srcRelayConn = RelayConnection.new(srcStream, r.limit.duration, r.limit.data)
     dstRelayConn = RelayConnection.new(dstStream, r.limit.duration, r.limit.data)
@@ -342,7 +355,8 @@ proc setup*(r: Relay, switch: Switch) =
   r.switch = switch
   r.switch.addPeerEventHandler(
     proc(peerId: PeerId, event: PeerEvent) {.async: (raises: [CancelledError]).} =
-      r.rsvp.del(peerId),
+      r.rsvp.del(peerId)
+      libp2p_relay_reservations_active.set(r.rsvp.len.int64),
     Left,
   )
 
@@ -400,6 +414,7 @@ proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
       for k in toSeq(r.rsvp.keys):
         if n > r.rsvp[k]:
           r.rsvp.del(k)
+      libp2p_relay_reservations_active.set(r.rsvp.len.int64)
     except KeyError:
       raiseAssert "checked with in"
 
@@ -418,6 +433,7 @@ method stop*(r: Relay): Future[void] {.async: (raises: [], raw: true).} =
     return newFutureCompleted[void]()
 
   r.started = false
+  libp2p_relay_reservations_active.set(0)
   r.reservationLoop.cancelSoon()
   r.reservationLoop = nil
   newFutureCompleted[void]()
