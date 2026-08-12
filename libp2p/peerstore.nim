@@ -573,7 +573,7 @@ proc identify*(
 proc getMostObservedProtosAndPorts*(
     self: PeerStore
 ): seq[MultiAddress] {.deprecated: "use switch.addressManager".} =
-  return self.identify.addressManager.getMostObservedProtosAndPorts()
+  return self.identify.addressManager.mostObservedProtosAndPorts()
 
 proc guessDialableAddr*(
     self: PeerStore, ma: MultiAddress

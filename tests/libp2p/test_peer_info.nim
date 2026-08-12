@@ -127,7 +127,7 @@ suite "PeerInfo":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
-      peerInfo = PeerInfo.new(seckey, multiAddresses, notifyDebounce = ZeroDuration)
+      peerInfo = PeerInfo.new(seckey, multiAddresses)
 
     var
       callsA = 0

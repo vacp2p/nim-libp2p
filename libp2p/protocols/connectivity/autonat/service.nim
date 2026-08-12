@@ -222,7 +222,7 @@ method start*(
   )
 
   if self.enableAddressMapper:
-    switch.addressManager.addMapper(self.addressMapper, AddrSource.IdentifyObserved)
+    switch.addressManager.addMapper(self.addressMapper, AddrSource.Autonat)
     await switch.peerInfo.update()
 
   self.scheduleInterval.withValue(interval):

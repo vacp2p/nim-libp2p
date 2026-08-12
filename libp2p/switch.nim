@@ -364,8 +364,6 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   await s.ms.stop()
 
-  await s.peerInfo.stopNotifications()
-
   # stopped last, after every component which can still feed an address
   doAssert not s.addressManager.isNil(), MissingAddressManager
   s.addressManager.stop()

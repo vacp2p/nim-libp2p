@@ -12,9 +12,8 @@ logScope:
   topics = "libp2p wildcardresolverservice"
 
 type WildcardAddressResolverService* = ref object of Service
-  ## Hands the `AddressManager` the network interfaces it expands a wildcard
-  ## listen address ("0.0.0.0" for IPv4, "::" for IPv6) onto. The manager owns
-  ## the expansion itself.
+  ## Hands the `AddressManager` the interfaces it expands a wildcard listen
+  ## address ("0.0.0.0" for IPv4, "::" for IPv6) onto.
   networkInterfaceProvider: NetworkInterfaceProvider
 
 proc new*(

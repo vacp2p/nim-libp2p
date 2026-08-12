@@ -509,10 +509,10 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
 
 func portMappingSource(mode: PortMappingMode): AddrSource =
   case mode
-  of ExplicitIp: AddrSource.Announced
+  of ExplicitIp: AddrSource.ExplicitIp
+  of Upnp: AddrSource.Upnp
   of NatPmp: AddrSource.NatPmp
-  of Upnp, Auto: AddrSource.Upnp
-    # libplum does not report which protocol answered in Auto mode
+  of Auto: AddrSource.PortMapped
 
 proc startPortMapping(self: NATService, switch: Switch) =
   ## (Re)build the addressMapper here, not in setup, so a stop/start cycle

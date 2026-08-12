@@ -163,7 +163,7 @@ proc askPeer(
       let guessed = switch.addressManager.externalAddrFor(listenAddr)
       if guessed != listenAddr:
         observedCandidates.add(guessed)
-    observedCandidates &= switch.addressManager.getMostObservedProtosAndPorts()
+    observedCandidates &= switch.addressManager.mostObservedProtosAndPorts()
 
     reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
         switch.peerInfo.addressPolicy(it)
@@ -262,7 +262,7 @@ method start*(
   )
 
   if self.config.enableAddressMapper:
-    switch.addressManager.addMapper(self.addressMapper, AddrSource.IdentifyObserved)
+    switch.addressManager.addMapper(self.addressMapper, AddrSource.Autonat)
     await switch.peerInfo.update()
 
   self.config.scheduleInterval.withValue(interval):

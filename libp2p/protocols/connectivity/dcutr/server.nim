@@ -34,7 +34,7 @@ proc new*(
 
       debug "Dcutr receiver received a Connect message.", connectMsg
 
-      var ourAddrs = switch.addressManager.getMostObservedProtosAndPorts()
+      var ourAddrs = switch.addressManager.mostObservedProtosAndPorts()
         # likely empty when the peer is reachable
       if ourAddrs.len == 0:
         # this list should be the same as the peer's public addrs when it is reachable;

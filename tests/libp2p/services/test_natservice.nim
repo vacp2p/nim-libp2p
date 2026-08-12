@@ -407,8 +407,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
-      switch.addressManager.mapperSources() ==
-        @[AddrSource.Upnp, AddrSource.IdentifyObserved]
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   asyncTest "autonat v1 survives stop/start cycle":
     let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
@@ -477,8 +476,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper + AutoNAT v1 mapper both registered.
-      switch.addressManager.mapperSources() ==
-        @[AddrSource.Upnp, AddrSource.IdentifyObserved]
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   test "withNAT configuring the same concern twice is a programmer error":
     expect AssertionDefect:

@@ -1,30 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## The `AddressManager` owns the addresses a node announces. It keeps one
-## candidate per address, it maps each local listen address to the external
-## address that remote peers report for it, and it runs the only
-## `AddressMapper` the local `PeerInfo` holds. The wildcard resolver, the NAT
-## port mapper, AutoNAT, AutoRelay and the explicit announce list all feed it.
+## The `AddressManager` owns the addresses a node announces: one candidate per
+## address, and the only `AddressMapper` the local `PeerInfo` runs. The wildcard
+## resolver, the NAT port mapper, AutoNAT, AutoRelay and the explicit announce
+## list all feed it.
 
 {.push raises: [].}
 
 import std/[sequtils, sets, tables]
-import chronos
-import multiaddress, multicodec, peerinfo, wildcardaddrs
-
-export NetworkInterfaceProvider, getAddresses, expandWildcardAddresses
+import chronos, chronos/transports/[osnet, ipnet]
+import multiaddress, multicodec, peerinfo
 
 const
   DefaultObservedAddrMaxSize* = 10
   DefaultObservedAddrMinCount* = 3
-  DefaultCandidateTtl* = 30.minutes
 
 type
+  NetworkInterfaceProvider* =
+    proc(addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].}
+
   AddrSource* {.pure.} = enum
-    IdentifyObserved
+    Autonat
     Upnp
     NatPmp
+    PortMapped ## a port mapper answered and did not report which protocol it used
+    ExplicitIp
     Circuit
     Listen
     Announced
@@ -38,184 +39,138 @@ type
     address*: MultiAddress
     source*: AddrSource
     state*: AddrState
-    lastChecked*: Moment
-    ttl*: Duration
 
   AddressManagerConfig* = object
     maxSize*: int = DefaultObservedAddrMaxSize
     minCount*: int = DefaultObservedAddrMinCount
-    candidateTtl*: Duration = DefaultCandidateTtl
 
   SourcedMapper = object
     mapper: AddressMapper
     source: AddrSource
 
   AddressManager* = ref object of RootObj
-    observations: OrderedTable[MultiAddress, seq[MultiAddress]]
+    observations: seq[MultiAddress]
     candidates: OrderedTable[MultiAddress, AddrCandidate]
     mappers: seq[SourcedMapper]
     chainAddrs: HashSet[MultiAddress]
     peerInfo: PeerInfo
     addressMapper: AddressMapper
-    localAddrs: seq[MultiAddress]
-    ## the wildcard-expanded listen addresses of the last chain run; an
-    ## observation keys on one of them
     networkInterfaceProvider: NetworkInterfaceProvider
     maxSize: int
     minCount: int
-    candidateTtl: Duration
     started: bool
 
 func isStarted*(self: AddressManager): bool =
   self.started
 
-proc observationKey(self: AddressManager, localAddr: Opt[MultiAddress]): MultiAddress =
-  ## An outbound connection reports the ephemeral local port, which maps to no
-  ## listen address. Those observations share one window, so that the table
-  ## cannot grow with one entry per port.
-  let local = localAddr.valueOr:
-    return MultiAddress()
-  if local notin self.localAddrs:
-    return MultiAddress()
-  local
-
-proc isDialableIp(ip: IpAddress): bool =
+proc isObservableIp(ip: IpAddress): bool =
+  ## Loopback and private stay allowed: a peer on the same host or the same LAN
+  ## does reach us there, and `PeerAddressPolicy` decides what is announced.
   case ip.family
   of IpAddressFamily.IPv4:
-    # the unspecified address, the multicast range, and the reserved range
+    # 224.0.0.0/4 is multicast, and everything above it is reserved
     ip.address_v4 != AnyAddress.address_v4 and ip.address_v4[0] < 224'u8
   of IpAddressFamily.IPv6:
+    # ff00::/8 is multicast
     ip.address_v6 != AnyAddress6.address_v6 and ip.address_v6[0] != 0xff'u8
 
-proc addObservation*(
-    self: AddressManager, observedAddr: MultiAddress, localAddr = Opt.none(MultiAddress)
-): bool =
-  ## Records the address a remote peer reports for `localAddr`. Returns false
-  ## when the manager is not started, or when the address is not a dialable IP
-  ## address with a transport.
+proc isRelayed(ma: MultiAddress): bool =
+  ma.contains(multiCodec("p2p-circuit")).get(false)
+
+proc isObservableAddr(ma: MultiAddress): bool =
+  if not (ma.hasIp() and ma.hasTransport()) or ma.isRelayed():
+    return false
+  let ip = ma.getIp().valueOr:
+    return false
+  ip.isObservableIp()
+
+proc addObservation*(self: AddressManager, observedAddr: MultiAddress): bool =
+  ## Records the address a remote peer reports for us, evicting the oldest one
+  ## past `maxSize`. False when the manager is stopped, or when no peer can have
+  ## observed us on that address.
   if not self.started:
     return false
 
   # a remote peer picks what it reports: junk would only evict a useful entry
-  if not (observedAddr.hasIp() and observedAddr.hasTransport()) or
-      observedAddr.contains(multiCodec("p2p-circuit")).get(false):
+  if not observedAddr.isObservableAddr():
     return false
 
-  let ip = observedAddr.getIp().valueOr:
-    return false
-  if not ip.isDialableIp():
-    return false
-
-  let key = self.observationKey(localAddr)
-  var window = self.observations.getOrDefault(key)
-  if window.len >= self.maxSize:
-    window.delete(0)
-  window.add(observedAddr)
-  self.observations[key] = window
+  if self.observations.len >= self.maxSize:
+    self.observations.delete(0)
+  self.observations.add(observedAddr)
   true
 
-proc allObservations(self: AddressManager): seq[MultiAddress] =
-  var res: seq[MultiAddress]
-  for window in self.observations.values:
-    res.add(window)
-  res
+func firstProtoCode(ma: MultiAddress): MaResult[MultiCodec] =
+  ma[0].flatMap(protoCode)
 
-proc mostObserved(
+func mostObserved(
     self: AddressManager, observations: seq[MultiAddress], code: MultiCodec
 ): Opt[MultiAddress] =
   var countTable = toCountTable(observations)
   countTable.sort()
   for ma, count in countTable.pairs:
-    let protoCode = (ma[0].flatMap(protoCode)).valueOr:
+    let maCode = ma.firstProtoCode().valueOr:
       continue
-    if protoCode == code and count >= self.minCount:
+    if maCode == code and count >= self.minCount:
       return Opt.some(ma)
   Opt.none(MultiAddress)
 
-proc mostObservedIp(
-    self: AddressManager, observations: seq[MultiAddress], code: MultiCodec
-): Opt[MultiAddress] =
+func mostObservedIp(self: AddressManager, code: MultiCodec): Opt[MultiAddress] =
   var ips: seq[MultiAddress]
-  for observation in observations:
+  for observation in self.observations:
     let ip = observation[0].valueOr:
       continue
     ips.add(ip)
   self.mostObserved(ips, code)
 
-proc getMostObservedProtosAndPorts*(self: AddressManager): seq[MultiAddress] =
-  ## The most observed IP4/Port and IP6/Port addresses, or an empty seq while
-  ## no address reaches `minCount`.
-  let observations = self.allObservations()
+func mostObservedProtosAndPorts*(self: AddressManager): seq[MultiAddress] =
+  ## The most observed IP4/Port and IP6/Port addresses, empty while no address
+  ## reaches `minCount`.
   var res: seq[MultiAddress]
-  self.mostObserved(observations, multiCodec("ip4")).withValue(ip4):
+  self.mostObserved(self.observations, multiCodec("ip4")).withValue(ip4):
     res.add(ip4)
-  self.mostObserved(observations, multiCodec("ip6")).withValue(ip6):
+  self.mostObserved(self.observations, multiCodec("ip6")).withValue(ip6):
     res.add(ip6)
   res
 
-proc externalAddrFor*(self: AddressManager, listenAddr: MultiAddress): MultiAddress =
-  ## Maps a local listen address to the external address peers report for it.
-  ## The IP part is replaced by the most observed IP of the same protocol, the
-  ## rest of the address is kept. The peers which observed this very listen
-  ## address decide first, and the other observations are the fallback.
+func externalAddrFor*(self: AddressManager, listenAddr: MultiAddress): MultiAddress =
+  ## Replaces the IP of a local listen address by the most observed IP of the
+  ## same protocol, keeping the rest. Returns `listenAddr` while no IP of that
+  ## protocol reaches `minCount`.
   let
-    first = listenAddr[0].valueOr:
-      return listenAddr
     rest = listenAddr[1 ..^ 1].valueOr:
       return listenAddr
-    code = first.protoCode().valueOr:
+    code = listenAddr.firstProtoCode().valueOr:
       return listenAddr
 
-  let observed = block:
-    let onThisAddr = self.observations.getOrDefault(listenAddr)
-    self.mostObservedIp(onThisAddr, code).valueOr:
-      self.mostObservedIp(self.allObservations(), code).valueOr:
-        return listenAddr
+  let observed = self.mostObservedIp(code).valueOr:
+    return listenAddr
 
   concat(observed, rest).valueOr:
     listenAddr
 
-func isExpired(candidate: AddrCandidate, now: Moment): bool =
-  candidate.ttl > ZeroDuration and candidate.lastChecked + candidate.ttl < now
+func getMostObservedProtosAndPorts*(
+    self: AddressManager
+): seq[MultiAddress] {.deprecated: "use mostObservedProtosAndPorts".} =
+  self.mostObservedProtosAndPorts()
 
-proc prune(self: AddressManager) =
-  let now = Moment.now()
-  var expired: seq[MultiAddress]
-  for address, candidate in self.candidates:
-    # the chain re-produces its own addresses, so it proves they are alive
-    if address notin self.chainAddrs and candidate.isExpired(now):
-      expired.add(address)
-  for address in expired:
-    self.candidates.del(address)
+func guessDialableAddr*(
+    self: AddressManager, ma: MultiAddress
+): MultiAddress {.deprecated: "use externalAddrFor".} =
+  self.externalAddrFor(ma)
 
 proc add*(
     self: AddressManager,
     address: MultiAddress,
     source: AddrSource,
     state = AddrState.Unverified,
-    ttl = ZeroDuration,
 ): bool {.discardable.} =
-  ## Adds a candidate, or refreshes the one already under `address`. A refresh
-  ## keeps the state a verifier assigned. Returns true for a new candidate.
+  ## Adds a candidate, or refreshes the source of the one already under
+  ## `address`, keeping the state a verifier assigned. True for a new candidate.
   let
     isNew = address notin self.candidates
-    previous = self.candidates.getOrDefault(address)
-  var candidate = AddrCandidate(
-    address: address,
-    source: source,
-    state: if isNew: state else: previous.state,
-    lastChecked:
-      if isNew:
-        Moment.now()
-      else:
-        previous.lastChecked,
-    ttl: if ttl == ZeroDuration: self.candidateTtl else: ttl,
-  )
-  # a verified candidate keeps the time it was verified
-  if candidate.state == AddrState.Unverified:
-    candidate.lastChecked = Moment.now()
-
-  self.candidates[address] = candidate
+    fresh = AddrCandidate(address: address, state: state)
+  self.candidates.mgetOrPut(address, fresh).source = source
   isNew
 
 proc update*(
@@ -223,10 +178,7 @@ proc update*(
 ): bool {.discardable.} =
   if address notin self.candidates:
     return false
-  var candidate = self.candidates.getOrDefault(address)
-  candidate.state = state
-  candidate.lastChecked = Moment.now()
-  self.candidates[address] = candidate
+  self.candidates.mgetOrPut(address, AddrCandidate()).state = state
   true
 
 proc remove*(self: AddressManager, address: MultiAddress): bool {.discardable.} =
@@ -235,31 +187,14 @@ proc remove*(self: AddressManager, address: MultiAddress): bool {.discardable.} 
   self.candidates.del(address)
   true
 
-proc candidates*(self: AddressManager): seq[AddrCandidate] =
-  self.prune()
+func candidates*(self: AddressManager): seq[AddrCandidate] =
   toSeq(self.candidates.values)
 
-proc confirmedAddrs*(
-    self: AddressManager, family = Opt.none(IpAddressFamily)
-): seq[MultiAddress] =
-  ## The candidates a verifier confirmed, restricted to one IP family when
-  ## `family` is given. No verifier exists yet, so this is empty until one sets
-  ## a state through `update`.
-  self.prune()
-  var res: seq[MultiAddress]
-  for candidate in self.candidates.values:
-    if candidate.state != AddrState.Confirmed:
-      continue
-    family.withValue(wanted):
-      let ip = candidate.address.getIp().valueOr:
-        continue
-      if ip.family != wanted:
-        continue
-    res.add(candidate.address)
-  res
+func notFromMappers(self: AddressManager, address: MultiAddress): bool =
+  address notin self.chainAddrs
 
 func isAnnounceable(self: AddressManager, address: MultiAddress): bool =
-  # every candidate is announced until a verifier proves one unreachable
+  # announced until a verifier proves it unreachable
   self.candidates.getOrDefault(address).state != AddrState.Unreachable
 
 proc addMapper*(self: AddressManager, mapper: AddressMapper, source: AddrSource) =
@@ -278,9 +213,53 @@ func mapperSources*(self: AddressManager): seq[AddrSource] =
 proc `networkInterfaceProvider=`*(
     self: AddressManager, provider: NetworkInterfaceProvider
 ) =
-  ## Sets the provider the wildcard resolver runs on. A nil provider announces
-  ## the wildcard listen addresses as they are.
+  ## A nil provider announces the wildcard listen addresses as they are.
   self.networkInterfaceProvider = provider
+
+func isLoopbackOrUp(networkInterface: NetworkInterface): bool =
+  networkInterface.ifType == IfSoftwareLoopback or networkInterface.state == StatusUp
+
+proc getAddresses*(addrFamily: AddressFamily): seq[InterfaceAddress] =
+  ## The addresses of every loopback or running interface of `addrFamily`.
+  let interfaces = getInterfaces().filterIt(it.isLoopbackOrUp())
+  concat(interfaces.mapIt(it.addresses)).filterIt(it.host.family == addrFamily)
+
+proc isWildcardIp(ip: IpAddress): bool =
+  case ip.family
+  of IpAddressFamily.IPv4:
+    ip.address_v4 == AnyAddress.address_v4
+  of IpAddressFamily.IPv6:
+    ip.address_v6 == AnyAddress6.address_v6
+
+proc expandWildcardAddresses*(
+    networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
+): seq[MultiAddress] =
+  ## Expands each bound wildcard address (``0.0.0.0`` / ``::``) into one address
+  ## per matching network interface, keeping the port and any suffix (e.g.
+  ## ``/quic-v1``, ``/ws``, ``/tls/ws``). The others pass through unchanged.
+  var addresses: seq[MultiAddress]
+  for listenAddr in listenAddrs:
+    let listenIp = listenAddr.getIp().valueOr:
+      addresses.add(listenAddr)
+      continue
+
+    if not isWildcardIp(listenIp):
+      addresses.add(listenAddr)
+      continue
+
+    let families =
+      case listenIp.family
+      of IpAddressFamily.IPv4:
+        @[AddressFamily.IPv4]
+      of IpAddressFamily.IPv6:
+        # IPv6 dual stack: also expand to IPv4 interfaces
+        @[AddressFamily.IPv6, AddressFamily.IPv4]
+
+    for family in families:
+      for ifaddr in networkInterfaceProvider(family):
+        listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
+          addresses.add(remapped)
+  addresses
 
 proc expandWildcards(
     self: AddressManager, listenAddrs: seq[MultiAddress]
@@ -294,33 +273,25 @@ proc track(self: AddressManager, addrs: seq[MultiAddress], source: AddrSource) =
     self.add(address, source)
     self.chainAddrs.incl(address)
 
-proc dropStaleObservations(self: AddressManager) =
-  var stale: seq[MultiAddress]
-  for key in self.observations.keys:
-    if key != MultiAddress() and key notin self.localAddrs:
-      stale.add(key)
-  for key in stale:
-    self.observations.del(key)
-
 proc withdraw(self: AddressManager, kept: seq[MultiAddress]) =
-  ## Drops every candidate the chain no longer produces: a NAT mapping which
-  ## expires, or a relay reservation which is lost, withdraws its address here.
-  ## A candidate a feeder added through `add` belongs to no mapper, so it stays.
+  ## Drops every candidate the chain no longer produces, e.g. an expired NAT
+  ## mapping or a lost relay reservation. A fed candidate belongs to no mapper,
+  ## so it stays.
   for address in self.chainAddrs:
     if address notin kept:
       self.candidates.del(address)
   self.chainAddrs = kept.toHashSet()
 
-proc announceSet(
+func announceSet(
     self: AddressManager, mappedAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
   var res = mappedAddrs
   for address in self.candidates.keys:
-    if address notin self.chainAddrs and address notin res:
+    if self.notFromMappers(address) and address notin res:
       res.add(address)
   res.filterIt(self.isAnnounceable(it))
 
-proc explicitAddrs(self: AddressManager): seq[MultiAddress] =
+func explicitAddrs(self: AddressManager): seq[MultiAddress] =
   if self.peerInfo.isNil():
     return @[]
   self.peerInfo.announcedAddrs
@@ -330,24 +301,36 @@ proc resolve(
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   let announced = self.explicitAddrs()
   var addrs = self.expandWildcards(inputAddrs)
-  self.localAddrs = addrs
-  self.dropStaleObservations()
 
   self.track(addrs, AddrSource.Listen)
 
   for sourced in self.mappers:
-    let mapped = await sourced.mapper(addrs)
-    self.track(mapped.filterIt(it notin addrs), sourced.source)
+    let
+      mapped = await sourced.mapper(addrs)
+      added = mapped.filterIt(it notin addrs)
+    self.track(added, sourced.source)
     addrs = mapped
 
   self.track(announced, AddrSource.Announced)
   self.withdraw(addrs & announced)
-  self.prune()
+
+  # the operator picks what is announced; no mapper rewrites that choice
+  if announced.len > 0:
+    return announced
+
   self.announceSet(addrs)
 
+proc resolveMapper(self: AddressManager): AddressMapper =
+  ## Built here, not inside `new`: `new` is generic over its `typedesc`, so an
+  ## async closure in its body is re-expanded at every instantiation site and
+  ## fails in modules which lack the chronos internals.
+  proc(
+      listenAddrs: seq[MultiAddress]
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+    await self.resolve(listenAddrs)
+
 proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
-  ## Starts the manager and, with a `PeerInfo`, installs its mapper as the first
-  ## one that `PeerInfo` runs.
+  ## With a `PeerInfo`, installs the manager's mapper as the first one it runs.
   if self.started:
     return
   self.started = true
@@ -359,34 +342,25 @@ proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
 
 proc stop*(self: AddressManager) =
   self.started = false
-  self.observations.clear()
+  self.observations.setLen(0)
   self.candidates.clear()
   self.chainAddrs.clear()
   self.mappers.setLen(0)
-  self.localAddrs.setLen(0)
 
   if self.peerInfo.isNil():
     return
   self.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
   self.peerInfo = nil
 
-proc `$`*(self: AddressManager): string =
-  "observations: " & $self.allObservations() & ", candidates: " &
-    $toSeq(self.candidates.keys)
+func `$`*(self: AddressManager): string =
+  let addresses = toSeq(self.candidates.keys)
+  "observations: " & $self.observations & ", candidates: " & $addresses
 
 proc new*(
     T: typedesc[AddressManager], config: AddressManagerConfig = AddressManagerConfig()
 ): T =
-  ## A threshold below one is raised to one: an empty window has nothing to
-  ## evict, and a minCount of zero would let a single peer decide the external
-  ## address.
-  let manager = T(
-    maxSize: max(config.maxSize, 1),
-    minCount: max(config.minCount, 1),
-    candidateTtl: config.candidateTtl,
-  )
-  manager.addressMapper = proc(
-      listenAddrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    await manager.resolve(listenAddrs)
+  ## A threshold below one is raised to one: a minCount of zero would let a
+  ## single peer decide the external address.
+  let manager = T(maxSize: max(config.maxSize, 1), minCount: max(config.minCount, 1))
+  manager.addressMapper = manager.resolveMapper()
   manager
