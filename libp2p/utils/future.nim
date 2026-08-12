@@ -34,6 +34,10 @@ proc anyCompleted*[T](
     except CatchableError:
       continue
 
+func timeLeft*(deadline: Moment): Duration =
+  ## Zero once the deadline passed: chronos clamps a negative `Duration`.
+  deadline - Moment.now()
+
 template newFutureCompleted*[T](): auto =
   let fut = newFuture[T]()
   fut.complete()
