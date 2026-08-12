@@ -34,8 +34,9 @@ proc anyCompleted*[T](
     except CatchableError:
       continue
 
-func timeLeft*(deadline: Moment): Duration =
+proc timeLeft*(deadline: Moment): Duration =
   ## Zero once the deadline passed: chronos clamps a negative `Duration`.
+  ## Not a `func`, because `Moment.now()` reads the clock.
   deadline - Moment.now()
 
 template newFutureCompleted*[T](): auto =
