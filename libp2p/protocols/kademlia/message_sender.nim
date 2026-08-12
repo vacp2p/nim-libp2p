@@ -70,10 +70,6 @@ func init(
 func `$`*(e: SendError): string {.raises: [].} =
   $e.stage & ": " & e.msg
 
-proc timeLeft(deadline: Moment): Duration {.raises: [].} =
-  ## Zero once the deadline passed: chronos clamps a negative `Duration`.
-  deadline - Moment.now()
-
 proc discardStream(
     ps: PeerMessageSender, stream: Stream
 ) {.async: (raises: []), gcsafe.} =

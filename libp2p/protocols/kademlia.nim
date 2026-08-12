@@ -251,9 +251,9 @@ proc bootstrap*(
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
-    discard await kad.refreshTable(kad.rtable, false).withTimeout(
-      kad.config.bucketRefreshTime
-    )
+    let refresh = kad.refreshTable(kad.rtable, false)
+    if not await refresh.withTimeout(kad.config.bucketRefreshTime):
+      await noCancel refresh.cancelAndWait()
 
 proc initKadBase*(
     kad: KadDHT,
@@ -383,8 +383,11 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.msgSender.start()
 
   if not kad.config.disableBootstrapping:
-    discard
-      await kad.bootstrap(forceRefresh = true).withTimeout(kad.config.bucketRefreshTime)
+    # A timed-out bootstrap keeps running and keeps dispatching RPCs unless it is
+    # cancelled here: nothing else holds it.
+    let boot = kad.bootstrap(forceRefresh = true)
+    if not await boot.withTimeout(kad.config.bucketRefreshTime):
+      await noCancel boot.cancelAndWait()
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.livenessLoop = kad.maintainLiveness()
