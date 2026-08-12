@@ -76,7 +76,7 @@ proc dialAndUpgrade*(
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          await transport.dial(hostname, addrs, peerId, dir).wait(deadline.timeLeft())
+          deadline.awaitWithDeadline(transport.dial(hostname, addrs, peerId, dir))
         except CancelledError as e:
           trace "Dialing canceled", description = e.msg, peerId
           raise e
@@ -98,7 +98,7 @@ proc dialAndUpgrade*(
           # The if below is more general and might handle other use cases in the future.
           if dialed.dir != dir:
             dialed.dir = dir
-          await transport.upgrade(dialed, peerId).wait(deadline.timeLeft())
+          deadline.awaitWithDeadline(transport.upgrade(dialed, peerId))
         except CancelledError as e:
           await dialed.close()
           raise e

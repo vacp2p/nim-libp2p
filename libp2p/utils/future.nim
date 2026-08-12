@@ -34,10 +34,18 @@ proc anyCompleted*[T](
     except CatchableError:
       continue
 
-proc timeLeft*(deadline: Moment): Duration =
+template timeLeft*(deadline: Moment): Duration =
   ## Zero once the deadline passed: chronos clamps a negative `Duration`.
-  ## Not a `func`, because `Moment.now()` reads the clock.
   deadline - Moment.now()
+
+template awaitWithDeadline*(deadline: Moment, fut: untyped): untyped =
+  ## Await `fut` with what is left of `deadline`, and raise `AsyncTimeoutError`
+  ## when nothing is left. `wait(ZeroDuration)` raises that error too, but it
+  ## leaves `fut` running with nobody to cancel or reap it.
+  let remaining = deadline.timeLeft()
+  if remaining.isZero():
+    raise newException(AsyncTimeoutError, "deadline exceeded")
+  await fut.wait(remaining)
 
 template newFutureCompleted*[T](): auto =
   let fut = newFuture[T]()
