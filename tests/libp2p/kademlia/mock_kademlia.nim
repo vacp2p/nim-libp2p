@@ -14,17 +14,32 @@ type MockKadDHT* = ref object of KadDHT
   handleFindNodeDelay*: Duration
   handleFindNodeCalls*: int
   handleFindNodeMalformedResponse*: bool
+  findNodeStalls*: bool
+  findNodeCancels*: int
+
+proc stallUntilCancelled(kad: MockKadDHT) {.async: (raises: [CancelledError]).} =
+  ## A lookup that only ends when the caller gives up on it.
+  let stall = Future[void].Raising([CancelledError]).init("MockKadDHT.findNode")
+  try:
+    await stall
+  except CancelledError as e:
+    kad.findNodeCancels.inc()
+    raise e
 
 method findNode*(
     kad: MockKadDHT, target: Key, rtable: RoutingTable
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
+  if kad.findNodeStalls:
+    await kad.stallUntilCancelled()
   rtable.findClosestPeerIds(target, kad.config.replication)
 
 method findNode*(
     kad: MockKadDHT, target: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
+  if kad.findNodeStalls:
+    await kad.stallUntilCancelled()
   kad.rtable.findClosestPeerIds(target, kad.config.replication)
 
 method handleGetValue*(
