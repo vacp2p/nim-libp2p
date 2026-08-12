@@ -76,7 +76,7 @@ proc dialAndUpgrade*(
       let dialed =
         try:
           libp2p_total_dial_attempts.inc()
-          deadline.awaitWithDeadline(transport.dial(hostname, addrs, peerId, dir))
+          transport.dial(hostname, addrs, peerId, dir).awaitWithDeadline(deadline)
         except CancelledError as e:
           trace "Dialing canceled", description = e.msg, peerId
           raise e
@@ -98,7 +98,7 @@ proc dialAndUpgrade*(
           # The if below is more general and might handle other use cases in the future.
           if dialed.dir != dir:
             dialed.dir = dir
-          deadline.awaitWithDeadline(transport.upgrade(dialed, peerId))
+          transport.upgrade(dialed, peerId).awaitWithDeadline(deadline)
         except CancelledError as e:
           await dialed.close()
           raise e
@@ -131,7 +131,7 @@ proc dialAndUpgrade*(
   return nil
 
 proc expandDnsAddr(
-    self: Dialer, peerId: Opt[PeerId], address: MultiAddress
+    self: Dialer, peerId: Opt[PeerId], address: MultiAddress, deadline: Moment
 ): Future[seq[(MultiAddress, Opt[PeerId])]] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
 .} =
@@ -142,16 +142,22 @@ proc expandDnsAddr(
     return @[]
 
   trace "Start trying to resolve addresses"
-  let
-    toResolve =
-      if peerId.isSome:
-        try:
-          address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
-        except ResultError[void]:
-          raiseAssert "checked with if"
-      else:
-        address
-    resolved = await self.nameResolver.resolveDnsAddr(toResolve)
+  let toResolve =
+    if peerId.isSome:
+      try:
+        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
+      except ResultError[void]:
+        raiseAssert "checked with if"
+    else:
+      address
+  # A dnsaddr record points at more dnsaddr records, and each lookup can take
+  # seconds, so the chain answers to the dial deadline like the dial itself.
+  let resolved =
+    try:
+      self.nameResolver.resolveDnsAddr(toResolve).awaitWithDeadline(deadline)
+    except AsyncTimeoutError:
+      debug "Out of time resolving dnsaddr", ma = toResolve
+      return @[]
 
   debug "resolved addresses",
     originalAddresses = toResolve, resolvedAddresses = resolved
@@ -171,6 +177,20 @@ proc expandDnsAddr(
     else:
       addrs.add((resolvedAddress, peerId))
   addrs
+
+proc resolveWithDeadline(
+    self: Dialer, address: MultiAddress, deadline: Moment
+): Future[seq[MultiAddress]] {.
+    async: (raises: [CancelledError, MaError, TransportAddressError])
+.} =
+  ## Empty when the resolver has no answer left in the dial's budget.
+  if isNil(self.nameResolver):
+    return @[address]
+  try:
+    self.nameResolver.resolveMAddress(address).awaitWithDeadline(deadline)
+  except AsyncTimeoutError:
+    debug "Out of time resolving address", ma = address
+    @[]
 
 proc normalizedDialAddrs(
     peerId: Opt[PeerId], addrs: seq[MultiAddress]
@@ -202,16 +222,12 @@ proc dialAndUpgrade*(
       debug "Out of time for the remaining addresses", peerId, addrs = dialAddrs
       return nil
     # resolve potential dnsaddr
-    let addresses = await self.expandDnsAddr(peerId, rawAddress)
+    let addresses = await self.expandDnsAddr(peerId, rawAddress, deadline)
     for (expandedAddress, addrPeerId) in addresses:
       # DNS resolution
       let
         hostname = expandedAddress.getHostname()
-        resolvedAddresses =
-          if isNil(self.nameResolver):
-            @[expandedAddress]
-          else:
-            await self.nameResolver.resolveMAddress(expandedAddress)
+        resolvedAddresses = await self.resolveWithDeadline(expandedAddress, deadline)
 
       debug "Expanded address and hostname",
         expandedAddress = expandedAddress,
@@ -233,12 +249,6 @@ proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   trace "Reusing existing connection", muxer, direction = $muxer.connection.dir
   return Opt.some(muxer)
 
-proc release(dialLock: DialLock) {.raises: [].} =
-  try:
-    dialLock.lock.release()
-  except AsyncLockError as e:
-    raiseAssert "dial lock released without acquire: " & e.msg
-
 proc dropUser(self: Dialer, peerId: PeerId, dialLock: DialLock) {.raises: [].} =
   ## Drop the entry once nobody holds or waits for it, so the table stays bounded
   ## by the number of concurrent dials instead of by every peer ever dialed.
@@ -246,19 +256,23 @@ proc dropUser(self: Dialer, peerId: PeerId, dialLock: DialLock) {.raises: [].} =
   if dialLock.users == 0 and self.dialLocks.getOrDefault(peerId) == dialLock:
     self.dialLocks.del(peerId)
 
+proc releaseDialLock(self: Dialer, peerId: PeerId, dialLock: DialLock) {.raises: [].} =
+  try:
+    dialLock.lock.release()
+  except AsyncLockError as e:
+    raiseAssert "dial lock released without acquire: " & e.msg
+  self.dropUser(peerId, dialLock)
+
 proc acquireDialLock(
     self: Dialer, peerId: PeerId
 ): Future[DialLock] {.async: (raises: [CancelledError]).} =
   let dialLock = self.dialLocks.mgetOrPut(peerId, DialLock(lock: newAsyncLock()))
   dialLock.users.inc()
-  # Cancellation can land at the instant chronos hands the lock over, which
-  # leaves it held with no owner and stalls every later dial to this peer.
-  let acquireFut = dialLock.lock.acquire()
   try:
-    await acquireFut
+    await dialLock.lock.acquire()
   except CancelledError as e:
-    if acquireFut.completed():
-      dialLock.release()
+    # The lock is not ours: chronos leaves the waiter in the queue and skips it
+    # on the next handover.
     self.dropUser(peerId, dialLock)
     raise e
   dialLock
@@ -353,8 +367,7 @@ proc internalConnect(
   # Ensure there's only one in-flight attempt per peer
   let dialLock = await self.acquireDialLock(pid)
   defer:
-    dialLock.release()
-    self.dropUser(pid, dialLock)
+    self.releaseDialLock(pid, dialLock)
 
   await self.establishConnection(peerId, addrs, forceDial, reuseConnection, dir)
 
@@ -537,7 +550,7 @@ proc new*(
     ms: MultistreamSelect,
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
-): Dialer =
+): Dialer {.raises: [].} =
   T(
     localPeerId: localPeerId,
     connManager: connManager,

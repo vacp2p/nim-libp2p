@@ -102,6 +102,35 @@ suite "KadDHT Bootstrap":
     # Self lookup + one lookup per non-empty bucket
     check kad.findNodeCalls.len == nonEmptyBucketCount + 1
 
+  asyncTest "start cancels a bootstrap that runs out of time":
+    let kad = setupMockKad()
+    kad.config.bucketRefreshTime = 200.milliseconds
+    kad.findNodeStalls = true
+    defer:
+      await stopNodes(@[kad])
+
+    # The switch starts the kad it carries, and that bootstrap stalls in
+    # findNode. Unless start cancels it, the lookup outlives the timeout.
+    await startNodes(@[kad]).wait(5.seconds)
+
+    check:
+      kad.started
+      kad.findNodeCancels == 1
+
+  asyncTest "bucket maintenance cancels a refresh that runs out of time":
+    let kad = setupMockKad()
+    kad.config.bucketRefreshTime = 200.milliseconds
+    kad.findNodeStalls = true
+    defer:
+      await stopNodes(@[kad])
+
+    await startNodes(@[kad]).wait(5.seconds)
+    let afterBootstrap = kad.findNodeCancels
+
+    # Every round would otherwise leave a lookup behind, still sending RPCs.
+    checkUntilTimeout:
+      kad.findNodeCancels > afterBootstrap
+
 suite "KadDHT Bootstrap Component":
   teardown:
     checkTrackers()

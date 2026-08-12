@@ -29,12 +29,28 @@ proc startStallServer(): StallServer =
   stall.address = MultiAddress.init(stall.server.local).tryGet()
   stall
 
+proc waitAccepted(stall: StallServer) {.async: (raises: [CancelledError]).} =
+  ## A dial holds the peer's lock once the server accepted it. A fixed delay
+  ## proves nothing: on a slow runner the next dial can start first.
+  while stall.accepted.len == 0:
+    await sleepAsync(10.milliseconds)
+
 proc stop(stall: StallServer) {.async: (raises: []).} =
   # `stop2` over `stop`: the raising variant would break `raises: []` here.
   stall.server.stop2().isOkOr:
     raiseAssert "stall server stop failed"
   await stall.server.closeWait()
   await noCancel allFutures(stall.accepted.mapIt(it.closeWait()))
+
+proc stallIdentify(sw: Switch) =
+  ## Answer everything up to identify, then go quiet. The connection stands, so
+  ## only the identify budget can end a dial to this peer.
+  proc stall(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    await stream.join()
+
+  for holder in sw.ms.handlers:
+    if IdentifyCodec in holder.protos:
+      holder.protocol.handler = stall
 
 suite "Dialer":
   teardown:
@@ -132,9 +148,41 @@ suite "Dialer":
       await allFutures(src.stop(), dst.stop())
       await stall.stop()
 
-    await sleepAsync(100.milliseconds) # let the stalling dial take its lock
+    await stall.waitAccepted().wait(5.seconds)
 
     let dialed = await dialer
       .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
       .wait(5.seconds)
     check dialed == dst.peerInfo.peerId
+
+  asyncTest "A remote that never answers identify gives up at the dial timeout":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    dst.stallIdentify()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      dialTimeout = 1.seconds,
+    )
+
+    # Twice: the second dial only gets its turn if the first freed the peer's
+    # dial lock, which identify holds for as long as the connection lives.
+    for _ in 0 .. 1:
+      expect DialFailedError:
+        await dialer
+          .connect(
+            dst.peerInfo.peerId,
+            dst.peerInfo.addrs,
+            forceDial = true,
+            reuseConnection = false,
+          )
+          .wait(10.seconds)

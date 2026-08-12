@@ -38,14 +38,18 @@ template timeLeft*(deadline: Moment): Duration =
   ## Zero once the deadline passed: chronos clamps a negative `Duration`.
   deadline - Moment.now()
 
-template awaitWithDeadline*(deadline: Moment, fut: untyped): untyped =
-  ## Await `fut` with what is left of `deadline`, and raise `AsyncTimeoutError`
-  ## when nothing is left. `wait(ZeroDuration)` raises that error too, but it
-  ## leaves `fut` running with nobody to cancel or reap it.
-  let remaining = deadline.timeLeft()
-  if remaining.isZero():
+template awaitWithDeadline*(fut: untyped, deadline: Moment): untyped =
+  ## Await `fut` with what is left of `deadline`. A future that already finished
+  ## still gives its result, whatever the clock says. Otherwise, with no time
+  ## left, cancel it and raise `AsyncTimeoutError`: `wait(ZeroDuration)` raises
+  ## that error too, but it leaves `fut` running with nobody to reap it.
+  let
+    f = fut
+    remaining = deadline.timeLeft()
+  if remaining.isZero() and not f.finished():
+    await f.cancelAndWait()
     raise newException(AsyncTimeoutError, "deadline exceeded")
-  await fut.wait(remaining)
+  await f.wait(remaining)
 
 template newFutureCompleted*[T](): auto =
   let fut = newFuture[T]()
