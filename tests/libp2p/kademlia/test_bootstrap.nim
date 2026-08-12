@@ -52,7 +52,7 @@ suite "KadDHT Bootstrap":
     check bucketIndices.len >= 2
 
     for index in bucketIndices:
-      makeBucketStale(kad.rtable.buckets[index])
+      makeBucketStale(kad.rtable, index)
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
@@ -72,12 +72,12 @@ suite "KadDHT Bootstrap":
 
     # Make only the first bucket stale
     let staleBucketIndex = bucketIndices[0]
-    makeBucketStale(kad.rtable.buckets[staleBucketIndex])
-    check kad.rtable.buckets[staleBucketIndex].isStale()
+    makeBucketStale(kad.rtable, staleBucketIndex)
+    check kad.rtable.isStale(staleBucketIndex)
 
     # Verify that the rest of non-empty buckets is fresh
     for i in 1 ..< bucketIndices.len:
-      check not kad.rtable.buckets[bucketIndices[i]].isStale()
+      check not kad.rtable.isStale(bucketIndices[i])
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
@@ -333,7 +333,7 @@ suite "KadDHT Bootstrap Component":
     check kad.rtable.insert(peer)
     agePeerPastLivenessGrace(kad.rtable, peer.toKey())
 
-    let hang = newFuture[void]()
+    let hang = newFuture[void]("liveness-probe-dedup-hang")
     kad.livenessProbes[peer] = hang
 
     let batch = kad.probeAndEvictPeers(kad.rtable)

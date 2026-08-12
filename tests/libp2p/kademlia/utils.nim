@@ -163,11 +163,7 @@ proc connect*(kad1, kad2: KadDHT) {.async.} =
     kad1.switch.peerInfo.addrs
 
 proc hasKey*(kad: KadDHT, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
+  key in kad.rtable
 
 proc hasKeys*(kad: KadDHT, keys: seq[Key]): bool =
   keys.allIt(kad.hasKey(it))
@@ -178,8 +174,8 @@ proc hasNoKeys*(kad: KadDHT, keys: seq[Key]): bool =
 proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
   var res: uint32 = 0
   for b in buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
+    for nodeId in b.peers:
+      if nodeId == key:
         res += 1
   return res
 
@@ -247,8 +243,8 @@ proc addPeersWithAddrs*(kad: KadDHT, count: int) =
 proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
   for bucket in kad.rtable.buckets:
-    for entry in bucket.peers:
-      peersInTable.add(entry.nodeId.toPeerId().get())
+    for nodeId in bucket.peers:
+      peersInTable.add(nodeId.toPeerId().get())
   peersInTable
 
 proc nonEmptyBuckets*(kad: KadDHT): seq[int] =
@@ -258,31 +254,29 @@ proc nonEmptyBuckets*(kad: KadDHT): seq[int] =
       bucketIndices.add(i)
   bucketIndices
 
-proc makeBucketStale*(bucket: var Bucket) =
-  for peer in bucket.peers.mitems:
-    peer.lastSeen = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
+proc makeBucketStale*(rtable: RoutingTable, bucketIdx: int) =
+  let past = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
+  for nodeId in rtable.buckets[bucketIdx].peers:
+    rtable.registry.withRecord(nodeId, record):
+      record[].lastSeen = past
 
 proc agePeerPastLivenessGrace*(
-    rtable: var RoutingTable,
-    key: Key,
-    gracePeriod: Duration = DefaultLivenessGracePeriod,
+    rtable: RoutingTable, key: Key, gracePeriod: Duration = DefaultLivenessGracePeriod
 ) =
-  ## Age a routing-table entry past the liveness grace so the next
+  ## Age a routing-table membership past the liveness grace so the next
   ## liveness pass / continuous loop will probe it.
   let past = Moment.now() - (gracePeriod + 1.minutes)
-  for b in rtable.buckets.mitems:
-    for p in b.peers.mitems:
-      if p.nodeId == key:
-        p.addedAt = past
-        p.lastUsefulAt = Opt.none(Moment)
-        p.lastSeen = past
+  rtable.registry.withRecord(key, record):
+    record[].lastUsefulAt = Opt.none(Moment)
+    record[].lastSeen = past
+  rtable.registry.tablesByPeer.withValue(key, tables):
+    tables[].withValue(rtable.selfId, m):
+      m[].addedAt = past
 
 proc isPeerUseful*(kad: KadDHT, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for p in b.peers:
-      if p.nodeId == key:
-        return p.lastUsefulAt.isSome()
-  false
+  let record = kad.rtable.registry.get(key).valueOr:
+    return false
+  record.lastUsefulAt.isSome()
 
 proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]

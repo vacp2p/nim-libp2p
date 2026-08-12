@@ -45,19 +45,19 @@ proc addService*(
     manager.updateServiceTablesMetrics()
     return true
 
-  # Create new routing table
+  # Create new routing table as an index over the same peer registry.
   var rtable = RoutingTable.new(
     serviceId,
     config = RoutingTableConfig.new(
       replication = replication, maxBuckets = bucketsCount, selfIdPreHashed = true
     ),
     localNodeId = Opt.some(mainRoutingTable.localNodeId),
+    registry = mainRoutingTable.registry,
   )
 
-  # Seed from main table
-  for bucket in mainRoutingTable.buckets:
-    for peer in bucket.peers:
-      discard rtable.insert(peer.nodeId)
+  # Seed by referencing peers already in the main index (no peer-row copies).
+  for nodeId in mainRoutingTable.allKeys():
+    discard rtable.insert(nodeId)
 
   manager.tables[serviceId] = rtable
   manager.serviceStatus[serviceId] = status
@@ -74,6 +74,9 @@ proc removeService*(
 ) =
   manager.serviceStatus.withValue(serviceId, currentStatus):
     if currentStatus[] == status:
+      manager.tables.withValue(serviceId, table):
+        # Drop reverse memberships so the shared registry does not leak rows.
+        table[].detachAll()
       manager.tables.del(serviceId)
       manager.serviceStatus.del(serviceId)
       manager.updateServiceTablesMetrics()
@@ -164,6 +167,8 @@ proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] =
   return manager.tables.keys.toSeq()
 
 proc clear*(manager: ServiceRoutingTableManager) =
+  for table in manager.tables.values:
+    table.detachAll()
   manager.tables.clear()
   manager.serviceStatus.clear()
   manager.updateServiceTablesMetrics()

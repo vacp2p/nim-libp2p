@@ -65,8 +65,8 @@ suite "Service Discovery Component - Advertise Discover":
     let peerBKey = peerB.switch.peerInfo.peerId.toKey()
 
     check:
-      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
-      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+      hasPeer(discovererNode.rtable, peerAKey)
+      hasPeer(discovererNode.rtable, peerBKey)
       not discovererNode.rtManager.hasService(serviceHash)
 
     check discovererNode.rtManager.getTable(serviceHash).isNone()
@@ -76,8 +76,8 @@ suite "Service Discovery Component - Advertise Discover":
     let table = discovererNode.rtManager.getTable(serviceHash)
     check:
       table.isSome()
-      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
-      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+      hasPeer(table.get(), peerAKey)
+      hasPeer(table.get(), peerBKey)
 
     discovererNode.unregisterInterest(serviceId)
     check not discovererNode.rtManager.hasService(serviceHash)
