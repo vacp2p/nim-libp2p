@@ -41,9 +41,9 @@ type
     ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
     announcedAddrs*: seq[MultiAddress]
     ## explicit addresses to announce to peers, distinct from listenAddrs.
-    ## When non-empty, these replace the output of the addressMappers chain in `expandAddrs`,
-    ## allowing a node to advertise (e.g.) a public NAT-mapped address while binding locally.
-    ## The addressPolicy filter is still applied. Leave empty to use mapper-chain output.
+    ## When non-empty, these replace the output of the mapper chain, e.g. to
+    ## advertise a public NAT-mapped address while binding locally. The mappers
+    ## still run, and addressPolicy still filters.
     addrs*: seq[MultiAddress]
     ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
@@ -86,15 +86,16 @@ proc notifyObservers*(p: PeerInfo) =
 proc expandAddrs*(
     p: PeerInfo
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  var addrs: seq[MultiAddress]
+  var addrs = p.listenAddrs
+  for mapper in p.addressMappers:
+    addrs = await mapper(addrs)
+
+  # a port mapper maps the bound ports even when the operator picks
+  # what is announced, so the chain runs first
   if p.announcedAddrs.len > 0:
     addrs = p.announcedAddrs
-  else:
-    addrs = p.listenAddrs
-    for mapper in p.addressMappers:
-      addrs = await mapper(addrs)
-  addrs = p.addressPolicy.filterAddrs(addrs)
-  return addrs
+
+  p.addressPolicy.filterAddrs(addrs)
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   var hasChanged: bool

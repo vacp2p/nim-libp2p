@@ -76,7 +76,7 @@ suite "PeerInfo":
     waitFor peerInfo.update()
     check peerInfo.addrs == multiAddresses2
 
-  test "Announced addresses override mapper chain":
+  test "Announced addresses win over the mapper chain":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
       listenAddrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
@@ -101,10 +101,10 @@ suite "PeerInfo":
     )
     waitFor peerInfo.update()
 
-    # announcedAddrs wins: mapper chain is bypassed entirely
+    # announcedAddrs win, and the mapper chain still runs on the listen addrs
     check:
       peerInfo.addrs == announcedAddrs
-      mapperCalled == false
+      mapperCalled == true
 
   test "addressPolicy still filters announced addresses":
     let
