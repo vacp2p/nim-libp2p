@@ -452,8 +452,13 @@ proc admitPeer(
     except CancelledError:
       return
   if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
-    return
+    # A busy peer is not a dead one, and dropping it leaves a cold-starting node with
+    # nothing left to retry. Admit until the table can stand alone; liveness evicts.
+    if rtable.peerCount() >= kad.config.replication:
+      trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+      return
+    trace "Kad admission probe failed on a small table, admitting anyway",
+      peer = peerId.shortLog(), peers = rtable.peerCount()
   if rtable.insert(peerId) and not onAdmit.isNil():
     onAdmit(peerId)
 

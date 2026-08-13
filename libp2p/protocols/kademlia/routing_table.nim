@@ -143,6 +143,11 @@ proc tryReplaceStalePeer(
   bucket.peers[idx] = NodeEntry(nodeId: newNodeId, lastSeen: now, addedAt: now)
   true
 
+func peerCount*(rtable: RoutingTable): int =
+  ## Peers across every bucket.
+  for b in rtable.buckets:
+    result += b.peers.len
+
 proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   ## Update routing table gauge metrics
   var total = 0
