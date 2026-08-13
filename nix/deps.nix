@@ -82,8 +82,8 @@
 
   libplum = pkgs.fetchgit {
     url = "https://github.com/logos-storage/nim-libplum";
-    rev = "acefbe424cf9d1f05f2d93533790c9ac4e034df8";
-    sha256 = "0j6rc96cznsh90pvs27i1qgpby3ib04a2xqihps3jwlnlng2nrkb";
+    rev = "611bb3ed06b5f1e43aea02500761693af1d53d03";
+    sha256 = "0j3xl78c1vrifnk1yw203qrwax0zcf7bcs203fdhj0b5bqdbrj7q";
     fetchSubmodules = true;
   };
 
