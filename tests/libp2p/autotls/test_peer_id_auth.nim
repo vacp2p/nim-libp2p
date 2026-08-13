@@ -9,7 +9,7 @@ import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, peeridauth/client, wire, crypto/crypto]
 import ../../tools/[unittest, crypto]
-import ../../stubs/peeridauthclientstub
+import ../../stubs/peer_id_auth_client_stub
 
 suite "PeerID Auth Client":
   var client {.threadvar.}: PeerIDAuthClientStub

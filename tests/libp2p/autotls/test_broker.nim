@@ -15,7 +15,7 @@ import
     peerinfo,
   ]
 import ../../tools/[unittest, crypto]
-import ../../stubs/peeridauthclientstub
+import ../../stubs/peer_id_auth_client_stub
 
 suite "AutoTLS broker":
   const
