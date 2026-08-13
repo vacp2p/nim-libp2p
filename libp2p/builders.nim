@@ -27,7 +27,7 @@ import
   services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
-  addressmanager,
+  address_manager,
   autotls/service,
   nameresolving/nameresolver,
   errors,

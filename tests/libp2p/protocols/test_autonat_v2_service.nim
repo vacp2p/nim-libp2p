@@ -8,7 +8,7 @@ import
   ../../../libp2p/[
     builders,
     switch,
-    addressmanager,
+    address_manager,
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,

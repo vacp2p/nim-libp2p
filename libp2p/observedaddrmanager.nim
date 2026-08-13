@@ -3,8 +3,8 @@
 
 {.push raises: [].}
 
-import addressmanager
-export addressmanager
+import address_manager
+export address_manager
 
 type
   ObservedAddrManager* {.deprecated: "use AddressManager".} = AddressManager

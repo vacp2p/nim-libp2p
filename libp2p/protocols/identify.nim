@@ -18,9 +18,9 @@ import
   ../protocols/protocol,
   ../utils/[opt, protobuf],
   ../errors,
-  ../addressmanager
+  ../address_manager
 
-export addressmanager
+export address_manager
 
 logScope:
   topics = "libp2p identify"

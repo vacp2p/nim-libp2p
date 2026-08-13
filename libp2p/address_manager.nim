@@ -8,7 +8,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, sets, tables]
+import std/[sequtils, tables]
 import chronos, chronos/transports/[osnet, ipnet]
 import multiaddress, multicodec, peerinfo
 
@@ -37,7 +37,7 @@ type
 
   AddrCandidate* = object
     address*: MultiAddress
-    source*: AddrSource
+    sources*: set[AddrSource]
     state*: AddrState
 
   AddressManagerConfig* = object
@@ -52,7 +52,7 @@ type
     observations: seq[MultiAddress]
     candidates: OrderedTable[MultiAddress, AddrCandidate]
     mappers: seq[SourcedMapper]
-    chainAddrs: HashSet[MultiAddress]
+    chainAddrs: Table[MultiAddress, set[AddrSource]]
     peerInfo: PeerInfo
     addressMapper: AddressMapper
     networkInterfaceProvider: NetworkInterfaceProvider
@@ -159,19 +159,27 @@ func guessDialableAddr*(
 ): MultiAddress {.deprecated: "use externalAddrFor".} =
   self.externalAddrFor(ma)
 
+proc addSources(
+    self: AddressManager,
+    address: MultiAddress,
+    sources: set[AddrSource],
+    state: AddrState,
+): bool {.discardable.} =
+  let
+    isNew = address notin self.candidates
+    fresh = AddrCandidate(address: address, state: state)
+  self.candidates.mgetOrPut(address, fresh).sources.incl(sources)
+  isNew
+
 proc add*(
     self: AddressManager,
     address: MultiAddress,
     source: AddrSource,
     state = AddrState.Unverified,
 ): bool {.discardable.} =
-  ## Adds a candidate, or refreshes the source of the one already under
+  ## Adds a candidate, or adds `source` to the producers of the one already under
   ## `address`, keeping the state a verifier assigned. True for a new candidate.
-  let
-    isNew = address notin self.candidates
-    fresh = AddrCandidate(address: address, state: state)
-  self.candidates.mgetOrPut(address, fresh).source = source
-  isNew
+  self.addSources(address, {source}, state)
 
 proc update*(
     self: AddressManager, address: MultiAddress, state: AddrState
@@ -198,7 +206,8 @@ func isAnnounceable(self: AddressManager, address: MultiAddress): bool =
   self.candidates.getOrDefault(address).state != AddrState.Unreachable
 
 proc addMapper*(self: AddressManager, mapper: AddressMapper, source: AddrSource) =
-  ## Each address this mapper adds becomes a candidate of `source`.
+  ## Each address this mapper adds becomes a candidate of `source`. `stop` drops
+  ## every mapper: an owner registers its own again on `start`.
   if mapper.isNil():
     return
   self.mappers.add(SourcedMapper(mapper: mapper, source: source))
@@ -268,19 +277,36 @@ proc expandWildcards(
     return listenAddrs
   expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
-proc track(self: AddressManager, addrs: seq[MultiAddress], source: AddrSource) =
-  for address in addrs:
-    self.add(address, source)
-    self.chainAddrs.incl(address)
-
-proc withdraw(self: AddressManager, kept: seq[MultiAddress]) =
-  ## Drops every candidate the chain no longer produces, e.g. an expired NAT
-  ## mapping or a lost relay reservation. A fed candidate belongs to no mapper,
-  ## so it stays.
-  for address in self.chainAddrs:
-    if address notin kept:
+proc withdraw(self: AddressManager, produced: Table[MultiAddress, set[AddrSource]]) =
+  ## Drops every chain source which no longer produces its address, e.g. an
+  ## expired NAT mapping or a lost relay reservation. A candidate goes with its
+  ## last source, so one another producer still offers stays.
+  for address, sources in self.chainAddrs:
+    let gone = sources - produced.getOrDefault(address)
+    if gone == {}:
+      continue
+    var candidate = self.candidates.getOrDefault(address)
+    candidate.sources.excl(gone)
+    if candidate.sources == {}:
       self.candidates.del(address)
-  self.chainAddrs = kept.toHashSet()
+    else:
+      self.candidates[address] = candidate
+
+proc track(
+    self: AddressManager,
+    produced: Table[MultiAddress, set[AddrSource]],
+    kept: seq[MultiAddress],
+) =
+  ## Makes each address the chain still produces a candidate of the sources which
+  ## produced it, and withdraws the chain sources of the ones it dropped.
+  var chainAddrs: Table[MultiAddress, set[AddrSource]]
+  for address in kept:
+    let sources = produced.getOrDefault(address)
+    self.addSources(address, sources, AddrState.Unverified)
+    chainAddrs[address] = sources
+
+  self.withdraw(chainAddrs)
+  self.chainAddrs = chainAddrs
 
 func announceSet(
     self: AddressManager, mappedAddrs: seq[MultiAddress]
@@ -300,19 +326,23 @@ proc resolve(
     self: AddressManager, inputAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   let announced = self.explicitAddrs()
-  var addrs = self.expandWildcards(inputAddrs)
+  var
+    addrs = self.expandWildcards(inputAddrs)
+    produced: Table[MultiAddress, set[AddrSource]]
 
-  self.track(addrs, AddrSource.Listen)
+  for address in addrs:
+    produced.mgetOrPut(address, {}).incl(AddrSource.Listen)
 
   for sourced in self.mappers:
-    let
-      mapped = await sourced.mapper(addrs)
-      added = mapped.filterIt(it notin addrs)
-    self.track(added, sourced.source)
+    let mapped = await sourced.mapper(addrs)
+    for address in mapped.filterIt(it notin addrs):
+      produced.mgetOrPut(address, {}).incl(sourced.source)
     addrs = mapped
 
-  self.track(announced, AddrSource.Announced)
-  self.withdraw(addrs & announced)
+  for address in announced:
+    produced.mgetOrPut(address, {}).incl(AddrSource.Announced)
+
+  self.track(produced, addrs & announced)
 
   # the operator picks what is announced; no mapper rewrites that choice
   if announced.len > 0:

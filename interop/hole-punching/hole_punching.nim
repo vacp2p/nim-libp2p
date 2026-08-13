@@ -9,7 +9,7 @@ import
     builders,
     switch,
     multicodec,
-    addressmanager,
+    address_manager,
     services/hpservice,
     services/autorelayservice,
     protocols/connectivity/relay/client,

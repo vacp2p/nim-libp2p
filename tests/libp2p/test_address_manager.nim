@@ -7,7 +7,7 @@ import std/sequtils
 import chronos
 import
   ../../libp2p/
-    [addressmanager, crypto/crypto, multiaddress, multicodec, peerinfo, switch]
+    [address_manager, crypto/crypto, multiaddress, multicodec, peerinfo, switch]
 import ../../libp2p/services/natservice
 import ../tools/[unittest, crypto, switch_builder, multiaddress]
 
@@ -55,7 +55,7 @@ suite "AddressManager observations":
   teardown:
     checkTrackers()
 
-  asyncTest "Calculate the most oberserved IP correctly":
+  asyncTest "Calculate the most observed IP correctly":
     let manager = newStartedManager(minCount = 3)
 
     let mostObservedIP4AndPort = ma("/ip4/1.2.3.0/tcp/1")
@@ -222,7 +222,7 @@ suite "AddressManager candidates":
   teardown:
     checkTrackers()
 
-  asyncTest "a candidate is stored once and refreshed on the next add":
+  asyncTest "a candidate is stored once and keeps every source which adds it":
     let
       manager = newStartedManager()
       address = ma("/ip4/1.2.3.4/tcp/1")
@@ -231,7 +231,7 @@ suite "AddressManager candidates":
       manager.add(address, AddrSource.Listen)
       not manager.add(address, AddrSource.Upnp)
       manager.candidates().len == 1
-      manager.candidates()[0].source == AddrSource.Upnp
+      manager.candidates()[0].sources == {AddrSource.Listen, AddrSource.Upnp}
       manager.candidates()[0].state == AddrState.Unverified
 
     manager.stop()
@@ -319,9 +319,9 @@ suite "AddressManager address mapper":
 
     for candidate in manager.candidates():
       if candidate.address == listenAddr:
-        check candidate.source == AddrSource.Listen
+        check candidate.sources == {AddrSource.Listen}
       else:
-        check candidate.source == AddrSource.Circuit
+        check candidate.sources == {AddrSource.Circuit}
 
     manager.stop()
 
@@ -348,6 +348,35 @@ suite "AddressManager address mapper":
       peerInfo.addrs == @[listenAddr]
       manager.candidates().len == 1
       manager.candidates()[0].address == listenAddr
+
+    manager.stop()
+
+  asyncTest "a candidate a feeder also offers survives the mapper which drops it":
+    let
+      listenAddr = ma("/ip4/192.168.0.2/tcp/1")
+      mappedAddr = ma("/ip4/1.2.3.4/tcp/1")
+      peerInfo = newPeerInfo(@[listenAddr])
+      manager = newManager()
+      mapper = constantMapper(@[listenAddr, mappedAddr])
+
+    manager.start(peerInfo)
+    manager.addMapper(mapper, AddrSource.Upnp)
+    await peerInfo.update()
+
+    manager.add(mappedAddr, AddrSource.Autonat)
+
+    check manager.candidates().anyIt(
+      it.address == mappedAddr and it.sources == {AddrSource.Upnp, AddrSource.Autonat}
+    )
+
+    manager.removeMapper(mapper)
+    await peerInfo.update()
+
+    check:
+      peerInfo.addrs == @[listenAddr, mappedAddr]
+      manager.candidates().anyIt(
+        it.address == mappedAddr and it.sources == {AddrSource.Autonat}
+      )
 
     manager.stop()
 
@@ -414,9 +443,11 @@ suite "AddressManager address mapper":
       peerInfo.addrs == @[announced]
       mapperInput == @[expanded]
       manager.candidates().anyIt(
-        it.address == announced and it.source == AddrSource.Announced
+        it.address == announced and it.sources == {AddrSource.Announced}
       )
-      manager.candidates().anyIt(it.address == mapped and it.source == AddrSource.Upnp)
+      manager.candidates().anyIt(
+        it.address == mapped and it.sources == {AddrSource.Upnp}
+      )
 
     manager.stop()
 

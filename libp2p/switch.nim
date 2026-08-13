@@ -27,11 +27,12 @@ import
   errors,
   results,
   dialer,
-  addressmanager,
+  address_manager,
+  observedaddrmanager,
   utils/future,
   crypto/rng
 
-export connmanager, upgrade, dialer, peerstore, addressmanager
+export connmanager, upgrade, dialer, peerstore, address_manager, observedaddrmanager
 
 logScope:
   topics = "libp2p switch"
