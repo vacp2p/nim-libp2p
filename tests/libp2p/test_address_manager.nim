@@ -23,6 +23,13 @@ proc newStartedManager(
   manager.start()
   manager
 
+proc newVerifyingManager(verifier: Verifier = nil): AddressManager =
+  let manager =
+    AddressManager.new(AddressManagerConfig(verifyInterval: 10.milliseconds))
+  manager.verifier = verifier
+  manager.start()
+  manager
+
 proc newPeerInfo(
     listenAddrs: seq[MultiAddress] = @[], announcedAddrs: seq[MultiAddress] = @[]
 ): PeerInfo {.raises: [LPError].} =
@@ -37,6 +44,25 @@ proc constantMapper(addrs: seq[MultiAddress]): AddressMapper =
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     addrs
+
+type StubVerifier = ref object of Verifier
+  verdicts: seq[AddrVerdict]
+  asked: seq[seq[MultiAddress]]
+  ran: AsyncEvent
+  delay: Duration
+
+proc newStubVerifier(
+    verdicts: seq[AddrVerdict] = @[], delay = ZeroDuration
+): StubVerifier =
+  StubVerifier(verdicts: verdicts, ran: newAsyncEvent(), delay: delay)
+
+method verify(
+    self: StubVerifier, addresses: seq[MultiAddress]
+): Future[seq[AddrVerdict]] {.async: (raises: [CancelledError]).} =
+  self.asked.add(addresses)
+  self.ran.fire()
+  await sleepAsync(self.delay)
+  self.verdicts
 
 proc interfaceProvider(hosts: seq[string]): NetworkInterfaceProvider =
   proc(addrFamily: AddressFamily): seq[InterfaceAddress] {.gcsafe, raises: [].} =
@@ -267,6 +293,80 @@ suite "AddressManager candidates":
 
     manager.stop()
 
+suite "AddressManager verification":
+  teardown:
+    checkTrackers()
+
+  asyncTest "a candidate stays unverified while no verifier runs":
+    let
+      manager = newVerifyingManager()
+      address = ma("/ip4/1.2.3.4/tcp/1")
+
+    manager.add(address, AddrSource.Listen)
+    await sleepAsync(50.milliseconds)
+
+    check:
+      manager.candidates()[0].state == AddrState.Unverified
+      manager.confirmedAddrs().len == 0
+
+    manager.stop()
+
+  asyncTest "the heartbeat verifies every candidate and applies the verdicts":
+    let
+      confirmed = ma("/ip4/1.2.3.4/tcp/1")
+      unreachable = ma("/ip4/5.6.7.8/tcp/1")
+      verifier = newStubVerifier(
+        @[
+          AddrVerdict(address: confirmed, state: AddrState.Confirmed),
+          AddrVerdict(address: unreachable, state: AddrState.Unreachable),
+        ]
+      )
+      manager = newVerifyingManager(verifier)
+
+    manager.add(confirmed, AddrSource.Listen)
+    manager.add(unreachable, AddrSource.Upnp)
+
+    checkUntilTimeout:
+      manager.confirmedAddrs() == @[confirmed]
+      manager.candidates().anyIt(
+        it.address == unreachable and it.state == AddrState.Unreachable
+      )
+      verifier.asked.anyIt(it == @[confirmed, unreachable])
+
+    manager.stop()
+
+  asyncTest "a verifier which runs out of time applies nothing and runs again":
+    let
+      address = ma("/ip4/1.2.3.4/tcp/1")
+      verifier = newStubVerifier(
+        @[AddrVerdict(address: address, state: AddrState.Confirmed)], delay = 1.hours
+      )
+      manager = newVerifyingManager(verifier)
+
+    manager.add(address, AddrSource.Listen)
+
+    checkUntilTimeout:
+      verifier.asked.len >= 2
+      manager.confirmedAddrs().len == 0
+
+    manager.stop()
+
+  asyncTest "stopping the manager stops the heartbeat":
+    let
+      address = ma("/ip4/1.2.3.4/tcp/1")
+      verifier = newStubVerifier()
+      manager = newVerifyingManager(verifier)
+
+    manager.add(address, AddrSource.Listen)
+    await verifier.ran.wait()
+
+    manager.stop()
+    let runs = verifier.asked.len
+    manager.add(address, AddrSource.Listen)
+    await sleepAsync(50.milliseconds)
+
+    check verifier.asked.len == runs
+
 suite "AddressManager address mapper":
   teardown:
     checkTrackers()
@@ -400,7 +500,7 @@ suite "AddressManager address mapper":
 
     manager.stop()
 
-  asyncTest "an unreachable candidate is not announced":
+  asyncTest "an unreachable candidate is still announced":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       peerInfo = newPeerInfo(@[listenAddr])
@@ -414,8 +514,8 @@ suite "AddressManager address mapper":
     await peerInfo.update()
 
     check:
-      peerInfo.addrs.len == 0
-      manager.candidates().len == 1
+      peerInfo.addrs == @[listenAddr]
+      manager.candidates()[0].state == AddrState.Unreachable
 
     manager.stop()
 
