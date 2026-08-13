@@ -16,10 +16,13 @@ const
 
 type PeerIDAuthClientStub* = ref object of PeerIDAuthClient
   ## Answers the PeerID Auth handshake as a server would, recording what was sent.
+  ## Either header can be replaced to serve a malformed or absent one instead.
   serverKey: PrivateKey
   status*: int
   body*: seq[byte]
   token*: string
+  wwwAuthenticate*: Opt[string]
+  authenticationInfo*: Opt[string]
   requestedUris*: seq[Uri]
   payloads*: seq[string]
 
@@ -30,6 +33,8 @@ proc new*(T: typedesc[PeerIDAuthClientStub]): PeerIDAuthClientStub =
     serverKey: PrivateKey.random(PKScheme.Ed25519, rng()).get(),
     status: 200,
     token: "somebearer",
+    wwwAuthenticate: Opt.none(string),
+    authenticationInfo: Opt.none(string),
   )
 
 proc extractField(data, key: string): string =
@@ -61,14 +66,14 @@ method get*(
 .} =
   self.requestedUris.add(uri)
 
-  let serverPubkey =
-    self.serverKey.getPublicKey().get().pubkeyBytes().encode(safe = true)
-  var headers = HttpTable.init()
-  headers.add(
-    "WWW-Authenticate",
+  var wwwAuthenticate = self.wwwAuthenticate.valueOr:
+    let serverPubkey =
+      self.serverKey.getPublicKey().get().pubkeyBytes().encode(safe = true)
     PeerIDAuthPrefix & " challenge-client=\"" & ChallengeClient & "\", public-key=\"" &
-      serverPubkey & "\", opaque=\"" & Opaque & "\"",
-  )
+      serverPubkey & "\", opaque=\"" & Opaque & "\""
+
+  var headers = HttpTable.init()
+  headers.add("WWW-Authenticate", wwwAuthenticate)
   PeerIDAuthResponse(status: 200, headers: headers, body: @[])
 
 method post*(
@@ -77,19 +82,19 @@ method post*(
   self.requestedUris.add(uri)
   self.payloads.add(payload)
 
-  var clientPubkey: PublicKey
-  try:
-    clientPubkey =
-      PublicKey.init(decode(authHeader.extractField("public-key")).toBytes()).get()
-  except ValueError as exc:
-    raiseAssert "stub could not read the client public key: " & exc.msg
+  var authenticationInfo = self.authenticationInfo.valueOr:
+    var clientPubkey: PublicKey
+    try:
+      clientPubkey =
+        PublicKey.init(decode(authHeader.extractField("public-key")).toBytes()).get()
+    except ValueError as exc:
+      raiseAssert "stub could not read the client public key: " & exc.msg
 
-  let sig = self.signAsServer(
-    authHeader.extractField("challenge-server"), uri.hostname, clientPubkey
-  )
+    let sig = self.signAsServer(
+      authHeader.extractField("challenge-server"), uri.hostname, clientPubkey
+    )
+    PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & self.token & "\""
+
   var headers = HttpTable.init()
-  headers.add(
-    "Authentication-Info",
-    PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & self.token & "\"",
-  )
+  headers.add("Authentication-Info", authenticationInfo)
   PeerIDAuthResponse(status: self.status, headers: headers, body: self.body)
