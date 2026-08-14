@@ -13,6 +13,13 @@ import
   ../../../peerid,
   ./types
 
+proc hasEnoughIncomingSlots*(switch: Switch): bool =
+  # a margin, because a peer can connect to us while we wait for the dial back
+  switch.connManager.availableSlots(In) >= 2
+
+proc hasIncomingConn*(switch: Switch, peerId: PeerId): bool =
+  not switch.connManager.selectMuxer(peerId, In).isNil()
+
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
   if self.status in [EInternalError, ERequestRejected, EDialRefused]:
     return Unknown
