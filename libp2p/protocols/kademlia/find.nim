@@ -6,7 +6,7 @@ import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy, wire]
 import ../protocol
 import ../../utils/future
-import ./[routing_table, protobuf, types, rpc, kademlia_metrics]
+import ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics]
 
 logScope:
   topics = "kad-dht find"
@@ -407,7 +407,9 @@ proc admitPeer(
       return
   if not reachable:
     trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    kad.recordProbeFailure(peerId, addrs)
     return
+  kad.clearProbeFailures(peerId)
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
@@ -456,6 +458,10 @@ proc admitPeers*(
       continue
     let probeKey: ProbeKey = (rtable.selfId, p.peerId)
     if kad.admissionProbes.hasKey(probeKey):
+      continue
+    if kad.probeBackedOff(p.peerId, addrs):
+      trace "Kad admission probe backed off", peer = p.peerId.shortLog()
+      kad_admission_probes_backed_off.inc()
       continue
     if not kad.admissionSem.tryAcquire():
       break
