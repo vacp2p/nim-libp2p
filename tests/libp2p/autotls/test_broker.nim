@@ -22,6 +22,7 @@ suite "AutoTLS broker":
     BrokerURL = "broker.example"
     RegistrationURL = "https://broker.example/v1/_acme-challenge"
     KeyAuth = KeyAuthorization("expected-key-authorization")
+    Addresses = ["/ip4/1.2.3.4/tcp/4001", "/ip4/1.2.3.4/tcp/4002/ws"]
 
   var client {.threadvar.}: PeerIDAuthClientStub
   var broker {.threadvar.}: AutotlsBroker
@@ -36,10 +37,7 @@ suite "AutoTLS broker":
     client = PeerIDAuthClientStub.new()
     broker = AutotlsBroker.new(rng(), BrokerURL, client)
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
-    addrs = @[
-      MultiAddress.init("/ip4/1.2.3.4/tcp/4001").get(),
-      MultiAddress.init("/ip4/1.2.3.4/tcp/4002/ws").get(),
-    ]
+    addrs = Addresses.mapIt(MultiAddress.init(it).get())
 
   asyncTest "an empty address set is refused before the broker is contacted":
     expect(AutoTLSError):
@@ -50,12 +48,9 @@ suite "AutoTLS broker":
   asyncTest "the payload carries the key authorization and every address in order":
     await broker.sendChallenge(peerInfo, addrs, KeyAuth)
 
-    check client.payloads.len == 1
-    check parseJson(client.payloads[0]) ==
-      %*{
-        "value": KeyAuth,
-        "addresses": ["/ip4/1.2.3.4/tcp/4001", "/ip4/1.2.3.4/tcp/4002/ws"],
-      }
+    check:
+      client.payloads.len == 1
+      parseJson(client.payloads[0]) == %*{"value": KeyAuth, "addresses": Addresses}
 
   asyncTest "the configured broker URL is the registration endpoint":
     await broker.sendChallenge(peerInfo, addrs, KeyAuth)
