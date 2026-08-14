@@ -7,7 +7,8 @@ import chronos, results, sequtils
 import
   ../../../libp2p/[protocols/kademlia, protocols/protocol, switch, builders],
   ../../../libp2p/stream/connection
-import ../../tools/[crypto, lifecycle, multiaddress, switch_builder, unittest]
+import
+  ../../tools/[crypto, lifecycle, multiaddress, stall_server, switch_builder, unittest]
 
 const
   TestCodec = "/test/kad-message-sender/1.0.0"
@@ -223,6 +224,46 @@ suite "KadDHT message sender":
       server.peerInfo.peerId, server.peerInfo.addrs, @[byte 2], 5.seconds
     )
     check reply.tryGet() == @[byte 2]
+
+  asyncTest "a stalled dial gives up at the RPC deadline":
+    let stall = startStallServer()
+    let client = makeStandardSwitch(TcpAutoAddress)
+    await client.start()
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      # The stall server first: it frees the abandoned dial that `stop` waits for.
+      await stall.stop()
+      await sender.stop()
+      await client.stop()
+
+    let peerId = PeerId.random(rng()).tryGet()
+    let started = Moment.now()
+    let reply =
+      await sender.sendRequest(peerId, @[stall.address], @[byte 1], 200.milliseconds)
+    check:
+      # The RPC deadline, not the dialer's: the two are 200ms and 30s apart.
+      Moment.now() - started < 5.seconds
+      reply.isErr()
+      reply.error().stage == dialStage
+
+  asyncTest "cancelling an RPC does not wait out a stalled dial":
+    let stall = startStallServer()
+    let client = makeStandardSwitch(TcpAutoAddress)
+    await client.start()
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await stall.stop()
+      await sender.stop()
+      await client.stop()
+
+    let peerId = PeerId.random(rng()).tryGet()
+    let rpc = sender.sendRequest(peerId, @[stall.address], @[byte 1], 30.seconds)
+    await stall.waitAccepted().wait(5.seconds)
+
+    await rpc.cancelAndWait().wait(5.seconds)
+    check rpc.cancelled()
 
   asyncTest "a stopped sender refuses to dial":
     let proto = newCountingEcho()
