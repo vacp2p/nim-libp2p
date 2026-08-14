@@ -100,8 +100,13 @@ proc diversityPeers(
   for pid in pending:
     if pid == candidate:
       continue
-    let sameBucket = rtable.bucketIndex(pid.toKey()) == candidateBucket
-    peers.add(addressBook.diversityPeer(pid, sameBucket))
+    let key = pid.toKey()
+    # A probe that already landed in the table holds one slot, not two.
+    if key in rtable:
+      continue
+    peers.add(
+      addressBook.diversityPeer(pid, rtable.bucketIndex(key) == candidateBucket)
+    )
 
   peers
 

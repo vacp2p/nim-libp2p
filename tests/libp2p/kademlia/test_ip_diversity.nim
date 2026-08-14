@@ -68,6 +68,23 @@ suite "KadDHT IP diversity":
         kad.rtable, otherBucket, @[ma("/ip4/8.8.8.3/tcp/4001")], caps, @[probed]
       )
 
+  test "a probe that already joined the table counts once":
+    let kad = kadWithBucketSubnetCap(2)
+    let
+      probed = kad.peerIdInBucket(0)
+      candidate = kad.peerIdInBucket(0)
+      addressBook = kad.switch.peerStore[AddressBook]
+      caps = kad.config.limits.diversityCaps()
+
+    kad.updatePeers(@[PeerInfo(peerId: probed, addrs: @[ma("/ip4/8.8.8.1/tcp/4001")])])
+
+    # `probed` sits in the table and in the pending list: it holds one slot of two.
+    check:
+      probed.toKey() in kad.rtable.allKeys()
+      addressBook.hasIpDiversity(
+        kad.rtable, candidate, @[ma("/ip4/8.8.8.2/tcp/4001")], caps, @[probed]
+      )
+
   test "an unset per-bucket cap leaves the table-wide cap in charge":
     let kad = kadWithBucketSubnetCap(0)
     let peers = (1 .. 3).mapIt(
