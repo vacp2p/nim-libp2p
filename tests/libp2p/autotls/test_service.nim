@@ -74,7 +74,7 @@ suite "AutoTLS certificate issuance and renewal":
     check acmeApi.requestedUris.len == 0
 
   asyncTest "issuance is retried issueRetries times":
-    # The default renew check time keeps the run to a single round.
+    # renewCheckTime is left at its 1 hour default, so a second round won't start
     service =
       newService(AutotlsConfig.new(issueRetries = 3, issueRetryTime = 0.seconds))
     await service.start(switch)
