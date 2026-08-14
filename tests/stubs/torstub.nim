@@ -39,6 +39,8 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
   var msg = newSeq[byte](3)
   while self.tcpTransport.running:
     let connSrc = await self.tcpTransport.accept()
+    defer:
+      await noCancel connSrc.close()
     await connSrc.readExactly(addr msg[0], 3)
 
     await connSrc.write(@[05'u8, 00])
@@ -82,9 +84,10 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
 
     let connDst =
       await self.tcpTransport.dial("", MultiAddress.init(tcpIpAddr).tryGet())
+    defer:
+      await noCancel connDst.close()
 
     await bridge(connSrc, connDst)
-    await allFutures(connSrc.close(), connDst.close())
 
 proc stop*(self: TorServerStub) {.async.} =
   await self.tcpTransport.stop()

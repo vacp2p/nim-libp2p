@@ -50,28 +50,36 @@ proc bridge*(
     futDst = dstStream.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
     bytesSentFromSrcToDst = 0
     bytesSentFromDstToSrc = 0
-    bufRead: int
+    eof = false # a flag, not a break: the other direction still drains this pass
+
+  defer:
+    # both reads write into this frame's buffers, so none of them may outlive it
+    await noCancel allFutures(futSrc.cancelAndWait(), futDst.cancelAndWait())
 
   try:
-    while not srcStream.closed() and not dstStream.closed():
+    while not eof and not srcStream.closed() and not dstStream.closed():
       try: # https://github.com/status-im/nim-chronos/issues/516
         discard await race(futSrc, futDst)
       except ValueError as e:
         raiseAssert("Futures list is not empty: " & e.msg)
       if futSrc.finished():
-        bufRead = await futSrc
-        if bufRead > 0:
+        let bufRead = await futSrc
+        if bufRead == 0:
+          eof = true
+        else:
           bytesSentFromSrcToDst.inc(bufRead)
           await dstStream.write(@bufSrcToDst[0 ..< bufRead])
           zeroMem(addr bufSrcToDst[0], bufSrcToDst.len)
-        futSrc = srcStream.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
+          futSrc = srcStream.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
       if futDst.finished():
-        bufRead = await futDst
-        if bufRead > 0:
+        let bufRead = await futDst
+        if bufRead == 0:
+          eof = true
+        else:
           bytesSentFromDstToSrc += bufRead
           await srcStream.write(bufDstToSrc[0 ..< bufRead])
           zeroMem(addr bufDstToSrc[0], bufDstToSrc.len)
-        futDst = dstStream.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
+          futDst = dstStream.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
   except CancelledError as exc:
     raise exc
   except LPStreamError as exc:
@@ -83,5 +91,3 @@ proc bridge*(
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
   libp2p_relay_bytes.inc(bytesSentFromSrcToDst.int64, labelValues = ["in"])
   libp2p_relay_bytes.inc(bytesSentFromDstToSrc.int64, labelValues = ["out"])
-  await futSrc.cancelAndWait()
-  await futDst.cancelAndWait()

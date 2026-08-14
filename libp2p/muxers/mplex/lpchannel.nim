@@ -179,7 +179,8 @@ method readOnce*(
     raise newLPStreamClosedError()
   if s.atEof():
     raise newLPStreamRemoteClosedError()
-  if s.conn.closed:
+  if s.conn.closed() and s.len == 0 and not s.pushedEof:
+    # what the peer already sent stays readable after the connection goes down
     raise newLPStreamConnDownError()
   try:
     let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)

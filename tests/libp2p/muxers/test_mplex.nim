@@ -190,6 +190,25 @@ suite "Mplex":
       await chann.close()
       await conn.close()
 
+    asyncTest "(connection down) - should read buffered data and EOF":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      let closeFut = chann.pushEof() # queue is full, so the marker waits
+      await conn.close()
+
+      var data = newSeq[byte](6)
+      await chann.readExactly(addr data[0], 6)
+      check string.fromBytes(data) == "Hello!"
+
+      var buf: array[1, byte]
+      check (await chann.readOnce(addr buf[0], 1)) == 0
+
+      await chann.close()
+      await closeFut
+
   suite "channel reset":
     asyncTest "channel should fail reading":
       let
