@@ -402,14 +402,23 @@ proc admitPeer(
     except AsyncSemaphoreError:
       raiseAssert "admissionSem released without acquire"
 
+  # DIAGNOSTIC: notice, not trace, so it survives a -d:release build. Behaviour unchanged.
+  let started = Moment.now()
   let reachable =
     try:
       await kad.lookupCheck(peerId, addrs)
     except CancelledError:
       return
+  let
+    elapsedMs = (Moment.now() - started).milliseconds
+    tablePeers = rtable.buckets.foldl(a + b.peers.len, 0)
+    shortPeer = peerId.shortLog()
   if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    notice "Kad admission probe failed, not inserting peer",
+      peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
     return
+  notice "Kad admission probe passed",
+    peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
@@ -445,7 +454,11 @@ proc admitPeers*(
   let addressBook = kad.switch.peerStore[AddressBook]
   let selfPid = kad.switch.peerInfo.peerId
   var pending = kad.admissionProbes.keys.toSeq().mapIt(it.peerId)
-  for p in peerInfos:
+  let batchTablePeers = rtable.buckets.foldl(a + b.peers.len, 0)
+  # DIAGNOSTIC: shows whether a stalled node is offered candidates at all.
+  notice "Kad admission batch",
+    candidates = peerInfos.len, tablePeers = batchTablePeers, inFlight = pending.len
+  for i, p in peerInfos:
     if p.peerId == selfPid:
       continue
     let addrs = kad.admissibleAddrs(rtable, p, pending)
@@ -460,6 +473,9 @@ proc admitPeers*(
     if kad.admissionProbes.hasKey(probeKey):
       continue
     if not kad.admissionSem.tryAcquire():
+      # DIAGNOSTIC: the no-slot path abandons every remaining candidate in the batch.
+      notice "Kad admission: no probe slot, dropping rest of batch",
+        dropped = peerInfos.len - i, tablePeers = batchTablePeers
       break
     pending.add(p.peerId)
     kad.trackProbe(probeKey, kad.admitPeer(rtable, p.peerId, addrs, onAdmit))
