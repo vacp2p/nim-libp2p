@@ -216,10 +216,10 @@ proc prepStream(
     return err(SendError.init(dialStage, "timed out before dialing"))
 
   let dialFut = ms.switch.dial(peerId, addrs, ms.codec)
-  let shielded = noCancel dialFut
+  # use `join` so a cancelled wait drops the dial instead of waiting it out.
   let dialed =
     try:
-      await shielded.withTimeout(timeLeft)
+      await dialFut.join().withTimeout(timeLeft)
     except CancelledError as e:
       ms.trackCleanup(dropLateDial(dialFut))
       raise e
@@ -229,7 +229,7 @@ proc prepStream(
 
   let stream =
     try:
-      await shielded
+      await noCancel dialFut
     except DialFailedError as e:
       return err(SendError.init(dialStage, e.msg))
 
