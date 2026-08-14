@@ -407,9 +407,9 @@ proc admitPeer(
       return
   if not reachable:
     trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
-    kad.recordProbeFailure(peerId, addrs)
+    kad.probeRecordFailure(peerId, addrs)
     return
-  kad.clearProbeFailures(peerId)
+  kad.probeClearFailures(peerId)
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()

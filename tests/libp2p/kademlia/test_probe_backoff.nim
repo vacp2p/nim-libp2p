@@ -22,7 +22,7 @@ suite "KadDHT - Probe backoff":
     kad.config.limits.maxProbeFailures = 8
 
     for i in 0 ..< 100:
-      kad.recordProbeFailure(randomPeerId(), deadAddrs(40000 + i))
+      kad.probeRecordFailure(randomPeerId(), deadAddrs(40000 + i))
 
     check kad.probeFailures.len <= 8
 
@@ -33,9 +33,9 @@ suite "KadDHT - Probe backoff":
     let offenderAddrs = deadAddrs(59999)
 
     for _ in 0 ..< 3:
-      kad.recordProbeFailure(offender, offenderAddrs)
+      kad.probeRecordFailure(offender, offenderAddrs)
     for i in 0 ..< 100:
-      kad.recordProbeFailure(randomPeerId(), deadAddrs(40000 + i))
+      kad.probeRecordFailure(randomPeerId(), deadAddrs(40000 + i))
 
     check kad.probeBackedOff(offender, offenderAddrs)
 
@@ -57,7 +57,7 @@ suite "KadDHT - Probe backoff":
 
     var untils: seq[Moment]
     for _ in 0 ..< 3:
-      kad.recordProbeFailure(peerId, addrs)
+      kad.probeRecordFailure(peerId, addrs)
       untils.add(kad.probeFailures.getOrDefault(peerId).until)
 
     check:

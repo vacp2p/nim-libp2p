@@ -22,7 +22,7 @@ func probeBackoff*(count: int, base, cap: Duration): Duration =
     backoff = backoff * 2
   min(backoff, cap)
 
-func addrsDigest(addrs: seq[MultiAddress]): Hash =
+func probeAddrsDigest(addrs: seq[MultiAddress]): Hash =
   ## Summed in wrapping arithmetic, so the digest holds for any address order.
   var digest: uint64 = 0
   for ma in addrs:
@@ -33,9 +33,9 @@ proc probeBackedOff*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]): boo
   ## An unprobed address set earns a probe, so a bogus address cannot hold back the real one.
   let failure = kad.probeFailures.getOrDefault(peerId)
   failure.count > 0 and Moment.now() < failure.until and
-    failure.addrs == addrs.addrsDigest()
+    failure.addrs == addrs.probeAddrsDigest()
 
-proc pruneProbeFailures(kad: KadDHT, now: Moment) =
+proc probePruneFailures(kad: KadDHT, now: Moment) =
   ## Make room for one entry: elapsed backoffs first, then soonest to elapse.
   let cap = kad.config.limits.maxProbeFailures
   if kad.probeFailures.len < cap:
@@ -57,15 +57,15 @@ proc pruneProbeFailures(kad: KadDHT, now: Moment) =
   for i in 0 ..< excess:
     kad.probeFailures.del(byExpiry[i][0])
 
-proc recordProbeFailure*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]) =
+proc probeRecordFailure*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]) =
   let now = Moment.now()
-  kad.pruneProbeFailures(now)
+  kad.probePruneFailures(now)
   let count = kad.probeFailures.getOrDefault(peerId).count + 1
   kad.probeFailures[peerId] = ProbeFailure(
     count: count,
     until: now + probeBackoff(count, kad.config.timeout, kad.config.probeBackoffMax),
-    addrs: addrs.addrsDigest(),
+    addrs: addrs.probeAddrsDigest(),
   )
 
-proc clearProbeFailures*(kad: KadDHT, peerId: PeerId) =
+proc probeClearFailures*(kad: KadDHT, peerId: PeerId) =
   kad.probeFailures.del(peerId)
