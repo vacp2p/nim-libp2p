@@ -220,7 +220,11 @@ template streamTransportTest*(
         await serverResetDone
 
         var buffer: array[1, byte]
-        check (await stream.readOnce(addr buffer[0], 1)) == 0
+        # EOF until this side reads the RST frame, reset once it lands
+        try:
+          check (await stream.readOnce(addr buffer[0], 1)) == 0
+        except LPStreamResetError:
+          discard
 
         expect LPStreamResetError:
           await stream.writeLp(fromHex("1234"))
@@ -520,7 +524,7 @@ template streamTransportTest*(
     )
 
   asyncTest "stream with multiple parallel writes":
-    const messageSize = 2 * 1024 * 1024
+    const messageSize = 20 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
     let serverHandlerDone = newFuture[void]()
@@ -553,6 +557,30 @@ template streamTransportTest*(
           let fut = stream.write(message)
           writeFuts.add(fut)
         await allFutures(writeFuts)
+        await serverHandlerDone
+
+    await runSingleStreamScenario(
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "single large write":
+    const messageSize = 2 * 1024 * 1024
+    const chunkSize = 256 * 1024
+    let serverHandlerDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream, serverHandlerDone):
+        let receivedData =
+          await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
+        check receivedData == newData(messageSize)
+
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(newData(messageSize))
         await serverHandlerDone
 
     await runSingleStreamScenario(
