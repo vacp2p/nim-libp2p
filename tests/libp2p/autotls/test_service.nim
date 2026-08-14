@@ -58,7 +58,7 @@ suite "AutoTLS certificate renewal":
     await service.start(switch)
 
     # A renewal attempt fails on its first ACME request, which is enough to see it.
-    checkUntilTimeoutCustom(5.seconds, 10.milliseconds):
+    checkUntilTimeout:
       acmeApi.requestedUris.len > 0
 
   asyncTest "a certificate expiring in 90 minutes is not renewed under a 1 hour buffer":
