@@ -183,11 +183,13 @@ proc tryReplaceStalePeer(
 
 proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   ## Update routing table gauge metrics
+  var total = 0
   for i, b in rtable.buckets:
+    total += b.peers.len
     # Only track non-empty buckets to reduce cardinality
     if b.peers.len > 0:
       kad_routing_table_bucket_size.set(b.peers.len.float64, labelValues = [$i])
-  kad_routing_table_peers.set(rtable.peerCount().float64)
+  kad_routing_table_peers.set(total.float64)
   kad_routing_table_buckets.set(rtable.buckets.len.float64)
 
 proc insert*(rtable: RoutingTable, nodeId: Key): bool =

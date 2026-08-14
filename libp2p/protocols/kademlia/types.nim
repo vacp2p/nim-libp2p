@@ -572,8 +572,6 @@ proc new*(
     actualLimits.maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
   doAssert beta > 0, "beta must be > 0"
-  doAssert minRoutingTableSize >= 0, "minRoutingTableSize must be >= 0"
-  doAssert fixLowPeersInterval > ZeroDuration, "fixLowPeersInterval must be > 0"
   doAssert beta <= replication,
     "beta must be <= replication, since the follow-up phase never reaches past the k closest peers"
   doAssert actualLimits.maxShortlistSize > 0, "maxShortlistSize must be > 0"

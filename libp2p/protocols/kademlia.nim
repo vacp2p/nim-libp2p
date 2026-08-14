@@ -270,7 +270,7 @@ proc connectedPeerInfos(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
 
 proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Re-seed a table that shrank below ``config.minRoutingTableSize``.
-  if kad.stopping:
+  if kad.stopping or kad.config.disableBootstrapping:
     return
 
   let count = kad.rtable.peerCount()
