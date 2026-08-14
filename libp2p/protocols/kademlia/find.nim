@@ -381,10 +381,10 @@ proc lookupCheck*(
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
-    debug "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
+    trace "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    debug "Kad probe failed", peer = peerId.shortLog(), description = error
+    trace "Kad probe failed", peer = peerId.shortLog(), description = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
