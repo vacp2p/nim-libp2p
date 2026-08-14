@@ -290,6 +290,10 @@ proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: 
         kad.admissionProbes.del(probeKey)
   )
 
+proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
+  ## A probe for another table holds no slot in this one.
+  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
+
 proc admitPeers*(
     kad: KadDHT,
     rtable: RoutingTable,
@@ -306,7 +310,7 @@ proc admitPeers*(
     return
   let addressBook = kad.switch.peerStore[AddressBook]
   let selfPid = kad.switch.peerInfo.peerId
-  var pending = kad.admissionProbes.keys.toSeq().mapIt(it.peerId)
+  var pending = kad.pendingAdmissions(rtable.selfId)
   for p in peerInfos:
     if p.peerId == selfPid:
       continue
