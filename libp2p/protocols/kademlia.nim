@@ -211,13 +211,26 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     else:
       idle = true
 
+proc centerTarget(kad: KadDHT, rtable: RoutingTable): Opt[Key] =
+  ## A table with no peers of its own borrows the main table's to start the walk.
+  rtable.refreshSelfTarget().withValue(own):
+    return Opt.some(own)
+  rtable.nearestToCenter(kad.rtable.allKeys())
+
+proc refreshCenter(
+    kad: KadDHT, rtable: RoutingTable
+) {.async: (raises: [CancelledError]).} =
+  let target = kad.centerTarget(rtable).valueOr:
+    trace "No refresh target for table center", table = rtable.selfId
+    return
+  discard await kad.findNode(target, rtable)
+
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
-  ## Sends a findNode to find itself to keep nearby peers up to date
-  ## Also sends a findNode to find a random key for each non-empty k-bucket.
+  ## Sends a findNode toward the table's own center, then one per non-empty k-bucket.
 
-  discard await kad.findNode(rtable.selfId)
+  await kad.refreshCenter(rtable)
 
   var targets = newSeqOfCap[Key](rtable.buckets.len)
   for i in 0 ..< rtable.buckets.len:

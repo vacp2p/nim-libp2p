@@ -209,6 +209,12 @@ proc toPeer*(node: KadDHT): Peer =
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
 
+proc randomServiceId*(): Key =
+  ## Stands in for a `hashServiceId()` result, a key already in the id space.
+  var buf = newSeqUninit[byte](IdLength)
+  rng().generate(buf)
+  buf
+
 proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())

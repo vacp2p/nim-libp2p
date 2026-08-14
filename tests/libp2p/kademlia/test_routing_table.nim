@@ -181,9 +181,8 @@ suite "KadDHT Routing Table":
       res.len == ids.len
       res == @[testKey(1), testKey(3), testKey(2)]
 
-  test "findClosest respects selfIdPreHashed=true (avoids double-hashing target)":
-    # Service discovery tables use pre-hashed serviceId as self + targets.
-    # findClosest must compute dist(target_raw, H(peer)) not H(target) to match bucketIndex.
+  test "findClosest hashes the target on a selfIdPreHashed table too":
+    # Only selfId is pre-hashed, so a raw target key is hashed like the peers are.
     let selfId = testKey(0)
     let config =
       RoutingTableConfig.new(hasher = Opt.none(XorDHasher), selfIdPreHashed = true)
@@ -195,17 +194,15 @@ suite "KadDHT Routing Table":
       discard rt.insert(p)
 
     let target = testKey(0x10)
-      # stands in for a hashServiceId() result (already in ID space)
     let res = rt.findClosest(target, 3)
 
-    # Expected order uses the *correct* prehashed metric (raw target vs hashed peers).
-    # This is what bucketIndex(selfIdPreHashed=true) + the service RegT invariant require.
     var expected = @[p1, p2, p3]
     let hasher = config.hasher
     expected.sort(
       proc(a, b: Key): int =
         cmp(
-          xorDistance(a.hashFor(hasher), target), xorDistance(b.hashFor(hasher), target)
+          xorDistance(a.hashFor(hasher), target.hashFor(hasher)),
+          xorDistance(b.hashFor(hasher), target.hashFor(hasher)),
         )
     )
     check res == expected
@@ -473,6 +470,47 @@ suite "KadDHT Routing Table":
     check:
       target != peer
       rt.bucketIndex(target) == TargetBucket
+
+  proc checkNearestToCenter(rt: RoutingTable, target: Key, candidates: seq[Key]) =
+    let targetDist = xorDistance(rt.selfId, target.hashFor(rt.config.hasher))
+    for candidate in candidates:
+      check targetDist <= xorDistance(rt.selfId, candidate.hashFor(rt.config.hasher))
+
+  test "refreshSelfTarget is selfId when the table centers on a raw key":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+    discard rt.insert(testKey(1))
+
+    check rt.refreshSelfTarget() == Opt.some(selfId)
+
+  test "refreshSelfTarget stands in for a pre-hashed selfId with the nearest key":
+    let serviceId = testKey(0)
+    var rt = RoutingTable.new(serviceId, RoutingTableConfig.new(selfIdPreHashed = true))
+
+    var peers: seq[Key]
+    for i in 1'u8 .. 8'u8:
+      let peer = testKey(i)
+      discard rt.insert(peer)
+      peers.add(peer)
+
+    let target = rt.refreshSelfTarget().expect("table holds peers")
+    check target in peers
+    rt.checkNearestToCenter(target, peers)
+
+  test "refreshSelfTarget of an empty pre-hashed table falls back to the main table":
+    let serviceId = testKey(0)
+    var rt = RoutingTable.new(serviceId, RoutingTableConfig.new(selfIdPreHashed = true))
+
+    check rt.refreshSelfTarget().isNone()
+
+    var mainRt = RoutingTable.new(testKey(0xFF))
+    let candidates = @[testKey(1), testKey(2), testKey(3)]
+    for candidate in candidates:
+      check mainRt.insert(candidate)
+
+    let target =
+      rt.nearestToCenter(mainRt.allKeys()).expect("the main table holds peers")
+    rt.checkNearestToCenter(target, candidates)
 
   test "randomKey returns none for empty bucket":
     var bucket: Bucket

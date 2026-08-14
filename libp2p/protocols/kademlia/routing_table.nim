@@ -279,7 +279,7 @@ proc markUseful*(rtable: RoutingTable, peerId: PeerId) =
   rtable.markUseful(peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
-  ## Returns up to `count` nodes in the table with the smallest XOR distance to `targetId`.
+  ## Up to `count` nodes closest to `targetId`, which is hashed like every other key.
   var allNodes: seq[Key] = @[]
 
   for bucket in rtable.buckets:
@@ -287,11 +287,7 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
       allNodes.add(p)
 
   let hasher = rtable.config.hasher
-  let targetHash =
-    if rtable.config.selfIdPreHashed:
-      targetId
-    else:
-      targetId.hashFor(hasher)
+  let targetHash = targetId.hashFor(hasher)
 
   allNodes.sort(
     proc(a, b: Key): int =
@@ -386,6 +382,29 @@ proc allKeys*(rtable: RoutingTable): seq[Key] =
 
 proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
   rng.pickOne(bucket.peers)
+
+proc nearestToCenter*(rtable: RoutingTable, candidates: openArray[Key]): Opt[Key] =
+  ## The candidate whose hash lands closest to this table's own center.
+  if candidates.len == 0:
+    return Opt.none(Key)
+
+  let selfHash = rtable.selfHash()
+  var nearest = candidates[0]
+  var nearestDist = xorDistance(selfHash, nearest.hashFor(rtable.config.hasher))
+  for key in candidates.toOpenArray(1, candidates.high):
+    let dist = xorDistance(selfHash, key.hashFor(rtable.config.hasher))
+    if dist < nearestDist:
+      nearest = key
+      nearestDist = dist
+  Opt.some(nearest)
+
+proc refreshSelfTarget*(rtable: RoutingTable): Opt[Key] =
+  ## Key to run a findNode against in order to refresh the table's own center.
+  if not rtable.config.selfIdPreHashed:
+    return Opt.some(rtable.selfId)
+
+  # A pre-hashed selfId has no pre-image a peer could hash back to it.
+  rtable.nearestToCenter(rtable.allKeys())
 
 proc refreshTarget*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[Key] =
   ## Key to run a findNode against in order to refresh `bucketIndex`.
