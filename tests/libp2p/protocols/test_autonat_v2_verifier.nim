@@ -21,7 +21,7 @@ type VerifierPair = object
   client: AutonatV2ClientMock
   verifier: AutonatV2Verifier
 
-proc newPair(
+proc makePair(
     reachability: NetworkReachability, expectedDials = 1
 ): VerifierPair {.raises: [LPError].} =
   let
@@ -59,7 +59,7 @@ suite "AutonatV2 verifier":
 
   asyncTest "an address the peer dials back is confirmed":
     let
-      pair = newPair(Reachable, expectedDials = 2)
+      pair = makePair(Reachable, expectedDials = 2)
       addresses = @[ma("/ip4/1.2.3.4/tcp/1"), ma("/ip4/5.6.7.8/tcp/1")]
 
     await pair.start()
@@ -79,7 +79,7 @@ suite "AutonatV2 verifier":
 
   asyncTest "an address the peer fails to dial is unreachable":
     let
-      pair = newPair(NotReachable)
+      pair = makePair(NotReachable)
       address = ma("/ip4/1.2.3.4/tcp/1")
 
     await pair.start()
@@ -91,7 +91,7 @@ suite "AutonatV2 verifier":
       @[AddrVerdict(address: address, state: AddrState.Unreachable)]
 
   asyncTest "a peer without a verdict leaves the state alone":
-    let pair = newPair(Unknown)
+    let pair = makePair(Unknown)
 
     await pair.start()
     defer:
@@ -101,7 +101,7 @@ suite "AutonatV2 verifier":
     check (await pair.verifier.verify(@[ma("/ip4/1.2.3.4/tcp/1")])).len == 0
 
   asyncTest "a peer which dialed us is not asked":
-    let pair = newPair(Reachable)
+    let pair = makePair(Reachable)
 
     await pair.start()
     defer:

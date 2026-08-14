@@ -11,26 +11,27 @@ import
 import ../../libp2p/services/natservice
 import ../tools/[unittest, crypto, switch_builder, multiaddress]
 
-proc newManager(
+proc makeManager(
     maxSize = DefaultObservedAddrMaxSize, minCount = DefaultObservedAddrMinCount
 ): AddressManager =
   AddressManager.new(AddressManagerConfig(maxSize: maxSize, minCount: minCount))
 
-proc newStartedManager(
+proc makeStartedManager(
     maxSize = DefaultObservedAddrMaxSize, minCount = DefaultObservedAddrMinCount
 ): AddressManager =
-  let manager = newManager(maxSize, minCount)
+  let manager = makeManager(maxSize, minCount)
   manager.start()
   manager
 
-proc newVerifyingManager(verifier: Verifier = nil): AddressManager =
-  let manager =
-    AddressManager.new(AddressManagerConfig(verifyInterval: 10.milliseconds))
+const VerifyInterval = 10.milliseconds
+
+proc makeVerifyingManager(verifier: Verifier = nil): AddressManager =
+  let manager = AddressManager.new(AddressManagerConfig(verifyInterval: VerifyInterval))
   manager.verifier = verifier
   manager.start()
   manager
 
-proc newPeerInfo(
+proc makePeerInfo(
     listenAddrs: seq[MultiAddress] = @[], announcedAddrs: seq[MultiAddress] = @[]
 ): PeerInfo {.raises: [LPError].} =
   PeerInfo.new(
@@ -51,7 +52,7 @@ type StubVerifier = ref object of Verifier
   ran: AsyncEvent
   delay: Duration
 
-proc newStubVerifier(
+proc makeStubVerifier(
     verdicts: seq[AddrVerdict] = @[], delay = ZeroDuration
 ): StubVerifier =
   StubVerifier(verdicts: verdicts, ran: newAsyncEvent(), delay: delay)
@@ -82,7 +83,7 @@ suite "AddressManager observations":
     checkTrackers()
 
   asyncTest "Calculate the most observed IP correctly":
-    let manager = newStartedManager(minCount = 3)
+    let manager = makeStartedManager(minCount = 3)
 
     let mostObservedIP4AndPort = ma("/ip4/1.2.3.0/tcp/1")
     let maIP4 = ma("/ip4/0.0.0.0/tcp/80")
@@ -124,7 +125,7 @@ suite "AddressManager observations":
         @[mostObservedIP4AndPort, mostObservedIP6AndPort]
 
   asyncTest "replace first proto value by most observed when there is only one protocol":
-    let manager = newStartedManager(minCount = 3)
+    let manager = makeStartedManager(minCount = 3)
     let mostObservedIP4AndPort = ma("/ip4/1.2.3.4/tcp/1")
 
     check:
@@ -136,7 +137,7 @@ suite "AddressManager observations":
 
   asyncTest "an address which is not a direct IP address with a transport is rejected":
     let
-      manager = newStartedManager(maxSize = 2, minCount = 1)
+      manager = makeStartedManager(maxSize = 2, minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     check manager.addObservation(observed)
@@ -152,7 +153,7 @@ suite "AddressManager observations":
 
   asyncTest "a threshold below one is raised to one":
     let
-      manager = newStartedManager(maxSize = 0, minCount = 0)
+      manager = makeStartedManager(maxSize = 0, minCount = 0)
       firstObserved = ma("/ip4/1.2.3.4/tcp/1")
       lastObserved = ma("/ip4/5.6.7.8/tcp/1")
 
@@ -163,7 +164,7 @@ suite "AddressManager observations":
 
   asyncTest "a stopped manager rejects observations until it starts again":
     let
-      manager = newManager(minCount = 1)
+      manager = makeManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     manager.start()
@@ -183,7 +184,7 @@ suite "AddressManager observations":
 
   asyncTest "start and stop are idempotent":
     let
-      manager = newManager(minCount = 1)
+      manager = makeManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     manager.stop()
@@ -206,7 +207,7 @@ suite "AddressManager observations":
 
   asyncTest "a manager which never started rejects observations":
     let
-      manager = newManager(minCount = 1)
+      manager = makeManager(minCount = 1)
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     check:
@@ -250,7 +251,7 @@ suite "AddressManager candidates":
 
   asyncTest "a candidate is stored once and keeps every source which adds it":
     let
-      manager = newStartedManager()
+      manager = makeStartedManager()
       address = ma("/ip4/1.2.3.4/tcp/1")
 
     check:
@@ -264,7 +265,7 @@ suite "AddressManager candidates":
 
   asyncTest "a refresh keeps the state a verifier assigned":
     let
-      manager = newStartedManager()
+      manager = makeStartedManager()
       address = ma("/ip4/1.2.3.4/tcp/1")
 
     manager.add(address, AddrSource.Listen)
@@ -278,7 +279,7 @@ suite "AddressManager candidates":
 
   asyncTest "update and remove report an unknown address":
     let
-      manager = newStartedManager()
+      manager = makeStartedManager()
       address = ma("/ip4/1.2.3.4/tcp/1")
 
     check:
@@ -299,11 +300,12 @@ suite "AddressManager verification":
 
   asyncTest "a candidate stays unverified while no verifier runs":
     let
-      manager = newVerifyingManager()
+      manager = makeVerifyingManager()
       address = ma("/ip4/1.2.3.4/tcp/1")
 
     manager.add(address, AddrSource.Listen)
-    await sleepAsync(50.milliseconds)
+    # long enough for the heartbeat to run, which without a verifier changes nothing
+    await sleepAsync(VerifyInterval * 2)
 
     check:
       manager.candidates()[0].state == AddrState.Unverified
@@ -315,13 +317,13 @@ suite "AddressManager verification":
     let
       confirmed = ma("/ip4/1.2.3.4/tcp/1")
       unreachable = ma("/ip4/5.6.7.8/tcp/1")
-      verifier = newStubVerifier(
+      verifier = makeStubVerifier(
         @[
           AddrVerdict(address: confirmed, state: AddrState.Confirmed),
           AddrVerdict(address: unreachable, state: AddrState.Unreachable),
         ]
       )
-      manager = newVerifyingManager(verifier)
+      manager = makeVerifyingManager(verifier)
 
     manager.add(confirmed, AddrSource.Listen)
     manager.add(unreachable, AddrSource.Upnp)
@@ -338,10 +340,10 @@ suite "AddressManager verification":
   asyncTest "a verifier which runs out of time applies nothing and runs again":
     let
       address = ma("/ip4/1.2.3.4/tcp/1")
-      verifier = newStubVerifier(
+      verifier = makeStubVerifier(
         @[AddrVerdict(address: address, state: AddrState.Confirmed)], delay = 1.hours
       )
-      manager = newVerifyingManager(verifier)
+      manager = makeVerifyingManager(verifier)
 
     manager.add(address, AddrSource.Listen)
 
@@ -354,8 +356,8 @@ suite "AddressManager verification":
   asyncTest "stopping the manager stops the heartbeat":
     let
       address = ma("/ip4/1.2.3.4/tcp/1")
-      verifier = newStubVerifier()
-      manager = newVerifyingManager(verifier)
+      verifier = makeStubVerifier()
+      manager = makeVerifyingManager(verifier)
 
     manager.add(address, AddrSource.Listen)
     await verifier.ran.wait()
@@ -363,7 +365,7 @@ suite "AddressManager verification":
     manager.stop()
     let runs = verifier.asked.len
     manager.add(address, AddrSource.Listen)
-    await sleepAsync(50.milliseconds)
+    await sleepAsync(VerifyInterval * 2)
 
     check verifier.asked.len == runs
 
@@ -373,8 +375,8 @@ suite "AddressManager address mapper":
 
   asyncTest "the manager is the only mapper the PeerInfo runs":
     let
-      peerInfo = newPeerInfo(@[ma("/ip4/1.2.3.4/tcp/1")])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[ma("/ip4/1.2.3.4/tcp/1")])
+      manager = makeManager()
 
     check peerInfo.addressMappers.len == 0
 
@@ -386,8 +388,8 @@ suite "AddressManager address mapper":
 
   asyncTest "the manager expands the wildcard addresses":
     let
-      peerInfo = newPeerInfo(@[ma("/ip4/0.0.0.0/tcp/1")])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[ma("/ip4/0.0.0.0/tcp/1")])
+      manager = makeManager()
 
     manager.networkInterfaceProvider = interfaceProvider(@["127.0.0.1:0", "10.0.0.1:0"])
     manager.start(peerInfo)
@@ -406,8 +408,8 @@ suite "AddressManager address mapper":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       relayAddr = ma("/ip4/1.2.3.4/tcp/1/p2p-circuit")
-      peerInfo = newPeerInfo(@[listenAddr])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[listenAddr])
+      manager = makeManager()
 
     manager.start(peerInfo)
     manager.addMapper(constantMapper(@[listenAddr, relayAddr]), AddrSource.Circuit)
@@ -429,8 +431,8 @@ suite "AddressManager address mapper":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       mappedAddr = ma("/ip4/1.2.3.4/tcp/1")
-      peerInfo = newPeerInfo(@[listenAddr])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[listenAddr])
+      manager = makeManager()
       mapper = constantMapper(@[mappedAddr])
 
     manager.start(peerInfo)
@@ -455,8 +457,8 @@ suite "AddressManager address mapper":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       mappedAddr = ma("/ip4/1.2.3.4/tcp/1")
-      peerInfo = newPeerInfo(@[listenAddr])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[listenAddr])
+      manager = makeManager()
       mapper = constantMapper(@[listenAddr, mappedAddr])
 
     manager.start(peerInfo)
@@ -484,8 +486,8 @@ suite "AddressManager address mapper":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       fedAddr = ma("/ip4/1.2.3.4/tcp/1")
-      peerInfo = newPeerInfo(@[listenAddr])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[listenAddr])
+      manager = makeManager()
 
     manager.start(peerInfo)
     manager.add(fedAddr, AddrSource.Circuit)
@@ -503,8 +505,8 @@ suite "AddressManager address mapper":
   asyncTest "an unreachable candidate is still announced":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
-      peerInfo = newPeerInfo(@[listenAddr])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[listenAddr])
+      manager = makeManager()
 
     manager.start(peerInfo)
     await peerInfo.update()
@@ -524,8 +526,8 @@ suite "AddressManager address mapper":
       announced = ma("/ip4/1.2.3.4/tcp/1")
       expanded = ma("/ip4/10.0.0.1/tcp/1")
       mapped = ma("/ip4/9.9.9.9/tcp/2")
-      peerInfo = newPeerInfo(@[ma("/ip4/0.0.0.0/tcp/1")], @[announced])
-      manager = newManager()
+      peerInfo = makePeerInfo(@[ma("/ip4/0.0.0.0/tcp/1")], @[announced])
+      manager = makeManager()
 
     var mapperInput: seq[MultiAddress]
     let recordingMapper: AddressMapper = proc(
@@ -619,7 +621,7 @@ suite "Switch-owned AddressManager":
       switch.addressManager.mostObservedProtosAndPorts() == @[lastObserved]
 
   asyncTest "the deprecated builder hook still wires the given manager":
-    let addressManager = newManager(maxSize = 1, minCount = 1)
+    let addressManager = makeManager(maxSize = 1, minCount = 1)
 
     {.push warning[Deprecated]: off.}
     let switch = makeStandardSwitchBuilder(ma("/memorytransport/*"))

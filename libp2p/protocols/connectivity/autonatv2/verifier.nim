@@ -71,8 +71,7 @@ proc askPeer(
 method verify*(
     self: AutonatV2Verifier, addresses: seq[MultiAddress]
 ): Future[seq[AddrVerdict]] {.async: (raises: [CancelledError]).} =
-  ## One request per address, each to a peer of its own. A server dials back one
-  ## address per request, and it picks which one.
+  ## One request per address, each carrying that one address, to a random peer.
   var verdicts: seq[AddrVerdict]
   for address in addresses:
     if not self.switch.hasEnoughIncomingSlots():
