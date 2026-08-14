@@ -181,7 +181,7 @@ type
     sendFuts: seq[Future[void]]
 
   RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
-    async: (raises: [CancelledError])
+    async: (raises: [CancelledError, PeerRateLimitError])
   .}
 
 when defined(libp2p_agents_metrics):
@@ -323,7 +323,16 @@ proc runHandleLoop*(
     trace "read data from peer",
       stream, peer = p, closed = stream.closed, data = data.shortLog
 
-    await p.handler(p, move(data))
+    if p.handler.isNil:
+      debug "Ignoring pubsub message without handler", stream, peer = p
+      continue
+
+    try:
+      await p.handler(p, move(data))
+    except PeerRateLimitError as e:
+      trace "peer rate limit exceeded in peerHandler",
+        description = e.msg, stream, peer = p
+      await stream.closeWithEOF()
 
 proc closeSendStream(
     p: PubSubPeer, event: PubSubPeerEventKind
@@ -775,12 +784,14 @@ proc new*(
     onEvent: OnEvent,
     codec: string,
     maxMessageSize: int,
+    handler: RPCHandler,
     maxHighPriorityQueueLen: int = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen: int = DefaultMaxMediumPriorityQueueLen,
     maxLowPriorityQueueLen: int = DefaultMaxLowPriorityQueueLen,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
 ): T =
+  doAssert not handler.isNil
   let response = T(
     getStream: getStream,
     onEvent: onEvent,
@@ -788,6 +799,7 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
+    handler: handler,
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,

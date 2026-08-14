@@ -15,6 +15,11 @@ proc dummyGetConn(): Future[Stream] {.
 .} =
   raise newException(GetStreamDialError, "this is not a real connection")
 
+proc dummyHandler(
+    peer: PubSubPeer, data: sink seq[byte]
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+  discard
+
 type PendingConnection = ref object of Connection
   # These futures never finish, they're used to grow the high priority queue
   pendingWrites: seq[Future[void].Raising([CancelledError, LPStreamError])]
@@ -122,6 +127,7 @@ proc createTestPeer(
     onEvent,
     GossipSubCodec_12,
     maxMessageSize = maxMessageSize,
+    handler = dummyHandler,
     maxHighPriorityQueueLen = maxHigh,
     maxMediumPriorityQueueLen = maxMedium,
     maxLowPriorityQueueLen = maxLow,
