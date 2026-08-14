@@ -77,9 +77,9 @@ proc noop*(data: sink seq[byte]) {.async: (raises: [CancelledError, LPStreamErro
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
   discard
 
-proc voidPeerHandler(
+proc voidPeerHandler*(
     peer: PubSubPeer, data: sink seq[byte]
-) {.async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   discard
 
 proc randomPeerId*(): PeerId =
@@ -97,8 +97,9 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
     except DialFailedError as e:
       raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
-  let pubSubPeer =
-    PubSubPeer.new(peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024)
+  let pubSubPeer = PubSubPeer.new(
+    peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024, voidPeerHandler
+  )
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -131,7 +132,6 @@ proc setupGossipSubWithPeers*(
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
     peer.sendStream = conn
-    peer.handler = voidPeerHandler
     peers &= peer
     for topic in topics:
       if (populateGossipsub):
