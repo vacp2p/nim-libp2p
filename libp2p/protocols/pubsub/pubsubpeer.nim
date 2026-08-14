@@ -333,6 +333,7 @@ proc runHandleLoop*(
       trace "peer rate limit exceeded in peerHandler",
         description = e.msg, stream, peer = p
       await stream.closeWithEOF()
+      return
 
 proc closeSendStream(
     p: PubSubPeer, event: PubSubPeerEventKind
@@ -791,7 +792,7 @@ proc new*(
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
 ): T =
-  doAssert not handler.isNil
+  doAssert not handler.isNil, "RPC handler must be set"
   let response = T(
     getStream: getStream,
     onEvent: onEvent,

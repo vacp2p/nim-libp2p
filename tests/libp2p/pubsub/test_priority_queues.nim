@@ -15,7 +15,7 @@ proc dummyGetConn(): Future[Stream] {.
 .} =
   raise newException(GetStreamDialError, "this is not a real connection")
 
-proc dummyHandler(
+proc noopHandler(
     peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   discard
@@ -127,7 +127,7 @@ proc createTestPeer(
     onEvent,
     GossipSubCodec_12,
     maxMessageSize = maxMessageSize,
-    handler = dummyHandler,
+    handler = noopHandler,
     maxHighPriorityQueueLen = maxHigh,
     maxMediumPriorityQueueLen = maxMedium,
     maxLowPriorityQueueLen = maxLow,
