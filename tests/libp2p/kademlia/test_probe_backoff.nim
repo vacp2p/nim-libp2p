@@ -39,6 +39,18 @@ suite "KadDHT - Probe backoff":
 
     check kad.probeBackedOff(offender, offenderAddrs)
 
+  test "a peer whose backoff elapsed keeps its count":
+    let kad = setupKad()
+    kad.config.limits.maxProbeFailures = 1
+    kad.config.timeout = 1.nanoseconds
+    let peerId = randomPeerId()
+    let addrs = deadAddrs(59999)
+
+    kad.probeRecordFailure(peerId, addrs)
+    kad.probeRecordFailure(peerId, addrs)
+
+    check kad.probeFailures.getOrDefault(peerId).count == 2
+
   test "backoff doubles per failure and stops at the cap":
     check:
       probeBackoff(1, 1.seconds, 4.seconds) == 1.seconds

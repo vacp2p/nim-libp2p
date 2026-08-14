@@ -59,8 +59,10 @@ proc probePruneFailures(kad: KadDHT, now: Moment) =
 
 proc probeRecordFailure*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]) =
   let now = Moment.now()
-  kad.probePruneFailures(now)
   let count = kad.probeFailures.getOrDefault(peerId).count + 1
+  ## A repeat offender overwrites its own entry, so a prune would drop the count it just read.
+  if count == 1:
+    kad.probePruneFailures(now)
   kad.probeFailures[peerId] = ProbeFailure(
     count: count,
     until: now + probeBackoff(count, kad.config.timeout, kad.config.probeBackoffMax),
