@@ -13,7 +13,9 @@ export api
 
 type ACMEApiStub* = ref object of ACMEApi
   ## Refuses every ACME request, recording what was requested.
+  ## While `stalls` is set the request stays pending instead, until it is cancelled.
   requestedUris*: seq[Uri]
+  stalls*: bool
 
 proc new*(T: typedesc[ACMEApiStub]): ACMEApiStub =
   ACMEApiStub(session: HttpSessionRef.new(), acmeServerURL: parseUri(LetsEncryptURL))
@@ -22,6 +24,8 @@ proc refuse(
     self: ACMEApiStub, uri: Uri
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   self.requestedUris.add(uri)
+  if self.stalls:
+    await Future[void].Raising([CancelledError]).init("ACMEApiStub.stall")
   raise newException(ACMEError, "ACMEApiStub refused " & $uri)
 
 method post*(
