@@ -6,7 +6,7 @@
 import chronos, results, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/utils/future
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, stall_server, topology, unittest]
 import ./utils.nim
 
 suite "KadDHT - Limits":
@@ -30,6 +30,23 @@ suite "KadDHT - Limits":
 
     let probes = move kad.admissionProbes
     await noCancel probes.values.toSeq().cancelAndWait()
+
+  asyncTest "an admission probe frees its slot at the probe timeout":
+    let stall = startStallServer()
+    let kad = setupKad(testKadConfig(timeout = 500.milliseconds))
+    startAndDeferStop(@[kad.switch])
+    defer:
+      # Before the switch: `stop` waits for the dial this probe abandons.
+      await stall.stop()
+    kad.admissionSem = newAsyncSemaphore(1)
+
+    kad.admitPeers(@[PeerInfo(peerId: randomPeerId(), addrs: @[stall.address])])
+    check kad.admissionProbes.len == 1
+
+    let probes = move kad.admissionProbes
+    # A peer that accepts and never speaks costs `timeout`, not the dialer's 30s.
+    await allFutures(probes.values().toSeq()).wait(5.seconds)
+    check kad.admissionSem.availableSlots() == 1
 
   asyncTest "liveness probes do not consume admissionSem slots":
     ## Admission and eviction use independent semaphores: a saturated

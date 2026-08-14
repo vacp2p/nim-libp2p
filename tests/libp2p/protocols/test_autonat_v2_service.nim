@@ -8,7 +8,7 @@ import
   ../../../libp2p/[
     builders,
     switch,
-    observedaddrmanager,
+    address_manager,
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
@@ -649,7 +649,7 @@ suite "AutonatV2 Service":
     # takes observations only while it runs, so the switch starts first.
     let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
     for _ in 0 ..< ObservedAddrQuorum:
-      check switch.observedAddrManager.addObservation(observedAddr)
+      check switch.addressManager.addObservation(observedAddr)
 
     await switches.startAll()
     for peer in switches:
