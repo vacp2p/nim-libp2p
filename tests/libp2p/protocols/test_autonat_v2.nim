@@ -350,3 +350,17 @@ suite "AutonatV2":
     ).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    # 4. successful DialResponse without an addrIdx
+    autonatV2Mock.response = AutonatV2Msg(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse: DialResponse(
+          status: ResponseStatus.Ok,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.some(DialStatus.Ok),
+        ),
+      )
+    ).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
