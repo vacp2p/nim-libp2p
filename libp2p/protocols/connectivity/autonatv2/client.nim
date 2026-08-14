@@ -186,9 +186,8 @@ method sendDialRequest*(
     dialResp.dialStatus.withValue(dialStatus):
       if dialStatus == DialStatus.Ok:
         let addrIdx = dialResp.addrIdx.valueOr:
-          raise newException(
-            AutonatV2Error, "Successful DialResponse is missing addrIdx"
-          )
+          raise
+            newException(AutonatV2Error, "Successful DialResponse is missing addrIdx")
         if not self.checkAddrIdx(addrIdx, testAddrs, nonce):
           raise newException(
             AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
