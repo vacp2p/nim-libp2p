@@ -138,14 +138,11 @@ proc new*(
 
 method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
   trace "Setting up AutotlsService"
-  if self.config.ipAddress.isNone():
-    try:
-      self.config.ipAddress = Opt.some(getPublicIPAddress())
-    except ValueError, OSError:
-      raise newException(
-        ServiceSetupError,
-        "Failed to get public IP address. Reason: " & getCurrentExceptionMsg(),
-      )
+  if self.config.ipAddress.isSome():
+    return
+  let ip = getPublicIPAddress().valueOr:
+    raise newException(ServiceSetupError, "Host does not have a public IP address")
+  self.config.ipAddress = Opt.some(ip)
 
 method issueCertificate(
     self: AutotlsService

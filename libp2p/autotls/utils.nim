@@ -40,6 +40,18 @@ proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
 
   return Base36.encode(cidResult.get().data.buffer)
 
+func dnsLabel(ipAddress: IpAddress): string =
+  ## p2p-forge label: 100.10.10.3 gives 100-10-10-3, ::1 gives 0--1 (RFC 1123).
+  if ipAddress.family == IpAddressFamily.IPv4:
+    return ($ipAddress).replace('.', '-')
+
+  var label = ($ipAddress).replace(':', '-')
+  if label.startsWith('-'):
+    label = "0" & label
+  if label.endsWith('-'):
+    label = label & "0"
+  label
+
 proc checkDNSRecords*(
     nameResolver: NameResolver,
     ipAddress: IpAddress,
@@ -48,29 +60,24 @@ proc checkDNSRecords*(
     retries: int = DefaultDnsRetries,
     retryTime: Duration = DefaultDnsRetryTime,
 ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  # if my ip address is 100.10.10.3 then the ip4Domain will be:
-  #     100-10-10-3.{peerIdBase36}.libp2p.direct
-  # and acme challenge TXT domain will be:
-  #     _acme-challenge.{peerIdBase36}.libp2p.direct
-  let dashedIpAddr = ($ipAddress).replace(".", "-")
   let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
-  let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
-  debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
+  let ipDomain = api.Domain(ipAddress.dnsLabel() & "." & baseDomain)
+  debug "Waiting for DNS record to be set", ip = ipDomain, acme = acmeChalDomain
 
   for attempt in 0 .. retries:
     if attempt > 0:
       await sleepAsync(retryTime)
 
     let txt = await nameResolver.resolveTxt(acmeChalDomain)
-    var ip4: seq[TransportAddress]
+    var resolvedIps: seq[TransportAddress]
     try:
-      ip4 = await nameResolver.resolveIp(ip4Domain, 0.Port)
+      resolvedIps = await nameResolver.resolveIp(ipDomain, 0.Port)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       error "Failed to resolve IP", description = exc.msg # retry
 
-    if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
+    if txt.len > 0 and txt[0] == keyAuth and resolvedIps.len > 0:
       return true
 
   return false

@@ -26,11 +26,9 @@ suite "WebSocket transport integration":
     checkTrackers()
 
   asyncTest "switch successfully dials over wss using autotls certificate":
-    if not hasPublicIPAddress():
+    let ip = getPublicIPAddress().valueOr:
       skip()
       return
-
-    let ip = getPublicIPAddress()
 
     let switch1 = SwitchBuilder
       .new()
