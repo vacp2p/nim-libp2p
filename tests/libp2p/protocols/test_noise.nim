@@ -82,7 +82,7 @@ proc makeSwitch(ma: MultiAddress, outgoing: bool, plaintext: bool = false): Swit
     peerStore: peerStore,
     dialer: dialer,
     rng: rng(),
-    observedAddrManager: identify.observedAddrManager,
+    addressManager: identify.addressManager,
   )
 
 suite "Noise":
