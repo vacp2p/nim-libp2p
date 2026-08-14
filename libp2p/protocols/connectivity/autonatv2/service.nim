@@ -17,7 +17,8 @@ import
   ../../../crypto/crypto,
   ../autonat/types,
   ./types,
-  ./client
+  ./client,
+  ./utils
 
 export reachabilityobservers
 
@@ -95,13 +96,6 @@ proc new*(
     rng: rng,
   )
 
-proc hasEnoughIncomingSlots(switch: Switch): bool =
-  # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
-  return switch.connManager.availableSlots(In) >= 2
-
-proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
-  return switch.connManager.selectMuxer(peerId, In) != nil
-
 proc handleAnswer(
     self: AutonatV2Service, ans: NetworkReachability
 ): Future[bool] {.async: (raises: [CancelledError]).} =
@@ -143,7 +137,7 @@ proc askPeer(
   logScope:
     peerId = $peerId
 
-  if doesPeerHaveIncomingConn(switch, peerId):
+  if hasIncomingConn(switch, peerId):
     return Unknown
 
   if not hasEnoughIncomingSlots(switch):
