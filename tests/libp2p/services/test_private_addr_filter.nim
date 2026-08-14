@@ -18,6 +18,14 @@ import
   ]
 import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
+proc peerIdInBucket(kad: KadDHT, bucket: int): PeerId =
+  ## A draw lands in `bucket` with probability ~2^-(bucket+1), so keep drawing.
+  for _ in 0 ..< 1000:
+    let peerId = PeerId.random(rng()).tryGet()
+    if kad.rtable.bucketIndex(peerId.toKey()) == bucket:
+      return peerId
+  raiseAssert "no random peer id landed in bucket " & $bucket
+
 suite "PeerStore addressPolicy":
   test "updatePeerInfo stores all addresses with default policy":
     let peerId = PeerId.random(rng()).tryGet()
@@ -206,6 +214,62 @@ suite "KadDHT updatePeers address policy":
       switch.peerStore[AddressBook][v6PeerC].len == 0
       switch.peerStore[AddressBook][v6PeerD].len == 1
       switch.peerStore[AddressBook][v6PeerE].len == 0
+
+  test "updatePeers enforces per-bucket IP diversity limits":
+    let switch = makeStandardSwitch(TcpAutoAddress)
+
+    var limits = KadDHTLimits.new(DefaultReplication, DefaultQuorum)
+    limits.maxPeersPerIpv4SubnetPerBucket = 1
+    let config = KadDHTConfig.new(limits = Opt.some(limits))
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
+    switch.mount(kad)
+
+    let
+      firstOfBucket0 = kad.peerIdInBucket(0)
+      secondOfBucket0 = kad.peerIdInBucket(0)
+      firstOfBucket1 = kad.peerIdInBucket(1)
+
+    kad.updatePeers(
+      @[
+        PeerInfo(peerId: firstOfBucket0, addrs: @[ma("/ip4/8.8.8.1/tcp/4001")]),
+        PeerInfo(peerId: secondOfBucket0, addrs: @[ma("/ip4/8.8.8.2/tcp/4001")]),
+        PeerInfo(peerId: firstOfBucket1, addrs: @[ma("/ip4/8.8.8.3/tcp/4001")]),
+      ]
+    )
+
+    # The table-wide /24 cap (10) leaves room; only the bucket cap rejects.
+    let keys = kad.rtable.allKeys()
+    check:
+      firstOfBucket0.toKey() in keys
+      secondOfBucket0.toKey() notin keys
+      firstOfBucket1.toKey() in keys
+
+  test "per-bucket IP diversity limits count in-flight admission probes":
+    let switch = makeStandardSwitch(TcpAutoAddress)
+
+    var limits = KadDHTLimits.new(DefaultReplication, DefaultQuorum)
+    limits.maxPeersPerIpv4SubnetPerBucket = 1
+    let config = KadDHTConfig.new(limits = Opt.some(limits))
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
+    switch.mount(kad)
+
+    let
+      probed = kad.peerIdInBucket(0)
+      sameBucket = kad.peerIdInBucket(0)
+      otherBucket = kad.peerIdInBucket(1)
+      addressBook = switch.peerStore[AddressBook]
+      caps = kad.config.limits.diversityCaps()
+
+    addressBook.extend(probed, @[ma("/ip4/8.8.8.1/tcp/4001")], AddressConfidence.Low)
+
+    # `probed` is still absent from the table: only the pending list holds its slot.
+    check:
+      not addressBook.hasIpDiversity(
+        kad.rtable, sameBucket, @[ma("/ip4/8.8.8.2/tcp/4001")], caps, @[probed]
+      )
+      addressBook.hasIpDiversity(
+        kad.rtable, otherBucket, @[ma("/ip4/8.8.8.3/tcp/4001")], caps, @[probed]
+      )
 
 suite "SwitchBuilder withPrivateAddressFilter outbound":
   teardown:

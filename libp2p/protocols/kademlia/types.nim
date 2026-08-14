@@ -69,6 +69,10 @@ const
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
     ## upper bound on Kademlia routing-table peers sharing one IP subnet
+  DefaultMaxPeersPerIpPerBucket* = 2
+    ## upper bound on peers of one bucket sharing one exact IP
+  DefaultMaxPeersPerSubnetPerBucket* = 3
+    ## upper bound on peers of one bucket sharing one IP subnet
 
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
@@ -461,6 +465,48 @@ type KadDHTLimits* = object
     ## Maximum number of Kademlia routing-table peers sharing one IPv4 /24.
   maxPeersPerIpv6Subnet*: int
     ## Maximum number of Kademlia routing-table peers sharing one IPv6 /64.
+  maxPeersPerIpPerBucket*: int
+    ## Peers of one bucket sharing one exact IP; 0 or less applies the table cap.
+  maxPeersPerIpv4SubnetPerBucket*: int
+    ## Peers of one bucket sharing one IPv4 /24; 0 or less applies the table cap.
+  maxPeersPerIpv6SubnetPerBucket*: int
+    ## Peers of one bucket sharing one IPv6 /64; 0 or less applies the table cap.
+
+type
+  DiversityCap* = object
+    ## Cap on the peers of one IP group, at both scopes the filter enforces.
+    table*: int
+    bucket*: int
+
+  DiversityCaps* = object
+    perIp*: DiversityCap
+    perIpv4Subnet*: DiversityCap
+    perIpv6Subnet*: DiversityCap
+
+func defaultDiversityCaps*(): DiversityCaps =
+  DiversityCaps(
+    perIp:
+      DiversityCap(table: DefaultMaxPeersPerIp, bucket: DefaultMaxPeersPerIpPerBucket),
+    perIpv4Subnet: DiversityCap(
+      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
+    ),
+    perIpv6Subnet: DiversityCap(
+      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
+    ),
+  )
+
+func diversityCap(table, bucket: int): DiversityCap =
+  ## An unset (non-positive) bucket cap leaves the table cap as the only limit.
+  DiversityCap(table: table, bucket: if bucket > 0: bucket else: table)
+
+func diversityCaps*(limits: KadDHTLimits): DiversityCaps =
+  DiversityCaps(
+    perIp: diversityCap(limits.maxPeersPerIp, limits.maxPeersPerIpPerBucket),
+    perIpv4Subnet:
+      diversityCap(limits.maxPeersPerIpv4Subnet, limits.maxPeersPerIpv4SubnetPerBucket),
+    perIpv6Subnet:
+      diversityCap(limits.maxPeersPerIpv6Subnet, limits.maxPeersPerIpv6SubnetPerBucket),
+  )
 
 proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises: [].} =
   ## Builds a limits object whose shortlist/received caps and providers-per-key
@@ -479,6 +525,9 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
+    maxPeersPerIpPerBucket: DefaultMaxPeersPerIpPerBucket,
+    maxPeersPerIpv4SubnetPerBucket: DefaultMaxPeersPerSubnetPerBucket,
+    maxPeersPerIpv6SubnetPerBucket: DefaultMaxPeersPerSubnetPerBucket,
   )
 
 type KadDHTConfig* = object
