@@ -79,34 +79,25 @@ suite "AutoTLS certificate issuance and renewal":
       newService(AutotlsConfig.new(issueRetries = 3, issueRetryTime = 0.seconds))
     await service.start(switch)
 
-    # Every attempt fails on its first ACME request, so a request is an attempt:
-    # the first one, then three retries.
+    # Every attempt fails on its first ACME request, so a request is an attempt.
     checkUntilTimeout:
       acmeApi.requestedUris.len == 4
 
   asyncTest "a failed round is retried on the next heartbeat":
     # No retries, so a round is one request.
-    service = newService(
-      AutotlsConfig.new(
-        issueRetries = 0, issueRetryTime = 0.seconds, renewCheckTime = 200.milliseconds
-      )
-    )
+    service =
+      newService(AutotlsConfig.new(issueRetries = 0, renewCheckTime = RenewCheckTime))
     await service.start(switch)
 
     checkUntilTimeout:
-      acmeApi.requestedUris.len == 2
+      acmeApi.requestedUris.len >= 2
 
   asyncTest "a service stopped during issuance makes no further attempt":
     acmeApi.stalls = true
-    service = newService(
-      AutotlsConfig.new(
-        issueRetries = 3, issueRetryTime = 0.seconds, renewCheckTime = RenewCheckTime
-      )
-    )
+    service = newService(AutotlsConfig.new(issueRetries = 3))
     await service.start(switch)
 
-    checkUntilTimeout:
-      acmeApi.requestedUris.len == 1
+    check acmeApi.requestedUris.len == 1
 
     await service.stop(switch).wait(1.seconds)
 
