@@ -4,15 +4,15 @@
 {.used.}
 {.push raises: [].}
 
-import chronos, chronos/apps/http/httpclient, uri, base64, times
+import chronos, uri, base64, times
 import
-  ../../../libp2p/[
-    stream/connection, upgrademngrs/upgrade, peeridauth/mockclient, wire, crypto/crypto
-  ]
+  ../../../libp2p/
+    [stream/connection, upgrademngrs/upgrade, peeridauth/client, wire, crypto/crypto]
 import ../../tools/[unittest, crypto]
+import ../../stubs/peer_id_auth_client_stub
 
 suite "PeerID Auth Client":
-  var client {.threadvar.}: MockPeerIDAuthClient
+  var client {.threadvar.}: PeerIDAuthClientStub
   var peerInfo {.threadvar.}: PeerInfo
 
   asyncTeardown:
@@ -20,18 +20,16 @@ suite "PeerID Auth Client":
     checkTrackers()
 
   asyncSetup:
-    client = MockPeerIDAuthClient.new(rng())
-    client.mockedHeaders = HttpTable.init()
+    client = PeerIDAuthClientStub.new()
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng()).get())
 
   asyncTest "request authentication":
     let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng()).get()
     let serverPubkey = serverPrivateKey.getPublicKey().get()
     let b64serverPubkey = serverPubkey.pubkeyBytes().encode(safe = true)
-    client.mockedHeaders.add(
-      "WWW-Authenticate",
+    client.wwwAuthenticate = Opt.some(
       "libp2p-PeerID " & "challenge-client=\"somechallengeclient\", public-key=\"" &
-        b64serverPubkey & "\", opaque=\"someopaque\"",
+        b64serverPubkey & "\", opaque=\"someopaque\""
     )
 
     let authenticationResponse =
@@ -45,9 +43,8 @@ suite "PeerID Auth Client":
   asyncTest "request authorization":
     let sig = PeerIDAuthSignature("somesig")
     let bearer = BearerToken(token: "somebearer", expires: Opt.none(DateTime))
-    client.mockedHeaders.add(
-      "Authentication-Info",
-      "libp2p-PeerID " & "sig=\"" & sig & "\", " & "bearer=\"" & bearer.token & "\"",
+    client.authenticationInfo = Opt.some(
+      "libp2p-PeerID " & "sig=\"" & sig & "\", " & "bearer=\"" & bearer.token & "\""
     )
 
     let uri = parseUri("https://example.com/some/uri")
