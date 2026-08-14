@@ -286,7 +286,9 @@ suite "FloodSub Component":
     .} =
       raise (ref GetStreamDialError)(msg: "unused")
 
-    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    let peer = PubSubPeer.new(
+      peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler
+    )
     node.peers[peerId] = peer
 
     for i in 0 .. node.topicsHigh + 10:
@@ -319,7 +321,9 @@ suite "FloodSub Component":
     .} =
       raise (ref GetStreamDialError)(msg: "unused")
 
-    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    let peer = PubSubPeer.new(
+      peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler
+    )
     node.peers[peerId] = peer
 
     for i in 0 ..< 5:
