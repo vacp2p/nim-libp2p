@@ -381,10 +381,10 @@ proc lookupCheck*(
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
-    trace "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
+    notice "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kad probe failed", peer = peerId.shortLog(), description = error
+    notice "Kad probe failed", peer = peerId.shortLog(), description = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
@@ -414,11 +414,17 @@ proc admitPeer(
     tablePeers = rtable.buckets.foldl(a + b.peers.len, 0)
     shortPeer = peerId.shortLog()
   if not reachable:
-    notice "Kad admission probe failed, not inserting peer",
+    # A busy peer is not a dead one, and dropping it leaves a cold-starting node with
+    # nothing left to retry. Admit until the table can stand alone; liveness evicts.
+    if tablePeers >= kad.config.replication:
+      notice "Kad admission probe failed, not inserting peer",
+        peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
+      return
+    notice "Kad admission probe failed on a small table, admitting anyway",
       peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
-    return
-  notice "Kad admission probe passed",
-    peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
+  else:
+    notice "Kad admission probe passed",
+      peer = shortPeer, tablePeers = tablePeers, elapsedMs = elapsedMs
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
