@@ -4,7 +4,6 @@
 
 import chronos, chronicles, strutils
 import stew/base36
-from times import DateTime, toTime, toUnix
 import
   ../errors,
   ../peerid,
@@ -22,10 +21,6 @@ type AutoTLSError* = object of LPError
 const
   DefaultDnsRetries = 3
   DefaultDnsRetryTime = 1.seconds
-
-proc asMoment*(dt: DateTime): Moment =
-  let unixTime: int64 = dt.toTime.toUnix
-  return Moment.init(unixTime, Second)
 
 proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
   var mh: MultiHash

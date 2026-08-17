@@ -4,18 +4,32 @@
 {.used.}
 
 import chronos, sequtils, results
-import ../../libp2p/[builders, switch]
+import ../../libp2p/[builders, peerstore, switch]
 import ../tools/[unittest, futures, switch_builder, crypto, multiaddress, stall_server]
 
+proc replaceIdentifyHandler(sw: Switch, handler: LPProtoHandler) =
+  for holder in sw.ms.handlers:
+    if IdentifyCodec in holder.protos:
+      holder.protocol.handler = handler
+
 proc stallIdentify(sw: Switch) =
-  ## Answer everything up to identify, then go quiet. The connection stands, so
-  ## only the identify budget can end a dial to this peer.
+  ## Never answer identify, so only the identify budget can end the dial.
   proc stall(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     await stream.join()
 
-  for holder in sw.ms.handlers:
-    if IdentifyCodec in holder.protos:
-      holder.protocol.handler = stall
+  sw.replaceIdentifyHandler(stall)
+
+proc stallAfterIdentify(sw: Switch) =
+  ## Answer identify, then hold the stream open so no EOF ever arrives.
+  let pusher = IdentifyPush.new()
+  proc hold(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      await pusher.push(sw.peerInfo, stream)
+    except LPStreamError:
+      discard
+    await stream.join()
+
+  sw.replaceIdentifyHandler(hold)
 
 suite "Dialer":
   teardown:
@@ -151,3 +165,36 @@ suite "Dialer":
             reuseConnection = false,
           )
           .wait(10.seconds)
+
+  asyncTest "A remote that never closes the identify stream frees the dial":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    dst.stallAfterIdentify()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      dialTimeout = 1.seconds,
+    )
+
+    # Twice: the second dial gets its turn only if the first freed the lock.
+    for _ in 0 .. 1:
+      let dial = dialer.connect(
+        dst.peerInfo.peerId,
+        dst.peerInfo.addrs,
+        forceDial = true,
+        reuseConnection = false,
+      )
+      # `join`, not `wait`: a cancel waits out a dial parked in `noCancel`.
+      if not await dial.join().withTimeout(IdentifyCloseTimeout * 2):
+        fail()
+        return
+      await dial

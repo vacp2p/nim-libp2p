@@ -43,6 +43,9 @@ import
 when defined(libp2p_agents_metrics):
   import utils/agents
 
+const IdentifyCloseTimeout* = 5.seconds
+  ## Grace for the remote's EOF once identify is done.
+
 type
   #################
   # Handler types #
@@ -531,6 +534,13 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
   while peerStore.toClean.len > peerStore.capacity:
     peerStore.del(peerStore.toClean[0])
 
+proc retireStream(stream: Stream, identified: bool) {.async: (raises: []).} =
+  ## `noCancel` swallows the caller's deadline, so the close carries its own.
+  if identified:
+    if await noCancel stream.closeWithEOF().withTimeout(IdentifyCloseTimeout):
+      return
+  await noCancel stream.reset()
+
 proc identify*(
     peerStore: PeerStore, muxer: Muxer, dir: Direction
 ) {.
@@ -565,10 +575,7 @@ proc identify*(
   except CancelledError as exc:
     raise exc
   finally:
-    if identifyCompleted:
-      await noCancel stream.closeWithEOF()
-    else:
-      await noCancel stream.reset()
+    await retireStream(stream, identifyCompleted)
 
 proc getMostObservedProtosAndPorts*(
     self: PeerStore
