@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm, net, sets]
+import std/[tables, sequtils, algorithm, sets]
 import chronos, chronicles, results
-import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy, wire]
+import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
 import ../../utils/future
-import ./[routing_table, protobuf, types, rpc, kademlia_metrics]
+import ./[routing_table, protobuf, types, rpc, kademlia_metrics, ip_diversity]
 
 logScope:
   topics = "kad-dht find"
@@ -179,150 +179,19 @@ proc dispatchFindNode*(
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   await kad.dispatchRpc(peer, msg, addrs)
 
-type
-  Ipv4Address = array[4, byte]
-  Ipv4Subnet24 = array[3, byte]
-  Ipv6Address = array[16, byte]
-  Ipv6Subnet64 = array[8, byte]
-
-  PeerIps = object
-    ipv4s: seq[Ipv4Address]
-    ipv6s: seq[Ipv6Address]
-
-proc subnet24(ip: Ipv4Address): Ipv4Subnet24 {.raises: [].} =
-  var subnet: Ipv4Subnet24
-  subnet[0] = ip[0]
-  subnet[1] = ip[1]
-  subnet[2] = ip[2]
-  subnet
-
-proc subnet64(ip: Ipv6Address): Ipv6Subnet64 {.raises: [].} =
-  var subnet: Ipv6Subnet64
-  for i in 0 ..< subnet.len:
-    subnet[i] = ip[i]
-  subnet
-
-proc uniquePublicIps(addrs: seq[MultiAddress]): PeerIps {.raises: [].} =
-  # Diversity limits need literal public IPs; private, relay, and DNS addresses
-  # either do not represent the remote network directly or cannot be prefix-counted here.
-  var peerIps: PeerIps
-  for ma in addrs:
-    if not ma.isPublicMA():
-      continue
-    let ip = ma.getIp().valueOr:
-      continue
-    case ip.family
-    of IpAddressFamily.IPv4:
-      if ip.address_v4 notin peerIps.ipv4s:
-        peerIps.ipv4s.add(ip.address_v4)
-    of IpAddressFamily.IPv6:
-      if ip.address_v6 notin peerIps.ipv6s:
-        peerIps.ipv6s.add(ip.address_v6)
-  return peerIps
-
-proc sharesSubnet24(addrs: seq[Ipv4Address], subnet: Ipv4Subnet24): bool =
-  for ip in addrs:
-    if ip.subnet24() == subnet:
-      return true
-  false
-
-proc sharesSubnet64(addrs: seq[Ipv6Address], subnet: Ipv6Subnet64): bool =
-  for ip in addrs:
-    if ip.subnet64() == subnet:
-      return true
-  false
-
-proc diversityPeers(
-    rtable: RoutingTable, pending: seq[PeerId]
-): seq[PeerId] {.raises: [].} =
-  ## Peers counting against the IP-diversity caps. In-flight probes count too, so
-  ## one reply naming many peer ids on a single address cannot fan out dials.
-  var peers: seq[PeerId]
-  for key in rtable.allKeys():
-    let pid = key.toPeerId().valueOr:
-      continue
-    peers.add(pid)
-  peers.add(pending)
-  peers
-
-proc hasIpDiversity*(
-    addressBook: AddressBook,
-    rtable: RoutingTable,
-    peerId: PeerId,
-    addrs: seq[MultiAddress],
-    maxPeersPerIp: int,
-    maxPeersPerIpv4Subnet: int,
-    maxPeersPerIpv6Subnet: int,
-    pending: seq[PeerId] = @[],
-): bool {.raises: [].} =
-  # Existing entries may refresh their addresses; diversity limits apply to new
-  # routing-table admission, not to maintenance of already-admitted peers.
-  if peerId.toKey() in rtable:
-    return true
-
-  let candidateIps = addrs.uniquePublicIps()
-  # No public literal IP means there is no prefix to count. Let the configured
-  # address policy decide whether these addresses are otherwise acceptable.
-  if candidateIps.ipv4s.len == 0 and candidateIps.ipv6s.len == 0:
-    return true
-
-  let others = rtable.diversityPeers(pending)
-  # A multi-addressed peer is admissible if at least one public address remains
-  # below both its exact-IP and subnet caps.
-  for candidateIp in candidateIps.ipv4s:
-    let candidateSubnet = candidateIp.subnet24()
-    var exactCount = 0
-    var subnetCount = 0
-
-    for existingPeer in others:
-      if existingPeer == peerId:
-        continue
-
-      let existingIps = addressBook[existingPeer].uniquePublicIps()
-      if candidateIp in existingIps.ipv4s:
-        exactCount.inc
-      if existingIps.ipv4s.sharesSubnet24(candidateSubnet):
-        subnetCount.inc
-
-    if exactCount < maxPeersPerIp and subnetCount < maxPeersPerIpv4Subnet:
-      return true
-
-  for candidateIp in candidateIps.ipv6s:
-    let candidateSubnet = candidateIp.subnet64()
-    var exactCount = 0
-    var subnetCount = 0
-
-    for existingPeer in others:
-      if existingPeer == peerId:
-        continue
-
-      let existingIps = addressBook[existingPeer].uniquePublicIps()
-      if candidateIp in existingIps.ipv6s:
-        exactCount.inc
-      if existingIps.ipv6s.sharesSubnet64(candidateSubnet):
-        subnetCount.inc
-
-    if exactCount < maxPeersPerIp and subnetCount < maxPeersPerIpv6Subnet:
-      return true
-
-  false
-
 proc admissibleAddrs(
     switch: Switch,
     addressPolicy: PeerAddressPolicy,
     rtable: RoutingTable,
     p: PeerInfo,
-    maxPeersPerIp: int,
-    maxPeersPerIpv4Subnet: int,
-    maxPeersPerIpv6Subnet: int,
+    caps: DiversityCaps,
     pending: seq[PeerId] = @[],
 ): seq[MultiAddress] {.raises: [].} =
   let addrs = addressPolicy.filterAddrs(p.addrs)
   if addrs.len == 0:
     return @[]
   if not switch.peerStore[AddressBook].hasIpDiversity(
-    rtable, p.peerId, addrs, maxPeersPerIp, maxPeersPerIpv4Subnet,
-    maxPeersPerIpv6Subnet, pending,
+    rtable, p.peerId, addrs, caps, pending
   ):
     return @[]
   addrs
@@ -331,9 +200,7 @@ proc admissibleAddrs(
     kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
 ): seq[MultiAddress] {.raises: [].} =
   kad.switch.admissibleAddrs(
-    kad.config.addressPolicy, rtable, p, kad.config.limits.maxPeersPerIp,
-    kad.config.limits.maxPeersPerIpv4Subnet, kad.config.limits.maxPeersPerIpv6Subnet,
-    pending,
+    kad.config.addressPolicy, rtable, p, kad.config.limits.diversityCaps(), pending
   )
 
 proc updatePeers*(
@@ -341,17 +208,12 @@ proc updatePeers*(
     addressPolicy: PeerAddressPolicy,
     rtable: RoutingTable,
     peerInfos: seq[PeerInfo],
-    maxPeersPerIp: int = DefaultMaxPeersPerIp,
-    maxPeersPerIpv4Subnet: int = DefaultMaxPeersPerSubnet,
-    maxPeersPerIpv6Subnet: int = DefaultMaxPeersPerSubnet,
+    caps: DiversityCaps = defaultDiversityCaps(),
 ) {.raises: [].} =
   ## Unprobed admission, for trusted seed peers only; see ``admitPeers``.
   let addressBook = switch.peerStore[AddressBook]
   for p in peerInfos:
-    let addrs = switch.admissibleAddrs(
-      addressPolicy, rtable, p, maxPeersPerIp, maxPeersPerIpv4Subnet,
-      maxPeersPerIpv6Subnet,
-    )
+    let addrs = switch.admissibleAddrs(addressPolicy, rtable, p, caps)
     if addrs.len == 0:
       continue
     # Store before insert: a peer rejected for lack of bucket space still reaches
@@ -361,9 +223,11 @@ proc updatePeers*(
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   updatePeers(
-    kad.switch, kad.config.addressPolicy, kad.rtable, peerInfos,
-    kad.config.limits.maxPeersPerIp, kad.config.limits.maxPeersPerIpv4Subnet,
-    kad.config.limits.maxPeersPerIpv6Subnet,
+    kad.switch,
+    kad.config.addressPolicy,
+    kad.rtable,
+    peerInfos,
+    kad.config.limits.diversityCaps(),
   )
 
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
@@ -428,6 +292,10 @@ proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: 
         kad.admissionProbes.del(probeKey)
   )
 
+proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
+  ## A probe for another table holds no slot in this one.
+  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
+
 proc admitPeers*(
     kad: KadDHT,
     rtable: RoutingTable,
@@ -444,7 +312,7 @@ proc admitPeers*(
     return
   let addressBook = kad.switch.peerStore[AddressBook]
   let selfPid = kad.switch.peerInfo.peerId
-  var pending = kad.admissionProbes.keys.toSeq().mapIt(it.peerId)
+  var pending = kad.pendingAdmissions(rtable.selfId)
   for p in peerInfos:
     if p.peerId == selfPid:
       continue
