@@ -19,11 +19,27 @@ type
     RaiseAlways ## every accept raises: the transport can never accept
     NilAlways ## every accept returns nil: the switch's non-fatal branch
     NilThenAccept ## return nil `nilCount` times, then accept normally
+    BlockingClose ## return connections whose close waits for `closeGate`
 
   MemoryTransportStub* = ref object of MemoryTransport
     behavior: StubAcceptBehavior
     nilCount: int ## for NilThenAccept: how many nils before accepting normally
+    acceptLimit: int ## for BlockingClose: block after this many accepts
     acceptCalls*: int ## number of times accept was invoked
+    closeCalls*: int ## number of blocking connection closes started
+    closeGate*: AsyncEvent
+
+  BlockingCloseConnection = ref object of Connection
+    transport: MemoryTransportStub
+
+method closeImpl(conn: BlockingCloseConnection) {.async: (raises: []).} =
+  inc conn.transport.closeCalls
+  try:
+    await conn.transport.closeGate.wait()
+  except CancelledError:
+    # Model a transport that cannot finish its close bookkeeping after cancellation.
+    return
+  await procCall Connection(conn).closeImpl()
 
 proc new*(
     T: typedesc[MemoryTransportStub],
@@ -31,8 +47,16 @@ proc new*(
     rng: Rng,
     behavior: StubAcceptBehavior,
     nilCount: int = 0,
+    acceptLimit: int = 0,
 ): T =
-  let self = T(upgrader: upgrade, rng: rng, behavior: behavior, nilCount: nilCount)
+  let self = T(
+    upgrader: upgrade,
+    rng: rng,
+    behavior: behavior,
+    nilCount: nilCount,
+    acceptLimit: acceptLimit,
+    closeGate: newAsyncEvent(),
+  )
   procCall Transport(self).initialize()
   self
 
@@ -60,3 +84,10 @@ method accept*(
       return nil
     # accept normally by delegating to the base transport
     return await procCall MemoryTransport(self).accept()
+  of BlockingClose:
+    if self.acceptLimit > 0 and self.acceptCalls > self.acceptLimit:
+      await sleepAsync(1.hours)
+    await sleepAsync(0.milliseconds)
+    let conn = BlockingCloseConnection(transport: self)
+    conn.initStream()
+    return conn
