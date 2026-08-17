@@ -50,7 +50,7 @@ type
 
   #        X        |           Read            |         Write
   #   Local close   |           Works           |  LPStreamClosedError
-  #   Remote close  | LPStreamRemoteClosedError |         Works
+  #   Remote close  | LPStreamRemoteClosedError |    LPStreamEOFError
   #   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
   #   Remote reset  |    LPStreamResetError     |  LPStreamResetError
   # Connection down |     LPStreamConnDown      | LPStreamConnDownError

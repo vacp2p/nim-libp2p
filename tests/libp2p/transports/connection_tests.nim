@@ -145,23 +145,8 @@ template connectionTransportTest*(
         expect LPStreamEOFError:
           await conn.readExactly(addr buffer[0], 1)
 
-        # TODO(nim-libp2p#1788): Unify behaviour between transports
-        if isWsTransport(server.addrs[0]):
-          # WS throws on write after EOF
-          expect LPStreamEOFError:
-            await conn.write(buffer)
-        else:
-          when defined(windows):
-            if isTorTransport(server.addrs[0]):
-              # TOR on Windows throws on write after EOF
-              expect LPStreamEOFError:
-                await conn.write(buffer)
-            else:
-              # TCP on Windows doesn't throw on write after EOF
-              await conn.write(buffer)
-          else:
-            # TCP and TOR on non-Windows don't throw on write after EOF
-            await conn.write(buffer)
+        expect LPStreamEOFError:
+          await conn.write(buffer)
 
       let server = transportProvider()
       await server.start(ma)
