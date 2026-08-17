@@ -68,7 +68,10 @@ suite "Switch accept-loop failure handling":
     startAndDeferStop(@[server])
 
     await sleepAsync(2 * AcceptRetryDelay + 50.millis)
-    check transport.acceptCalls <= 3
+    let delay = 2 * AcceptRetryDelay + 50.milliseconds
+    let retries = (delay.inMilliseconds / AcceptRetryDelay.inMilliseconds).ceil
+    await sleepAsync(delay)
+    check transport.acceptCalls <= retries
     # nil remains non-fatal, so the loop keeps accepting after the backoff
     checkUntilTimeout:
       transport.acceptCalls >= 5
