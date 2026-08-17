@@ -188,19 +188,15 @@ template tcpTests*() =
       await streamTransport.closeWait()
       await server.stop()
 
-    asyncTest "NotReachable dual-stack dialer cannot reuse port across families":
-      # TODO: nim-libp2p#2703
-      # While NotReachable the dialer reuses self.addrs[0] as the local address for
-      # every dial, regardless of the dial target's family.
-      # On a dual-stack node addrs[0] is the IPv4 address, so dialing an IPv6 peer
-      # binds an IPv4 local address for an IPv6 remote and fails.
+    asyncTest "NotReachable dual-stack dialer reuses port within target family":
       let dialer = TcpTransport.new(upgrade = Upgrade())
       await dialer.start(@[TcpAutoAddressIP4, TcpAutoAddressIP6])
       defer:
         await dialer.stop()
 
-      # addrs keeps start order, so addrs[0] is the IPv4 address
+      # addrs keeps start order, so addrs[0] is IPv4 and addrs[1] is IPv6.
       check IP4.matchPartial(dialer.addrs[0])
+      check IP6.matchPartial(dialer.addrs[1])
 
       let serverV6 = TcpTransport.new(upgrade = Upgrade())
       await serverV6.start(@[TcpAutoAddressIP6])
@@ -209,9 +205,11 @@ template tcpTests*() =
 
       dialer.networkReachability = NetworkReachability.NotReachable
 
-      # binding the IPv4 local address for an IPv6 dial fails
-      expect TcpTransportError:
-        discard await dialer.dial(serverV6.addrs[0])
+      discard await dialer.dial(serverV6.addrs[0])
+      let acceptedConn = await serverV6.accept()
+      let acceptedPort = acceptedConn.observedAddr.get()[multiCodec("tcp")].get()
+      let listeningPort = dialer.addrs[1][multiCodec("tcp")].get()
+      check acceptedPort == listeningPort
 
     asyncTest "start cleans up bound servers when a later bind fails":
       let unbindable = MultiAddress.init("/ip4/192.0.2.1/tcp/0").tryGet()

@@ -77,7 +77,7 @@ when defined(linux) and defined(amd64):
       assertChallenge(challenge)
 
     asyncTest "AutotlsService correctly downloads challenges":
-      if not hasPublicIPAddress():
+      if getPublicIPAddress().isNone():
         skip()
         return
 

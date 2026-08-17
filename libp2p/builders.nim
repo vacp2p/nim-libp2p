@@ -247,10 +247,17 @@ proc withWsTransport*(
       )
   )
 
-proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder =
+proc withQuicTransport*(
+    b: SwitchBuilder,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
+): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      QuicTransport.new(config.upgr, config.privateKey, config.rng, config.connManager)
+      QuicTransport.new(
+        config.upgr, config.privateKey, config.rng, config.connManager, inTimeout,
+        outTimeout,
+      )
   )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =

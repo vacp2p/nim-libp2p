@@ -3,12 +3,12 @@
 
 {.used.}
 
-import chronos
+import chronos, json, net, sequtils
 from times import now, initDuration, `+`
 import
   ../../../libp2p/
     [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch]
-import ../../tools/[unittest, crypto, multiaddress, switch_builder]
+import ../../tools/[unittest, crypto, multiaddress, resolver, switch_builder]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
 suite "AutoTLS certificate issuance and renewal":
@@ -22,6 +22,7 @@ suite "AutoTLS certificate issuance and renewal":
     (certKey, cert) = tlsCertGenerator()
 
   var acmeApi {.threadvar.}: ACMEApiStub
+  var authClient {.threadvar.}: PeerIDAuthClientStub
   var service {.threadvar.}: AutotlsService
   var switch {.threadvar.}: Switch
 
@@ -33,7 +34,7 @@ suite "AutoTLS certificate issuance and renewal":
     AutotlsService(
       acmeClient:
         ACMEClient.new(rng(), api = ACMEApi(acmeApi), key = Opt.some(accountKey)),
-      broker: AutotlsBroker.new(rng(), DefaultBrokerURL, PeerIDAuthClientStub.new()),
+      broker: AutotlsBroker.new(rng(), DefaultBrokerURL, authClient),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
@@ -46,6 +47,7 @@ suite "AutoTLS certificate issuance and renewal":
 
   asyncSetup:
     acmeApi = ACMEApiStub.new()
+    authClient = PeerIDAuthClientStub.new()
     switch = makeStandardSwitch(TcpAutoAddress)
     await switch.start()
 
@@ -102,3 +104,21 @@ suite "AutoTLS certificate issuance and renewal":
     await service.stop(switch).wait(1.seconds)
 
     check acmeApi.requestedUris.len == 1
+
+  asyncTest "the broker is sent the addresses the peer announces":
+    const
+      NodeIP = "127.0.0.1"
+      AnnouncedAddrs =
+        ["/ip4/" & NodeIP & "/tcp/9000", "/ip4/" & NodeIP & "/tcp/9001/ws"]
+    switch.peerInfo.announcedAddrs = AnnouncedAddrs.mapIt(ma(it))
+
+    acmeApi.scriptChallenge("some-token")
+
+    var config = AutotlsConfig.new(
+      ipAddress = Opt.some(parseIpAddress(NodeIP)), issueRetries = 0, dnsRetries = 0
+    )
+    config.nameResolver = StubNameResolver.new()
+    service = newService(config)
+    await service.start(switch)
+
+    check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs

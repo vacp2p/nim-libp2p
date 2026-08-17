@@ -230,9 +230,11 @@ proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
     kad.config.limits.diversityCaps(),
   )
 
+func toPeerInfos*(peers: seq[(PeerId, seq[MultiAddress])]): seq[PeerInfo] =
+  peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
+
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
-  let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
-  kad.updatePeers(peerInfos)
+  kad.updatePeers(peers.toPeerInfos())
 
 proc lookupCheck*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
