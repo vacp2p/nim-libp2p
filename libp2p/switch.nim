@@ -45,7 +45,7 @@ const
   ConcurrentUpgrades* = 32
   MaxRejectedConnectionCloses = ConcurrentUpgrades
   UpgradeTimeout* = 30.seconds
-  AcceptRetryDelay = 100.millis
+  AcceptRetryDelay* = 100.millis
 
 type
   Switch* = ref object of Dial
