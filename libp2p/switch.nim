@@ -298,8 +298,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         await sleepAsync(AcceptRetryDelay)
         continue
 
-      let slot = s.connManager.tryGetIncomingSlot()
-      if slot.isNone:
+      let slot = s.connManager.tryGetIncomingSlot().valueOr:
         debug "Incoming connection limit reached", conn
         s.rejectedConnCloseFuts.trackFut(conn.close())
         s.connManager.triggerTrim()
@@ -307,7 +306,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
           discard await one(s.rejectedConnCloseFuts)
         continue
 
-      slot.get().trackConnection(conn)
+      slot.trackConnection(conn)
 
       # set the direction of this bottom level transport
       # in order to be able to consume this information in gossipsub if required
