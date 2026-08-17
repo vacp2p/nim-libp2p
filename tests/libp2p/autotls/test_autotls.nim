@@ -5,18 +5,13 @@
 
 import sequtils, json, uri, chronos, chronos/apps/http/httpclient
 import
-  ../../../libp2p/[
-    stream/connection,
-    upgrademngrs/upgrade,
-    autotls/acme/mockapi,
-    autotls/acme/client,
-    crypto/rsa,
-    wire,
-  ]
+  ../../../libp2p/
+    [stream/connection, upgrademngrs/upgrade, autotls/acme/client, crypto/rsa, wire]
 import ../../tools/[unittest, crypto]
+import ../../stubs/acme_api_stub
 
 suite "AutoTLS ACME API":
-  var api {.threadvar.}: MockACMEApi
+  var api {.threadvar.}: ACMEApiStub
   var key {.threadvar.}: RsaPrivateKey
 
   asyncTeardown:
@@ -24,7 +19,7 @@ suite "AutoTLS ACME API":
     checkTrackers()
 
   asyncSetup:
-    api = await MockACMEApi.new()
+    api = ACMEApiStub.new()
     key = RsaPrivateKey.random(rng()).get()
 
   asyncTest "register to acme server":
@@ -318,11 +313,11 @@ suite "AutoTLS ACME API":
       discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
 
 suite "AutoTLS ACME Client":
-  var acmeApi {.threadvar.}: MockACMEApi
+  var acmeApi {.threadvar.}: ACMEApiStub
   var acme {.threadvar.}: ACMEClient
 
   asyncSetup:
-    acmeApi = await MockACMEApi.new()
+    acmeApi = ACMEApiStub.new()
 
   asyncTeardown:
     await acme.close()
