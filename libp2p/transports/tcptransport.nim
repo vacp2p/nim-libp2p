@@ -304,10 +304,10 @@ method dial*(
 
   let ta = initTAddress(address).valueOr:
     raise (ref TcpTransportError)(msg: "Unsupported address: " & $address)
+  let local = findAddressByFamily(self.addrs, ta.family)
 
   trace "Dialing remote peer", address = $address
   let transp =
-    let local = findAddressByFamily(self.addrs, ta.family)
     try:
       await(
         if self.networkReachability == NetworkReachability.NotReachable and
