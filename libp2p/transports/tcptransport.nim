@@ -281,6 +281,16 @@ method accept*(
       return nil
   self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 
+proc findAddressByFamily(
+    addrs: openArray[MultiAddress], family: AddressFamily
+): Opt[TransportAddress] =
+  for addr in addrs:
+    let transportAddress = initTAddress(addr).expect("self address is valid")
+    if transportAddress.family == family:
+      return Opt.some(transportAddress)
+
+  Opt.none(TransportAddress)
+
 method dial*(
     self: TcpTransport,
     hostname: string,
@@ -297,13 +307,13 @@ method dial*(
 
   trace "Dialing remote peer", address = $address
   let transp =
+    let local = findAddressByFamily(self.addrs, ta.family)
     try:
       await(
         if self.networkReachability == NetworkReachability.NotReachable and
-            self.addrs.len > 0:
-          let local = initTAddress(self.addrs[0]).expect("self address is valid")
+            local.isSome():
           self.clientFlags.incl(SocketFlags.ReusePort)
-          connect(ta, flags = self.clientFlags, localAddress = local)
+          connect(ta, flags = self.clientFlags, localAddress = local.get())
         else:
           connect(ta, flags = self.clientFlags)
       )
