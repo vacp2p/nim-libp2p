@@ -11,7 +11,7 @@ import
 import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
-suite "AutoTLS certificate renewal":
+suite "AutoTLS certificate issuance and renewal":
   const
     RenewCheckTime = 20.milliseconds
     RenewBufferTime = 1.hours
@@ -25,7 +25,11 @@ suite "AutoTLS certificate renewal":
   var service {.threadvar.}: AutotlsService
   var switch {.threadvar.}: Switch
 
-  proc newService(): AutotlsService =
+  proc newService(
+      config: AutotlsConfig = AutotlsConfig.new(
+        renewCheckTime = RenewCheckTime, renewBufferTime = RenewBufferTime
+      )
+  ): AutotlsService =
     AutotlsService(
       acmeClient:
         ACMEClient.new(rng(), api = ACMEApi(acmeApi), key = Opt.some(accountKey)),
@@ -33,9 +37,7 @@ suite "AutoTLS certificate renewal":
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
-      config: AutotlsConfig.new(
-        renewCheckTime = RenewCheckTime, renewBufferTime = RenewBufferTime
-      ),
+      config: config,
       rng: rng(),
     )
 
@@ -70,3 +72,33 @@ suite "AutoTLS certificate renewal":
     await sleepAsync(10 * RenewCheckTime)
 
     check acmeApi.requestedUris.len == 0
+
+  asyncTest "issuance is retried issueRetries times":
+    # renewCheckTime is left at its 1 hour default, so a second round won't start
+    service =
+      newService(AutotlsConfig.new(issueRetries = 3, issueRetryTime = 0.seconds))
+    await service.start(switch)
+
+    # Every attempt fails on its first ACME request, so a request is an attempt.
+    checkUntilTimeout:
+      acmeApi.requestedUris.len == 4
+
+  asyncTest "a failed round is retried on the next heartbeat":
+    # No retries, so a round is one request.
+    service =
+      newService(AutotlsConfig.new(issueRetries = 0, renewCheckTime = RenewCheckTime))
+    await service.start(switch)
+
+    checkUntilTimeout:
+      acmeApi.requestedUris.len >= 2
+
+  asyncTest "a service stopped during issuance makes no further attempt":
+    acmeApi.stalls = true
+    service = newService(AutotlsConfig.new(issueRetries = 3))
+    await service.start(switch)
+
+    check acmeApi.requestedUris.len == 1
+
+    await service.stop(switch).wait(1.seconds)
+
+    check acmeApi.requestedUris.len == 1

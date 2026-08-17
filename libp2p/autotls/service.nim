@@ -219,7 +219,9 @@ proc hasTcpStarted(switch: Switch): bool =
   switch.transports.filterIt(it of TcpTransport and it.running).len == 0
 
 proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
-  for _ in 0 ..< self.config.issueRetries:
+  for attempt in 0 .. self.config.issueRetries:
+    if attempt > 0:
+      await sleepAsync(self.config.issueRetryTime)
     try:
       await self.issueCertificate()
       return
@@ -227,7 +229,6 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
       raise exc
     except CatchableError as exc:
       error "Failed to issue certificate", err = exc.msg
-    await sleepAsync(self.config.issueRetryTime)
   error "Failed to issue certificate"
 
 method start*(
@@ -249,12 +250,10 @@ method start*(
         if self.cert.isNone():
           await self.tryIssueCertificate()
 
-        let cert = self.cert.valueOr:
-          error "Could not issue certificate"
-          return
-        let timeUntilExpiry = seconds(cert.expiry.toTime.toUnix - now().toTime.toUnix)
-        if timeUntilExpiry <= self.config.renewBufferTime:
-          await self.tryIssueCertificate()
+        self.cert.withValue(cert):
+          let timeUntilExpiry = seconds(cert.expiry.toTime.toUnix - now().toTime.toUnix)
+          if timeUntilExpiry <= self.config.renewBufferTime:
+            await self.tryIssueCertificate()
     except CancelledError:
       trace "Autotls management cancelled"
 
