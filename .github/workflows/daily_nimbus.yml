@@ -19,10 +19,6 @@ jobs:
     timeout-minutes: 80
     name: 'Compile Nimbus (linux-amd64)'
     runs-on: ubuntu-latest
-    # Canary only: nimbus-eth2 unstable can lag behind libp2p API changes
-    # (e.g. gossipsub Message.data -> Opt[seq[byte]]), so a red build here
-    # signals a downstream break to fix in nimbus, not a reason to block PRs.
-    continue-on-error: true
     steps:
       - name: Compile nimbus using nim-libp2p
         env:

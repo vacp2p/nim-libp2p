@@ -29,6 +29,10 @@ suite "WebSocket transport integration":
     let ip = getPublicIPAddress().valueOr:
       skip()
       return
+    if not ip.isIPv4():
+      # the test listens on ip4 and dials a /dns4 name
+      skip()
+      return
 
     let switch1 = SwitchBuilder
       .new()

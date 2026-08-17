@@ -43,20 +43,27 @@ proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
   except CatchableError as e:
     debug "Unable to get primary ip address", probe, description = e.msg
     Opt.none(IpAddress)
+  except Defect as e:
+    raise e
   except Exception as e: # on windows getPrimaryIPAddr has untracked effects
     debug "Unable to get primary ip address", probe, description = e.msg
     Opt.none(IpAddress)
 
+func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =
+  for ip in candidates:
+    if ip.isGlobalIP():
+      return Opt.some(ip)
+  Opt.none(IpAddress)
+
 proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
   ## Public address of the host, IPv4 first. A v6-only host reaches the v6 probe only.
+  var candidates: seq[IpAddress]
   for probe in RouteProbes:
     let ip = primaryIPAddrTo(probe).valueOr:
       continue
-    let global = ip.isGlobalIP()
-    debug "Primary IP address", ip, global
-    if global:
-      return Opt.some(ip)
-  Opt.none(IpAddress)
+    debug "Primary IP address", ip, global = ip.isGlobalIP()
+    candidates.add(ip)
+  firstGlobalIP(candidates)
 
 proc ipAddrMatches*(
     lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true

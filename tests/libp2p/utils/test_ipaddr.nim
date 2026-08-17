@@ -95,6 +95,17 @@ suite "IpAddr Utils":
     check not isGlobalIP(parseIpAddress("::1"))
     check not isGlobalIP(parseIpAddress("::"))
 
+  test "firstGlobalIP picks the first global address":
+    let
+      privateV4 = parseIpAddress("192.168.1.100")
+      publicV4 = parseIpAddress("1.1.1.1")
+      publicV6 = parseIpAddress("2606:4700::1111")
+      linkLocalV6 = parseIpAddress("fe80::1")
+    check firstGlobalIP(newSeq[IpAddress]()) == Opt.none(IpAddress)
+    check firstGlobalIP([privateV4, linkLocalV6]) == Opt.none(IpAddress)
+    check firstGlobalIP([privateV4, publicV6]) == Opt.some(publicV6)
+    check firstGlobalIP([publicV4, publicV6]) == Opt.some(publicV4)
+
   test "isIPv4, isIPv6":
     let ipv4 = parseIpAddress("1.2.3.4")
     let ipv6 = parseIpAddress("2001:db8::1")
