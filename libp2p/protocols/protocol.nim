@@ -21,6 +21,12 @@ declareGauge(
   "protocol stream instances currently open",
   labels = ["protocol", "direction"],
 )
+declarePublicCounter(
+  libp2p_streams_opened, "protocol streams opened", labels = ["protocol", "direction"]
+)
+declarePublicCounter(
+  libp2p_streams_closed, "protocol streams closed", labels = ["protocol", "direction"]
+)
 
 const
   scopeTotal = "total"
@@ -143,6 +149,7 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirIn])
+    libp2p_streams_opened.inc(labelValues = [p.codec, dirIn])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.In)
@@ -155,12 +162,14 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
   budget.totalIncoming.inc
   budget.perPeerIncoming.inc(peerId)
   libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirIn])
+  libp2p_streams_opened.inc(labelValues = [p.codec, dirIn])
   return true
 
 proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirIn])
+    libp2p_streams_closed.inc(labelValues = [p.codec, dirIn])
     return
 
   let pb = budget.perPeerIncoming[peerId]
@@ -173,6 +182,7 @@ proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
 
   budget.totalIncoming.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirIn])
+  libp2p_streams_closed.inc(labelValues = [p.codec, dirIn])
 
 func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   ## Returns true if an outgoing stream to `peerId` is within all configured
@@ -184,6 +194,7 @@ proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirOut])
+    libp2p_streams_opened.inc(labelValues = [p.codec, dirOut])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.Out)
@@ -196,12 +207,14 @@ proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   budget.totalOutgoing.inc
   budget.perPeerOutgoing.inc(peerId)
   libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirOut])
+  libp2p_streams_opened.inc(labelValues = [p.codec, dirOut])
   return true
 
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirOut])
+    libp2p_streams_closed.inc(labelValues = [p.codec, dirOut])
     return
 
   let pb = budget.perPeerOutgoing[peerId]
@@ -214,3 +227,4 @@ proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
 
   budget.totalOutgoing.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirOut])
+  libp2p_streams_closed.inc(labelValues = [p.codec, dirOut])

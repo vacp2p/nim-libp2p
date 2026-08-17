@@ -105,7 +105,8 @@ suite "KadDHT - Get Providers":
       kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers uses multihash for CID convergence":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -134,7 +135,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[1])
 
   asyncTest "Get providers includes self when querying node is a provider":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -202,8 +204,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[2])
 
   asyncTest "Get providers terminates early when sufficient providers found":
-    # Use small replication value
-    let kads = setupKadSwitches(8, replication = 2)
+    # Use small replication value; beta must stay <= replication
+    let kads = setupKadSwitches(8, replication = 2, beta = 2)
     startAndDeferStop(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
@@ -226,8 +228,12 @@ suite "KadDHT - Get Providers":
     check:
       (await kads[0].getProviders(key)).len() == 3
 
-    # Increase replication
+    # Increase replication. The shortlist cap is derived from replication
+    # (`maxShortlistSize = replication * 2`), so refresh the limits too; otherwise
+    # the cap stays sized for the old replication and the lookup can evict kad[2]
+    # before it answers, dropping its providers.
     kads[0].config.replication = 6
+    kads[0].config.limits = KadDHTLimits.new(6, kads[0].config.quorum)
 
     # kads[0] queries again and stops only at kad[2]
     check:

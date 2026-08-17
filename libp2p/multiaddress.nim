@@ -1138,6 +1138,14 @@ proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   let res = matchPart(pat, protos)
   res.flag
 
+proc hasIp*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` starts with an IP4 or IP6 component.
+  IP.matchPartial(ma)
+
+proc hasTransport*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` carries a transport, as in ``/ip4/1.2.3.4/tcp/1``.
+  Reliable.matchPartial(ma) or Unreliable.matchPartial(ma)
+
 proc `$`*(pat: MaPattern): string =
   ## Return pattern ``pat`` as string.
   var sub = newSeq[string]()
@@ -1283,6 +1291,15 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
+
+proc getIPs*(addrs: seq[MultiAddress]): seq[IpAddress] =
+  ## Extract IP addresses from a list of multiaddresses.
+  ## Multiaddresses without an IP4/IP6 component are skipped.
+  var ips = newSeqOfCap[IpAddress](addrs.len)
+  for ma in addrs:
+    ma.getIp().withValue(ip):
+      ips.add(ip)
+  ips
 
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by

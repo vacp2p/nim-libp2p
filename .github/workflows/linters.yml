@@ -39,6 +39,9 @@ jobs:
             xargs -0 clang-format --dry-run --Werror --style=file:cbind/.clang-format
           echo "All C/H files in cbind/ are properly formatted."
 
+      - name: Check cbind dependency pins
+        run: ./tools/check-cbind-pin.sh
+
       - name: Check License Header
         uses: apache/skywalking-eyes/header@v0.8.0
         with:

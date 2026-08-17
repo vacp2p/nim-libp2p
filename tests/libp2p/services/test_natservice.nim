@@ -107,6 +107,13 @@ proc findNatService(switch: Switch): NATService =
   switch.natService().valueOr:
     raiseAssert "NATService not found in switch.services"
 
+proc noopReachabilityHandler(
+    reachability: NetworkReachability,
+    confidence: Opt[float],
+    dialBackAddr: Opt[MultiAddress],
+) {.async: (raises: [CancelledError]).} =
+  discard
+
 suite "NATService":
   teardown:
     checkTrackers()
@@ -171,6 +178,11 @@ suite "NATService":
     check switch.peerInfo.announcedAddrs.len == 0
     # addrs falls back to mapper-chain output (which here is just listenAddrs).
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
+    # No reachability config, so there is nothing to subscribe to.
+    let nat = findNatService(switch)
+    check:
+      not nat.addReachabilityHandler(noopReachabilityHandler)
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
     let mock = newMock()
@@ -253,7 +265,7 @@ suite "NATService":
       await switch.stop()
 
     # No addressMapper installed; peerInfo.addrs falls back to listenAddrs.
-    check switch.peerInfo.addressMappers.len == 0
+    check switch.addressManager.mapperSources().len == 0
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
 
   asyncTest "stop unmaps active mappings and closes the mapper":
@@ -335,10 +347,12 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isNone()
       not dcutrMounted(switch)
       # AutonatService registers exactly one reachability addressMapper.
       switch.peerInfo.addressMappers.len == 1
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "autonat v2 spins up the AutonatV2 service":
     let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
@@ -348,8 +362,10 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "holePunchingConfig composes the full HP stack":
     let switch = makeSwitch(holePunchingConfig(maxNumRelays = 2), @[TcpAutoAddress])
@@ -359,9 +375,11 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       # HPService mounts DCUtR and drives AutoNAT v1, not v2.
       dcutrMounted(switch)
       nat.autonatV2Service.isNone()
+      nat.networkReachability == NetworkReachability.Unknown
 
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
     # The realistic path: two withNAT calls for the conflicting concerns.
@@ -389,7 +407,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   asyncTest "autonat v1 survives stop/start cycle":
     let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
@@ -458,7 +476,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   test "withNAT configuring the same concern twice is a programmer error":
     expect AssertionDefect:

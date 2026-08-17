@@ -27,7 +27,7 @@ import
   services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
-  observedaddrmanager,
+  address_manager,
   autotls/service,
   nameresolving/nameresolver,
   errors,
@@ -60,9 +60,15 @@ type
   SecureProtocol* {.pure.} = enum
     Noise
 
+  KadMode* {.pure.} = enum
+    Client ## never serves queries; only issues them
+    Server ## always serves queries
+    Auto ## serves queries while autonat reports the node reachable
+
   KadInfo = object
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+    mode*: KadMode
 
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
@@ -91,7 +97,8 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     identifyPusherEnabled: bool
-    observedAddrManager: ObservedAddrManager
+    addressManager: AddressManager
+    addressManagerConfig: Opt[AddressManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
 
@@ -118,6 +125,7 @@ proc new*(T: type[SwitchBuilder]): T =
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
+    addressManagerConfig: Opt.none(AddressManagerConfig),
   )
 
 proc withPrivateKey*(
@@ -395,8 +403,9 @@ proc withKademlia*(
     b: SwitchBuilder,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
+    mode: KadMode = KadMode.Server,
 ): SwitchBuilder =
-  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
+  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes, mode: mode))
   b
 
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -407,10 +416,26 @@ proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder 
   b.identifyPusherEnabled = enabled
   b
 
-proc withObservedAddrManager*(
-    b: SwitchBuilder, observedAddrManager: ObservedAddrManager
+proc withAddressManager*(
+    b: SwitchBuilder, config: AddressManagerConfig
 ): SwitchBuilder =
-  b.observedAddrManager = observedAddrManager
+  ## Set the thresholds of the address manager.
+  b.addressManager = nil
+  b.addressManagerConfig = Opt.some(config)
+  b
+
+proc withObservedAddrManager*(
+    b: SwitchBuilder, config: AddressManagerConfig
+): SwitchBuilder {.deprecated: "use withAddressManager".} =
+  b.withAddressManager(config)
+
+proc withObservedAddrManager*(
+    b: SwitchBuilder, addressManager: AddressManager
+): SwitchBuilder {.
+    deprecated: "the switch owns the manager; pass an AddressManagerConfig"
+.} =
+  b.addressManagerConfig = Opt.none(AddressManagerConfig)
+  b.addressManager = addressManager
   b
 
 proc withAddressPolicy*(
@@ -428,6 +453,11 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## - Private addresses received from other peers are discarded
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
+
+proc buildAddressManager(b: SwitchBuilder): AddressManager =
+  if b.addressManager.isNil():
+    return AddressManager.new(b.addressManagerConfig.get(AddressManagerConfig()))
+  b.addressManager
 
 proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
@@ -456,11 +486,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     announcedAddrs = b.announcedAddrs,
   )
 
-  let identify =
-    if b.observedAddrManager != nil:
-      Identify.new(peerInfo, b.sendSignedPeerRecord, b.observedAddrManager)
-    else:
-      Identify.new(peerInfo, b.sendSignedPeerRecord)
+  let addressManager = b.buildAddressManager()
+  let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, addressManager)
 
   var peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -515,6 +542,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
     services: services,
+    addressManager: addressManager,
   )
 
   return switch
@@ -531,6 +559,23 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 
   for service in switch.services:
     service.setup(switch)
+
+proc makeKadReachabilityHandler(kad: KadDHT): ReachabilityHandler =
+  ## Handler for ``KadMode.Auto``: the node serves queries while it is
+  ## reachable, and stops serving when it is not. ``Unknown`` keeps the current
+  ## mode, since it means autonat has no verdict yet.
+  proc(
+      reachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
+  ) {.async: (raises: [CancelledError]).} =
+    case reachability
+    of NetworkReachability.Reachable:
+      discard await kad.changeMode(isServer = true)
+    of NetworkReachability.NotReachable:
+      discard await kad.changeMode(isServer = false)
+    of NetworkReachability.Unknown:
+      discard
 
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
@@ -557,9 +602,22 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     var config = kadInfo.config
     config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = config,
+      rng = b.rng,
+      # Auto starts as a client until autonat proves the node reachable.
+      isServer = kadInfo.mode == KadMode.Server,
     )
     switch.mount(kad)
+
+    if kadInfo.mode == KadMode.Auto:
+      var wired = false
+      switch.natService().withValue(nat):
+        wired = nat.addReachabilityHandler(makeKadReachabilityHandler(kad))
+      if not wired:
+        warn "Kad-DHT auto mode has no reachability service; it stays a client",
+          hint = "configure withNAT reachability or hole-punching"
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var switch = b.buildSwitch()

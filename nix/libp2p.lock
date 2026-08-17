@@ -151,8 +151,8 @@
       }
     },
     "libplum": {
-      "version": "0.6.0",
-      "vcsRevision": "acefbe424cf9d1f05f2d93533790c9ac4e034df8",
+      "version": "0.6.2",
+      "vcsRevision": "611bb3ed06b5f1e43aea02500761693af1d53d03",
       "url": "https://github.com/logos-storage/nim-libplum",
       "downloadMethod": "git",
       "dependencies": [
@@ -162,7 +162,7 @@
         "unittest2"
       ],
       "checksums": {
-        "sha1": "d644699c7edbd11fd4e1b204acf3c2a4f5959db4"
+        "sha1": "d3e4d461b0d31fce0587d12c65105cbf415b96cd"
       }
     },
     "faststreams": {
@@ -195,8 +195,8 @@
       }
     },
     "protobuf_serialization": {
-      "version": "0.5.3",
-      "vcsRevision": "8406e7287196661614ce6a8e8be20f755376af7f",
+      "version": "0.6.0",
+      "vcsRevision": "7861570c5182bd69f6b7c151028ffd5d0134b9ab",
       "url": "https://github.com/status-im/nim-protobuf-serialization",
       "downloadMethod": "git",
       "dependencies": [
@@ -208,7 +208,7 @@
         "unittest2"
       ],
       "checksums": {
-        "sha1": "3307412f9755f7ec2079e12cf036fc103aa130b0"
+        "sha1": "42d1fcecc4efff1319378c52b582dc1591b79221"
       }
     },
     "json_serialization": {

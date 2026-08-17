@@ -8,10 +8,7 @@ license = "MIT"
 
 import os, strutils
 
-requires "taskpools >= 0.1.0",
-  "https://github.com/vacp2p/nim-cbor-serialization#1664160e04d153573373afddc552b9cbf6fbe4dc",
-  # nim-ffi v0.3.0-rc.0
-  "https://github.com/logos-messaging/nim-ffi#435eebf9e3896e800c1586058a85df120a7fe870"
+requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
@@ -36,8 +33,8 @@ proc findInstalledPkgDir(prefix: string): string =
   )
 
 proc ffiDepPaths(): string =
-  # `setup` does not put direct Git URL deps on nimble.paths; point the compiler
-  # at the installed copies.
+  # A global install writes no nimble.paths; point the compiler at the installed
+  # copies.
   " --path:" & findInstalledPkgDir("ffi-") & " --path:" &
     findInstalledPkgDir("cbor_serialization-")
 
@@ -62,7 +59,7 @@ proc buildFfiLib() =
   # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
-    " -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
+    " -d:chronicles_runtime_filtering=on -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
     " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
@@ -72,9 +69,10 @@ proc genBindingsFor(lang, outDir: string) =
   # `--compileOnly`: the binding files are written during macro expansion, so
   # codegen is enough — there is nothing to link.
   exec "nim c --threads:on --noMain --mm:refc -d:metrics --compileOnly" &
-    " --nimMainPrefix:liblibp2p -d:ffiGenBindings -d:targetLang=" & lang &
-    " -d:ffiOutputDir=" & outDir & " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() &
-    " --nimcache:nimcache_" & lang & " libp2p.nim"
+    " -d:chronicles_runtime_filtering=on --nimMainPrefix:liblibp2p" &
+    " -d:ffiGenBindings -d:targetLang=" & lang & " -d:ffiOutputDir=" & outDir &
+    " -d:ffiSrcPath=libp2p.nim" & ffiDepPaths() & " --nimcache:nimcache_" & lang &
+    " libp2p.nim"
 
 task genbindings_c, "Generate C bindings (cbind/c_bindings)":
   genBindingsFor("c", "c_bindings")

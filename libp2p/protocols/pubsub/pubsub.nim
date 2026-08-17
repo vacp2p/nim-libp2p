@@ -42,6 +42,7 @@ const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
   DefaultTopicsHigh* = 1024 ## max topics a single peer may subscribe to
+  DefaultPubSubMaxMessageSize* = 1024 * 1024 ## max size of a single pubsub message
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -400,6 +401,15 @@ method getOrCreatePeer*(
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
 
+  proc peerHandler(
+      peer: PubSubPeer, data: sink seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+    try:
+      await p.rpcHandler(peer, move(data))
+    except PeerMessageDecodeError as e:
+      trace "failed to decode message in peerHandler", description = e.msg, peer = peer
+      # loop continues and invalid messages are swallowed
+
   # create new pubsub peer
   let pubSubPeer = PubSubPeer.new(
     peerId,
@@ -408,6 +418,7 @@ method getOrCreatePeer*(
     protoNegotiated,
     p.maxMessageSize,
     customStreamCallbacks = p.customStreamCallbacks,
+    handler = peerHandler,
   )
   debug "created new pubsub peer", peerId
 
@@ -473,32 +484,12 @@ method handleConn*(
   ##
   ## this proc will:
   ## 1) register a new PubSubPeer for the connection
-  ## 2) register a handler with the peer;
-  ##    this handler gets called on every rpc message
-  ##    that the peer receives
-  ## 3) ask the peer to subscribe us to every topic
-  ##    that we're interested in
+  ## 2) handle RPC messages received on this stream
   ##
-
-  proc peerHandler(
-      peer: PubSubPeer, data: sink seq[byte]
-  ): Future[void] {.async: (raises: [CancelledError]).} =
-    try:
-      await p.rpcHandler(peer, data)
-    except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler",
-        description = e.msg, stream, peer = peer
-      # loop continues and invalid messages are swallowed
-    except PeerRateLimitError as e:
-      trace "peer rate limit exceeded in peerHandler",
-        description = e.msg, stream, peer = peer
-      # loop needs to stop. we are doing this by closing connection
-      await stream.closeWithEOF()
 
   let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
   try:
-    peer.handler = peerHandler
     await peer.runHandleLoop(stream)
   except CancelledError as exc:
     raise exc
@@ -718,7 +709,7 @@ proc init*[PubParams: object | bool](
     sign: bool = true,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
-    maxMessageSize: int = 1024 * 1024,
+    maxMessageSize: int = DefaultPubSubMaxMessageSize,
     rng: Rng,
     parameters: PubParams = false,
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),

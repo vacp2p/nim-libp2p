@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, sequtils
+import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/protocols/kademlia/[find, types]
 import ../../tools/[lifecycle, topology, unittest]
@@ -227,9 +227,9 @@ suite "KadDHT Find":
 
     # Make kads[1]'s bucket stale to trigger refresh
     let bucketIdx = kads[0].rtable.bucketIndex(kads[1].rtable.selfId)
-    makeBucketStale(kads[0].rtable.buckets[bucketIdx])
+    makeBucketStale(kads[0].rtable, bucketIdx)
 
-    check kads[0].rtable.buckets[bucketIdx].isStale()
+    check kads[0].rtable.isStale(bucketIdx)
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
     await kads[0].bootstrap()

@@ -15,13 +15,12 @@ import
   ../peerid,
   ../crypto/crypto,
   ../multiaddress,
-  ../multicodec,
   ../protocols/protocol,
   ../utils/[opt, protobuf],
   ../errors,
-  ../observedaddrmanager
+  ../address_manager
 
-export observedaddrmanager
+export address_manager
 
 logScope:
   topics = "libp2p identify"
@@ -67,7 +66,7 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
     sendSignedPeerRecord*: bool
-    observedAddrManager*: ObservedAddrManager
+    addressManager*: AddressManager
 
   IdentifyPushHandler* =
     proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
@@ -127,12 +126,12 @@ proc new*(
     T: typedesc[Identify],
     peerInfo: PeerInfo,
     sendSignedPeerRecord = false,
-    observedAddrManager = ObservedAddrManager.new(),
+    addressManager = AddressManager.new(),
 ): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
-    observedAddrManager: observedAddrManager,
+    addressManager: addressManager,
   )
   identify.init()
   identify
@@ -185,12 +184,7 @@ proc identify*(
     peer = remotePeerId
 
   identifyMsg.observedAddr.withValue(observed):
-    # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
-    # like "...\p2p-circuit\p2p\..." and "\p2p\..." are not useful to us.
-    if observed.contains(multiCodec("p2p-circuit")).get(false) or
-        P2PPattern.matchPartial(observed):
-      trace "Not adding address to ObservedAddrManager.", observed
-    elif not self.observedAddrManager.addObservation(observed):
+    if not self.addressManager.addObservation(observed):
       trace "Observed address is not valid.", observedAddr = observed
 
   return makeIdentifyInfo(peer, identifyMsg)

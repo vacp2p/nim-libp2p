@@ -316,6 +316,7 @@ proc new*(
       switch.ms, nil,
     ),
     nameResolver: nil,
+    addressManager: switch.addressManager,
   )
 
   torSwitch.connManager.peerStore = switch.peerStore

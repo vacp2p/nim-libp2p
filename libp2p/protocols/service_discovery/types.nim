@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables, hashes]
+import std/[sequtils, sets, tables, hashes, net]
 import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
@@ -11,6 +11,7 @@ import
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
+export iptree
 export extended_peer_record.MaxServiceDataSize
 export extended_peer_record.MaxXPRSize
 export extended_peer_record.isValid
@@ -45,15 +46,24 @@ type
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
-
-  AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
+    onServiceTableRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   Advertisement* = SignedExtendedPeerRecord
 
-  Registrar* = ref object
-    cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, Moment]
+  CachedAd* = object
+    ad*: Advertisement
+    advertiser*: PeerId
+    ips*: seq[IpAddress]
+    timestamp*: Moment
+
+  AdvertisementCache* = ref object
+    byService*: Table[ServiceId, Table[PeerId, CachedAd]]
     ipTree*: IpTree
+    capacity*: uint64
+    count*: int
+
+  Registrar* = ref object
+    ads*: AdvertisementCache
     boundService*: Table[ServiceId, Moment]
     timestampService*: Table[ServiceId, Moment]
     boundIp*: Table[string, Moment]
@@ -96,8 +106,7 @@ type
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
-    serviceBootstrapFuts*: seq[Future[void]]
-    clientMode*: bool
+    serviceBootstrapFuts*: Table[ServiceId, Future[void]]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
@@ -132,11 +141,19 @@ proc new*(
 proc hash*(t: AdvertiseTask): Hash =
   hash(cast[pointer](t))
 
-proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
-  (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
-
 proc hash*(ad: Advertisement): Hash {.raises: [].} =
   hash(ad.envelope.signature.data)
+
+proc new*(
+    T: typedesc[AdvertisementCache], capacity: uint64 = Default_C
+): T {.raises: [].} =
+  doAssert capacity > 0, "capacity must be > 0"
+  T(
+    byService: initTable[ServiceId, Table[PeerId, CachedAd]](),
+    ipTree: IpTree.new(),
+    capacity: capacity,
+    count: 0,
+  )
 
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
   var adBytes: seq[seq[byte]]
@@ -153,11 +170,9 @@ proc hashServiceId*(serviceStr: string): ServiceId =
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
 
-proc new*(T: typedesc[Registrar]): T =
+proc new*(T: typedesc[Registrar], advertCacheCap: uint64 = Default_C): T =
   T(
-    cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, Moment](),
-    ipTree: IpTree.new(),
+    ads: AdvertisementCache.new(advertCacheCap),
     boundService: initTable[ServiceId, Moment](),
     timestampService: initTable[ServiceId, Moment](),
     boundIp: initTable[string, Moment](),

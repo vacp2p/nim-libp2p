@@ -41,7 +41,7 @@ else:
   switch("import", modulePath)
   switch("define", "chronicles_sinks=textlines[stdout],json[dynamic]")
   switch("define", "chronicles_log_level=TRACE")
-  switch("define", "chronicles_runtime_filtering=TRUE")
+  switch("define", "chronicles_runtime_filtering=on")
 
 # begin tests Nimble config (version 2)
 when withDir(testsDir, system.fileExists("nimble.paths")):

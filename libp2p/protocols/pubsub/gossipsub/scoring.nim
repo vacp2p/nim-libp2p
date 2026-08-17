@@ -344,7 +344,7 @@ proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
 ) {.async: (raises: [PeerRateLimitError]).} =
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
-    let uselessAppBytesNum = msg.data.get(@[]).len
+    let uselessAppBytesNum = msg.data.len
     if not overheadRateLimit.tryConsume(uselessAppBytesNum):
       debug "Peer sent invalid message and it's above rate limit",
         peer, uselessAppBytesNum

@@ -82,8 +82,8 @@
 
   libplum = pkgs.fetchgit {
     url = "https://github.com/logos-storage/nim-libplum";
-    rev = "acefbe424cf9d1f05f2d93533790c9ac4e034df8";
-    sha256 = "0j6rc96cznsh90pvs27i1qgpby3ib04a2xqihps3jwlnlng2nrkb";
+    rev = "611bb3ed06b5f1e43aea02500761693af1d53d03";
+    sha256 = "0j3xl78c1vrifnk1yw203qrwax0zcf7bcs203fdhj0b5bqdbrj7q";
     fetchSubmodules = true;
   };
 
@@ -103,8 +103,8 @@
 
   protobuf_serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-protobuf-serialization";
-    rev = "8406e7287196661614ce6a8e8be20f755376af7f";
-    sha256 = "0lb4756a77vr1x1khy3dxl97kyxy7w09ap92ylkkgjp093dic59k";
+    rev = "7861570c5182bd69f6b7c151028ffd5d0134b9ab";
+    sha256 = "07c2d5853k26rjqsrg4vq0kv0i5brzlbh0pj3v0qw0h929y5m54z";
     fetchSubmodules = true;
   };
 

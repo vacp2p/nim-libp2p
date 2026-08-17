@@ -130,7 +130,7 @@ method start*(
   if self.running:
     return
   self.running = true
-  switch.peerInfo.addressMappers.add(self.addressMapper)
+  switch.addressManager.addMapper(self.addressMapper, AddrSource.Circuit)
   await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
 
@@ -144,7 +144,7 @@ method stop*(
   for fut in self.backingOff.values:
     fut.cancelSoon()
   self.backingOff.clear()
-  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  switch.addressManager.removeMapper(self.addressMapper)
   await switch.peerInfo.update()
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =

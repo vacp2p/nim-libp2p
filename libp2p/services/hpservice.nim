@@ -9,18 +9,20 @@ import chronos, chronicles
 
 import ../switch, ../wire
 import ../protocols/rendezvous
-import ../services/autorelayservice
+import ../services/[autorelayservice, reachabilityobservers]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
 import ../multicodec
+
+export reachabilityobservers
 
 logScope:
   topics = "libp2p hpservice"
 
 type HPService* = ref object of Service
   newConnectedPeerHandler: PeerEventHandler
-  onNewStatusHandler: StatusAndConfidenceHandler
+  onNewStatusHandler: ReachabilityHandler
   autoRelayService: AutoRelayService
   autonatService: AutonatService
 
@@ -78,7 +80,7 @@ proc newConnectedPeerHandler(
       return
 
     let dcutrClient = DcutrClient.new()
-    var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+    var natAddrs = switch.addressManager.mostObservedProtosAndPorts()
     if natAddrs.len == 0:
       # Prefer the explicit/expanded announce set when nothing has been
       # observed yet — it honors withAnnouncedAddresses and any address
@@ -87,13 +89,17 @@ proc newConnectedPeerHandler(
         if switch.peerInfo.addrs.len > 0:
           switch.peerInfo.addrs
         else:
-          switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+          switch.peerInfo.listenAddrs.mapIt(switch.addressManager.externalAddrFor(it))
     await dcutrClient.startSync(switch, peerId, natAddrs)
     await closeRelayConn(relayedConn)
   except CancelledError as err:
     raise err
   except CatchableError as err:
     debug "Hole punching failed during dcutr", description = err.msg
+
+proc reachabilityObservers*(self: HPService): ReachabilityObservers =
+  ## The observers of the AutoNAT v1 service that drives hole punching.
+  self.autonatService.reachabilityObservers
 
 method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.autonatService.setup(switch)
@@ -117,7 +123,9 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   )
 
   self.onNewStatusHandler = proc(
-      networkReachability: NetworkReachability, confidence: Opt[float]
+      networkReachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability == NetworkReachability.NotReachable and
         not self.autoRelayService.isRunning():
@@ -130,7 +138,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
+  discard self.reachabilityObservers.add(self.onNewStatusHandler)
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.start(switch)

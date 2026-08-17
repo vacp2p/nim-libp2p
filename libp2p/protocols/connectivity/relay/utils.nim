@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import chronos, chronicles
-import ./messages, ../../../stream/connection
+import ./messages, ./relay_metrics, ../../../stream/connection
 
 logScope:
   topics = "libp2p relay relay-utils"
@@ -81,5 +81,7 @@ proc bridge*(
       trace "relay dst closed connection", dst = dstStream.peerId
     trace "relay error", description = exc.msg
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
+  libp2p_relay_bytes.inc(bytesSentFromSrcToDst.int64, labelValues = ["in"])
+  libp2p_relay_bytes.inc(bytesSentFromDstToSrc.int64, labelValues = ["out"])
   await futSrc.cancelAndWait()
   await futDst.cancelAndWait()

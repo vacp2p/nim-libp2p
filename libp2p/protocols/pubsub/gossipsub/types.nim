@@ -101,6 +101,10 @@ type
     slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
 
+  RateLimit* = object
+    bytes*: int
+    interval*: Duration
+
   GossipSubParams* = object
     # explicit is used to check if the GossipSubParams instance was created by the user either passing params to GossipSubParams(...)
     # or GossipSubParams.init(...). In the first case explicit should be set to true when calling the Nim constructor.
@@ -153,7 +157,7 @@ type
     bandwidthEstimatebps*: int
       # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
-    overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
+    overheadRateLimit*: Opt[RateLimit]
     disconnectPeerAboveRateLimit*: bool
 
     # Max number of high-priority sends. When this limit has been reached, the peer will be disconnected.

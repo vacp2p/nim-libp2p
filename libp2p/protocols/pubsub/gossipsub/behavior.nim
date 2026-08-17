@@ -133,9 +133,7 @@ proc handleGraft*(
 ): seq[ControlPrune] =
   var prunes: seq[ControlPrune]
   for graft in grafts:
-    let topic = graft.topicID.valueOr:
-      trace "topic not set: graft", peer
-      continue
+    let topic = graft.topicID
 
     trace "peer grafted topicID", peer, topic
 
@@ -148,10 +146,10 @@ proc handleGraft*(
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
         ControlPrune(
-          topicID: Opt.some(topic),
+          topicID: topic,
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
-          backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
+          backoff: g.parameters.pruneBackoff.seconds.uint64,
         )
       )
 
@@ -177,10 +175,10 @@ proc handleGraft*(
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
         ControlPrune(
-          topicID: Opt.some(topic),
+          topicID: topic,
           peers: @[],
             # omitting heavy computation here as the remote did something illegal
-          backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
+          backoff: g.parameters.pruneBackoff.seconds.uint64,
         )
       )
 
@@ -215,9 +213,9 @@ proc handleGraft*(
           peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
         prunes.add(
           ControlPrune(
-            topicID: Opt.some(topic),
+            topicID: topic,
             peers: g.peerExchangeList(topic),
-            backoff: Opt.some(g.parameters.pruneBackoff.seconds.uint64),
+            backoff: g.parameters.pruneBackoff.seconds.uint64,
           )
         )
 
@@ -253,9 +251,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecor
 
 proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
   for prune in prunes:
-    let topic = prune.topicID.valueOr:
-      trace "topic not set: prune", peer
-      continue
+    let topic = prune.topicID
 
     trace "peer pruned topicID", peer, topic
 
@@ -268,11 +264,11 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       continue
 
     # add peer backoff
-    if prune.backoff.isSome and prune.backoff.get() > 0:
+    if prune.backoff > 0:
       let
         # avoid overflows and clamp to reasonable value
         backoffSeconds =
-          clamp(prune.backoff.get() + BackoffSlackTime, 0'u64, 1.days.seconds.uint64)
+          clamp(prune.backoff + BackoffSlackTime, 0'u64, 1.days.seconds.uint64)
         backoff = Moment.fromNow(backoffSeconds.int64.seconds)
         current = g.backingOff.getOrDefault(topic).getOrDefault(peer.peerId)
       if backoff > current:
@@ -300,7 +296,8 @@ proc handleIHave*(
     trace "ihave: ignoring out of budget peer", peer, score = peer.score
   else:
     for ihave in ihaves:
-      let topic = ihave.topicID.valueOr:
+      let topic = ihave.topicID
+      if topic.len == 0:
         trace "topic not set: ihave", peer
         continue
       trace "peer sent ihave", peer, topicID = topic, msgs = ihave.messageIDs
@@ -677,7 +674,7 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
       midsSeq.setLen(IHaveMaxLength)
 
     let
-      ihave = ControlIHave(topicID: Opt.some(topic), messageIDs: midsSeq)
+      ihave = ControlIHave(topicID: topic, messageIDs: midsSeq)
       mesh = g.mesh.getOrDefault(topic)
       fanout = g.fanout.getOrDefault(topic)
       gossipPeers = mesh + fanout

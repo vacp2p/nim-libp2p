@@ -27,6 +27,19 @@ template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
         filtered.incl(it)
   filtered
 
+template removeFirstIfIt*[T](s: var seq[T], condition: untyped): bool =
+  ## Removes the first element that satisfies `condition` and stops there.
+  ## False means that no element satisfied it.
+  block:
+    var removed = false
+    for i in 0 ..< s.len:
+      let it {.inject.} = s[i]
+      if condition:
+        s.delete(i)
+        removed = true
+        break
+    removed
+
 proc toChunks*[T](data: seq[T], size: int): seq[seq[T]] {.raises: [].} =
   ## Splits `data` into chunks of length `size`.
   ## The last chunk may be smaller if data.len is not divisible by size.

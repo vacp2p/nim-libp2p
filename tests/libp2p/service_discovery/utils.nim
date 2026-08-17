@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+import std/net
 import chronos, results, sequtils, tables
 import
   ../../../libp2p/[
@@ -11,12 +12,14 @@ import
     multiaddress,
     peerid,
     peerinfo,
+    protobuf/minprotobuf,
     protocols/kademlia,
     protocols/kademlia/protobuf,
     protocols/service_discovery,
     protocols/service_discovery/registrar,
     protocols/service_discovery/routing_table_manager,
     protocols/service_discovery/types,
+    routing_record,
     switch,
   ]
 import ../../tools/[crypto, switch_builder, multiaddress]
@@ -87,6 +90,28 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
+proc makeOversizedAdvertisement*(
+    serviceId: string, privateKey: PrivateKey = PrivateKey.random(rng()).get()
+): Advertisement =
+  ## Decodes cleanly but fails `isValid`: its service data exceeds `MaxServiceDataSize`.
+  let extRecord = ExtendedPeerRecord(
+    peerId: PeerId.init(privateKey).get(),
+    seqNo: 1,
+    addresses: @[],
+    services: @[ServiceInfo(id: serviceId, data: newSeq[byte](MaxServiceDataSize + 1))],
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+const UnknownEnvelopeField = 15 ## no `Envelope` field carries this number
+
+proc padAdvertisement*(advert: seq[byte], paddingBytes: int): seq[byte] =
+  ## Grows the encoded record with a field the decoder skips, so only its
+  ## incoming length reveals the padding.
+  var pb = initProtoBuffer()
+  pb.write(UnknownEnvelopeField, newSeq[byte](paddingBytes))
+  pb.finish()
+  advert & pb.buffer
+
 proc createSwitch*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],
@@ -125,8 +150,7 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  if not client:
-    switch.mount(node)
+  switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -155,7 +179,7 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
     disco1.switch.peerInfo.addrs
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
-  rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerKey))
+  peerKey in rtable
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:
@@ -170,10 +194,69 @@ proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) 
   )
 
 proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertisement] =
-  disco.registrar.cache.getOrDefault(serviceId, @[])
+  disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)
 
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
+
+proc ipsFromAd*(ad: Advertisement): seq[IpAddress] =
+  ## Extract IPs from the ad payload (test convenience when advertiser IPs
+  ## are not set up in the peerstore).
+  ad.data.addresses.getIPs()
+
+proc putAd*(
+    ads: AdvertisementCache,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    now: Moment = Moment.now(),
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
+) =
+  ## Test helper for AdvertisementCache.put with advertiser defaults.
+  let adv = if advertiser.len > 0: advertiser else: ad.data.peerId
+  let advertiserIps =
+    if ips.len > 0:
+      ips
+    else:
+      ad.ipsFromAd()
+  ads.put(serviceId, adv, ad, advertiserIps, now)
+
+proc acceptAd*(
+    disco: ServiceDiscovery,
+    now: Moment,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
+) =
+  let adv = if advertiser.len > 0: advertiser else: ad.data.peerId
+  let advertiserIps =
+    if ips.len > 0:
+      ips
+    else:
+      ad.ipsFromAd()
+  disco.acceptAdvertisement(now, serviceId, adv, ad, advertiserIps)
+
+proc seedAd*(
+    reg: Registrar,
+    serviceId: ServiceId,
+    ad: Advertisement,
+    now: Moment = Moment.now(),
+    advertiser: PeerId = PeerId(),
+    ips: seq[IpAddress] = @[],
+) =
+  ## Test helper: admit `ad` into the registrar cache via the public API.
+  ## Defaults advertiser to `ad.data.peerId` and ips to the ad's addresses.
+  reg.ads.putAd(serviceId, ad, now, advertiser, ips)
+
+proc seedAds*(
+    reg: Registrar,
+    serviceId: ServiceId,
+    ads: seq[Advertisement],
+    now: Moment = Moment.now(),
+) =
+  for ad in ads:
+    reg.seedAd(serviceId, ad, now)
 
 proc containsPeer*(
     response: Result[seq[Advertisement], string], node: ServiceDiscovery

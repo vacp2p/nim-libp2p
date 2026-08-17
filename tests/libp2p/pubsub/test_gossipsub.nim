@@ -5,7 +5,7 @@
 
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/[muxers/muxer, connmanager, switch]
-import ../../../libp2p/stream/connection
+import ../../../libp2p/stream/[bufferstream, connection]
 import ../../../libp2p/utils/future
 import
   ../../../libp2p/protocols/pubsub/[
@@ -348,12 +348,42 @@ suite "GossipSub":
       await teardownGossipSub(gossipSub, conns)
 
     let disconnectedPeer = randomPeerId()
-    discard gossipSub.getOrCreatePeer(disconnectedPeer, @[], GossipSubCodec_12)
+    let pubSubPeer = gossipSub.getOrCreatePeer(disconnectedPeer, @[], GossipSubCodec_12)
 
     check:
+      not pubSubPeer.handler.isNil
       disconnectedPeer notin gossipSub.peers
       # peers created by other means are untouched
       peers[0].peerId in gossipSub.peers
+
+  test "PubSubPeer requires a non-nil handler":
+    expect AssertionDefect:
+      discard
+        PubSubPeer.new(randomPeerId(), nil, nil, GossipSubCodec_12, 1024 * 1024, nil)
+
+  asyncTest "runHandleLoop dispatches the first message":
+    var handled = false
+
+    proc handler(
+        peer: PubSubPeer, data: sink seq[byte]
+    ) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+      handled = data == @[byte 0]
+
+    let
+      stream = TestBufferStream.new(noop)
+      peer = PubSubPeer.new(
+        randomPeerId(), nil, nil, GossipSubCodec_12, 1024 * 1024, handler = handler
+      )
+    defer:
+      peer.stopTasks()
+      await stream.close()
+
+    let handleFut = peer.runHandleLoop(stream)
+    await stream.pushData(@[byte 1, 0])
+    await stream.pushEof()
+    await handleFut
+
+    check handled
 
   asyncTest "subscribe and unsubscribeAll":
     let (gossipSub, conns, _) =
@@ -524,7 +554,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
@@ -557,7 +587,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))
@@ -586,7 +616,7 @@ suite "GossipSub":
     const
       bytes = 1
       interval = 1.millis
-      overheadRateLimit = Opt.some((bytes, interval))
+      overheadRateLimit = Opt.some(RateLimit(bytes: bytes, interval: interval))
 
     gossipSub.parameters.overheadRateLimit = overheadRateLimit
     peer.overheadRateLimitOpt = Opt.some(TokenBucket.new(bytes, interval))

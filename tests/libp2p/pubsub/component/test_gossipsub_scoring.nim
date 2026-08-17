@@ -55,7 +55,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((20, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 20, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -95,7 +95,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((20, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 20, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -132,7 +132,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((40, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 40, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -182,7 +182,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((30, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 30, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -427,7 +427,7 @@ suite "GossipSub Component - Scoring":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       validatedMessageCount.inc
-      if string.fromBytes(message.data.get()).contains("invalid"):
+      if string.fromBytes(message.data).contains("invalid"):
         return ValidationResult.Reject # reject invalid messages
       else:
         return ValidationResult.Accept

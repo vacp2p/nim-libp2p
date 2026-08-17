@@ -4,7 +4,6 @@
 
 import chronos, chronicles, strutils
 import stew/base36
-from times import DateTime, toTime, toUnix
 import
   ../errors,
   ../peerid,
@@ -22,10 +21,6 @@ type AutoTLSError* = object of LPError
 const
   DefaultDnsRetries = 3
   DefaultDnsRetryTime = 1.seconds
-
-proc asMoment*(dt: DateTime): Moment =
-  let unixTime: int64 = dt.toTime.toUnix
-  return Moment.init(unixTime, Second)
 
 proc encodePeerId*(peerId: PeerId): string {.raises: [AutoTLSError].} =
   var mh: MultiHash
@@ -57,18 +52,20 @@ proc checkDNSRecords*(
   let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
   debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
 
-  var txt: seq[string]
-  var ip4: seq[TransportAddress]
-  for _ in 0 .. retries:
-    txt = await nameResolver.resolveTxt(acmeChalDomain)
+  for attempt in 0 .. retries:
+    if attempt > 0:
+      await sleepAsync(retryTime)
+
+    let txt = await nameResolver.resolveTxt(acmeChalDomain)
+    var ip4: seq[TransportAddress]
     try:
       ip4 = await nameResolver.resolveIp(ip4Domain, 0.Port)
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
       error "Failed to resolve IP", description = exc.msg # retry
-  if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
-    return true
-  await sleepAsync(retryTime)
+
+    if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
+      return true
 
   return false

@@ -10,9 +10,11 @@ import ffi
 import std/[tables, sequtils, sets, json, jsonutils, strutils, locks, net]
 from std/times import getTime, toUnix, Time, nanosecond
 import chronos
+import chronicles
 import metrics
 
 import ../libp2p
+import ../libp2p/logging
 import ../libp2p/services/natservice
 import ../libp2p/[multiaddress, peerid]
 import ../libp2p/crypto/crypto
@@ -128,6 +130,15 @@ const
   KeySchemeEd25519 {.ffiConst.} = ord(PKScheme.Ed25519)
   KeySchemeSecp256k1 {.ffiConst.} = ord(PKScheme.Secp256k1)
   KeySchemeEcdsa {.ffiConst.} = ord(PKScheme.ECDSA)
+  # consts for chronicles runtime log level
+  LogLevelNone {.ffiConst.} = ord(chronicles.LogLevel.NONE)
+  LogLevelTrace {.ffiConst.} = ord(chronicles.LogLevel.TRACE)
+  LogLevelDebug {.ffiConst.} = ord(chronicles.LogLevel.DEBUG)
+  LogLevelInfo {.ffiConst.} = ord(chronicles.LogLevel.INFO)
+  LogLevelNotice {.ffiConst.} = ord(chronicles.LogLevel.NOTICE)
+  LogLevelWarn {.ffiConst.} = ord(chronicles.LogLevel.WARN)
+  LogLevelError {.ffiConst.} = ord(chronicles.LogLevel.ERROR)
+  LogLevelFatal {.ffiConst.} = ord(chronicles.LogLevel.FATAL)
 
 type KadPutValueRequest {.ffi.} = object
   key: seq[byte]
@@ -160,6 +171,7 @@ type ExtendedRecordsResponse {.ffi.} = object
 type StartAdvertisingRequest {.ffi.} = object
   serviceId: string
   serviceData: seq[byte]
+  advertisement: seq[byte]
 
 type CreateXprRequest {.ffi.} = object
   addrs: seq[string]
@@ -241,8 +253,23 @@ const MaxReadBytes {.ffiConst.} = 64 * 1024 * 1024
   ## Caps the buffer an untrusted peer can make us pre-allocate before any byte
   ## arrives; well above libp2p's largest framed messages.
 
-proc mountGossipsub(lib: LibP2P, triggerSelf: bool): Result[void, string] =
-  let gs = GossipSub.init(switch = lib.switch, triggerSelf = triggerSelf, rng = lib.rng)
+proc mountGossipsub(lib: LibP2P, cfg: ParsedGossipsub): Result[void, string] =
+  # `init` marks the set explicit, so every parameter left out keeps its default.
+  # It also runs `validateParameters`, which rejects an inconsistent rate limit.
+  let gs =
+    try:
+      GossipSub.init(
+        switch = lib.switch,
+        triggerSelf = cfg.triggerSelf,
+        maxMessageSize = cfg.maxMessageSize,
+        rng = lib.rng,
+        parameters = GossipSubParams.init(
+          overheadRateLimit = cfg.overheadRateLimit,
+          disconnectPeerAboveRateLimit = cfg.disconnectPeerAboveRateLimit,
+        ),
+      )
+    except InitializationError as e:
+      return err(e.msg)
   try:
     lib.switch.mount(gs)
   except LPError as e:
@@ -290,8 +317,8 @@ proc mountServiceDiscovery(
   ok()
 
 proc mountProtocols(lib: LibP2P, cfg: ParsedConfig): Result[void, string] =
-  if cfg.mountGossipsub:
-    ?mountGossipsub(lib, cfg.gossipsubTriggerSelf)
+  if cfg.gossipsub.mount:
+    ?mountGossipsub(lib, cfg.gossipsub)
 
   if cfg.mountServiceDiscovery:
     ?mountServiceDiscovery(lib, cfg.bootstrapNodes)
@@ -371,9 +398,22 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
 
   ok(lib)
 
+proc applyLogLevel(level: int): Result[void, string] =
+  if level < ord(low(chronicles.LogLevel)) or level > ord(high(chronicles.LogLevel)):
+    return err("invalid log level: " & $level)
+
+  when chronicles.runtimeFilteringEnabled:
+    logging.setLogLevel(chronicles.LogLevel(level))
+    ok()
+  else:
+    err("nim-libp2p runtime logs filtering is disabled")
+
 proc libp2pNew*(config: Libp2pConfig): Future[Result[LibP2P, string]] {.ffiCtor.} =
   ## Builds the switch from `config` and mounts the requested protocols. The
   ## node is not listening yet; call `libp2p_ctx_start` for that.
+  if config.logLevel != ord(chronicles.LogLevel.NONE):
+    ?applyLogLevel(config.logLevel)
+
   try:
     createLibp2pNode(config)
   except LPError as e:
@@ -413,9 +453,20 @@ proc libp2pDestroy*(lib: LibP2P): Future[void] {.ffiDtor.} =
 # config without the generated header. Not layout-compatible with the generated
 # `Libp2pConfig` (strings and enums differ); `muxer`/`transport` carry the
 # `MuxerType`/`TransportType` ordinals. Keep the field list in sync.
+type CRateLimitConfig {.exportc: "libp2p_rate_limit_config", bycopy.} = object
+  bytes: cint
+  intervalMs: int64
+
+type CGossipsubConfig {.exportc: "libp2p_gossipsub_config", bycopy.} = object
+  mount: cint
+  triggerSelf: cint
+  maxMessageSize: cint
+  overheadRateLimit: CRateLimitConfig
+  disconnectPeerAboveRateLimit: cint
+
 type CLibp2pConfig {.exportc: "libp2p_config", bycopy.} = object
-  mountGossipsub: cint
-  gossipsubTriggerSelf: cint
+  logLevel: cint
+  gossipsub: CGossipsubConfig
   mountKad: cint
   mountServiceDiscovery: cint
   dnsResolver: cstring
@@ -889,12 +940,21 @@ proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} 
 proc libp2pServiceDiscoStartAdvertising*(
     lib: LibP2P, req: StartAdvertisingRequest
 ): Future[Result[bool, string]] {.ffi.} =
-  ## Advertises `serviceId` (with optional `serviceData`) in this node's record.
+  ## Advertises `serviceId` (with `serviceData`, which may be empty) in this
+  ## node's record. A non-empty `advertisement` is a signed extended peer record,
+  ## published verbatim instead of this node's own record; it fails when that
+  ## record does not decode, is oversized, or does not list `serviceId`.
+  ## A service that is already advertised fails here: stop it first, then start
+  ## it again with the new advertisement.
   let disco = resolveServiceDiscovery(lib).valueOr:
     return err(error)
+
   disco.startAdvertising(
-    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
-  )
+    ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData)),
+    Opt.noneWhenEmpty(req.advertisement),
+  ).isOkOr:
+    return err(error)
+
   ok(true)
 
 proc libp2pServiceDiscoStopAdvertising*(
@@ -1119,15 +1179,16 @@ proc libp2pCreateCid*(
   ok($cid)
 
 proc libp2pNewPrivateKey*(
-    lib: LibP2P, req: NewPrivateKeyRequest
-): Future[Result[seq[byte], string]] {.ffi.} =
-  ## Generates a private key from the node's RNG. `scheme` is one of the
+    req: NewPrivateKeyRequest
+): Future[Result[seq[byte], string]] {.ffiStatic.} =
+  ## Generates a private key. `scheme` is one of the
   ## `KEY_SCHEME_*` constants.
   if req.scheme < ord(low(PKScheme)) or req.scheme > ord(high(PKScheme)):
     return err("invalid key scheme")
   let scheme = PKScheme(req.scheme)
 
-  let key = PrivateKey.random(scheme, lib.rng).valueOr:
+  let rng = newRng()
+  let key = PrivateKey.random(scheme, rng).valueOr:
     return err("could not generate private key")
 
   let keyData = key.getBytes().valueOr:
@@ -1217,7 +1278,7 @@ proc collectRegistryMetrics(registry: Registry): seq[MetricEntry] {.gcsafe.} =
         )
   entries
 
-proc libp2pCollectMetrics*(lib: LibP2P): Future[Result[string, string]] {.ffi.} =
+proc libp2pCollectMetrics*(): Future[Result[string, string]] {.ffiStatic.} =
   ## A JSON snapshot of the Prometheus registry, one object per metric sample.
   var jsonText: string
   try:

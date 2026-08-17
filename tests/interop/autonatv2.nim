@@ -39,7 +39,7 @@ proc autonatInteropTest*(
 
   let awaiter = newFuture[void]()
 
-  proc statusAndConfidenceHandler(
+  proc reachabilityHandler(
       networkReachability: NetworkReachability,
       confidence: Opt[float],
       dialBackAddr: Opt[MultiAddress],
@@ -52,7 +52,7 @@ proc autonatInteropTest*(
     raiseAssert "expected NATService to be configured"
   let v2 = nat.autonatV2Service.valueOr:
     raiseAssert "expected AutonatV2 service to be configured"
-  v2.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+  discard v2.reachabilityObservers.add(reachabilityHandler)
 
   await switch.start()
   defer:

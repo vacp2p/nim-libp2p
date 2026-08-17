@@ -652,6 +652,24 @@ suite "MultiAddress IP utilities":
       MultiAddress.init("/ip4/5.6.7.8/tcp/80/ws").get().getIp() ==
         Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]))
 
+  test "getIPs":
+    let addrs = @[
+      MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get(),
+      MultiAddress.init("/tcp/1234").get(),
+      MultiAddress.init("/ip6/::1/tcp/80").get(),
+      MultiAddress.init("/ip4/5.6.7.8/tcp/80/ws").get(),
+    ]
+    check addrs.getIPs() ==
+      @[
+        IpAddress(family: IpAddressFamily.IPv4, address_v4: [1'u8, 2, 3, 4]),
+        IpAddress(
+          family: IpAddressFamily.IPv6,
+          address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        ),
+        IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]),
+      ]
+    check newSeq[MultiAddress]().getIPs().len == 0
+
   test "replaceIp":
     let
       ip4 = parseIpAddress("203.0.113.7")

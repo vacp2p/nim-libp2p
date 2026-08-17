@@ -15,7 +15,7 @@ import
   ]
 import ../../../libp2p/utils/future
 import ../../stubs/autonatclientstub
-import ../../tools/[unittest, futures, crypto]
+import ../../tools/[unittest, futures, crypto, reachability]
 
 proc createSwitch(
     autonatSvc: Opt[AutonatService] = Opt.none(AutonatService),
@@ -84,6 +84,65 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
+  asyncTest "Dispatch reaches every subscriber, and skips an unsubscribed one":
+    let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
+    autonatClientStub.answer = NotReachable
+
+    # maxQueueSize 1: a single answer already clears the confidence threshold.
+    let autonatService = AutonatService.new(autonatClientStub, rng(), maxQueueSize = 1)
+    let observers = autonatService.reachabilityObservers
+
+    let switch1 = createSwitch(Opt.some(autonatService))
+    let switch2 = createSwitch()
+
+    let gate = newAsyncEvent()
+    let first = newFuture[NetworkReachability]()
+    let last = newFuture[NetworkReachability]()
+    var goneCalls = 0
+
+    let gone: ReachabilityHandler = proc(
+        reachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      goneCalls.inc()
+
+    check:
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          first.completeOnce(reachability)
+          # Block the first handler: the last one still gets the answer.
+          await gate.wait()
+      )
+      observers.add(gone)
+      observers.add(
+        proc(
+            reachability: NetworkReachability,
+            confidence: Opt[float],
+            dialBackAddr: Opt[MultiAddress],
+        ) {.async: (raises: [CancelledError]).} =
+          last.completeOnce(reachability)
+      )
+      observers.remove(gone)
+      autonatService.networkReachability == NetworkReachability.Unknown
+
+    await switch1.start()
+    await switch2.start()
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+    check:
+      (await first.wait(5.seconds)) == autonatClientStub.answer
+      (await last.wait(5.seconds)) == autonatClientStub.answer
+      goneCalls == 0
+      autonatService.networkReachability == autonatClientStub.answer
+
+    gate.fire()
+    await allFuturesRaising(switch1.stop(), switch2.stop())
+
   asyncTest "Peer must be reachable":
     let autonatService =
       AutonatService.new(AutonatClient.new(), rng(), Opt.some(1.seconds))
@@ -95,16 +154,17 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.Reachable, confidence):
         awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -121,7 +181,7 @@ suite "Autonat Service":
     check reachabilityConfidence(NetworkReachability.Reachable) == 0.3
 
     check switch1.peerInfo.addrs ==
-      switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
+      switch1.peerInfo.addrs.mapIt(switch1.addressManager.externalAddrFor(it))
 
     await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
@@ -145,21 +205,22 @@ suite "Autonat Service":
     let reachableAwaiter = newFuture[void]()
     var reachableConfidence = Opt.none(float)
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.NotReachable, confidence):
         autonatClientStub.answer = Reachable
         notReachableAwaiter.completeOnce()
-      elif networkReachability == NetworkReachability.Reachable and confidence.isSome() and
-          confidence.get() >= 0.3 and reachableConfidence.isNone():
+      elif settled(networkReachability, NetworkReachability.Reachable, confidence) and
+          reachableConfidence.isNone():
         reachableConfidence = confidence
         reachableAwaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -197,8 +258,10 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -206,7 +269,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -241,17 +304,18 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
-          confidence.get() >= 0.3:
+      if settled(networkReachability, NetworkReachability.NotReachable, confidence):
         autonatClientStub.answer = Unknown
         awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -288,8 +352,10 @@ suite "Autonat Service":
 
     let awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -297,7 +363,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
@@ -336,15 +402,19 @@ suite "Autonat Service":
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
 
-    proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler1(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
         awaiter1.completeOnce()
 
-    proc statusAndConfidenceHandler2(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler2(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -354,9 +424,9 @@ suite "Autonat Service":
     check autonatService2.networkReachability == NetworkReachability.Unknown
     check autonatService3.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
-    autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
-    autonatService3.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+    check autonatService1.reachabilityObservers.add(reachabilityHandler1)
+    check autonatService2.reachabilityObservers.add(reachabilityHandler2)
+    check autonatService3.reachabilityObservers.add(reachabilityHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -388,8 +458,10 @@ suite "Autonat Service":
 
     let awaiter1 = newFuture[void]()
 
-    proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler1(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -397,7 +469,7 @@ suite "Autonat Service":
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
 
-    autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
+    check autonatService1.reachabilityObservers.add(reachabilityHandler1)
 
     await switch1.start()
     await switch2.start()
@@ -436,8 +508,10 @@ suite "Autonat Service":
 
     var awaiter = newFuture[void]()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -445,7 +519,7 @@ suite "Autonat Service":
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
@@ -479,14 +553,16 @@ suite "Autonat Service":
     let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
 
-    proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+    proc reachabilityHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
-    autonatService.statusAndConfidenceHandler(statusAndConfidenceHandler)
+    check autonatService.reachabilityObservers.add(reachabilityHandler)
 
     await switch1.start()
     await switch2.start()
