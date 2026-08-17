@@ -11,6 +11,9 @@
 import std/[sequtils, tables]
 import chronos, chronos/transports/[osnet, ipnet]
 import multiaddress, multicodec, peerinfo, utils/heartbeat
+import protocols/connectivity/autonat/types
+
+export NetworkReachability
 
 logScope:
   topics = "libp2p addressmanager"
@@ -26,6 +29,7 @@ type
 
   AddrSource* {.pure.} = enum
     Autonat
+    Identify ## guessed from the addresses which identify peers observed
     Upnp
     NatPmp
     PortMapped ## a port mapper answered and did not report which protocol it used
@@ -51,6 +55,10 @@ type
   Verifier* = ref object of RootObj
     ## Tells the manager which candidates a remote peer reaches.
 
+  ReachabilityChangeHandler* = proc(reachability: NetworkReachability): Future[void] {.
+    gcsafe, async: (raises: [CancelledError])
+  .}
+
   AddressManagerConfig* = object
     maxSize*: int = DefaultObservedAddrMaxSize
     minCount*: int = DefaultObservedAddrMinCount
@@ -72,6 +80,10 @@ type
     verifier: Verifier
     verifyInterval: Duration
     verifyFut: Future[void]
+    onReachabilityChange: ReachabilityChangeHandler
+    notifiedReachability: NetworkReachability
+    deriveIdentify: bool
+    refutedGuesses: seq[MultiAddress]
     maxSize: int
     minCount: int
     started: bool
@@ -227,9 +239,28 @@ func confirmedAddrs*(self: AddressManager): seq[MultiAddress] =
     it.address
   )
 
-proc `verifier=`*(self: AddressManager, verifier: Verifier) =
-  ## The verifier is optional. Without one, every candidate stays `Unverified`.
-  self.verifier = verifier
+func reachability*(self: AddressManager): NetworkReachability =
+  ## Read-only summary of the per-address states: any Confirmed wins, else any Unreachable.
+  var summary = NetworkReachability.Unknown
+  for candidate in self.candidates.values:
+    case candidate.state
+    of AddrState.Confirmed:
+      return NetworkReachability.Reachable
+    of AddrState.Unreachable:
+      summary = NetworkReachability.NotReachable
+    of AddrState.Unverified:
+      discard
+  summary
+
+proc `onReachabilityChange=`*(
+    self: AddressManager, handler: ReachabilityChangeHandler
+) =
+  ## Called after a verification run which changes the `reachability` summary; one slot.
+  self.onReachabilityChange = handler
+
+proc `deriveIdentifyCandidates=`*(self: AddressManager, enabled: bool) =
+  ## Each verification run then turns the identify observations into `Identify` candidates.
+  self.deriveIdentify = enabled
 
 func notFromMappers(self: AddressManager, address: MultiAddress): bool =
   address notin self.chainAddrs
@@ -337,13 +368,28 @@ proc track(
   self.withdraw(chainAddrs)
   self.chainAddrs = chainAddrs
 
+func isAnnounceable(self: AddressManager, address: MultiAddress): bool =
+  ## An observation-derived guess is remote input: it announces only once confirmed.
+  let candidate = self.candidates.getOrDefault(address)
+  case candidate.state
+  of AddrState.Unreachable:
+    false
+  of AddrState.Confirmed:
+    true
+  of AddrState.Unverified:
+    candidate.sources != {AddrSource.Identify}
+
 func announceSet(
     self: AddressManager, mappedAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
-  ## Every candidate. A verdict sets the state only, and it drops no address.
-  var res = mappedAddrs
+  ## Every confirmed or unverified candidate; a verified-unreachable one stays out.
+  var res: seq[MultiAddress]
+  for address in mappedAddrs:
+    if self.isAnnounceable(address) and address notin res:
+      res.add(address)
   for address in self.candidates.keys:
-    if self.notFromMappers(address) and address notin res:
+    if self.notFromMappers(address) and address notin res and
+        self.isAnnounceable(address):
       res.add(address)
   res
 
@@ -389,25 +435,97 @@ proc resolveMapper(self: AddressManager): AddressMapper =
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     await self.resolve(listenAddrs)
 
+func identifyGuesses(self: AddressManager): seq[MultiAddress] =
+  ## Listen addresses with the most observed IP, and the most observed proto/ports.
+  var guesses: seq[MultiAddress]
+  for listenAddr in self.peerInfo.listenAddrs:
+    let guessed = self.externalAddrFor(listenAddr)
+    if guessed != listenAddr:
+      guesses.add(guessed)
+  guesses & self.mostObservedProtosAndPorts()
+
+proc addIdentifyCandidates(self: AddressManager) =
+  if not self.deriveIdentify or self.peerInfo.isNil():
+    return
+  for guess in self.identifyGuesses().filterIt(it notin self.refutedGuesses):
+    self.add(guess, AddrSource.Identify)
+
+proc rememberRefuted(self: AddressManager, address: MultiAddress) =
+  ## A wrongly refuted guess returns only through ring eviction or a restart.
+  if self.refutedGuesses.len >= self.maxSize:
+    self.refutedGuesses.delete(0)
+  self.refutedGuesses.add(address)
+
+proc applyVerdicts(self: AddressManager, verdicts: seq[AddrVerdict]): bool =
+  ## True when a state changed. One random peer decides a verdict; later runs heal it.
+  var changed = false
+  for verdict in verdicts:
+    if verdict.address notin self.candidates:
+      continue
+    let candidate = self.candidates.getOrDefault(verdict.address)
+    # a refuted guess is dropped, or an attacker could grow the table without cap
+    if verdict.state == AddrState.Unreachable and
+        candidate.sources == {AddrSource.Identify}:
+      self.remove(verdict.address)
+      self.rememberRefuted(verdict.address)
+      changed = true
+    elif candidate.state != verdict.state:
+      self.update(verdict.address, verdict.state)
+      changed = true
+  changed
+
+proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  let summary = self.reachability()
+  if summary == self.notifiedReachability:
+    return
+  self.notifiedReachability = summary
+  if not self.onReachabilityChange.isNil():
+    await self.onReachabilityChange(summary)
+
 proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
-  if self.verifier.isNil() or self.candidates.len == 0:
+  if self.verifier.isNil():
+    return
+  self.addIdentifyCandidates()
+
+  # a relayed candidate stays unverified: no AutoNAT peer dials a circuit address back
+  let addresses = toSeq(self.candidates.keys).filterIt(not it.isRelayed())
+  if addresses.len == 0:
     return
 
   # one run fits in one interval, so a slow verifier delays no other run
   let verdicts =
     try:
-      await self.verifier.verify(toSeq(self.candidates.keys)).wait(self.verifyInterval)
+      await self.verifier.verify(addresses).wait(self.verifyInterval)
     except AsyncTimeoutError:
       debug "Verifier ran out of time", interval = self.verifyInterval
       return
 
-  # update drops a verdict on an address which went away while the verifier ran
-  for verdict in verdicts:
-    self.update(verdict.address, verdict.state)
+  if not self.applyVerdicts(verdicts):
+    return
+  if not self.peerInfo.isNil():
+    await self.peerInfo.update()
+  await self.notifyReachability()
 
 proc verifyHeartbeat(self: AddressManager) {.async: (raises: [CancelledError]).} =
   heartbeat "AddressManager candidate verification", self.verifyInterval:
     await self.verifyCandidates()
+
+proc restartHeartbeat(self: AddressManager) =
+  ## A sleeping heartbeat holds its old wake-up time; the restart applies changes now.
+  if not self.started:
+    return
+  if not self.verifyFut.isNil():
+    self.verifyFut.cancelSoon()
+  self.verifyFut = self.verifyHeartbeat()
+
+proc `verifier=`*(self: AddressManager, verifier: Verifier) =
+  ## The verifier is optional. Without one, every candidate stays `Unverified`.
+  self.verifier = verifier
+  self.restartHeartbeat()
+
+proc `verifyInterval=`*(self: AddressManager, interval: Duration) =
+  self.verifyInterval = max(interval, 1.milliseconds)
+  self.restartHeartbeat()
 
 proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
   ## With a `PeerInfo`, installs the manager's mapper as the first one it runs.
@@ -430,6 +548,9 @@ proc stop*(self: AddressManager) =
   self.candidates.clear()
   self.chainAddrs.clear()
   self.mappers.setLen(0)
+  self.onReachabilityChange = nil
+  self.notifiedReachability = NetworkReachability.Unknown
+  self.refutedGuesses.setLen(0)
 
   if self.peerInfo.isNil():
     return

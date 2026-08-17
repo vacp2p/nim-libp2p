@@ -46,6 +46,12 @@ proc constantMapper(addrs: seq[MultiAddress]): AddressMapper =
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     addrs
 
+proc addingMapper(addrs: seq[MultiAddress]): AddressMapper =
+  proc(
+      listenAddrs: seq[MultiAddress]
+  ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+    listenAddrs & addrs
+
 type StubVerifier = ref object of Verifier
   verdicts: seq[AddrVerdict]
   asked: seq[seq[MultiAddress]]
@@ -369,6 +375,113 @@ suite "AddressManager verification":
 
     check verifier.asked.len == runs
 
+  asyncTest "an interval and a verifier set after start take effect without a stale wait":
+    let
+      address = ma("/ip4/1.2.3.4/tcp/1")
+      verifier =
+        makeStubVerifier(@[AddrVerdict(address: address, state: AddrState.Confirmed)])
+      # the default interval is minutes; a stale first sleep would outlive the test
+      manager = AddressManager.new()
+
+    manager.start()
+    manager.add(address, AddrSource.Listen)
+    manager.verifier = verifier
+    manager.verifyInterval = VerifyInterval
+
+    checkUntilTimeout:
+      manager.confirmedAddrs() == @[address]
+
+    manager.stop()
+
+  asyncTest "the reachability summary follows the candidate states":
+    let
+      manager = makeStartedManager()
+      first = ma("/ip4/1.2.3.4/tcp/1")
+      second = ma("/ip4/5.6.7.8/tcp/1")
+
+    check manager.reachability() == NetworkReachability.Unknown
+
+    manager.add(first, AddrSource.Listen)
+    check manager.reachability() == NetworkReachability.Unknown
+
+    manager.update(first, AddrState.Unreachable)
+    check manager.reachability() == NetworkReachability.NotReachable
+
+    manager.add(second, AddrSource.Upnp)
+    manager.update(second, AddrState.Confirmed)
+    check manager.reachability() == NetworkReachability.Reachable
+
+    manager.stop()
+
+  asyncTest "a verify run which changes the summary fires the handler once":
+    let
+      address = ma("/ip4/1.2.3.4/tcp/1")
+      verifier =
+        makeStubVerifier(@[AddrVerdict(address: address, state: AddrState.Confirmed)])
+      manager = makeVerifyingManager(verifier)
+
+    var notified: seq[NetworkReachability]
+    manager.onReachabilityChange = proc(
+        reachability: NetworkReachability
+    ) {.async: (raises: [CancelledError]).} =
+      notified.add(reachability)
+
+    manager.add(address, AddrSource.Listen)
+
+    checkUntilTimeout:
+      notified == @[NetworkReachability.Reachable]
+
+    # further runs repeat the same verdict, and the summary change fires no more
+    await sleepAsync(VerifyInterval * 3)
+    check notified == @[NetworkReachability.Reachable]
+
+    manager.stop()
+
+  asyncTest "a relayed candidate is never sent to the verifier":
+    let
+      relayAddr = ma("/ip4/1.2.3.4/tcp/1/p2p-circuit")
+      directAddr = ma("/ip4/5.6.7.8/tcp/1")
+      verifier = makeStubVerifier()
+      manager = makeVerifyingManager(verifier)
+
+    manager.add(relayAddr, AddrSource.Circuit)
+    manager.add(directAddr, AddrSource.Listen)
+
+    checkUntilTimeout:
+      verifier.asked.len >= 1
+
+    check verifier.asked.allIt(it == @[directAddr])
+
+    manager.stop()
+
+  asyncTest "observations become candidates when derivation is enabled":
+    let
+      listenAddr = ma("/ip4/192.168.0.2/tcp/1")
+      observed = ma("/ip4/8.8.8.8/tcp/9")
+      guessed = ma("/ip4/8.8.8.8/tcp/1")
+      verifier = makeStubVerifier()
+      manager = AddressManager.new(
+        AddressManagerConfig(verifyInterval: VerifyInterval, minCount: 3)
+      )
+      peerInfo = makePeerInfo(@[listenAddr])
+
+    manager.verifier = verifier
+    manager.deriveIdentifyCandidates = true
+    manager.start(peerInfo)
+
+    for _ in 0 ..< 3:
+      check manager.addObservation(observed)
+
+    checkUntilTimeout:
+      manager.candidates().anyIt(
+        it.address == guessed and it.sources == {AddrSource.Identify}
+      )
+      manager.candidates().anyIt(
+        it.address == observed and it.sources == {AddrSource.Identify}
+      )
+
+    manager.stop()
+
 suite "AddressManager address mapper":
   teardown:
     checkTrackers()
@@ -502,22 +615,25 @@ suite "AddressManager address mapper":
 
     manager.stop()
 
-  asyncTest "an unreachable candidate is still announced":
+  asyncTest "a verified-unreachable candidate is not announced":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
+      fedAddr = ma("/ip4/1.2.3.4/tcp/1")
       peerInfo = makePeerInfo(@[listenAddr])
       manager = makeManager()
 
     manager.start(peerInfo)
+    manager.add(fedAddr, AddrSource.Circuit)
     await peerInfo.update()
-    check peerInfo.addrs == @[listenAddr]
+    check peerInfo.addrs == @[listenAddr, fedAddr]
 
     manager.update(listenAddr, AddrState.Unreachable)
+    manager.update(fedAddr, AddrState.Unreachable)
     await peerInfo.update()
 
     check:
-      peerInfo.addrs == @[listenAddr]
-      manager.candidates()[0].state == AddrState.Unreachable
+      peerInfo.addrs.len == 0
+      manager.candidates().allIt(it.state == AddrState.Unreachable)
 
     manager.stop()
 
@@ -550,6 +666,56 @@ suite "AddressManager address mapper":
       manager.candidates().anyIt(
         it.address == mapped and it.sources == {AddrSource.Upnp}
       )
+
+    manager.stop()
+
+suite "AddressManager verify and announce":
+  teardown:
+    checkTrackers()
+
+  asyncTest "multi-source candidates verify, and only confirmed or unverified announce":
+    let
+      listenAddr = ma("/ip4/192.168.0.2/tcp/1")
+      upnpAddr = ma("/ip4/9.9.9.9/tcp/1")
+      relayAddr = ma("/ip4/1.2.3.4/tcp/2/p2p-circuit")
+      observed = ma("/ip4/8.8.8.8/tcp/9")
+      guessed = ma("/ip4/8.8.8.8/tcp/1")
+      verifier = makeStubVerifier(
+        @[
+          AddrVerdict(address: upnpAddr, state: AddrState.Confirmed),
+          AddrVerdict(address: listenAddr, state: AddrState.Unreachable),
+          AddrVerdict(address: guessed, state: AddrState.Unreachable),
+        ]
+      )
+      manager = AddressManager.new(
+        AddressManagerConfig(verifyInterval: VerifyInterval, minCount: 3)
+      )
+      peerInfo = makePeerInfo(@[listenAddr])
+
+    manager.verifier = verifier
+    manager.deriveIdentifyCandidates = true
+    manager.start(peerInfo)
+    manager.addMapper(addingMapper(@[upnpAddr]), AddrSource.Upnp)
+    manager.addMapper(addingMapper(@[relayAddr]), AddrSource.Circuit)
+
+    # identify reports: same address three times reaches the quorum
+    for _ in 0 ..< 3:
+      check manager.addObservation(observed)
+
+    await peerInfo.update()
+
+    checkUntilTimeout:
+      # confirmed and unverified announce; verified-unreachable do not
+      peerInfo.addrs == @[upnpAddr, relayAddr]
+      manager.confirmedAddrs() == @[upnpAddr]
+      manager.reachability() == NetworkReachability.Reachable
+
+    check:
+      # the relayed candidate is announced yet never verified
+      verifier.asked.allIt(relayAddr notin it)
+      # the refuted guess is dropped; the unverified observation stays unannounced
+      manager.candidates().allIt(it.address != guessed)
+      manager.candidates().anyIt(it.address == observed)
 
     manager.stop()
 
@@ -619,19 +785,6 @@ suite "Switch-owned AddressManager":
       switch.addressManager.addObservation(lastObserved)
       switch.addressManager.addObservation(lastObserved)
       switch.addressManager.mostObservedProtosAndPorts() == @[lastObserved]
-
-  asyncTest "the deprecated builder hook still wires the given manager":
-    let addressManager = makeManager(maxSize = 1, minCount = 1)
-
-    {.push warning[Deprecated]: off.}
-    let switch = makeStandardSwitchBuilder(ma("/memorytransport/*"))
-      .withObservedAddrManager(addressManager)
-      .build()
-    {.pop.}
-
-    check:
-      switch.addressManager == addressManager
-      switch.peerStore.identify.addressManager == addressManager
 
   asyncTest "the switch starts and stops the manager":
     let switch = makeStandardSwitch(ma("/memorytransport/*"))

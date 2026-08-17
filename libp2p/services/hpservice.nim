@@ -80,11 +80,12 @@ proc newConnectedPeerHandler(
       return
 
     let dcutrClient = DcutrClient.new()
-    var natAddrs = switch.addressManager.mostObservedProtosAndPorts()
+    # verified per-family addresses first, then the observation quorum guess
+    var natAddrs = switch.addressManager.confirmedAddrs()
     if natAddrs.len == 0:
-      # Prefer the explicit/expanded announce set when nothing has been
-      # observed yet — it honors withAnnouncedAddresses and any address
-      # mappers (UPnP, autonat) over a per-listen-addr guess.
+      natAddrs = switch.addressManager.mostObservedProtosAndPorts()
+    if natAddrs.len == 0:
+      # the announce set honors withAnnouncedAddresses over a per-listen-addr guess
       natAddrs =
         if switch.peerInfo.addrs.len > 0:
           switch.peerInfo.addrs

@@ -3,8 +3,9 @@
 
 {.push raises: [].}
 
+import std/net
 import chronos, chronicles, times, tables, sequtils
-import ../switch, ../protocols/connectivity/relay/[client, utils]
+import ../[multicodec, switch], ../protocols/connectivity/relay/[client, utils]
 
 logScope:
   topics = "libp2p autorelay"
@@ -28,10 +29,29 @@ type
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
 
+func confirmedIpFamilies(manager: AddressManager): set[IpAddressFamily] =
+  var families: set[IpAddressFamily]
+  for address in manager.confirmedAddrs():
+    if address.contains(multiCodec("p2p-circuit")).get(false):
+      continue
+    let ip = address.getIp().valueOr:
+      continue
+    families.incl(ip.family)
+  families
+
+func stillNeeded(relayAddr: MultiAddress, confirmed: set[IpAddressFamily]): bool =
+  ## A relay address is redundant once a direct address of its IP family is confirmed.
+  let ip = relayAddr.getIp().valueOr:
+    return true
+  ip.family notin confirmed
+
 proc addressMapper(
-    self: AutoRelayService, listenAddrs: seq[MultiAddress]
+    self: AutoRelayService, switch: Switch, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: []).} =
-  return concat(toSeq(self.relayAddresses.values)) & listenAddrs
+  let confirmed = switch.addressManager.confirmedIpFamilies()
+  let relayAddrs =
+    concat(toSeq(self.relayAddresses.values)).filterIt(it.stillNeeded(confirmed))
+  return relayAddrs & listenAddrs
 
 proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
@@ -58,7 +78,7 @@ method setup*(self: AutoRelayService, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, listenAddrs)
+    return await addressMapper(self, switch, listenAddrs)
 
   proc handlePeerIdentified(
       peerId: PeerId, event: PeerEvent
