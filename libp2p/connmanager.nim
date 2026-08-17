@@ -535,6 +535,11 @@ proc getIncomingSlot*(
     await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
+proc tryGetIncomingSlot*(c: ConnManager): Opt[ConnectionSlot] =
+  if c.inSema != nil and not c.inSema.tryAcquire():
+    return Opt.none(ConnectionSlot)
+  Opt.some(ConnectionSlot(connManager: c, direction: In))
+
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
@@ -783,6 +788,12 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
       if Moment.now() - lastTrim < wm.silencePeriod:
         return
     c.trimFut = c.trimConnections()
+
+proc triggerTrimIfNeeded*(c: ConnManager) {.gcsafe, raises: [].} =
+  ## Retries watermark trimming while the peer count remains above the high watermark.
+  c.watermark.withValue(wm):
+    if c.muxerStore.countPeers() > wm.highWater:
+      c.triggerTrim()
 
 proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
   ## Drains the per-muxer onClose tasks once muxers are closed, so they finish
