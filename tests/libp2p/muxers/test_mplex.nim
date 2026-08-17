@@ -19,7 +19,7 @@ import
     vbuffer,
     varint,
   ]
-import ../../tools/[unittest, trackers, futures, bufferstream, compare]
+import ../../tools/[unittest, futures, bufferstream, compare]
 
 proc noopWriteHandler(
     data: sink seq[byte]
