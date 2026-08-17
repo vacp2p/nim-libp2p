@@ -10,11 +10,15 @@
 
 import std/[sequtils, tables]
 import chronos, chronos/transports/[osnet, ipnet]
-import multiaddress, multicodec, peerinfo
+import multiaddress, multicodec, peerinfo, utils/heartbeat
+
+logScope:
+  topics = "libp2p addressmanager"
 
 const
   DefaultObservedAddrMaxSize* = 10
   DefaultObservedAddrMinCount* = 3
+  DefaultVerifyInterval* = 5.minutes
 
 type
   NetworkInterfaceProvider* =
@@ -40,9 +44,18 @@ type
     sources*: set[AddrSource]
     state*: AddrState
 
+  AddrVerdict* = object
+    address*: MultiAddress
+    state*: AddrState
+
+  Verifier* = ref object of RootObj
+    ## Tells the manager which candidates a remote peer reaches.
+
   AddressManagerConfig* = object
     maxSize*: int = DefaultObservedAddrMaxSize
     minCount*: int = DefaultObservedAddrMinCount
+    verifyInterval*: Duration = DefaultVerifyInterval
+      ## The time between two verification runs, and the time one run gets.
 
   SourcedMapper = object
     mapper: AddressMapper
@@ -56,9 +69,19 @@ type
     peerInfo: PeerInfo
     addressMapper: AddressMapper
     networkInterfaceProvider: NetworkInterfaceProvider
+    verifier: Verifier
+    verifyInterval: Duration
+    verifyFut: Future[void]
     maxSize: int
     minCount: int
     started: bool
+
+method verify*(
+    self: Verifier, addresses: seq[MultiAddress]
+): Future[seq[AddrVerdict]] {.base, async: (raises: [CancelledError]).} =
+  ## One verdict per address the verifier concludes on. An address it leaves out
+  ## keeps its state. The base verifier concludes nothing.
+  @[]
 
 func isStarted*(self: AddressManager): bool =
   self.started
@@ -198,12 +221,18 @@ proc remove*(self: AddressManager, address: MultiAddress): bool {.discardable.} 
 func candidates*(self: AddressManager): seq[AddrCandidate] =
   toSeq(self.candidates.values)
 
+func confirmedAddrs*(self: AddressManager): seq[MultiAddress] =
+  ## The addresses a verifier confirmed. Empty while no verifier runs.
+  toSeq(self.candidates.values).filterIt(it.state == AddrState.Confirmed).mapIt(
+    it.address
+  )
+
+proc `verifier=`*(self: AddressManager, verifier: Verifier) =
+  ## The verifier is optional. Without one, every candidate stays `Unverified`.
+  self.verifier = verifier
+
 func notFromMappers(self: AddressManager, address: MultiAddress): bool =
   address notin self.chainAddrs
-
-func isAnnounceable(self: AddressManager, address: MultiAddress): bool =
-  # announced until a verifier proves it unreachable
-  self.candidates.getOrDefault(address).state != AddrState.Unreachable
 
 proc addMapper*(self: AddressManager, mapper: AddressMapper, source: AddrSource) =
   ## Each address this mapper adds becomes a candidate of `source`. `stop` drops
@@ -311,11 +340,12 @@ proc track(
 func announceSet(
     self: AddressManager, mappedAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
+  ## Every candidate. A verdict sets the state only, and it drops no address.
   var res = mappedAddrs
   for address in self.candidates.keys:
     if self.notFromMappers(address) and address notin res:
       res.add(address)
-  res.filterIt(self.isAnnounceable(it))
+  res
 
 func explicitAddrs(self: AddressManager): seq[MultiAddress] =
   if self.peerInfo.isNil():
@@ -359,11 +389,32 @@ proc resolveMapper(self: AddressManager): AddressMapper =
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     await self.resolve(listenAddrs)
 
+proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  if self.verifier.isNil() or self.candidates.len == 0:
+    return
+
+  # one run fits in one interval, so a slow verifier delays no other run
+  let verdicts =
+    try:
+      await self.verifier.verify(toSeq(self.candidates.keys)).wait(self.verifyInterval)
+    except AsyncTimeoutError:
+      debug "Verifier ran out of time", interval = self.verifyInterval
+      return
+
+  # update drops a verdict on an address which went away while the verifier ran
+  for verdict in verdicts:
+    self.update(verdict.address, verdict.state)
+
+proc verifyHeartbeat(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  heartbeat "AddressManager candidate verification", self.verifyInterval:
+    await self.verifyCandidates()
+
 proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
   ## With a `PeerInfo`, installs the manager's mapper as the first one it runs.
   if self.started:
     return
   self.started = true
+  self.verifyFut = self.verifyHeartbeat()
 
   if peerInfo.isNil():
     return
@@ -372,6 +423,9 @@ proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
 
 proc stop*(self: AddressManager) =
   self.started = false
+  if not self.verifyFut.isNil():
+    self.verifyFut.cancelSoon()
+    self.verifyFut = nil
   self.observations.setLen(0)
   self.candidates.clear()
   self.chainAddrs.clear()
@@ -391,6 +445,10 @@ proc new*(
 ): T =
   ## A threshold below one is raised to one: a minCount of zero would let a
   ## single peer decide the external address.
-  let manager = T(maxSize: max(config.maxSize, 1), minCount: max(config.minCount, 1))
+  let manager = T(
+    maxSize: max(config.maxSize, 1),
+    minCount: max(config.minCount, 1),
+    verifyInterval: max(config.verifyInterval, 1.milliseconds),
+  )
   manager.addressMapper = manager.resolveMapper()
   manager

@@ -110,8 +110,7 @@ proc insertPeer*(
   if addrs.len == 0:
     return false
   if not addressBook.hasIpDiversity(
-    table, peerInfo.peerId, addrs, disco.config.limits.maxPeersPerIp,
-    disco.config.limits.maxPeersPerIpv4Subnet, disco.config.limits.maxPeersPerIpv6Subnet,
+    table, peerInfo.peerId, addrs, disco.config.limits.diversityCaps()
   ):
     return false
 
