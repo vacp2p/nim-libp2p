@@ -302,7 +302,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       if slot.isNone:
         debug "Incoming connection limit reached", conn
         s.rejectedConnCloseFuts.trackFut(conn.close())
-        s.connManager.triggerTrimIfNeeded()
+        s.connManager.triggerTrim()
         if s.rejectedConnCloseFuts.len >= MaxRejectedConnectionCloses:
           discard await one(s.rejectedConnCloseFuts)
         continue
