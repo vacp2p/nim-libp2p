@@ -343,3 +343,67 @@ suite "Quic transport":
 
     expect QuicTransportAcceptStopped:
       discard await server.accept()
+
+  asyncTest "stream idle timeout resets only the idle stream":
+    let server = await createQuicTransport(
+      isServer = true, inTimeout = 2.seconds, outTimeout = 3.seconds
+    )
+    let client =
+      await createQuicTransport(inTimeout = 4.seconds, outTimeout = 100.milliseconds)
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    let clientMuxer = QuicMuxer.new(clientConn)
+    let serverMuxer = QuicMuxer.new(serverConn)
+    let inboundTimeout = newFuture[Duration]()
+
+    proc echo(stream: MuxedStream) {.async: (raises: []).} =
+      if not inboundTimeout.finished:
+        inboundTimeout.complete(stream.timeout)
+
+      try:
+        var data: array[1, byte]
+        while true:
+          let read = await stream.readOnce(addr data[0], data.len)
+          if read == 0:
+            break
+          await stream.write(@[data[0]])
+          if data[0] == 2:
+            break
+      except CancelledError, LPStreamError:
+        discard
+      finally:
+        await stream.close()
+
+    serverMuxer.streamHandler = echo
+    let serverHandle = serverMuxer.handle()
+
+    defer:
+      await clientMuxer.close()
+      await serverMuxer.close()
+      await allFutures(clientConn.close(), serverConn.close())
+      await client.stop()
+      await server.stop()
+      await serverHandle
+
+    let idleStream = await clientMuxer.newStream()
+    check idleStream.timeout == 100.milliseconds
+
+    for _ in 0 ..< 4:
+      await idleStream.write(@[byte 1])
+      await sleepAsync(60.milliseconds)
+      check not idleStream.closed
+
+    check (await inboundTimeout) == 2.seconds
+    check await idleStream.join().withTimeout(500.milliseconds)
+    check idleStream.wasResetLocally
+
+    # The stream timeout must not close the containing QUIC connection.
+    let activeStream = await clientMuxer.newStream()
+    await activeStream.write(@[byte 2])
+
+    var response: array[1, byte]
+    await activeStream.readExactly(addr response[0], response.len)
+    check response[0] == 2
+    await activeStream.close()

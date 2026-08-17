@@ -99,5 +99,3 @@ proc bridge*(
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
   libp2p_relay_bytes.inc(bytesSentFromSrcToDst.int64, labelValues = ["in"])
   libp2p_relay_bytes.inc(bytesSentFromDstToSrc.int64, labelValues = ["out"])
-  await futSrc.cancelAndWait()
-  await futDst.cancelAndWait()

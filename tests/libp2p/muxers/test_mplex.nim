@@ -190,6 +190,69 @@ suite "Mplex":
       await chann.close()
       await conn.close()
 
+    asyncTest "(connection down) - should read buffered data and EOF":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      let closeFut = chann.pushEof() # queue is full, so the marker waits
+      await conn.close()
+
+      var data = newSeq[byte](6)
+      await chann.readExactly(addr data[0], 6)
+      check string.fromBytes(data) == "Hello!"
+
+      var buf: array[1, byte]
+      check (await chann.readOnce(addr buf[0], 1)) == 0
+
+      await chann.close()
+      await closeFut
+
+    asyncTest "(connection down) - canceled EOF push should not stall reads":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      let eofFut = chann.pushEof() # blocks, queue is full
+      check not eofFut.finished()
+      await eofFut.cancelAndWait()
+
+      var data = newSeq[byte](6)
+      await chann.readExactly(addr data[0], 6)
+      check string.fromBytes(data) == "Hello!"
+
+      await conn.close()
+      var buf: array[1, byte]
+      expect LPStreamConnDownError:
+        discard await chann.readOnce(addr buf[0], 1).wait(100.millis)
+
+      await chann.reset()
+
+    asyncTest "(connection down) - should drain a partial read buffer":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      var prefix: array[3, byte]
+      await chann.readExactly(addr prefix[0], 3)
+      check string.fromBytes(prefix) == "Hel"
+
+      await conn.close() # 3 bytes left in readBuf
+
+      var remainder: array[4, byte]
+      check:
+        (await chann.readOnce(addr remainder[0], 4).wait(100.millis)) == 3
+        string.fromBytes(remainder[0 ..< 3]) == "lo!"
+
+      var buf: array[1, byte]
+      expect LPStreamConnDownError:
+        discard await chann.readOnce(addr buf[0], 1).wait(100.millis)
+
+      await chann.reset()
+
   suite "channel reset":
     asyncTest "channel should fail reading":
       let
