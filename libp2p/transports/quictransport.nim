@@ -43,6 +43,8 @@ type
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
     streams: HashSet[QuicStream]
+    inTimeout: Duration
+    outTimeout: Duration
     when defined(libp2p_agents_metrics):
       tracked: bool
 
@@ -58,6 +60,7 @@ proc new(
     stream: LsquicStream,
     dir: Direction,
     session: QuicSession,
+    timeout: Duration,
     oaddr: Opt[MultiAddress],
     laddr: Opt[MultiAddress],
     peerId: PeerId,
@@ -65,13 +68,16 @@ proc new(
   let quicstream = QuicStream(
     session: session,
     stream: stream,
-    timeout: 0.millis, # QUIC handles idle timeout at the transport layer
+    timeout: timeout,
     observedAddr: oaddr,
     localAddr: laddr,
     peerId: peerId,
   )
   quicstream.objName = "QuicStream"
   quicstream.dir = dir
+  quicstream.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
+    trace "Idle timeout expired, resetting QuicStream"
+    quicstream.reset()
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
@@ -126,6 +132,7 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytesLen.int64, labelValues = ["out"])
+    stream.activity = true
     when defined(libp2p_agents_metrics):
       stream.session.trackPeerIdentity()
       if stream.session.tracked:
@@ -188,8 +195,10 @@ proc getStream(
   of Direction.Out:
     stream = await session.connection.openStream()
 
+  let timeout = if direction == Direction.In: session.inTimeout else: session.outTimeout
   let qs = QuicStream.new(
-    stream, direction, session, session.observedAddr, session.localAddr, session.peerId
+    stream, direction, session, timeout, session.observedAddr, session.localAddr,
+    session.peerId,
   )
   when defined(libp2p_agents_metrics):
     qs.shortAgent = session.shortAgent
@@ -307,6 +316,8 @@ type QuicTransport* = ref object of Transport
   rng: Rng
   certGenerator: CertGenerator
   closeFuts: seq[Future[void]]
+  inTimeout: Duration
+  outTimeout: Duration
 
 type PeerIdCertificateVerifier = ref object of CertificateVerifier
   expectedPeerId: PeerId
@@ -366,6 +377,8 @@ proc new*(
     privateKey: PrivateKey,
     rng: Rng,
     connManager: ConnManager = nil,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): QuicTransport =
   doAssert not rng.isNil, "Rng is nil"
 
@@ -374,6 +387,8 @@ proc new*(
     privateKey: privateKey,
     rng: rng,
     certGenerator: defaultCertGenerator,
+    inTimeout: inTimeout,
+    outTimeout: outTimeout,
   )
   procCall Transport(self).initialize()
   self
@@ -385,6 +400,8 @@ proc new*(
     rng: Rng,
     certGenerator: CertGenerator,
     connManager: ConnManager = nil,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): QuicTransport =
   doAssert not rng.isNil, "Rng is nil"
 
@@ -393,6 +410,8 @@ proc new*(
     privateKey: privateKey,
     rng: rng,
     certGenerator: certGenerator,
+    inTimeout: inTimeout,
+    outTimeout: outTimeout,
   )
   procCall Transport(self).initialize()
   self
@@ -499,6 +518,8 @@ proc wrapConnection(
     connection: connection,
     observedAddr: Opt.some(observedAddr),
     localAddr: Opt.some(localAddr),
+    inTimeout: transport.inTimeout,
+    outTimeout: transport.outTimeout,
   )
   session.initStream()
 

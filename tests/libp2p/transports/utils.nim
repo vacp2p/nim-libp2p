@@ -78,6 +78,8 @@ proc createQuicTransport*(
     withInvalidCert: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     addresses: seq[MultiAddress] = @[QuicAutoAddress],
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:
@@ -87,9 +89,18 @@ proc createQuicTransport*(
 
   let trans =
     if withInvalidCert:
-      QuicTransport.new(Upgrade(), key, rng(), invalidCertGenerator)
+      QuicTransport.new(
+        Upgrade(),
+        key,
+        rng(),
+        invalidCertGenerator,
+        inTimeout = inTimeout,
+        outTimeout = outTimeout,
+      )
     else:
-      QuicTransport.new(Upgrade(), key, rng())
+      QuicTransport.new(
+        Upgrade(), key, rng(), inTimeout = inTimeout, outTimeout = outTimeout
+      )
 
   if isServer: # servers are started because they need to listen
     await trans.start(addresses)
