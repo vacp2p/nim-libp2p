@@ -9,13 +9,13 @@ import ./protocol
 import
   ./kademlia/[
     routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
-    ping,
+    ping, ip_diversity,
   ]
 import ./kademlia/[kademlia_metrics, netsize]
 
 export
   chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
-  provider, ping, kademlia_metrics, netsize
+  provider, ping, kademlia_metrics, netsize, ip_diversity
 
 logScope:
   topics = "kad-dht"
