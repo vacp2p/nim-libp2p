@@ -67,7 +67,6 @@ suite "Switch accept-loop failure handling":
     let (server, transport) = newStubAcceptSwitch(NilAlways)
     startAndDeferStop(@[server])
 
-    await sleepAsync(2 * AcceptRetryDelay + 50.millis)
     let delay = 2 * AcceptRetryDelay + 50.milliseconds
     let retries = (delay.inMilliseconds / AcceptRetryDelay.inMilliseconds).ceil
     await sleepAsync(delay)
