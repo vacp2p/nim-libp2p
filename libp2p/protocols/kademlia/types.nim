@@ -33,6 +33,9 @@ const
     ## Maximum sleep between liveness-loop iterations when no peer needs a
     ## probe. Bound so a newly replaceable peer is noticed without waiting
     ## for the next bucket-refresh tick.
+  DefaultFixLowPeersInterval* = 1.minutes ## How often to check the table size.
+  DefaultMinRoutingTableSize* = 10
+    ## Fewer peers than this triggers a re-seed. Zero turns the re-seed off.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -539,6 +542,8 @@ type KadDHTConfig* = object
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
   livenessIdleInterval*: chronos.Duration
+  fixLowPeersInterval*: chronos.Duration
+  minRoutingTableSize*: int
   retries*: int
   replication*: int
   alpha*: int
@@ -585,6 +590,8 @@ proc new*(
     usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
     livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
     livenessIdleInterval: chronos.Duration = DefaultLivenessIdleInterval,
+    fixLowPeersInterval: chronos.Duration = DefaultFixLowPeersInterval,
+    minRoutingTableSize: int = DefaultMinRoutingTableSize,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -642,6 +649,8 @@ proc new*(
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
     livenessIdleInterval: livenessIdleInterval,
+    fixLowPeersInterval: fixLowPeersInterval,
+    minRoutingTableSize: minRoutingTableSize,
     retries: retries,
     replication: replication,
     alpha: alpha,
@@ -673,6 +682,7 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
   livenessLoop*: Future[void]
+  fixLowPeersLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   recordExpirationLoop*: Future[void]
@@ -683,6 +693,8 @@ type KadDHT* = ref object of LPProtocol
   provideTasks*: seq[Future[void]]
     ## ADD_PROVIDER RPCs still running after an early ``optimisticProvide``.
   config*: KadDHTConfig
+  bootstrapNodes*: seq[PeerInfo]
+    ## Configured seed peers, kept for the re-seed in ``fixLowPeers``.
   msgSender*: MessageSender
     ## Reuses one outbound stream per peer across every RPC sent to it.
   rpcSem*: AsyncSemaphore

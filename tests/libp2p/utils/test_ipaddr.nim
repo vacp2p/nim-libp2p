@@ -77,6 +77,35 @@ suite "IpAddr Utils":
     check not isPrivate("2606:4700::1")
     check isPublic("2606:4700::1")
 
+  test "isGlobalIP accepts a public address of either family":
+    check isGlobalIP(parseIpAddress("1.1.1.1"))
+    check isGlobalIP(parseIpAddress("185.199.108.153"))
+    check isGlobalIP(parseIpAddress("2606:4700::1111"))
+    check isGlobalIP(parseIpAddress("2a00:1450:4001:800::200e"))
+
+  test "isGlobalIP rejects a non-global address of either family":
+    check not isGlobalIP(parseIpAddress("192.168.1.100"))
+    check not isGlobalIP(parseIpAddress("10.0.0.25"))
+    check not isGlobalIP(parseIpAddress("127.0.0.1"))
+    check not isGlobalIP(parseIpAddress("169.254.12.34"))
+    # ULA (fc00::/7)
+    check not isGlobalIP(parseIpAddress("fd00::1"))
+    # link-local (fe80::/10)
+    check not isGlobalIP(parseIpAddress("fe80::1"))
+    check not isGlobalIP(parseIpAddress("::1"))
+    check not isGlobalIP(parseIpAddress("::"))
+
+  test "firstGlobalIP picks the first global address":
+    let
+      privateV4 = parseIpAddress("192.168.1.100")
+      publicV4 = parseIpAddress("1.1.1.1")
+      publicV6 = parseIpAddress("2606:4700::1111")
+      linkLocalV6 = parseIpAddress("fe80::1")
+    check firstGlobalIP(newSeq[IpAddress]()) == Opt.none(IpAddress)
+    check firstGlobalIP([privateV4, linkLocalV6]) == Opt.none(IpAddress)
+    check firstGlobalIP([privateV4, publicV6]) == Opt.some(publicV6)
+    check firstGlobalIP([publicV4, publicV6]) == Opt.some(publicV4)
+
   test "isIPv4, isIPv6":
     let ipv4 = parseIpAddress("1.2.3.4")
     let ipv6 = parseIpAddress("2001:db8::1")

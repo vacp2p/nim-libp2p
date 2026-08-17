@@ -148,8 +148,7 @@ suite "AutoTLS DNS records":
         resolver, ipAddress, BaseDomain, KeyAuth, retries = 3, retryTime = 0.seconds
       )
 
-  # TODO: vacp2p/nim-libp2p#2711
-  asyncTest "an IPv6 address is queried in its colon form":
+  asyncTest "an IPv6 address is queried with its colons dashed":
     discard await checkDNSRecords(
       resolver,
       parseIpAddress("2001:db8::1"),
@@ -159,5 +158,18 @@ suite "AutoTLS DNS records":
       retryTime = 0.seconds,
     )
 
-    # Colons are not legal in a DNS label, should use an IPv6 form or reject the address.
-    check resolver.ipQueries == @["2001:db8::1.k51qzi5uqu5dhkzk3z.libp2p.direct"]
+    check resolver.ipQueries == @["2001-db8--1.k51qzi5uqu5dhkzk3z.libp2p.direct"]
+
+  asyncTest "a leading or trailing colon becomes a 0 in the queried name":
+    for ip in ["::1", "2001:db8::", "::"]:
+      discard await checkDNSRecords(
+        resolver,
+        parseIpAddress(ip),
+        BaseDomain,
+        KeyAuth,
+        retries = 0,
+        retryTime = 0.seconds,
+      )
+
+    check resolver.ipQueries ==
+      @["0--1." & BaseDomain, "2001-db8--0." & BaseDomain, "0--0." & BaseDomain]
