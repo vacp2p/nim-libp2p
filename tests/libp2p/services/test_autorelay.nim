@@ -6,6 +6,7 @@
 import chronos
 import
   ../../../libp2p/[
+    address_manager,
     builders,
     switch,
     crypto/crypto,
@@ -87,6 +88,49 @@ suite "Autorelay":
       addresses == buildRelayMA(switchRelay, switchClient)
     for address in addresses:
       check address in switchClient.peerInfo.addrs
+
+    await allFutures(switchClient.stop(), switchRelay.stop())
+
+  asyncTest "a confirmed direct address withdraws only the same-family relay address":
+    switchRelay = createSwitch(Relay.new())
+    relayClient = RelayClient.new()
+    let fut = newFuture[void]()
+    proc checkMA(addresses: seq[MultiAddress]) =
+      if not fut.finished:
+        fut.complete()
+
+    autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
+    switchClient = createSwitch(relayClient, autorelay)
+    await allFutures(switchClient.start(), switchRelay.start())
+    await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    await fut.wait(1.seconds)
+
+    # the relay listens on IPv4, so its circuit addresses are the IPv4 family
+    let
+      relayMAs = buildRelayMA(switchRelay, switchClient)
+      manager = switchClient.addressManager
+      directIp6 = ma("/ip6/2001:db8::1/tcp/1")
+      directIp4 = ma("/ip4/1.2.3.4/tcp/1")
+
+    for relayMA in relayMAs:
+      check relayMA in switchClient.peerInfo.addrs
+
+    manager.add(directIp6, AddrSource.Upnp)
+    manager.update(directIp6, AddrState.Confirmed)
+    await switchClient.peerInfo.update()
+    for relayMA in relayMAs:
+      check relayMA in switchClient.peerInfo.addrs
+
+    manager.add(directIp4, AddrSource.Upnp)
+    manager.update(directIp4, AddrState.Confirmed)
+    await switchClient.peerInfo.update()
+    for relayMA in relayMAs:
+      check relayMA notin switchClient.peerInfo.addrs
+
+    manager.update(directIp4, AddrState.Unreachable)
+    await switchClient.peerInfo.update()
+    for relayMA in relayMAs:
+      check relayMA in switchClient.peerInfo.addrs
 
     await allFutures(switchClient.stop(), switchRelay.stop())
 

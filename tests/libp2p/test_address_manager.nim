@@ -32,12 +32,15 @@ proc makeVerifyingManager(verifier: Verifier = nil): AddressManager =
   manager
 
 proc makePeerInfo(
-    listenAddrs: seq[MultiAddress] = @[], announcedAddrs: seq[MultiAddress] = @[]
+    listenAddrs: seq[MultiAddress] = @[],
+    announcedAddrs: seq[MultiAddress] = @[],
+    addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
 ): PeerInfo {.raises: [LPError].} =
   PeerInfo.new(
     PrivateKey.random(PKScheme.Ed25519, rng()).get(),
     listenAddrs,
     announcedAddrs = announcedAddrs,
+    addressPolicy = addressPolicy,
   )
 
 proc constantMapper(addrs: seq[MultiAddress]): AddressMapper =
@@ -451,6 +454,88 @@ suite "AddressManager verification":
       verifier.asked.len >= 1
 
     check verifier.asked.allIt(it == @[directAddr])
+
+    manager.stop()
+
+  asyncTest "the address policy keeps a banned candidate out of the dial requests":
+    let
+      privateAddr = ma("/ip4/192.168.0.2/tcp/1")
+      publicAddr = ma("/ip4/8.8.8.8/tcp/1")
+      verifier = makeStubVerifier()
+      manager = AddressManager.new(AddressManagerConfig(verifyInterval: VerifyInterval))
+      peerInfo = makePeerInfo(addressPolicy = publicRoutableAddressPolicy)
+
+    manager.verifier = verifier
+    manager.start(peerInfo)
+    manager.add(privateAddr, AddrSource.Listen)
+    manager.add(publicAddr, AddrSource.Listen)
+
+    checkUntilTimeout:
+      verifier.asked.len >= 1
+    check verifier.asked.allIt(it == @[publicAddr])
+
+    manager.stop()
+
+  asyncTest "a refuted guess is not asked again on later runs":
+    let
+      directAddr = ma("/ip4/5.6.7.8/tcp/1")
+      observed = ma("/ip4/8.8.8.8/tcp/9")
+      verifier = makeStubVerifier(
+        @[AddrVerdict(address: observed, state: AddrState.Unreachable)]
+      )
+      manager = AddressManager.new(
+        AddressManagerConfig(verifyInterval: VerifyInterval, minCount: 1)
+      )
+      peerInfo = makePeerInfo()
+
+    manager.verifier = verifier
+    manager.deriveIdentifyCandidates = true
+    manager.start(peerInfo)
+    manager.add(directAddr, AddrSource.Listen)
+    check manager.addObservation(observed)
+
+    checkUntilTimeout:
+      verifier.asked.len >= 3
+    check verifier.asked.filterIt(observed in it).len == 1
+
+    manager.stop()
+
+  asyncTest "newer refutations evict the oldest refuted guess, which becomes eligible":
+    let
+      firstIp4 = ma("/ip4/8.8.8.8/tcp/1")
+      secondIp4 = ma("/ip4/9.9.9.9/tcp/1")
+      ip6 = ma("/ip6/2001:db8::1/tcp/1")
+      verifier = makeStubVerifier(
+        @[
+          AddrVerdict(address: firstIp4, state: AddrState.Unreachable),
+          AddrVerdict(address: secondIp4, state: AddrState.Unreachable),
+          AddrVerdict(address: ip6, state: AddrState.Unreachable),
+        ]
+      )
+      manager = AddressManager.new(
+        AddressManagerConfig(verifyInterval: VerifyInterval, maxSize: 2, minCount: 1)
+      )
+      peerInfo = makePeerInfo()
+
+    manager.verifier = verifier
+    manager.deriveIdentifyCandidates = true
+    manager.start(peerInfo)
+
+    check manager.addObservation(firstIp4)
+    checkUntilTimeout:
+      verifier.asked.filterIt(firstIp4 in it).len == 1
+
+    # two newer refutations fill the ring of two and evict the first guess
+    check manager.addObservation(secondIp4)
+    check manager.addObservation(ip6)
+    checkUntilTimeout:
+      verifier.asked.anyIt(secondIp4 in it)
+      verifier.asked.anyIt(ip6 in it)
+
+    # the evicted guess becomes a candidate again on a new observation
+    check manager.addObservation(firstIp4)
+    checkUntilTimeout:
+      verifier.asked.filterIt(firstIp4 in it).len >= 2
 
     manager.stop()
 

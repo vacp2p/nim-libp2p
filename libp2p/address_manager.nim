@@ -482,13 +482,19 @@ proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]
   if not self.onReachabilityChange.isNil():
     await self.onReachabilityChange(summary)
 
+proc allowedByPolicy(self: AddressManager, address: MultiAddress): bool =
+  ## The policy gates the dial requests too: a banned address never reaches a verifier.
+  self.peerInfo.isNil() or self.peerInfo.addressPolicy.accepts(address)
+
 proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
   if self.verifier.isNil():
     return
   self.addIdentifyCandidates()
 
   # a relayed candidate stays unverified: no AutoNAT peer dials a circuit address back
-  let addresses = toSeq(self.candidates.keys).filterIt(not it.isRelayed())
+  let addresses = toSeq(self.candidates.keys).filterIt(
+      not it.isRelayed() and self.allowedByPolicy(it)
+    )
   if addresses.len == 0:
     return
 
