@@ -3,6 +3,7 @@
 
 import ./service, ./acme/client, ./broker
 import ../crypto/crypto, ../crypto/rsa, websock/websock
+from times import now
 
 type MockAutotlsService* = ref object of AutotlsService
   mockedCert*: TLSCertificate
@@ -27,7 +28,7 @@ proc new*(
 method getCertWhenReady*(
     self: MockAutotlsService
 ): Future[AutotlsCert] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  AutotlsCert.new(self.mockedCert, self.mockedKey, Moment.now)
+  AutotlsCert.new(self.mockedCert, self.mockedKey, now())
 
 method setup*(self: MockAutotlsService) {.base, async.} =
   self.running.fire()

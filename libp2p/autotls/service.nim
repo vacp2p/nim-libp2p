@@ -7,6 +7,7 @@ import sequtils
 import bearssl/pem
 import chronos, chronicles, net, results, uri
 import chronos/streams/tlsstream
+from times import DateTime, now, toTime, toUnix
 
 import
   ./acme/client,
@@ -40,7 +41,7 @@ const
 type AutotlsCert* = ref object
   cert*: TLSCertificate
   privkey*: TLSPrivateKey
-  expiry*: Moment
+  expiry*: DateTime
 
 type AutotlsConfig* = object
   acmeServerURL*: Uri
@@ -74,7 +75,7 @@ proc new*(
     T: typedesc[AutotlsCert],
     cert: TLSCertificate,
     privkey: TLSPrivateKey,
-    expiry: Moment,
+    expiry: DateTime,
 ): T =
   T(cert: cert, privkey: privkey, expiry: expiry)
 
@@ -204,7 +205,7 @@ method issueCertificate(
       AutotlsCert.new(
         TLSCertificate.init(certificate.rawCertificate),
         TLSPrivateKey.init(derPrivKey.pemEncode("PRIVATE KEY")),
-        asMoment(certificate.certificateExpiry),
+        certificate.certificateExpiry,
       )
     except TLSStreamProtocolError as exc:
       raise newException(
@@ -248,12 +249,11 @@ method start*(
         if self.cert.isNone():
           await self.tryIssueCertificate()
 
-        # AutotlsService will renew the cert 1h before it expires
         let cert = self.cert.valueOr:
           error "Could not issue certificate"
           return
-        let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
-        if waitTime <= self.config.renewBufferTime:
+        let timeUntilExpiry = seconds(cert.expiry.toTime.toUnix - now().toTime.toUnix)
+        if timeUntilExpiry <= self.config.renewBufferTime:
           await self.tryIssueCertificate()
     except CancelledError:
       trace "Autotls management cancelled"
