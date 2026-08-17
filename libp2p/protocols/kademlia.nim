@@ -287,7 +287,7 @@ proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   await kad.refreshTable(kad.rtable, forceRefresh = true)
 
-proc maintainMinPeers(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+proc maintainMinPeers(kad: KadDHT) {.async.} =
   heartbeat "Checking routing table size",
     kad.config.fixLowPeersInterval, sleepFirst = true:
     let fix = kad.fixLowPeers()
