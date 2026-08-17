@@ -346,6 +346,20 @@ suite "Connection Manager":
 
     await connMngr.close()
 
+  asyncTest "try incoming connection slot":
+    let connMngr = newMaxTotal(1)
+
+    let slot = connMngr.tryGetIncomingSlot()
+    check slot.isSome
+    check connMngr.tryGetIncomingSlot().isNone
+
+    slot.get().release()
+    let reacquired = connMngr.tryGetIncomingSlot()
+    check reacquired.isSome
+    reacquired.get().release()
+
+    await connMngr.close()
+
   asyncTest "track total outgoing connection limits":
     let connMngr = newMaxTotal(3)
 

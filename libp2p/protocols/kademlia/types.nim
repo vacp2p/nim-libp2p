@@ -33,6 +33,9 @@ const
     ## Maximum sleep between liveness-loop iterations when no peer needs a
     ## probe. Bound so a newly replaceable peer is noticed without waiting
     ## for the next bucket-refresh tick.
+  DefaultFixLowPeersInterval* = 1.minutes ## How often to check the table size.
+  DefaultMinRoutingTableSize* = 10
+    ## Fewer peers than this triggers a re-seed. Zero turns the re-seed off.
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -69,6 +72,10 @@ const
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
     ## upper bound on Kademlia routing-table peers sharing one IP subnet
+  DefaultMaxPeersPerIpPerBucket* = 2
+    ## upper bound on peers of one bucket sharing one exact IP
+  DefaultMaxPeersPerSubnetPerBucket* = 3
+    ## upper bound on peers of one bucket sharing one IP subnet
 
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
@@ -461,6 +468,48 @@ type KadDHTLimits* = object
     ## Maximum number of Kademlia routing-table peers sharing one IPv4 /24.
   maxPeersPerIpv6Subnet*: int
     ## Maximum number of Kademlia routing-table peers sharing one IPv6 /64.
+  maxPeersPerIpPerBucket*: int
+    ## Peers of one bucket sharing one exact IP; 0 or less applies the table cap.
+  maxPeersPerIpv4SubnetPerBucket*: int
+    ## Peers of one bucket sharing one IPv4 /24; 0 or less applies the table cap.
+  maxPeersPerIpv6SubnetPerBucket*: int
+    ## Peers of one bucket sharing one IPv6 /64; 0 or less applies the table cap.
+
+type
+  DiversityCap* = object
+    ## Cap on the peers of one IP group, at both scopes the filter enforces.
+    table*: int
+    bucket*: int
+
+  DiversityCaps* = object
+    perIp*: DiversityCap
+    perIpv4Subnet*: DiversityCap
+    perIpv6Subnet*: DiversityCap
+
+func defaultDiversityCaps*(): DiversityCaps =
+  DiversityCaps(
+    perIp:
+      DiversityCap(table: DefaultMaxPeersPerIp, bucket: DefaultMaxPeersPerIpPerBucket),
+    perIpv4Subnet: DiversityCap(
+      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
+    ),
+    perIpv6Subnet: DiversityCap(
+      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
+    ),
+  )
+
+func diversityCap(table, bucket: int): DiversityCap =
+  ## An unset (non-positive) bucket cap leaves the table cap as the only limit.
+  DiversityCap(table: table, bucket: if bucket > 0: bucket else: table)
+
+func diversityCaps*(limits: KadDHTLimits): DiversityCaps =
+  DiversityCaps(
+    perIp: diversityCap(limits.maxPeersPerIp, limits.maxPeersPerIpPerBucket),
+    perIpv4Subnet:
+      diversityCap(limits.maxPeersPerIpv4Subnet, limits.maxPeersPerIpv4SubnetPerBucket),
+    perIpv6Subnet:
+      diversityCap(limits.maxPeersPerIpv6Subnet, limits.maxPeersPerIpv6SubnetPerBucket),
+  )
 
 proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises: [].} =
   ## Builds a limits object whose shortlist/received caps and providers-per-key
@@ -479,6 +528,9 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
+    maxPeersPerIpPerBucket: DefaultMaxPeersPerIpPerBucket,
+    maxPeersPerIpv4SubnetPerBucket: DefaultMaxPeersPerSubnetPerBucket,
+    maxPeersPerIpv6SubnetPerBucket: DefaultMaxPeersPerSubnetPerBucket,
   )
 
 type KadDHTConfig* = object
@@ -490,6 +542,8 @@ type KadDHTConfig* = object
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
   livenessIdleInterval*: chronos.Duration
+  fixLowPeersInterval*: chronos.Duration
+  minRoutingTableSize*: int
   retries*: int
   replication*: int
   alpha*: int
@@ -536,6 +590,8 @@ proc new*(
     usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
     livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
     livenessIdleInterval: chronos.Duration = DefaultLivenessIdleInterval,
+    fixLowPeersInterval: chronos.Duration = DefaultFixLowPeersInterval,
+    minRoutingTableSize: int = DefaultMinRoutingTableSize,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -593,6 +649,8 @@ proc new*(
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
     livenessIdleInterval: livenessIdleInterval,
+    fixLowPeersInterval: fixLowPeersInterval,
+    minRoutingTableSize: minRoutingTableSize,
     retries: retries,
     replication: replication,
     alpha: alpha,
@@ -624,6 +682,7 @@ type KadDHT* = ref object of LPProtocol
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
   livenessLoop*: Future[void]
+  fixLowPeersLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   recordExpirationLoop*: Future[void]
@@ -634,6 +693,8 @@ type KadDHT* = ref object of LPProtocol
   provideTasks*: seq[Future[void]]
     ## ADD_PROVIDER RPCs still running after an early ``optimisticProvide``.
   config*: KadDHTConfig
+  bootstrapNodes*: seq[PeerInfo]
+    ## Configured seed peers, kept for the re-seed in ``fixLowPeers``.
   msgSender*: MessageSender
     ## Reuses one outbound stream per peer across every RPC sent to it.
   rpcSem*: AsyncSemaphore

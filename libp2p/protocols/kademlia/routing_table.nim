@@ -86,6 +86,12 @@ func nPeersForCpl*(rtable: RoutingTable, cpl: int): int =
     count += bucket.peers.countIt(rtable.commonPrefixLen(it) == cpl)
   count
 
+func peerCount*(rtable: RoutingTable): int =
+  var count = 0
+  for bucket in rtable.buckets:
+    count += bucket.peers.len
+  count
+
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   let i = bucket.peers.find(nodeId)
   if i < 0:

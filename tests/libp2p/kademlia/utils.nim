@@ -74,6 +74,8 @@ proc testKadConfig*(
     republishRegionBits: Opt[int] = Opt.none(int),
     livenessGracePeriod: Duration = DefaultLivenessGracePeriod,
     livenessIdleInterval: Duration = DefaultLivenessIdleInterval,
+    fixLowPeersInterval: Duration = DefaultFixLowPeersInterval,
+    minRoutingTableSize: int = DefaultMinRoutingTableSize,
     disableBootstrapping: bool = false,
 ): KadDHTConfig =
   KadDHTConfig.new(
@@ -93,6 +95,8 @@ proc testKadConfig*(
     republishRegionBits = republishRegionBits,
     livenessGracePeriod = livenessGracePeriod,
     livenessIdleInterval = livenessIdleInterval,
+    fixLowPeersInterval = fixLowPeersInterval,
+    minRoutingTableSize = minRoutingTableSize,
     disableBootstrapping = disableBootstrapping,
   )
 

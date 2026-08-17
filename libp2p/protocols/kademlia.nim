@@ -9,13 +9,13 @@ import ./protocol
 import
   ./kademlia/[
     routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
-    ping,
+    ping, ip_diversity,
   ]
 import ./kademlia/[kademlia_metrics, netsize]
 
 export
   chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
-  provider, ping, kademlia_metrics, netsize
+  provider, ping, kademlia_metrics, netsize, ip_diversity
 
 logScope:
   topics = "kad-dht"
@@ -270,6 +270,43 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     if not await refresh.withTimeout(kad.config.bucketRefreshTime):
       await noCancel refresh.cancelAndWait()
 
+proc connectedPeerInfos(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
+  ## Currently connected peers that we know an address for.
+  let addressBook = kad.switch.peerStore[AddressBook]
+  var infos: seq[PeerInfo]
+  for peerId in kad.switch.connectedPeers():
+    let addrs = addressBook[peerId]
+    if addrs.len == 0:
+      continue
+    infos.add(PeerInfo(peerId: peerId, addrs: addrs))
+  infos
+
+proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  ## Re-seed a table that shrank below ``config.minRoutingTableSize``.
+  if kad.stopping or kad.config.disableBootstrapping:
+    return
+
+  let count = kad.rtable.peerCount()
+  if count >= kad.config.minRoutingTableSize:
+    return
+
+  debug "Routing table below minimum, re-seeding",
+    peers = count, minimum = kad.config.minRoutingTableSize
+  kad_routing_table_reseeds.inc()
+
+  kad.admitPeers(kad.rtable, kad.connectedPeerInfos())
+  # Seed the trusted nodes too: the probes above only land after this pass.
+  kad.updatePeers(kad.bootstrapNodes)
+
+  await kad.refreshTable(kad.rtable, forceRefresh = true)
+
+proc maintainMinPeers(kad: KadDHT) {.async.} =
+  heartbeat "Checking routing table size",
+    kad.config.fixLowPeersInterval, sleepFirst = true:
+    let fix = kad.fixLowPeers()
+    if not await fix.withTimeout(kad.config.fixLowPeersInterval):
+      await noCancel fix.cancelAndWait()
+
 proc initKadBase*(
     kad: KadDHT,
     switch: Switch,
@@ -277,8 +314,9 @@ proc initKadBase*(
     rng: Rng,
     isServer: bool,
     codec: string,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ) {.raises: [].} =
-  ## Set the shared fields in one place, so a new base field cannot miss a constructor.
+  ## Set the shared fields and seed the table, so a constructor cannot miss one.
   kad.rng = rng
   kad.switch = switch
   kad.rtable = RoutingTable.new(
@@ -299,6 +337,8 @@ proc initKadBase*(
   kad.isServer = isServer
   kad.codec = codec
   kad.msgSender = MessageSender.new(switch, codec, MaxMsgSize)
+  kad.bootstrapNodes = bootstrapNodes.toPeerInfos()
+  kad.updatePeers(kad.bootstrapNodes)
 
 # K instead of T to avoid clashing with the T type param in withValue[T] when
 # called inside a withValue block, which causes a compiler error under --lineDir:on
@@ -312,10 +352,7 @@ proc new*(
     codec: string = KadCodec,
 ): K {.raises: [].} =
   let kad = K()
-  kad.initKadBase(switch, config, rng, isServer, codec)
-
-  # Fill up buckets with initial bootstrap nodes
-  kad.updatePeers(bootstrapNodes)
+  kad.initKadBase(switch, config, rng, isServer, codec, bootstrapNodes)
 
   kad.handler = proc(
       stream: Stream, proto: string
@@ -406,6 +443,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.livenessLoop = kad.maintainLiveness()
+  kad.fixLowPeersLoop = kad.maintainMinPeers()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
   kad.recordExpirationLoop = kad.manageExpiredRecords()
@@ -426,12 +464,14 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   await noCancel allFutures(
     kad.maintenanceLoop.cancelAndWait(),
     kad.livenessLoop.cancelAndWait(),
+    kad.fixLowPeersLoop.cancelAndWait(),
     kad.republishLoop.cancelAndWait(),
     kad.expiredLoop.cancelAndWait(),
     kad.recordExpirationLoop.cancelAndWait(),
   )
   kad.maintenanceLoop = nil
   kad.livenessLoop = nil
+  kad.fixLowPeersLoop = nil
   kad.republishLoop = nil
   kad.expiredLoop = nil
   kad.recordExpirationLoop = nil
