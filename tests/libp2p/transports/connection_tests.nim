@@ -145,7 +145,11 @@ template connectionTransportTest*(
         expect LPStreamEOFError:
           await conn.readExactly(addr buffer[0], 1)
 
-        expect LPStreamEOFError:
+        if isWsTransport(server.addrs[0]):
+          # WS throws on write after EOF
+          expect LPStreamEOFError:
+            await conn.write(buffer)
+        else:
           await conn.write(buffer)
 
       let server = transportProvider()
@@ -155,3 +159,42 @@ template connectionTransportTest*(
       await runClient(server)
       await serverFut
       await server.stop()
+
+    asyncTest "write after remote half-close":
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+
+      let server = transportProvider()
+      await server.start(ma)
+      let acceptFut = server.accept()
+      let client = transportProvider()
+      let clientConn = await client.dial(server.addrs[0])
+      let serverConn = await acceptFut
+      defer:
+        await clientConn.close()
+        await serverConn.close()
+        await client.stop()
+        await server.stop()
+
+      if isWsTransport(server.addrs[0]):
+        # WebSocket has no half-close: closeWrite fully closes the session.
+        # Read concurrently so the WS close handshake completes, then the read
+        # fails with EOF and subsequent writes also fail with EOF.
+        var wb: byte
+        let readFut = clientConn.readExactly(addr wb, 1)
+        await serverConn.closeWrite()
+        expect LPStreamEOFError:
+          await readFut
+        expect LPStreamEOFError:
+          await clientConn.write(@[1'u8])
+        return
+
+      await serverConn.closeWrite()
+
+      var b: byte
+      expect LPStreamEOFError:
+        await clientConn.readExactly(addr b, 1)
+
+      # Remote EOF only closes our read half. We still can write
+      await clientConn.write(@[1'u8])
+      await serverConn.readExactly(addr b, 1)
+      check b == 1

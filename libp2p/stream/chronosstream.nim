@@ -141,11 +141,6 @@ method write*(
     let fut = newFuture[void]("chronosstream.write.closed")
     fut.fail(newLPStreamClosedError())
     return fut
-  if s.atEof:
-    let fut = newFuture[void]("chronosstream.write.eof")
-    fut.fail(newLPStreamEOFError())
-    return fut
-
   s.completeWrite(s.client.write(msg), msgLen)
 
 method closed*(s: ChronosStream): bool =
