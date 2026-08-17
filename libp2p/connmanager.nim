@@ -445,7 +445,7 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
     trace "connection not found", peerId
   return mux
 
-proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
+proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].}
 
 proc triggerTrimAfter(
     c: ConnManager, fut: Future[void].Raising([CancelledError])
@@ -455,8 +455,7 @@ proc triggerTrimAfter(
       await fut
   except CancelledError:
     return
-  if c.watermark.isSome and c.muxerStore.countPeers() > c.watermark.get().highWater:
-    c.triggerTrim()
+  c.triggerTrim()
 
 proc storeMuxer*(
     c: ConnManager, muxer: Muxer
@@ -534,6 +533,11 @@ proc getIncomingSlot*(
   if c.inSema != nil:
     await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
+
+proc tryGetIncomingSlot*(c: ConnManager): Opt[ConnectionSlot] =
+  if c.inSema != nil and not c.inSema.tryAcquire():
+    return Opt.none(ConnectionSlot)
+  Opt.some(ConnectionSlot(connManager: c, direction: In))
 
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
@@ -772,13 +776,15 @@ proc trimConnections(c: ConnManager) {.async: (raises: []).} =
 
   c.lastTrim = Opt.some(Moment.now())
 
-proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
+proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].} =
   ## Schedules a trim cycle if none is running and the silence period has elapsed.
   if not c.trimFut.isNil and not c.trimFut.finished:
     # trim is ongoing
     return
 
   c.watermark.withValue(wm):
+    if c.muxerStore.countPeers() <= wm.highWater:
+      return
     c.lastTrim.withValue(lastTrim):
       if Moment.now() - lastTrim < wm.silencePeriod:
         return

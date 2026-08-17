@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import net, chronicles, strutils
+import net, chronicles, strutils, results
+import chronos
 
-import ../switch, ../multiaddress, ../multicodec
+import ../multiaddress, ../multicodec
+
+const RouteProbes = [parseIpAddress("8.8.8.8"), parseIpAddress("2001:4860:4860::8888")]
 
 proc isIPv4*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv4
@@ -29,27 +32,38 @@ proc isPublic*(ip: string): bool {.raises: [].} =
 proc isPublic*(ip: IpAddress): bool {.raises: [].} =
   isPublic($ip)
 
-proc hasPublicIPAddress*(): bool {.raises: [].} =
-  let ip =
-    try:
-      getPrimaryIPAddr()
-    except CatchableError as e:
-      error "Unable to get primary ip address", description = e.msg
-      return false
-    except Exception as e:
-      error "Unable to get primary ip address", description = e.msg
-      return false
-  debug "Primary IP address", ip = ip, isIPv4 = ip.isIPv4(), isPublic = ip.isPublic()
+proc isGlobalIP*(ip: IpAddress): bool {.raises: [].} =
+  ## Unlike ``isPublic``, this is family-aware and also rejects private IPv6.
+  initTAddress(ip, Port(0)).isGlobal()
 
-  return ip.isIPv4() and ip.isPublic()
-
-proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
-  if not hasPublicIPAddress():
-    raise newException(ValueError, "Host does not have a public IPv4 address")
+proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
+  ## Source address the routing table picks for ``probe``. No traffic is sent.
   try:
-    return getPrimaryIPAddr()
-  except Exception as e:
-    raise newException(OSError, e.msg)
+    Opt.some(getPrimaryIPAddr(probe))
+  except CatchableError as e:
+    debug "Unable to get primary ip address", probe, description = e.msg
+    Opt.none(IpAddress)
+  except Defect as e:
+    raise e
+  except Exception as e: # on windows getPrimaryIPAddr has untracked effects
+    debug "Unable to get primary ip address", probe, description = e.msg
+    Opt.none(IpAddress)
+
+func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =
+  for ip in candidates:
+    if ip.isGlobalIP():
+      return Opt.some(ip)
+  Opt.none(IpAddress)
+
+proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
+  ## Public address of the host, IPv4 first. A v6-only host reaches the v6 probe only.
+  var candidates: seq[IpAddress]
+  for probe in RouteProbes:
+    let ip = primaryIPAddrTo(probe).valueOr:
+      continue
+    debug "Primary IP address", ip, global = ip.isGlobalIP()
+    candidates.add(ip)
+  firstGlobalIP(candidates)
 
 proc ipAddrMatches*(
     lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true

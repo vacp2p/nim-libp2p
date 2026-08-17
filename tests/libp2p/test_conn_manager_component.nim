@@ -399,11 +399,10 @@ suite "Connection Manager Watermark/Scoring Component":
 
     # both guards run at once: the watermark trims to lowWater, the semaphore tracks the cap
     # the trimmed connections release their slots back to the semaphore
-    # the accept loop keeps one slot pre-acquired for the next incoming dial
-    # so the available inbound slots settle at cap - lowWater - 1
+    # the accept loop does not reserve a slot before a connection arrives
     checkUntilTimeout:
       node.peerCount == lowWater
-      node.connManager.availableSlots(Direction.In) == maxConnections - lowWater - 1
+      node.connManager.availableSlots(Direction.In) == maxConnections - lowWater
 
   asyncTest "hard cap rejects new connections when the trim cannot free slots":
     # every peer is protected, so the trim has nothing to prune
@@ -435,6 +434,35 @@ suite "Connection Manager Watermark/Scoring Component":
     check not (await node.connManager.getIncomingSlot().withTimeout(100.millis))
     expect TooManyConnectionsError:
       discard node.connManager.getOutgoingSlot()
+
+  asyncTest "cap rejection retries watermark trimming after grace":
+    const
+      lowWater = 1
+      highWater = 2
+      maxConnections = 3
+      gracePeriod = 1.seconds
+    let node = newWatermarkSwitch(
+      lowWater, highWater, gracePeriod = gracePeriod, maxConnections = maxConnections
+    )
+    let peers = newSwitches(maxConnections + 1)
+    let all = @[node] & peers
+
+    startAndDeferStop(all)
+
+    for peer in peers[0 ..< maxConnections]:
+      await connect(peer, node)
+
+    checkUntilTimeout:
+      node.peerCount == maxConnections
+      node.connManager.availableSlots(Direction.In) == 0
+
+    await sleepAsync(gracePeriod)
+    let rejectedDial = peers[^1].connect(node.peerInfo.peerId, node.peerInfo.addrs)
+    defer:
+      await rejectedDial.cancelAndWait()
+
+    checkUntilTimeout:
+      node.peerCount == lowWater
 
   asyncTest "dial fails when the trim prunes the new connection":
     # reaching lowWater can force the trim to drop the dialing peer's own freshly stored connection

@@ -790,11 +790,8 @@ suite "Switch":
     switches.add(switchFail)
     await switchFail.start()
 
-    check not (
-      await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs).withTimeout(
-        1000.millis
-      )
-    )
+    expect DialFailedError:
+      await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs).wait(10.seconds)
 
     await allFuturesRaising(switches.mapIt(it.stop()))
 
@@ -846,11 +843,8 @@ suite "Switch":
     switches.add(switchFail)
     await switchFail.start()
 
-    check not (
-      await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs).withTimeout(
-        1000.millis
-      )
-    )
+    expect DialFailedError:
+      await switchFail.connect(destPeerInfo.peerId, destPeerInfo.addrs).wait(10.seconds)
 
     await allFuturesRaising(switches.mapIt(it.stop()))
 

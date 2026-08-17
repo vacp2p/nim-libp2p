@@ -92,10 +92,14 @@ proc new*(
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
-  disco.initKadBase(switch, config, rng, isServer = not client, codec = codec)
-
-  # Fill up buckets with initial bootstrap nodes
-  disco.updatePeers(bootstrapNodes)
+  disco.initKadBase(
+    switch,
+    config,
+    rng,
+    isServer = not client,
+    codec = codec,
+    bootstrapNodes = bootstrapNodes,
+  )
 
   disco.rtManager.onServiceTableCreated = proc(serviceId: ServiceId) =
     if disco.config.disableBootstrapping:
