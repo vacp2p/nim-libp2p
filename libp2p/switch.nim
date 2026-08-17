@@ -43,8 +43,11 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-const ConcurrentUpgrades* = 32
-const UpgradeTimeout* = 30.seconds
+const
+  ConcurrentUpgrades* = 32
+  MaxRejectedConnectionCloses = ConcurrentUpgrades
+  UpgradeTimeout* = 30.seconds
+  AcceptRetryDelay* = 100.millis
 
 # a Switch built field by field, as TorSwitch and SwitchStub do, must copy it
 const MissingAddressManager = "switch has no AddressManager"
@@ -58,6 +61,7 @@ type
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
     upgradeFuts: seq[Future[void]]
+    rejectedConnCloseFuts: seq[Future[void]]
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
@@ -289,16 +293,12 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
     var conn: RawConn
     try:
       debug "About to accept incoming connection"
-      let slot = await s.connManager.getIncomingSlot()
-
       conn =
         try:
           await transport.accept()
         except CancelledError as exc:
-          slot.release()
           raise exc
         except CatchableError as exc:
-          slot.release()
           raise
             newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
       if isNil(conn):
@@ -306,7 +306,15 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
         debug "Unable to get a connection"
-        slot.release()
+        await sleepAsync(AcceptRetryDelay)
+        continue
+
+      let slot = s.connManager.tryGetIncomingSlot().valueOr:
+        debug "Incoming connection limit reached", conn
+        s.rejectedConnCloseFuts.trackFut(conn.close())
+        s.connManager.triggerTrim()
+        if s.rejectedConnCloseFuts.len >= MaxRejectedConnectionCloses:
+          discard await one(s.rejectedConnCloseFuts)
         continue
 
       slot.trackConnection(conn)
@@ -348,6 +356,9 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]
+
+  await noCancel allFutures(s.rejectedConnCloseFuts)
+  s.rejectedConnCloseFuts = @[]
 
   for service in s.services:
     await service.stop(s)
