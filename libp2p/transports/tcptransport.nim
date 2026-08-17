@@ -314,9 +314,9 @@ method dial*(
   let transp =
     try:
       await(
-        if local.isSome():
+        local.withValue(localAddr):
           self.clientFlags.incl(SocketFlags.ReusePort)
-          connect(ta, flags = self.clientFlags, localAddress = local.get())
+          connect(ta, flags = self.clientFlags, localAddress = localAddr)
         else:
           connect(ta, flags = self.clientFlags)
       )
