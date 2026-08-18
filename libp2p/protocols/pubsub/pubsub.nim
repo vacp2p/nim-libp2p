@@ -231,8 +231,12 @@ proc send*(
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
-) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
+) {.raises: [MessageTooLargeError].} =
+  ## Sends an application-published `msg` (of type `RPCMsg`) to the specified
+  ## remote peer in the PubSub network.
+  ##
+  ## The message is sent as-is, without splitting - the application is
+  ## responsible for ensuring the message fits within `maxMessageSize`.
   ##
   ## Parameters:
   ## - `p`: The `PubSub` instance.
@@ -245,23 +249,27 @@ proc send*(
   trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
-proc broadcast*(
+proc sendResponse*(
     p: PubSub,
-    sendPeers: auto, # Iteratble[PubSubPeer]
+    peer: PubSubPeer,
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
+  ## Sends a protocol response `msg` (of type `RPCMsg`) to the specified remote
+  ## peer. This is an internal, protocol-facing send path - messages that
+  ## together exceed `maxMessageSize` are split and sent individually.
   ##
-  ## Parameters:
-  ## - `p`: The `PubSub` instance.
-  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
-  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
-  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
-  ##   High priority messages are sent immediately, medium and low priority messages are queued
-  ##   and sent only after all high priority messages have been sent.
+  ## This should not be used for application-published messages; use `send`
+  ## instead.
 
+  trace "sending pubsub response to peer", peer, rpcMsg = shortLog(msg)
+  peer.sendResponse(msg, p.anonymize, priority, useCustomStream)
+
+proc countBroadcastMetrics(
+    p: PubSub, sendPeers: auto, msg: RPCMsg
+) {.raises: [].} =
+  ## Increments the broadcast-related metrics for an outgoing RPC message.
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
     if sub.isSubscribe:
@@ -294,11 +302,69 @@ proc broadcast*(
         npeers, labelValues = [p.topicLabel(prune.topicID)]
       )
 
+proc broadcast*(
+    p: PubSub,
+    sendPeers: auto, # Iteratble[PubSubPeer]
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [MessageTooLargeError].} =
+  ## Sends an application-published `msg` (of type `RPCMsg`) to a specified
+  ## group of peers in the PubSub network.
+  ##
+  ## The message is sent as-is, without splitting - the application is
+  ## responsible for ensuring the message fits within `maxMessageSize`. Raises
+  ## `MessageTooLargeError` if the encoded message exceeds `maxMessageSize`.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSub` instance.
+  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
+  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
+
+  countBroadcastMetrics(p, sendPeers, msg)
+
   trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
       p.send(peer, msg, priority, useCustomStream)
+  else:
+    # Fast path that only encodes message once
+    let encoded = msg.encode(p.anonymize)
+    if encoded.len > p.maxMessageSize:
+      raise newException(
+        MessageTooLargeError,
+        "message of size " & $encoded.len & " exceeds maxMessageSize " &
+          $p.maxMessageSize,
+      )
+    for peer in sendPeers:
+      var peerEncoded = encoded
+      peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
+
+proc broadcastResponse*(
+    p: PubSub,
+    sendPeers: auto, # Iteratble[PubSubPeer]
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Sends a protocol response `msg` (of type `RPCMsg`) to a specified group of
+  ## peers. This is an internal, protocol-facing broadcast path - messages that
+  ## together exceed `maxMessageSize` are split and sent individually.
+  ##
+  ## This should not be used for application-published messages; use `broadcast`
+  ## instead.
+
+  countBroadcastMetrics(p, sendPeers, msg)
+
+  trace "broadcasting responses to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
+
+  if anyIt(sendPeers, it.hasObservers) or msg.messages.len > 1:
+    for peer in sendPeers:
+      p.sendResponse(peer, msg, priority, useCustomStream)
   else:
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
@@ -320,7 +386,7 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  p.send(peer, RPCMsg.withSubscriptions(subscriptions), MessagePriority.High)
+  p.sendResponse(peer, RPCMsg.withSubscriptions(subscriptions), MessagePriority.High)
 
   for topic in subTopics:
     if subscribe:
@@ -619,13 +685,16 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.base, async: (raises: []).} =
+): Future[int] {.base, async: (raises: [MessageTooLargeError]).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
+  ##
+  ## Raises `MessageTooLargeError` if the message is larger than
+  ## `maxMessageSize`.
   handleSelfPublishing(p, topic, data)
 
   return 0

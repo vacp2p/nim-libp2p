@@ -294,7 +294,7 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
     return
 
   g.extensionsState.addPeer(peer.peerId)
-  g.send(
+  g.sendResponse(
     peer,
     RPCMsg.withControl(
       ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
@@ -455,7 +455,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", control = shortLog(respControl), peer
-    g.send(peer, RPCMsg.withControl(respControl), MessagePriority.High)
+    g.sendResponse(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
     for i, smsg in messages:
@@ -469,7 +469,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
-    g.send(peer, RPCMsg.withMessages(messages), MessagePriority.Low)
+    g.sendResponse(peer, RPCMsg.withMessages(messages), MessagePriority.Low)
 
 proc sendIDontWant(
     g: GossipSub,
@@ -496,7 +496,7 @@ proc sendIDontWant(
       # skip sending IDONTWANT if peer has requested partial for topic
   )
 
-  g.broadcast(
+  g.broadcastResponse(
     peers, RPCMsg.withControl(ControlMessage.withIDontWant(msgId)), MessagePriority.High
   )
 
@@ -593,7 +593,7 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
+    g.broadcastResponse(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     libp2p_pubsub_messages_rebroadcasted.inc(
@@ -782,7 +782,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
         topic, g.parameters.unsubscribeBackoff.seconds.uint64, g.peerExchangeList(topic)
       )
     )
-    g.broadcast(mpeers, msg, MessagePriority.High)
+    g.broadcastResponse(mpeers, msg, MessagePriority.High)
 
     for peer in mpeers:
       g.pruned(peer, topic, backoff = Opt.some(g.parameters.unsubscribeBackoff))
@@ -869,7 +869,7 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.async: (raises: []).} =
+): Future[int] {.async: (raises: [MessageTooLargeError]).} =
   logScope:
     topic
 
@@ -920,6 +920,17 @@ method publish*(
     msgId = shortLog(msgId)
 
   trace "Created new message", message = shortLog(msg), peers = peers.len
+
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup/cache side
+  # effects occur.
+  let encodedSize = encode(RPCMsg.withMessages(msg), g.anonymize).len
+  if encodedSize > g.maxMessageSize:
+    raise newException(
+      MessageTooLargeError,
+      "message of size " & $encodedSize & " exceeds maxMessageSize " &
+        $g.maxMessageSize,
+    )
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
@@ -1015,7 +1026,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.onNegotiated.isNil:
       cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(
+          g.sendResponse(
             peer[],
             RPCMsg(testExtension: Opt.some(TestExtensionRPC())),
             MessagePriority.High,
@@ -1031,7 +1042,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(
+          g.sendResponse(
             peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), MessagePriority.Low
           )
 
@@ -1057,7 +1068,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.sendPong.isNil:
       cfg.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg.withPong(pong), MessagePriority.High)
+          g.sendResponse(peer[], RPCMsg.withPong(pong), MessagePriority.High)
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
@@ -1068,7 +1079,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
       cfg.broadcastRPC = proc(msg: RPCMsg, peers: seq[PeerId]) {.gcsafe, raises: [].} =
         let peersToBroadcast =
           peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
-        g.broadcast(peersToBroadcast, msg, MessagePriority.High)
+        g.broadcastResponse(peersToBroadcast, msg, MessagePriority.High)
     if cfg.hasSeen.isNil:
       cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
         return g.hasSeen(g.salt(mid))

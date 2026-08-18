@@ -169,7 +169,7 @@ method rpcHandler*(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    f.broadcast(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
+    f.broadcastResponse(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
@@ -194,7 +194,7 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.async: (raises: []).} =
+): Future[int] {.async: (raises: [MessageTooLargeError]).} =
   handleSelfPublishing(f, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog, topic
@@ -221,6 +221,17 @@ method publish*(
       return 0
 
   trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
+
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup side effects
+  # occur.
+  let encodedSize = encode(RPCMsg.withMessages(msg), f.anonymize).len
+  if encodedSize > f.maxMessageSize:
+    raise newException(
+      MessageTooLargeError,
+      "message of size " & $encodedSize & " exceeds maxMessageSize " &
+        $f.maxMessageSize,
+    )
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

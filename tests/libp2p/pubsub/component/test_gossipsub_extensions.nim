@@ -455,7 +455,7 @@ suite "GossipSub Component - Extensions":
     )
 
     # send ping from nodes[0] to nodes[1]
-    nodes[0].send(
+    nodes[0].sendResponse(
       nodes[0].peers[nodes[1].peerInfo.peerId],
       RPCMsg.withPing(pingBytes),
       MessagePriority.High,
