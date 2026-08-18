@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, json, net, sequtils
+import chronos, json, net, sequtils, uri
 from times import now, initDuration, `+`
 import
   ../../../libp2p/
@@ -44,6 +44,7 @@ suite "AutoTLS certificate issuance and renewal":
 
   proc installCert(service: AutotlsService, expiresIn: times.Duration) =
     service.cert = Opt.some(AutotlsCert.new(cert, certKey, now() + expiresIn))
+    service.certReady.fire()
 
   asyncSetup:
     acmeApi = ACMEApiStub.new()
@@ -105,6 +106,30 @@ suite "AutoTLS certificate issuance and renewal":
 
     check acmeApi.requestedUris.len == 1
 
+  asyncTest "the certificate is handed over once issuance fires":
+    service = newService()
+
+    let certFut = service.getCertWhenReady()
+    check not certFut.finished
+
+    service.installCert(initDuration(hours = 2))
+
+    let autotlsCert = await certFut.wait(1.seconds)
+    check:
+      autotlsCert.cert == cert
+      autotlsCert.privkey == certKey
+
+  asyncTest "the certificate in place is handed over while its renewal is in flight":
+    acmeApi.stalls = true
+    service = newService()
+    service.installCert(initDuration(minutes = 5))
+    await service.start(switch)
+
+    check acmeApi.requestedUris.len == 1
+
+    let autotlsCert = await service.getCertWhenReady().wait(1.seconds)
+    check autotlsCert.cert == cert
+
   asyncTest "the broker is sent the addresses the peer announces":
     const
       NodeIP = "127.0.0.1"
@@ -122,3 +147,27 @@ suite "AutoTLS certificate issuance and renewal":
     await service.start(switch)
 
     check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs
+
+suite "AutoTLS certificate handoff":
+  asyncTeardown:
+    checkTrackers()
+
+  asyncTest "a switch listening on wss never finishes starting without a certificate":
+    # TODO: vacp2p/nim-libp2p#NNNN
+    let switch = makeStandardSwitchBuilder(
+        @[TcpAutoAddress, ma"/ip4/127.0.0.1/tcp/0/wss"]
+      )
+      .withAutotls(
+        AutotlsConfig.new(
+          ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
+          # An issuance attempt must not reach the network.
+          acmeServerURL = parseUri("http://127.0.0.1:1"),
+        )
+      )
+      .build()
+
+    let startFut = switch.start()
+    check not (await startFut.withTimeout(500.milliseconds))
+
+    await startFut.cancelAndWait()
+    await switch.stop()
