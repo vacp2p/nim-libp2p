@@ -42,6 +42,9 @@ jobs:
       - name: Check cbind dependency pins
         run: ./tools/check-cbind-pin.sh
 
+      - name: Check Nimble lock versions
+        run: python3 tools/check-nimble-lock.py
+
       - name: Check License Header
         uses: apache/skywalking-eyes/header@v0.8.0
         with:
