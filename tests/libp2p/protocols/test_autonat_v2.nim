@@ -351,7 +351,7 @@ suite "AutonatV2":
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
 
-    # 4. successful DialResponse without an addrIdx
+    # 4. omitted addrIdx must still validate as index 0
     autonatV2Mock.response = AutonatV2Msg(
       oneof: AutonatV2MsgOneof(
         kind: MsgKind.DialResponse,
