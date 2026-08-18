@@ -155,6 +155,7 @@ suite "AutoTLS on a switch":
 
   asyncTest "no ACME request is made, the service starts before its transports":
     # TODO: vacp2p/nim-libp2p#2957
+    # The service never begins issuance: no TcpTransport is running when it starts.
     let acmeServer = startStallServer()
     defer:
       await acmeServer.stop()
@@ -170,31 +171,33 @@ suite "AutoTLS on a switch":
         )
       )
       .build()
+    defer:
+      await switch.stop()
 
     let startFut = switch.start()
+    defer:
+      await startFut.cancelAndWait()
 
     # Issuance would connect to acmeServerURL, so no connection means no attempt.
     check not (await acmeServer.waitAccepted().withTimeout(200.milliseconds))
 
-    await startFut.cancelAndWait()
-    await switch.stop()
-
   asyncTest "a switch listening on wss never finishes starting without a certificate":
     # TODO: vacp2p/nim-libp2p#2957
+    # The transport waits for a certificate with no timeout, so start never returns.
     let switch = makeStandardSwitchBuilder(
         @[TcpAutoAddress, ma("/ip4/127.0.0.1/tcp/0/wss")]
       )
       .withAutotls(
         AutotlsConfig.new(
           ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
-          # An issuance attempt must not reach the network.
+          # A refused connection fails issuance at once, leaving the certificate
+          # wait as the only thing that can hang.
           acmeServerURL = parseUri("http://127.0.0.1:1"),
         )
       )
       .build()
+    defer:
+      await switch.stop()
 
     let startFut = switch.start()
     check not (await startFut.withTimeout(500.milliseconds))
-
-    await startFut.cancelAndWait()
-    await switch.stop()
