@@ -153,7 +153,7 @@ suite "AutoTLS certificate handoff":
     checkTrackers()
 
   asyncTest "a switch listening on wss never finishes starting without a certificate":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2957
     let switch = makeStandardSwitchBuilder(
         @[TcpAutoAddress, ma"/ip4/127.0.0.1/tcp/0/wss"]
       )

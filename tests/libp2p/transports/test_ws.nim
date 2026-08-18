@@ -297,7 +297,7 @@ suite "WebSocket transport with autotls":
       wstransport.addrs.len == 0
 
   asyncTest "start never returns when the autotls certificate never arrives":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2957
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
     let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
