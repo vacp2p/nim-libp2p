@@ -114,24 +114,27 @@ suite "AutonatV2 Service":
       service.networkReachability == Reachable
       switch.addressManager.confirmedAddrs().len > 0
 
-  asyncTest "a failed dial back makes the node unreachable and empties the announce set":
+  asyncTest "a failed dial back drops the public address and keeps the LAN ones":
     let
       (service, _) = newService(NotReachable)
       switch = createSwitch(service)
       peer = createSwitch()
       notified = service.awaitReachability(NotReachable)
+      publicAddr = MultiAddress.init("/ip4/1.2.3.4/tcp/4040").tryGet()
 
     await allFuturesRaising(switch.start(), peer.start())
     defer:
       await allFuturesRaising(switch.stop(), peer.stop())
+    switch.addressManager.add(publicAddr, AddrSource.Upnp)
     await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
 
     await notified.wait(5.seconds)
 
-    check:
+    checkUntilTimeout:
       service.networkReachability == NotReachable
       switch.addressManager.confirmedAddrs().len == 0
-      switch.peerInfo.addrs.len == 0
+      publicAddr notin switch.peerInfo.addrs
+      switch.peerInfo.addrs.len > 0
 
   asyncTest "an unknown verdict changes nothing and notifies nobody":
     let

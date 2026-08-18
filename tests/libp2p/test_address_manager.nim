@@ -562,7 +562,7 @@ suite "AddressManager verification":
       verifier.asked.len >= 1
     check verifier.asked.allIt(it == publicAddr)
 
-  asyncTest "a refuted guess is not asked again on the next runs":
+  asyncTest "a refuted guess waits out its runs before it is asked again":
     let
       directAddr = ma("/ip4/5.6.7.8/tcp/1")
       observed = ma("/ip4/8.8.8.8/tcp/9")
@@ -579,18 +579,6 @@ suite "AddressManager verification":
     checkUntilTimeout:
       verifier.timesAsked(directAddr) >= 3
     check verifier.timesAsked(observed) == 1
-
-  asyncTest "a refuted guess becomes a candidate again once it expires":
-    let
-      observed = ma("/ip4/8.8.8.8/tcp/9")
-      verifier = makeStubVerifier(@[verdict(observed, AddrState.Unreachable)])
-      manager =
-        makeManager(minCount = 1, verifyInterval = VerifyInterval, verifier = verifier)
-      peerInfo = makePeerInfo()
-
-    manager.deriveIdentifyCandidates = true
-    startAndDeferStop(manager, peerInfo)
-    check manager.addObservation(observed)
 
     checkUntilTimeout:
       verifier.timesAsked(observed) >= 2
@@ -820,7 +808,7 @@ suite "AddressManager address mapper":
 
     check peerInfo.addrs == @[listenAddr]
 
-  asyncTest "a verified-unreachable candidate is not announced":
+  asyncTest "a verified-unreachable public candidate is not announced":
     let
       listenAddr = ma("/ip4/192.168.0.2/tcp/1")
       fedAddr = ma("/ip4/1.2.3.4/tcp/1")
@@ -837,7 +825,8 @@ suite "AddressManager address mapper":
     await peerInfo.update()
 
     check:
-      peerInfo.addrs.len == 0
+      # the LAN address stays: no remote peer was ever going to reach it
+      peerInfo.addrs == @[listenAddr]
       manager.candidates().allIt(it.state == AddrState.Unreachable)
 
   asyncTest "an explicit announce list wins, and the mappers still see the bound addrs":
@@ -904,8 +893,8 @@ suite "AddressManager verify and announce":
     await peerInfo.update()
 
     checkUntilTimeout:
-      # confirmed and unverified announce; verified-unreachable do not
-      peerInfo.addrs == @[upnpAddr, relayAddr]
+      # the refuted LAN listen address stays; the confirmed IPv4 replaces the relay
+      peerInfo.addrs == @[listenAddr, upnpAddr]
       manager.confirmedAddrs() == @[upnpAddr]
       manager.reachability() == NetworkReachability.Reachable
 

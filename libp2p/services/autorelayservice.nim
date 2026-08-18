@@ -3,9 +3,8 @@
 
 {.push raises: [].}
 
-import std/net
 import chronos, chronicles, times, tables, sequtils
-import ../[multicodec, switch, wire], ../protocols/connectivity/relay/[client, utils]
+import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
   topics = "libp2p autorelay"
@@ -29,42 +28,11 @@ type
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
 
-func stillProduced(
-    manager: AddressManager, address: MultiAddress, produced: seq[MultiAddress]
-): bool =
-  ## The candidate table still holds the last pass: a chain address this pass dropped is gone.
-  address in produced or not manager.isChainProduced(address)
-
-func confirmedIpFamilies(
-    manager: AddressManager, produced: seq[MultiAddress]
-): set[IpAddressFamily] =
-  ## A confirmed private address proves only LAN reachability, so it stays out.
-  var families: set[IpAddressFamily]
-  for address in manager.confirmedAddrs():
-    if not manager.stillProduced(address, produced):
-      continue
-    if address.contains(multiCodec("p2p-circuit")).get(false):
-      continue
-    if not address.isPublicMA():
-      continue
-    let ip = address.getIp().valueOr:
-      continue
-    families.incl(ip.family)
-  families
-
-func stillNeeded(relayAddr: MultiAddress, confirmed: set[IpAddressFamily]): bool =
-  ## A relay address is redundant once a direct address of its IP family is confirmed.
-  let ip = relayAddr.getIp().valueOr:
-    return true
-  ip.family notin confirmed
-
 proc addressMapper(
-    self: AutoRelayService, switch: Switch, listenAddrs: seq[MultiAddress]
+    self: AutoRelayService, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: []).} =
-  let confirmed = switch.addressManager.confirmedIpFamilies(listenAddrs)
-  let relayAddrs =
-    concat(toSeq(self.relayAddresses.values)).filterIt(it.stillNeeded(confirmed))
-  return relayAddrs & listenAddrs
+  ## The manager drops a relay address which a confirmed direct address replaces.
+  return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(
     self: AutoRelayService, relayPid: PeerId, switch: Switch
@@ -91,7 +59,7 @@ method setup*(self: AutoRelayService, switch: Switch) {.raises: [].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, switch, listenAddrs)
+    return await addressMapper(self, listenAddrs)
 
   proc handlePeerIdentified(
       peerId: PeerId, event: PeerEvent

@@ -33,6 +33,22 @@ proc new*(
 ): T =
   return T(autonatService: autonatService, autoRelayService: autoRelayService)
 
+func natAddrs(switch: Switch): seq[MultiAddress] =
+  ## The addresses the peer should punch to, best proof first.
+  let manager = switch.addressManager
+  let confirmed = manager.confirmedAddrs()
+  if confirmed.len > 0:
+    return confirmed
+
+  let observed = manager.mostObservedProtosAndPorts()
+  if observed.len > 0:
+    return observed
+
+  # the announce set honors withAnnouncedAddresses over a per-listen-addr guess
+  if switch.peerInfo.addrs.len > 0:
+    return switch.peerInfo.addrs
+  switch.peerInfo.listenAddrs.mapIt(manager.externalAddrFor(it))
+
 proc tryStartingDirectConn(
     self: HPService, switch: Switch, peerId: PeerId
 ): Future[bool] {.async: (raises: [CancelledError]).} =
@@ -80,18 +96,7 @@ proc newConnectedPeerHandler(
       return
 
     let dcutrClient = DcutrClient.new()
-    # verified per-family addresses first, then the observation quorum guess
-    var natAddrs = switch.addressManager.confirmedAddrs()
-    if natAddrs.len == 0:
-      natAddrs = switch.addressManager.mostObservedProtosAndPorts()
-    if natAddrs.len == 0:
-      # the announce set honors withAnnouncedAddresses over a per-listen-addr guess
-      natAddrs =
-        if switch.peerInfo.addrs.len > 0:
-          switch.peerInfo.addrs
-        else:
-          switch.peerInfo.listenAddrs.mapIt(switch.addressManager.externalAddrFor(it))
-    await dcutrClient.startSync(switch, peerId, natAddrs)
+    await dcutrClient.startSync(switch, peerId, switch.natAddrs())
     await closeRelayConn(relayedConn)
   except CancelledError as err:
     raise err

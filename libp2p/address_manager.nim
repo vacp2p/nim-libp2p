@@ -10,7 +10,7 @@
 
 import std/[sequtils, tables]
 import chronos, chronos/transports/[osnet, ipnet]
-import multiaddress, multicodec, peerinfo, utils/heartbeat
+import multiaddress, multicodec, peerinfo, wire, utils/heartbeat
 import protocols/connectivity/autonat/types
 
 export NetworkReachability
@@ -200,26 +200,20 @@ func guessDialableAddr*(
   self.externalAddrFor(ma)
 
 proc addSources(
-    self: AddressManager,
-    address: MultiAddress,
-    sources: set[AddrSource],
-    state: AddrState,
+    self: AddressManager, address: MultiAddress, sources: set[AddrSource]
 ): bool {.discardable.} =
   let
     isNew = address notin self.candidates
-    fresh = AddrCandidate(address: address, state: state)
+    fresh = AddrCandidate(address: address, state: AddrState.Unverified)
   self.candidates.mgetOrPut(address, fresh).sources.incl(sources)
   isNew
 
 proc add*(
-    self: AddressManager,
-    address: MultiAddress,
-    source: AddrSource,
-    state = AddrState.Unverified,
+    self: AddressManager, address: MultiAddress, source: AddrSource
 ): bool {.discardable.} =
   ## Adds a candidate, or adds `source` to the producers of the one already under
   ## `address`, keeping the state a verifier assigned. True for a new candidate.
-  self.addSources(address, {source}, state)
+  self.addSources(address, {source})
 
 proc update*(
     self: AddressManager, address: MultiAddress, state: AddrState
@@ -274,8 +268,7 @@ proc `deriveIdentifyCandidates=`*(self: AddressManager, enabled: bool) =
   ## Each verification run then turns the identify observations into `Identify` candidates.
   self.deriveIdentify = enabled
 
-func isChainProduced*(self: AddressManager, address: MultiAddress): bool =
-  ## True when a mapper produced `address` on the last pass, false for a fed candidate.
+func isChainProduced(self: AddressManager, address: MultiAddress): bool =
   address in self.chainAddrs
 
 proc addMapper*(self: AddressManager, mapper: AddressMapper, source: AddrSource) =
@@ -375,7 +368,7 @@ proc track(
   var chainAddrs: Table[MultiAddress, set[AddrSource]]
   for address in kept:
     let sources = produced.getOrDefault(address)
-    self.addSources(address, sources, AddrState.Unverified)
+    self.addSources(address, sources)
     chainAddrs[address] = sources
 
   self.withdraw(chainAddrs)
@@ -386,24 +379,49 @@ func isAnnounceable(self: AddressManager, address: MultiAddress): bool =
   let candidate = self.candidates.getOrDefault(address)
   case candidate.state
   of AddrState.Unreachable:
-    false
+    # a remote peer proves nothing about a LAN address it was never going to reach
+    not address.isPublicMA()
   of AddrState.Confirmed:
     true
   of AddrState.Unverified:
     candidate.sources != {AddrSource.Identify}
 
+func confirmedFamilies(self: AddressManager): set[IpAddressFamily] =
+  ## A confirmed private address proves only LAN reachability, so it stays out.
+  var families: set[IpAddressFamily]
+  for candidate in self.candidates.values:
+    if candidate.state != AddrState.Confirmed or candidate.address.isRelayed() or
+        not candidate.address.isPublicMA():
+      continue
+    candidate.address.getIp().withValue(ip):
+      families.incl(ip.family)
+  families
+
+func isRedundantRelay(
+    self: AddressManager, address: MultiAddress, confirmed: set[IpAddressFamily]
+): bool =
+  ## A relay address is redundant once a direct address of its IP family is confirmed.
+  if not address.isRelayed():
+    return false
+  let ip = address.getIp().valueOr:
+    return false
+  ip.family in confirmed
+
+func fedAddrs(self: AddressManager): seq[MultiAddress] =
+  ## The candidates a feeder offers, which no mapper of the chain produces.
+  toSeq(self.candidates.keys).filterIt(not self.isChainProduced(it))
+
 func announceSet(
     self: AddressManager, mappedAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
-  ## Every confirmed or unverified candidate; a verified-unreachable one stays out.
+  ## Every confirmed or unverified candidate; unreachable and redundant ones stay out.
+  let confirmed = self.confirmedFamilies()
   var res: seq[MultiAddress]
-  for address in mappedAddrs:
-    if self.isAnnounceable(address) and address notin res:
-      res.add(address)
-  for address in self.candidates.keys:
-    if not self.isChainProduced(address) and address notin res and
-        self.isAnnounceable(address):
-      res.add(address)
+  for address in mappedAddrs & self.fedAddrs():
+    if address in res or not self.isAnnounceable(address) or
+        self.isRedundantRelay(address, confirmed):
+      continue
+    res.add(address)
   res
 
 proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]).} =
@@ -595,9 +613,6 @@ proc `verifyInterval=`*(self: AddressManager, interval: Duration) =
   ## The cadence only: a run gets `verifyTimeout`, however short the cadence is.
   self.verifyInterval = max(interval, 1.milliseconds)
   self.restartHeartbeat()
-
-proc `verifyTimeout=`*(self: AddressManager, timeout: Duration) =
-  self.verifyTimeout = max(timeout, 1.milliseconds)
 
 proc setPeerInfo*(self: AddressManager, peerInfo: PeerInfo) =
   ## Installs the manager's mapper as the first one `peerInfo` runs.
