@@ -7,8 +7,9 @@ import chronos, json, net, sequtils, uri
 from times import now, initDuration, `+`
 import
   ../../../libp2p/
-    [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch]
-import ../../tools/[unittest, crypto, multiaddress, resolver, switch_builder]
+    [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch, wire]
+import
+  ../../tools/[unittest, crypto, multiaddress, resolver, stall_server, switch_builder]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
 suite "AutoTLS certificate issuance and renewal":
@@ -148,14 +149,40 @@ suite "AutoTLS certificate issuance and renewal":
 
     check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs
 
-suite "AutoTLS certificate handoff":
+suite "AutoTLS on a switch":
   asyncTeardown:
     checkTrackers()
+
+  asyncTest "no ACME request is made, the service starts before its transports":
+    # TODO: vacp2p/nim-libp2p#2957
+    let acmeServer = startStallServer()
+    defer:
+      await acmeServer.stop()
+
+    let switch = makeStandardSwitchBuilder(
+        @[TcpAutoAddress, ma("/ip4/127.0.0.1/tcp/0/wss")]
+      )
+      .withAutotls(
+        AutotlsConfig.new(
+          ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
+          acmeServerURL =
+            parseUri("http://" & $acmeServer.address.initTAddress().tryGet()),
+        )
+      )
+      .build()
+
+    let startFut = switch.start()
+
+    # Issuance would connect to acmeServerURL, so no connection means no attempt.
+    check not (await acmeServer.waitAccepted().withTimeout(200.milliseconds))
+
+    await startFut.cancelAndWait()
+    await switch.stop()
 
   asyncTest "a switch listening on wss never finishes starting without a certificate":
     # TODO: vacp2p/nim-libp2p#2957
     let switch = makeStandardSwitchBuilder(
-        @[TcpAutoAddress, ma"/ip4/127.0.0.1/tcp/0/wss"]
+        @[TcpAutoAddress, ma("/ip4/127.0.0.1/tcp/0/wss")]
       )
       .withAutotls(
         AutotlsConfig.new(
