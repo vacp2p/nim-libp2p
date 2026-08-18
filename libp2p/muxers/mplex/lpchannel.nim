@@ -179,10 +179,16 @@ method readOnce*(
     raise newLPStreamClosedError()
   if s.atEof():
     raise newLPStreamRemoteClosedError()
-  if s.conn.closed:
+  if s.conn.closed() and s.len == 0 and s.readQueue.len() == 0 and not s.pushing:
+    # not pushedEof: a canceled pushEof leaves it stale
     raise newLPStreamConnDownError()
   try:
-    let bytes = await procCall BufferStream(s).readOnce(pbytes, nbytes)
+    let toRead =
+      if s.conn.closed() and s.len > 0:
+        min(nbytes, s.len) # never block on a dead conn
+      else:
+        nbytes
+    let bytes = await procCall BufferStream(s).readOnce(pbytes, toRead)
     when defined(libp2p_network_protocols_metrics):
       if s.protocol.len > 0:
         libp2p_protocols_bytes.inc(bytes.int64, labelValues = [s.protocol, "in"])
