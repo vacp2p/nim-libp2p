@@ -203,6 +203,9 @@ suite "WebSocket transport":
     await transport1.stop()
 
 suite "WebSocket transport with autotls":
+  teardown:
+    checkTrackers()
+
   asyncTest "autotls certificate is used when manual tlscertificate is not specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
@@ -273,3 +276,39 @@ suite "WebSocket transport with autotls":
 
     # TLSPrivateKey and TLSCertificate should not be set
     check not wstransport.secure
+
+  asyncTest "the transport stops when the autotls service never runs":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+
+    let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+
+    # The wait for a running service is bounded by DefaultAutotlsWaitTimeout, 3 seconds.
+    await wstransport.start(ma).wait(5.seconds)
+
+    check:
+      not wstransport.running
+      wstransport.addrs.len == 0
+
+  asyncTest "start never returns when the autotls certificate never arrives":
+    # TODO: vacp2p/nim-libp2p#2957
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+
+    let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
+    autotls.running.fire()
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+
+    let startFut = wstransport.start(ma)
+    check not (await startFut.withTimeout(200.milliseconds))
