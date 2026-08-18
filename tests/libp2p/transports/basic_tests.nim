@@ -87,6 +87,22 @@ template basicTransportTest*(
       expect TransportClosedError:
         discard await acceptFut
 
+    asyncTest "accept on a stopped transport reports it closed without waiting":
+      let ma = MultiAddress.init(address).tryGet()
+
+      let server = transportProvider()
+      await server.start(@[ma])
+      await server.stop()
+
+      let acceptFut = server.accept()
+      if isWsTransport(ma):
+        # TODO: vacp2p/nim-libp2p#2961
+        check not (await acceptFut.withTimeout(200.milliseconds))
+      else:
+        check:
+          await acceptFut.withTimeout(200.milliseconds)
+          acceptFut.failed()
+
     asyncTest "transport start/stop events":
       let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()
