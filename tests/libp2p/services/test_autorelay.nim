@@ -3,6 +3,7 @@
 
 {.used.}
 
+import std/sequtils
 import chronos
 import
   ../../../libp2p/[
@@ -14,7 +15,7 @@ import
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ../../tools/[unittest, crypto, switch_builder, multiaddress]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress, lifecycle]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   let switch = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(r).build()
@@ -94,29 +95,31 @@ suite "Autorelay":
   asyncTest "a confirmed direct address withdraws only the same-family relay address":
     switchRelay = createSwitch(Relay.new())
     relayClient = RelayClient.new()
-    let fut = newFuture[void]()
-    proc checkMA(addresses: seq[MultiAddress]) =
-      if not fut.finished:
-        fut.complete()
-
-    autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
+    autorelay = AutoRelayService.new(3, relayClient, nil, rng())
     switchClient = createSwitch(relayClient, autorelay)
-    await allFutures(switchClient.start(), switchRelay.start())
+    startAndDeferStop(@[switchClient, switchRelay])
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
-    await fut.wait(1.seconds)
 
     # the relay listens on IPv4, so its circuit addresses are the IPv4 family
     let
       relayMAs = buildRelayMA(switchRelay, switchClient)
       manager = switchClient.addressManager
-      directIp6 = ma("/ip6/2001:db8::1/tcp/1")
+      directIp6 = ma("/ip6/2a01::1/tcp/1")
       directIp4 = ma("/ip4/1.2.3.4/tcp/1")
+      directPrivate = ma("/ip4/192.168.1.20/tcp/1")
 
-    for relayMA in relayMAs:
-      check relayMA in switchClient.peerInfo.addrs
+    checkUntilTimeout:
+      relayMAs.allIt(it in switchClient.peerInfo.addrs)
 
     manager.add(directIp6, AddrSource.Upnp)
     manager.update(directIp6, AddrState.Confirmed)
+    await switchClient.peerInfo.update()
+    for relayMA in relayMAs:
+      check relayMA in switchClient.peerInfo.addrs
+
+    # a confirmed private address proves only LAN reachability: the relay stays
+    manager.add(directPrivate, AddrSource.Upnp)
+    manager.update(directPrivate, AddrState.Confirmed)
     await switchClient.peerInfo.update()
     for relayMA in relayMAs:
       check relayMA in switchClient.peerInfo.addrs
@@ -131,8 +134,6 @@ suite "Autorelay":
     await switchClient.peerInfo.update()
     for relayMA in relayMAs:
       check relayMA in switchClient.peerInfo.addrs
-
-    await allFutures(switchClient.stop(), switchRelay.stop())
 
   asyncTest "Three relays connections":
     type RelayReservationState = enum

@@ -394,7 +394,8 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager
-  s.addressManager.start(s.peerInfo)
+  s.addressManager.setPeerInfo(s.peerInfo)
+  s.addressManager.start()
 
   # start services and transports without await to prevent any
   # issues when one needs another to start first.

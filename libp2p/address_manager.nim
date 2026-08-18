@@ -255,7 +255,7 @@ func reachability*(self: AddressManager): NetworkReachability =
 proc `onReachabilityChange=`*(
     self: AddressManager, handler: ReachabilityChangeHandler
 ) =
-  ## Called after a verification run which changes the `reachability` summary; one slot.
+  ## Called from the verification heartbeat when the `reachability` summary changed; one slot.
   self.onReachabilityChange = handler
 
 proc `deriveIdentifyCandidates=`*(self: AddressManager, enabled: bool) =
@@ -393,6 +393,14 @@ func announceSet(
       res.add(address)
   res
 
+proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  let summary = self.reachability()
+  if summary == self.notifiedReachability:
+    return
+  self.notifiedReachability = summary
+  if not self.onReachabilityChange.isNil():
+    await self.onReachabilityChange(summary)
+
 func explicitAddrs(self: AddressManager): seq[MultiAddress] =
   if self.peerInfo.isNil():
     return @[]
@@ -419,6 +427,8 @@ proc resolve(
     produced.mgetOrPut(address, {}).incl(AddrSource.Announced)
 
   self.track(produced, addrs & announced)
+  # a withdrawal changes the summary without a verdict: tell the observers now
+  await self.notifyReachability()
 
   # the operator picks what is announced; no mapper rewrites that choice
   if announced.len > 0:
@@ -474,19 +484,11 @@ proc applyVerdicts(self: AddressManager, verdicts: seq[AddrVerdict]): bool =
       changed = true
   changed
 
-proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]).} =
-  let summary = self.reachability()
-  if summary == self.notifiedReachability:
-    return
-  self.notifiedReachability = summary
-  if not self.onReachabilityChange.isNil():
-    await self.onReachabilityChange(summary)
-
 proc allowedByPolicy(self: AddressManager, address: MultiAddress): bool =
   ## The policy gates the dial requests too: a banned address never reaches a verifier.
   self.peerInfo.isNil() or self.peerInfo.addressPolicy.accepts(address)
 
-proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
+proc runVerifier(self: AddressManager) {.async: (raises: [CancelledError]).} =
   if self.verifier.isNil():
     return
   self.addIdentifyCandidates()
@@ -510,6 +512,10 @@ proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).
     return
   if not self.peerInfo.isNil():
     await self.peerInfo.update()
+
+proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  await self.runVerifier()
+  # a withdrawn candidate changes the summary without a verdict, so reconcile every run
   await self.notifyReachability()
 
 proc verifyHeartbeat(self: AddressManager) {.async: (raises: [CancelledError]).} =
@@ -524,6 +530,10 @@ proc restartHeartbeat(self: AddressManager) =
     self.verifyFut.cancelSoon()
   self.verifyFut = self.verifyHeartbeat()
 
+proc triggerVerification*(self: AddressManager) =
+  ## Runs a verification pass now instead of at the next heartbeat tick.
+  self.restartHeartbeat()
+
 proc `verifier=`*(self: AddressManager, verifier: Verifier) =
   ## The verifier is optional. Without one, every candidate stays `Unverified`.
   self.verifier = verifier
@@ -533,17 +543,17 @@ proc `verifyInterval=`*(self: AddressManager, interval: Duration) =
   self.verifyInterval = max(interval, 1.milliseconds)
   self.restartHeartbeat()
 
-proc start*(self: AddressManager, peerInfo: PeerInfo = nil) =
-  ## With a `PeerInfo`, installs the manager's mapper as the first one it runs.
+proc setPeerInfo*(self: AddressManager, peerInfo: PeerInfo) =
+  ## Installs the manager's mapper as the first one `peerInfo` runs.
+  self.peerInfo = peerInfo
+  peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  peerInfo.addressMappers.insert(self.addressMapper, 0)
+
+proc start*(self: AddressManager) =
   if self.started:
     return
   self.started = true
   self.verifyFut = self.verifyHeartbeat()
-
-  if peerInfo.isNil():
-    return
-  self.peerInfo = peerInfo
-  peerInfo.addressMappers.insert(self.addressMapper, 0)
 
 proc stop*(self: AddressManager) =
   self.started = false

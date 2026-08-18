@@ -34,6 +34,7 @@ type
     addressMapper: AddressMapper
     addressManager: AddressManager
     verifier: AutonatV2Verifier
+    peerHandler: PeerEventHandler
     client*: AutonatV2Client
     rng: Rng
 
@@ -105,7 +106,6 @@ method start*(
   self.config.scheduleInterval.withValue(interval):
     manager.verifyInterval = interval
   manager.deriveIdentifyCandidates = self.config.enableDialableCandidates
-  manager.verifier = self.verifier
   manager.onReachabilityChange = proc(
       reachability: NetworkReachability
   ) {.async: (raises: [CancelledError]).} =
@@ -113,7 +113,18 @@ method start*(
 
   if self.config.enableAddressMapper:
     manager.addMapper(self.addressMapper, AddrSource.Autonat)
-    await switch.peerInfo.update()
+
+  # resolve the candidates first: registering the verifier restarts the heartbeat
+  await switch.peerInfo.update()
+  manager.verifier = self.verifier
+
+  # the first runs find no peer to ask; a new peer ends the Unknown state now
+  self.peerHandler = proc(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    if manager.reachability() == NetworkReachability.Unknown:
+      manager.triggerVerification()
+  switch.addPeerEventHandler(self.peerHandler, PeerEventKind.Identified)
 
 method stop*(
     self: AutonatV2Service, switch: Switch
@@ -121,6 +132,7 @@ method stop*(
   trace "Stopping AutonatV2Service"
 
   let manager = switch.addressManager
+  switch.removePeerEventHandler(self.peerHandler, PeerEventKind.Identified)
   manager.verifier = nil
   manager.onReachabilityChange = nil
   manager.deriveIdentifyCandidates = false

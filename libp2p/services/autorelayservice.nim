@@ -5,7 +5,7 @@
 
 import std/net
 import chronos, chronicles, times, tables, sequtils
-import ../[multicodec, switch], ../protocols/connectivity/relay/[client, utils]
+import ../[multicodec, switch, wire], ../protocols/connectivity/relay/[client, utils]
 
 logScope:
   topics = "libp2p autorelay"
@@ -30,9 +30,12 @@ proc isRunning*(self: AutoRelayService): bool =
   return self.running
 
 func confirmedIpFamilies(manager: AddressManager): set[IpAddressFamily] =
+  ## A confirmed private address proves only LAN reachability, so it stays out.
   var families: set[IpAddressFamily]
   for address in manager.confirmedAddrs():
     if address.contains(multiCodec("p2p-circuit")).get(false):
+      continue
+    if not address.isPublicMA():
       continue
     let ip = address.getIp().valueOr:
       continue

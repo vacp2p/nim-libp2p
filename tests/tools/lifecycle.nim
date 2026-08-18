@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import chronos, sequtils
-import ../../libp2p/switch
+import ../../libp2p/[switch, peerinfo]
 import ./futures
 
 proc startNodes*(nodes: seq[Switch]) {.async.} =
@@ -28,3 +28,14 @@ template startAndDeferStop*[T](nodes: seq[T]): untyped =
   await startNodes(nodes)
   defer:
     await stopNodes(nodes)
+
+template startAndDeferStop*(manager: AddressManager): untyped =
+  manager.start()
+  defer:
+    manager.stop()
+
+template startAndDeferStop*(manager: AddressManager, peerInfo: PeerInfo): untyped =
+  manager.setPeerInfo(peerInfo)
+  manager.start()
+  defer:
+    manager.stop()
