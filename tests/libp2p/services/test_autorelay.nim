@@ -135,6 +135,41 @@ suite "Autorelay":
     for relayMA in relayMAs:
       check relayMA in switchClient.peerInfo.addrs
 
+  asyncTest "an expired confirmed mapping restores the relay immediately":
+    switchRelay = createSwitch(Relay.new())
+    relayClient = RelayClient.new()
+    autorelay = AutoRelayService.new(3, relayClient, nil, rng())
+    switchClient = createSwitch(relayClient, autorelay)
+
+    let
+      directAddr = ma("/ip4/1.2.3.4/tcp/1")
+      manager = switchClient.addressManager
+    var mappingAvailable = true
+    proc mappingMapper(
+        listenAddrs: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+      if mappingAvailable:
+        return listenAddrs & directAddr
+      listenAddrs
+
+    # registered before AutoRelay starts, so it produces before the relay mapper runs
+    manager.addMapper(mappingMapper, AddrSource.Upnp)
+    startAndDeferStop(@[switchClient, switchRelay])
+    await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    let relayMAs = buildRelayMA(switchRelay, switchClient)
+
+    checkUntilTimeout:
+      relayMAs.allIt(it in switchClient.peerInfo.addrs)
+
+    manager.update(directAddr, AddrState.Confirmed)
+    await switchClient.peerInfo.update()
+    check relayMAs.allIt(it notin switchClient.peerInfo.addrs)
+
+    # the candidate stays confirmed until this pass ends, so AutoRelay reads the pass
+    mappingAvailable = false
+    await switchClient.peerInfo.update()
+    check relayMAs.allIt(it in switchClient.peerInfo.addrs)
+
   asyncTest "Three relays connections":
     type RelayReservationState = enum
       Relay1Reserved

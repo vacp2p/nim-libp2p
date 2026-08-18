@@ -50,6 +50,17 @@ proc mockResponse(reachability: NetworkReachability): AutonatV2Response =
     ),
   )
 
+type DelayedClientMock = ref object of AutonatV2ClientMock
+  delay: Duration
+
+method sendDialRequest(
+    self: DelayedClientMock, pid: PeerId, testAddrs: seq[MultiAddress]
+): Future[AutonatV2Response] {.
+    async: (raises: [AutonatV2Error, CancelledError, DialFailedError, LPStreamError])
+.} =
+  await sleepAsync(self.delay)
+  await procCall AutonatV2ClientMock(self).sendDialRequest(pid, testAddrs)
+
 proc newService(
     reachability: NetworkReachability,
     expectedDials = 1,
@@ -207,6 +218,30 @@ suite "AutonatV2 Service":
     await sleepAsync(VerifyInterval * 4)
 
     check observedAddr notin switch.addressManager.confirmedAddrs()
+
+  asyncTest "the schedule interval does not cancel a valid dial request":
+    let
+      interval = 10.milliseconds
+      client = DelayedClientMock(
+        delay: interval * 4,
+        response: mockResponse(Reachable),
+        finished: newFuture[void](),
+      )
+      service = AutonatV2Service.new(
+        rng(),
+        client = client,
+        config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(interval)),
+      )
+      switch = createSwitch(service)
+      peer = createSwitch()
+
+    await allFuturesRaising(switch.start(), peer.start())
+    defer:
+      await allFuturesRaising(switch.stop(), peer.stop())
+    await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
+
+    checkUntilTimeout:
+      service.networkReachability == Reachable
 
   asyncTest "a peer which dialed us triggers no verification":
     let

@@ -29,10 +29,20 @@ type
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
 
-func confirmedIpFamilies(manager: AddressManager): set[IpAddressFamily] =
+func stillProduced(
+    manager: AddressManager, address: MultiAddress, produced: seq[MultiAddress]
+): bool =
+  ## The candidate table still holds the last pass: a chain address this pass dropped is gone.
+  address in produced or not manager.isChainProduced(address)
+
+func confirmedIpFamilies(
+    manager: AddressManager, produced: seq[MultiAddress]
+): set[IpAddressFamily] =
   ## A confirmed private address proves only LAN reachability, so it stays out.
   var families: set[IpAddressFamily]
   for address in manager.confirmedAddrs():
+    if not manager.stillProduced(address, produced):
+      continue
     if address.contains(multiCodec("p2p-circuit")).get(false):
       continue
     if not address.isPublicMA():
@@ -51,7 +61,7 @@ func stillNeeded(relayAddr: MultiAddress, confirmed: set[IpAddressFamily]): bool
 proc addressMapper(
     self: AutoRelayService, switch: Switch, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: []).} =
-  let confirmed = switch.addressManager.confirmedIpFamilies()
+  let confirmed = switch.addressManager.confirmedIpFamilies(listenAddrs)
   let relayAddrs =
     concat(toSeq(self.relayAddresses.values)).filterIt(it.stillNeeded(confirmed))
   return relayAddrs & listenAddrs
