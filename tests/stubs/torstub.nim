@@ -14,7 +14,6 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     errors,
-    builders,
   ]
 
 type TorServerStub* = ref object of RootObj
