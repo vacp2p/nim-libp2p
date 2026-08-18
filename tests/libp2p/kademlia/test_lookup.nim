@@ -58,6 +58,46 @@ suite "KadDHT Iterative Lookup":
     for peerId in expectedClosest:
       check state.shortlist.hasKey(peerId)
 
+  test "Lookup seeds from the table it is given":
+    let kad = setupKad()
+    kad.populateRoutingTable(30)
+
+    let serviceTable = RoutingTable.new(
+      randomServiceId(), RoutingTableConfig.new(selfIdPreHashed = true)
+    )
+    var servicePeers: seq[PeerId]
+    for _ in 0 ..< 3:
+      let peerId = randomPeerId()
+      check serviceTable.insert(peerId)
+      servicePeers.add(peerId)
+
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kad, targetKey, serviceTable)
+
+    check state.shortlist.len == servicePeers.len
+    for peerId in servicePeers:
+      check state.shortlist.hasKey(peerId)
+
+  test "Lookup falls back to the main table when the given table is empty":
+    let kad = setupKad()
+    kad.populateRoutingTable(30)
+
+    let serviceTable = RoutingTable.new(
+      randomServiceId(), RoutingTableConfig.new(selfIdPreHashed = true)
+    )
+
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kad, targetKey, serviceTable)
+
+    let expectedClosest = kad
+      .getPeersFromRoutingTable()
+      .sortPeers(targetKey, serviceTable.config.hasher)
+      .take(kad.config.replication)
+
+    check state.shortlist.len == expectedClosest.len
+    for peerId in expectedClosest:
+      check state.shortlist.hasKey(peerId)
+
   test "Lookup selects alpha peers for concurrent querying":
     let kad = setupKad()
 

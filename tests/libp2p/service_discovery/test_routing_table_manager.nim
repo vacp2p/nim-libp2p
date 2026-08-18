@@ -389,31 +389,33 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     # only call it once
     check kad.findNodeCalls.len == 1
 
-  asyncTest "calls findNode with service selfId for a single table":
+  asyncTest "walks toward the center of a single service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
     let serviceId = makeServiceId(1)
-    let mainRt = RoutingTable.new(makeKey(2))
+    let mainRt = makeMainTable(makeKey(2), @[makeKey(3), makeKey(4), makeKey(5)])
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
+    let serviceTable = manager.getTable(serviceId).get()
 
     await manager.refreshAllTables(kad)
 
-    # refreshTable calls findNode(serviceTable.selfId) once per table
-    # plus main table's selfId
+    # One self-lookup per service table, plus the main table's own from `start`.
     check:
       kad.findNodeCalls.len == 2
-      kad.findNodeCalls[1] == serviceId
+      kad.findNodeCalls[1] in serviceTable.allKeys()
+      kad.findNodeCalls[1] != serviceId
+      kad.findNodeTables[1] == serviceTable
 
   asyncTest "calls findNode once per registered service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(makeKey(0))
+    let mainRt = makeMainTable(makeKey(0), @[makeKey(4), makeKey(5), makeKey(6)])
     let serviceIds = @[makeKey(1), makeKey(2), makeKey(3)]
     for id in serviceIds:
       check manager.addService(
@@ -422,18 +424,17 @@ suite "ServiceRoutingTableManager - refreshAllTables":
 
     await manager.refreshAllTables(kad)
 
-    # One self-lookup per service table
-    # plus main table's selfId
+    # One self-lookup per service table, plus the main table's own from `start`.
     check kad.findNodeCalls.len == serviceIds.len + 1
     for id in serviceIds:
-      check id in kad.findNodeCalls
+      check manager.getTable(id).get() in kad.findNodeTables
 
   asyncTest "does not call findNode for a removed service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(makeKey(0))
+    let mainRt = makeMainTable(makeKey(0), @[makeKey(3), makeKey(4), makeKey(5)])
     let kept = makeKey(1)
     let removed = makeKey(2)
     check manager.addService(
@@ -442,16 +443,15 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     check manager.addService(
       removed, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
+    let keptTable = manager.getTable(kept).get()
     manager.removeService(removed, Interest)
 
     await manager.refreshAllTables(kad)
 
+    # One self-lookup per service table, plus the main table's own from `start`.
     check:
-      # One self-lookup per service table
-      # plus main table's selfId
       kad.findNodeCalls.len == 2
-      kad.findNodeCalls[1] == kept
-      removed notin kad.findNodeCalls
+      kad.findNodeTables[1] == keptTable
 
   test "addService rejects local node insertion into service table":
     let selfId = makeKey(0)
