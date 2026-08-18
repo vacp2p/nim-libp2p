@@ -83,6 +83,7 @@ type
     onReachabilityChange: ReachabilityChangeHandler
     notifiedReachability: NetworkReachability
     deriveIdentify: bool
+    verifying: bool
     refutedGuesses: seq[MultiAddress]
     maxSize: int
     minCount: int
@@ -514,6 +515,9 @@ proc runVerifier(self: AddressManager) {.async: (raises: [CancelledError]).} =
     await self.peerInfo.update()
 
 proc verifyCandidates(self: AddressManager) {.async: (raises: [CancelledError]).} =
+  self.verifying = true
+  defer:
+    self.verifying = false
   await self.runVerifier()
   # a withdrawn candidate changes the summary without a verdict, so reconcile every run
   await self.notifyReachability()
@@ -531,7 +535,9 @@ proc restartHeartbeat(self: AddressManager) =
   self.verifyFut = self.verifyHeartbeat()
 
 proc triggerVerification*(self: AddressManager) =
-  ## Runs a verification pass now instead of at the next heartbeat tick.
+  ## Runs a pass now; a running pass keeps its awaited dial-backs instead.
+  if self.verifying:
+    return
   self.restartHeartbeat()
 
 proc `verifier=`*(self: AddressManager, verifier: Verifier) =
