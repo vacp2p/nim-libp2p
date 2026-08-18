@@ -3,12 +3,13 @@
 
 {.used.}
 
-import chronos, json, net, sequtils
+import chronos, json, net, sequtils, uri
 from times import now, initDuration, `+`
 import
   ../../../libp2p/
-    [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch]
-import ../../tools/[unittest, crypto, multiaddress, resolver, switch_builder]
+    [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch, wire]
+import
+  ../../tools/[unittest, crypto, multiaddress, resolver, stall_server, switch_builder]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
 suite "AutoTLS certificate issuance and renewal":
@@ -44,6 +45,7 @@ suite "AutoTLS certificate issuance and renewal":
 
   proc installCert(service: AutotlsService, expiresIn: times.Duration) =
     service.cert = Opt.some(AutotlsCert.new(cert, certKey, now() + expiresIn))
+    service.certReady.fire()
 
   asyncSetup:
     acmeApi = ACMEApiStub.new()
@@ -105,6 +107,30 @@ suite "AutoTLS certificate issuance and renewal":
 
     check acmeApi.requestedUris.len == 1
 
+  asyncTest "the certificate is handed over once issuance fires":
+    service = newService()
+
+    let certFut = service.getCertWhenReady()
+    check not certFut.finished
+
+    service.installCert(initDuration(hours = 2))
+
+    let autotlsCert = await certFut.wait(1.seconds)
+    check:
+      autotlsCert.cert == cert
+      autotlsCert.privkey == certKey
+
+  asyncTest "the certificate in place is handed over while its renewal is in flight":
+    acmeApi.stalls = true
+    service = newService()
+    service.installCert(initDuration(minutes = 5))
+    await service.start(switch)
+
+    check acmeApi.requestedUris.len == 1
+
+    let autotlsCert = await service.getCertWhenReady().wait(1.seconds)
+    check autotlsCert.cert == cert
+
   asyncTest "the broker is sent the addresses the peer announces":
     const
       NodeIP = "127.0.0.1"
@@ -122,3 +148,56 @@ suite "AutoTLS certificate issuance and renewal":
     await service.start(switch)
 
     check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs
+
+suite "AutoTLS on a switch":
+  asyncTeardown:
+    checkTrackers()
+
+  asyncTest "no ACME request is made, the service starts before its transports":
+    # TODO: vacp2p/nim-libp2p#2957
+    # The service never begins issuance: no TcpTransport is running when it starts.
+    let acmeServer = startStallServer()
+    defer:
+      await acmeServer.stop()
+
+    let switch = makeStandardSwitchBuilder(
+        @[TcpAutoAddress, ma("/ip4/127.0.0.1/tcp/0/wss")]
+      )
+      .withAutotls(
+        AutotlsConfig.new(
+          ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
+          acmeServerURL =
+            parseUri("http://" & $acmeServer.address.initTAddress().tryGet()),
+        )
+      )
+      .build()
+    defer:
+      await switch.stop()
+
+    let startFut = switch.start()
+    defer:
+      await startFut.cancelAndWait()
+
+    # Issuance would connect to acmeServerURL, so no connection means no attempt.
+    check not (await acmeServer.waitAccepted().withTimeout(200.milliseconds))
+
+  asyncTest "a switch listening on wss never finishes starting without a certificate":
+    # TODO: vacp2p/nim-libp2p#2957
+    # The transport waits for a certificate with no timeout, so start never returns.
+    let switch = makeStandardSwitchBuilder(
+        @[TcpAutoAddress, ma("/ip4/127.0.0.1/tcp/0/wss")]
+      )
+      .withAutotls(
+        AutotlsConfig.new(
+          ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
+          # A refused connection fails issuance at once, leaving the certificate
+          # wait as the only thing that can hang.
+          acmeServerURL = parseUri("http://127.0.0.1:1"),
+        )
+      )
+      .build()
+    defer:
+      await switch.stop()
+
+    let startFut = switch.start()
+    check not (await startFut.withTimeout(500.milliseconds))
