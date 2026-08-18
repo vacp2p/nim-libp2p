@@ -49,5 +49,7 @@ declarePublicCounter kad_routing_table_replacements, "peer replacements"
 declarePublicCounter kad_routing_table_evictions, "peer evictions", ["reason"]
 declarePublicCounter kad_routing_table_liveness_probes,
   "routing-table liveness probes", ["result"]
+declarePublicCounter kad_admission_probes_backed_off,
+  "admission probes skipped because the peer's last probe failed"
 declarePublicCounter kad_routing_table_reseeds,
   "re-seed attempts triggered by a peer count below the minimum"
