@@ -57,6 +57,7 @@ const
     # Secure WebSocket
     "/ip4/127.0.0.1/tcp/1234/wss",
     "/ip4/127.0.0.1/tcp/1234/tls/ws",
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/example.com/ws",
     "/ip6/::1/tcp/1234/wss",
   ]
   validNonWireAddresses = @[
@@ -65,12 +66,18 @@ const
     # Secure WebSocket
     "/dns/example.com/tcp/1234/wss",
     "/dns/example.com/tcp/1234/tls/ws",
+    "/dns/example.com/tcp/1234/tls/sni/ws.example.com/ws",
   ]
   invalidAddresses = @[
     "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
     "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
     "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
     "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
+    "/ip4/127.0.0.1/tcp/1234/sni/example.com/ws", # SNI without TLS
+    "/ip4/127.0.0.1/tcp/1234/tls/ws/sni/example.com", # SNI after WebSocket
+    "/ip4/127.0.0.1/tcp/1234/wss/sni/example.com", # SNI with deprecated alias
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/one/sni/two/ws", # Repeated SNI
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/example.com", # Missing WebSocket
   ]
 
 suite "WebSocket transport":
@@ -201,6 +208,40 @@ suite "WebSocket transport":
     await closing
 
     await transport1.stop()
+
+  asyncTest "explicit SNI is preserved and controls hostname verification":
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
+    let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
+    let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
+
+    let transport1 = WsTransport.new(
+      Upgrade(),
+      secureKey,
+      secureCert,
+      Opt.none(AutotlsService),
+      rng(),
+      tlsFlags = {TLSFlags.NoVerifyHost},
+    )
+    let
+      sniSuffix = MultiAddress.init("/tls/sni/" & $expectedPeerId & "/ws").tryGet()
+      listenAddr =
+        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet() & sniSuffix
+    await transport1.start(@[listenAddr])
+    defer:
+      await transport1.stop()
+
+    let
+      base = MultiAddress.init(transport1.addrs[0].initTAddress().tryGet()).tryGet()
+      wrongAddress = base & MultiAddress.init("/tls/sni/ws.wronghostname/ws").tryGet()
+    check transport1.addrs[0][2 .. ^1].tryGet() == sniSuffix
+
+    let inboundFut = transport1.accept()
+    let outbound = await transport1.dial("different.http.host", transport1.addrs[0])
+    let inbound = await inboundFut
+    await allFutures(outbound.close(), inbound.close())
+
+    expect TransportDialError:
+      discard await transport1.dial("different.http.host", wrongAddress)
 
 suite "WebSocket transport with autotls":
   asyncTest "autotls certificate is used when manual tlscertificate is not specified":

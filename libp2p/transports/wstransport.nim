@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import std/[sequtils]
-import chronos, chronicles, results, metrics
+import chronos, chronicles, results, metrics, stew/byteutils
 import
   transport,
   ../autotls/service,
@@ -153,6 +153,21 @@ type WsTransport* = ref object of Transport
   concurrentAccepts: int
   factories: seq[ExtFactory]
   rng: Rng
+
+type HostHeaderHook = ref object of Hook
+  host: string
+
+proc hostHeaderHook(host: string): Hook =
+  let hook = HostHeaderHook(host: host)
+  hook.append = proc(ctx: Hook, headers: var HttpTable): Result[void, string] =
+    headers.set("Host", HostHeaderHook(ctx).host)
+    ok()
+  hook
+
+proc getSni(address: MultiAddress): string =
+  let value = address.getProtocolArgument(multiCodec("sni")).valueOr:
+    return ""
+  string.fromBytes(value)
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
@@ -380,10 +395,7 @@ method start*(
 
     let codec =
       if isWss:
-        if ma.contains(multiCodec("tls")) == MaResult[bool].ok(true):
-          MultiAddress.init("/tls/ws")
-        else:
-          MultiAddress.init("/wss")
+        ma[2 .. ^1]
       else:
         MultiAddress.init("/ws")
 
@@ -517,13 +529,30 @@ method dial*(
   try:
     let secure = WSS.match(address)
     let initAddress = address.initTAddress().tryGet()
+    let
+      sni = address.getSni()
+      httpHostname =
+        if hostname.len > 0:
+          hostname
+        else:
+          $initAddress
+      serverName = if sni.len > 0: sni else: httpHostname
+      hooks =
+        if serverName != httpHostname:
+          @[hostHeaderHook(httpHostname)]
+        else:
+          @[]
     debug "creating websocket",
-      address = initAddress, secure = secure, hostName = hostname
+      address = initAddress,
+      secure = secure,
+      hostName = httpHostname,
+      serverName = serverName
     transp = await WebSocket.connect(
       initAddress,
       "",
       secure = secure,
-      hostName = hostname,
+      hostName = serverName,
+      hooks = hooks,
       flags = self.tlsFlags,
       rng = bearSslDrbgRef(self.rng),
     )
