@@ -29,9 +29,9 @@ proc new*(T: typedesc[TorServerStub]): T =
 proc registerAddr*(self: TorServerStub, key: string, val: string) =
   self.addrTable[key] = val
 
-proc bridge(srcStream: Stream, dstStream: Stream) {.
-    async: (raises: [CancelledError])
-.} =
+proc bridge(
+    srcStream: Stream, dstStream: Stream
+) {.async: (raises: [CancelledError]).} =
   ## Relay bytes between the client and destination, propagating half-closes
   ## so that closeWrite from one side is forwarded to the other.
   const bufferSize = 4096
@@ -48,8 +48,8 @@ proc bridge(srcStream: Stream, dstStream: Stream) {.
     await noCancel allFutures(futSrc.cancelAndWait(), futDst.cancelAndWait())
 
   try:
-    while (not srcEof or not dstEof) and
-        not srcStream.closed() and not dstStream.closed():
+    while (not srcEof or not dstEof) and not srcStream.closed() and
+        not dstStream.closed():
       try:
         if srcEof:
           discard await futDst
