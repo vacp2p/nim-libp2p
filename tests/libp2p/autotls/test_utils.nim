@@ -161,7 +161,9 @@ suite "AutoTLS DNS records":
     check resolver.ipQueries == @["2001-db8--1.k51qzi5uqu5dhkzk3z.libp2p.direct"]
 
   asyncTest "a leading or trailing colon becomes a 0 in the queried name":
-    for ip in ["::1", "2001:db8::", "::"]:
+    # a seq variable, not an array literal: await over an array literal segfaults on Nim devel refc
+    let ips = @["::1", "2001:db8::", "::"]
+    for ip in ips:
       discard await checkDNSRecords(
         resolver,
         parseIpAddress(ip),
