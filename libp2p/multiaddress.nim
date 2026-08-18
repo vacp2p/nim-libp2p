@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import pkg/[chronos, chronicles, results, protobuf_serialization]
-import std/[nativesockets, net, hashes]
+import std/[nativesockets, net, hashes, unicode]
 import tables, strutils, sets
 import
   multicodec,
@@ -341,6 +341,23 @@ proc dnsVB(vb: var VBuffer): bool =
   ## DNS name validateBuffer() implementation.
   pathValidateBufferNoSlash(vb)
 
+proc sniValid(s: string): bool =
+  s.len > 0 and s.find('/') == -1 and validateUtf8(s) == -1
+
+proc sniStB(s: string, vb: var VBuffer): bool =
+  if not sniValid(s):
+    return false
+  vb.writeSeq(s)
+  true
+
+proc sniBtS(vb: var VBuffer, s: var string): bool =
+  s = ""
+  vb.readSeq(s) > 0 and sniValid(s)
+
+proc sniVB(vb: var VBuffer): bool =
+  var s = ""
+  vb.readSeq(s) > 0 and sniValid(s)
+
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
   MaPattern(operator: Eq, value: multiCodec(codec))
@@ -375,6 +392,8 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderSNI* =
+    Transcoder(stringToBuffer: sniStB, bufferToString: sniBtS, validateBuffer: sniVB)
   TranscoderMemory* = Transcoder(
     stringToBuffer: memoryStB, bufferToString: memoryBtS, validateBuffer: memoryVB
   )
@@ -404,6 +423,7 @@ const
     MAProtocol(mcodec: multiCodec("ws"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("wss"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("tls"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("sni"), kind: Length, size: 0, coder: TranscoderSNI),
     MAProtocol(mcodec: multiCodec("ipfs"), kind: Length, size: 0, coder: TranscoderP2P),
     MAProtocol(mcodec: multiCodec("p2p"), kind: Length, size: 0, coder: TranscoderP2P),
     MAProtocol(mcodec: multiCodec("unix"), kind: Path, size: 0, coder: TranscoderUnix),
@@ -455,7 +475,10 @@ const
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
   WS* = mapAnd(TCP, mapEq("ws"))
-  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapEq("tls"), mapEq("ws")))
+  TLS* = mapEq("tls")
+  SNI* = mapEq("sni")
+  TLS_SNI* = mapAnd(TLS, SNI)
+  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapOr(TLS, TLS_SNI), mapEq("ws")))
   WSS_DNS* = mapAnd(TCP_DNS, TLS_WS)
   WSS_IP* = mapAnd(TCP_IP, TLS_WS)
   WSS* = mapAnd(TCP, TLS_WS)
@@ -834,6 +857,13 @@ proc init*(
       if len(value) == 0:
         err("multiaddress: Value must not be empty array")
       else:
+        if protocol == multiCodec("sni"):
+          var validation = initVBuffer(len(value) + 10)
+          validation.writeSeq(value)
+          validation.finish()
+          if not proto.coder.validateBuffer(validation):
+            return err("multiaddress: Invalid sni protocol value")
+
         res.data.writeSeq(value)
         res.data.finish()
         ok(res)

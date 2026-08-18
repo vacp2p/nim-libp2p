@@ -51,7 +51,8 @@ const
     "/ip4/127.0.0.1/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234/unix/stdio",
     "/ip4/127.0.0.1/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/tcp/1234/unix/stdio",
     "/dns/example.io/udp/65535", "/dns4/example.io/udp/65535",
-    "/dns6/example.io/udp/65535", "/dnsaddr/example.io/udp/65535",
+    "/dns6/example.io/udp/65535", "/dnsaddr/example.io/udp/65535", "/sni/example.com",
+    "/ip4/127.0.0.1/tcp/443/tls/sni/example.com/ws",
   ]
 
   FailureVectors = [
@@ -72,6 +73,7 @@ const
     "/ip4/127.0.0.1/tcp/jfodsajfidosajfoidsa", "/ip4/127.0.0.1/tcp",
     "/ip4/127.0.0.1/quic/1234", "/ip4/127.0.0.1/quic-v1/1234", "/ip4/127.0.0.1/ipfs",
     "/ip4/127.0.0.1/ipfs/tcp", "/ip4/127.0.0.1/p2p", "/ip4/127.0.0.1/p2p/tcp", "/unix",
+    "/sni", "/sni/",
   ]
 
   RustSuccessVectors = [
@@ -305,6 +307,25 @@ suite "MultiAddress test suite":
   test "rust-multiaddr failure test vectors":
     for item in RustFailureVectors:
       check MultiAddress.init(item).isErr()
+
+  test "SNI representation":
+    let
+      fromString = MultiAddress.init("/sni/example.com").tryGet()
+      fromValue = MultiAddress.init(multiCodec("sni"), "example.com".toBytes()).tryGet()
+      part = fromString.getPart(multiCodec("sni")).tryGet()
+
+    check:
+      $fromString == "/sni/example.com"
+      fromValue == fromString
+      hex(fromString) == "C1030B6578616D706C652E636F6D"
+      part.protoArgument().tryGet() == "example.com".toBytes()
+
+  test "SNI rejects malformed values":
+    check:
+      MultiAddress.init(multiCodec("sni"), newSeq[byte]()).isErr()
+      MultiAddress.init(multiCodec("sni"), @[0xFF'u8]).isErr()
+      MultiAddress.init(multiCodec("sni"), "a/b".toBytes()).isErr()
+      MultiAddress.init(@[0xC1'u8, 0x03'u8, 0x01'u8, 0xFF'u8]).isErr()
 
   test "Concatenation test":
     var ma1 = MultiAddress.init()
