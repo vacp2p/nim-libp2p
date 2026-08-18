@@ -11,11 +11,11 @@ import
     routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
     ping, ip_diversity,
   ]
-import ./kademlia/[kademlia_metrics, netsize]
+import ./kademlia/[kademlia_metrics, netsize, probe_backoff]
 
 export
   chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
-  provider, ping, kademlia_metrics, netsize, ip_diversity
+  provider, ping, kademlia_metrics, netsize, probe_backoff, ip_diversity
 
 logScope:
   topics = "kad-dht"
