@@ -354,3 +354,17 @@ suite "AutonatV2":
     ).encode()
     expect(AutonatV2Error):
       discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    # 4. omitted addrIdx must still validate as index 0
+    autonatV2Mock.response = AutonatV2Msg(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse: DialResponse(
+          status: ResponseStatus.Ok,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.some(DialStatus.Ok),
+        ),
+      )
+    ).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)

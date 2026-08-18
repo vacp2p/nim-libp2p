@@ -185,11 +185,11 @@ method sendDialRequest*(
 
     dialResp.dialStatus.withValue(dialStatus):
       if dialStatus == DialStatus.Ok:
-        dialResp.addrIdx.withValue(addrIdx):
-          if not self.checkAddrIdx(addrIdx, testAddrs, nonce):
-            raise newException(
-              AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
-            )
+        let addrIdx = dialResp.addrIdx.valueOr(0.AddrIdx)
+        if not self.checkAddrIdx(addrIdx, testAddrs, nonce):
+          raise newException(
+            AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
+          )
   except LPStreamRemoteClosedError as exc:
     error "Stream reset by server", description = exc.msg, peer = pid
   finally:
