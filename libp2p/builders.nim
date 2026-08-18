@@ -97,7 +97,6 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     identifyPusherEnabled: bool
-    addressManager: AddressManager
     addressManagerConfig: Opt[AddressManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
@@ -427,22 +426,7 @@ proc withAddressManager*(
     b: SwitchBuilder, config: AddressManagerConfig
 ): SwitchBuilder =
   ## Set the thresholds of the address manager.
-  b.addressManager = nil
   b.addressManagerConfig = Opt.some(config)
-  b
-
-proc withObservedAddrManager*(
-    b: SwitchBuilder, config: AddressManagerConfig
-): SwitchBuilder {.deprecated: "use withAddressManager".} =
-  b.withAddressManager(config)
-
-proc withObservedAddrManager*(
-    b: SwitchBuilder, addressManager: AddressManager
-): SwitchBuilder {.
-    deprecated: "the switch owns the manager; pass an AddressManagerConfig"
-.} =
-  b.addressManagerConfig = Opt.none(AddressManagerConfig)
-  b.addressManager = addressManager
   b
 
 proc withAddressPolicy*(
@@ -460,11 +444,6 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## - Private addresses received from other peers are discarded
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
-
-proc buildAddressManager(b: SwitchBuilder): AddressManager =
-  if b.addressManager.isNil():
-    return AddressManager.new(b.addressManagerConfig.get(AddressManagerConfig()))
-  b.addressManager
 
 proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
@@ -493,7 +472,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     announcedAddrs = b.announcedAddrs,
   )
 
-  let addressManager = b.buildAddressManager()
+  let addressManager =
+    AddressManager.new(b.addressManagerConfig.get(AddressManagerConfig()))
   let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, addressManager)
 
   var peerStore = block:

@@ -3,30 +3,18 @@
 
 {.push raises: [].}
 
-import std/[deques, sequtils]
-import chronos, chronicles, metrics, results
+import chronos, chronicles, results
 import
-  ../../protocol,
   ../../../switch,
   ../../../multiaddress,
-  ../../../multicodec,
-  ../../../peerid,
   ../../../wire,
-  ../../../utils/heartbeat,
   ../../../services/reachabilityobservers,
   ../../../crypto/crypto,
   ../autonat/types,
-  ./types,
   ./client,
-  ./utils
+  ./verifier
 
 export reachabilityobservers
-
-declarePublicGauge(
-  libp2p_autonat_v2_reachability_confidence,
-  "autonat v2 reachability confidence",
-  labels = ["reachability"],
-)
 
 logScope:
   topics = "libp2p autonatv2 service"
@@ -37,45 +25,30 @@ const noneDuration: Opt[Duration] = Opt.none(Duration)
 type
   AutonatV2ServiceConfig* = object
     scheduleInterval: Opt[Duration]
-    askNewConnectedPeers: bool
-    numPeersToAsk: int
-    maxQueueSize: int
-    minConfidence: float
     enableAddressMapper: bool
     enableDialableCandidates: bool
 
   AutonatV2Service* = ref object of Service
     reachabilityObservers*: ReachabilityObservers
     config*: AutonatV2ServiceConfig
-    confidence: Opt[float]
-    newConnectedPeerHandler: PeerEventHandler
     addressMapper: AddressMapper
-    scheduleHandle: Future[void]
-    networkReachability*: NetworkReachability
-    answers: Deque[NetworkReachability]
+    addressManager: AddressManager
+    verifier: AutonatV2Verifier
+    peerHandler: PeerEventHandler
     client*: AutonatV2Client
     rng: Rng
 
   StatusAndConfidenceHandler* = ReachabilityHandler
-    ## The handler of the replaced single-subscriber API. It has the same
-    ## signature as `ReachabilityHandler`; use that name instead.
+    ## The name of the replaced single-subscriber API; use `ReachabilityHandler`.
 
 proc new*(
     T: typedesc[AutonatV2ServiceConfig],
     scheduleInterval: Opt[Duration] = noneDuration,
-    askNewConnectedPeers = true,
-    numPeersToAsk: int = 5,
-    maxQueueSize: int = 10,
-    minConfidence: float = 0.3,
     enableAddressMapper = true,
     enableDialableCandidates = false,
 ): T =
-  return T(
+  T(
     scheduleInterval: scheduleInterval,
-    askNewConnectedPeers: askNewConnectedPeers,
-    numPeersToAsk: numPeersToAsk,
-    maxQueueSize: maxQueueSize,
-    minConfidence: minConfidence,
     enableAddressMapper: enableAddressMapper,
     enableDialableCandidates: enableDialableCandidates,
   )
@@ -86,197 +59,85 @@ proc new*(
     client: AutonatV2Client = AutonatV2Client.new(),
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =
-  return T(
+  T(
     reachabilityObservers: ReachabilityObservers.new(),
     config: config,
-    confidence: Opt.none(float),
-    networkReachability: Unknown,
-    answers: initDeque[NetworkReachability](),
     client: client,
     rng: rng,
   )
 
-proc handleAnswer(
-    self: AutonatV2Service, ans: NetworkReachability
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  if ans == Unknown:
-    return
-
-  let oldNetworkReachability = self.networkReachability
-  let oldConfidence = self.confidence
-
-  if self.answers.len == self.config.maxQueueSize:
-    self.answers.popFirst()
-  self.answers.addLast(ans)
-
-  self.networkReachability = Unknown
-  self.confidence = Opt.none(float)
-  const reachabilityPriority = [Reachable, NotReachable]
-  for reachability in reachabilityPriority:
-    let confidence = self.answers.countIt(it == reachability) / self.config.maxQueueSize
-    libp2p_autonat_v2_reachability_confidence.set(
-      value = confidence, labelValues = [$reachability]
-    )
-    if self.confidence.isNone and confidence >= self.config.minConfidence:
-      self.networkReachability = reachability
-      self.confidence = Opt.some(confidence)
-
-  debug "Current status",
-    currentStats = $self.networkReachability,
-    confidence = $self.confidence,
-    answers = self.answers
-
-  # Return whether anything has changed
-  return
-    self.networkReachability != oldNetworkReachability or
-    self.confidence != oldConfidence
-
-proc askPeer(
-    self: AutonatV2Service, switch: Switch, peerId: PeerId
-): Future[NetworkReachability] {.async: (raises: [CancelledError]).} =
-  logScope:
-    peerId = $peerId
-
-  if hasIncomingConn(switch, peerId):
-    return Unknown
-
-  if not hasEnoughIncomingSlots(switch):
-    debug "Not enough incoming slots available, not asking peer",
-      incomingSlotsAvailable = switch.connManager.availableSlots(In)
-    return Unknown
-
-  trace "Asking peer for reachability"
-
-  var reqAddrs = switch.peerInfo.addrs
-  if self.config.enableDialableCandidates:
-    # A node behind NAT only has listen addresses until it is confirmed
-    # reachable, so derive extra candidates from the observed addresses to break
-    # the chicken-and-egg.
-    var observedCandidates: seq[MultiAddress]
-    for listenAddr in switch.peerInfo.listenAddrs:
-      let guessed = switch.addressManager.externalAddrFor(listenAddr)
-      if guessed != listenAddr:
-        observedCandidates.add(guessed)
-    observedCandidates &= switch.addressManager.mostObservedProtosAndPorts()
-
-    reqAddrs = deduplicate(observedCandidates & reqAddrs).filterIt(
-        switch.peerInfo.addressPolicy(it)
-      )
-
-  if reqAddrs.len == 0:
-    debug "No candidate addresses to test, not asking peer"
-    return Unknown
-
-  var dialBackAddr = Opt.none(MultiAddress)
-  let ans =
-    try:
-      let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
-      debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
-      dialBackAddr = autonatV2Resp.addrs
-      autonatV2Resp.reachability
-    except CancelledError as exc:
-      raise exc
-    except LPStreamError as exc:
-      debug "DialRequest stream error", description = exc.msg
-      Unknown
-    except DialFailedError as exc:
-      debug "DialRequest dial failed", description = exc.msg
-      Unknown
-    except AutonatV2Error as exc:
-      debug "DialRequest error", description = exc.msg
-      Unknown
-  let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
-  if hasReachabilityOrConfidenceChanged:
-    await self.reachabilityObservers.notify(
-      self.networkReachability, self.confidence, dialBackAddr
-    )
-  await switch.peerInfo.update()
-  return ans
-
-proc askConnectedPeers(
-    self: AutonatV2Service, switch: Switch
-) {.async: (raises: [CancelledError]).} =
-  trace "Asking peers for reachability"
-  var peers = switch.connectedPeers(Direction.Out)
-  self.rng.shuffle(peers)
-  var answersFromPeers = 0
-  for peer in peers:
-    if answersFromPeers >= self.config.numPeersToAsk:
-      break
-    if not hasEnoughIncomingSlots(switch):
-      debug "No incoming slots available, not asking peers",
-        incomingSlotsAvailable = switch.connManager.availableSlots(In)
-      break
-    if (await askPeer(self, switch, peer)) != Unknown:
-      answersFromPeers.inc()
-
-proc schedule(
-    service: AutonatV2Service, switch: Switch, interval: Duration
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "Scheduling AutonatV2Service run", interval:
-    await service.askConnectedPeers(switch)
+func networkReachability*(self: AutonatV2Service): NetworkReachability =
+  ## The address manager's summary; `Unknown` before setup.
+  if self.addressManager.isNil():
+    return NetworkReachability.Unknown
+  self.addressManager.reachability()
 
 proc addressMapper(
-    self: AutonatV2Service,
-    addressManager: AddressManager,
-    listenAddrs: seq[MultiAddress],
+    self: AutonatV2Service, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  if not self.networkReachability.isReachable():
+  if not self.networkReachability().isReachable():
     return listenAddrs
 
   var addrs = newSeq[MultiAddress]()
   for listenAddr in listenAddrs:
-    if listenAddr.isPublicMA() or not self.networkReachability.isReachable():
+    if listenAddr.isPublicMA():
       addrs.add(listenAddr)
     else:
-      addrs.add(addressManager.externalAddrFor(listenAddr))
-  return addrs
+      addrs.add(self.addressManager.externalAddrFor(listenAddr))
+  addrs
 
 method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
   trace "Setting up AutonatV2Service"
 
+  self.addressManager = switch.addressManager
+  self.verifier = AutonatV2Verifier.new(switch, self.client, self.rng)
+
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-    return await addressMapper(self, switch.addressManager, listenAddrs)
-
-  if self.config.askNewConnectedPeers:
-    self.newConnectedPeerHandler = proc(
-        peerId: PeerId, event: PeerEvent
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      discard askPeer(self, switch, peerId)
+    return await addressMapper(self, listenAddrs)
 
 method start*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatV2Service"
 
-  switch.connManager.addPeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
-  )
+  let manager = switch.addressManager
+  self.config.scheduleInterval.withValue(interval):
+    manager.verifyInterval = interval
+  manager.deriveIdentifyCandidates = self.config.enableDialableCandidates
+  manager.onReachabilityChange = proc(
+      reachability: NetworkReachability
+  ) {.async: (raises: [CancelledError]).} =
+    await self.reachabilityObservers.notify(reachability, Opt.none(float))
 
   if self.config.enableAddressMapper:
-    switch.addressManager.addMapper(self.addressMapper, AddrSource.Autonat)
-    await switch.peerInfo.update()
+    manager.addMapper(self.addressMapper, AddrSource.Autonat)
 
-  self.config.scheduleInterval.withValue(interval):
-    if self.scheduleHandle.isNil:
-      self.scheduleHandle = schedule(self, switch, interval)
+  # resolve the candidates first: registering the verifier restarts the heartbeat
+  await switch.peerInfo.update()
+  manager.verifier = self.verifier
+
+  # the first runs find no peer to ask; a new peer ends the Unknown state now
+  self.peerHandler = proc(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    if manager.reachability() == NetworkReachability.Unknown:
+      manager.triggerVerification()
+  switch.addPeerEventHandler(self.peerHandler, PeerEventKind.Identified)
 
 method stop*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Stopping AutonatV2Service"
 
-  if not isNil(self.scheduleHandle):
-    self.scheduleHandle.cancelSoon()
-    self.scheduleHandle = nil
-  if not isNil(self.newConnectedPeerHandler):
-    switch.connManager.removePeerEventHandler(
-      self.newConnectedPeerHandler, PeerEventKind.Joined
-    )
+  let manager = switch.addressManager
+  switch.removePeerEventHandler(self.peerHandler, PeerEventKind.Identified)
+  manager.verifier = nil
+  manager.onReachabilityChange = nil
+  manager.deriveIdentifyCandidates = false
   if self.config.enableAddressMapper:
-    switch.addressManager.removeMapper(self.addressMapper)
+    manager.removeMapper(self.addressMapper)
   await switch.peerInfo.update()
 
 proc setStatusAndConfidenceHandler*(

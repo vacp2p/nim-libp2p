@@ -31,6 +31,7 @@ proc isRunning*(self: AutoRelayService): bool =
 proc addressMapper(
     self: AutoRelayService, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: []).} =
+  ## The manager drops a relay address which a confirmed direct address replaces.
   return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(
