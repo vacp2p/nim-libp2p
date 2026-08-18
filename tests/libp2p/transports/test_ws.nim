@@ -224,8 +224,7 @@ suite "WebSocket transport":
     )
     let
       sniSuffix = MultiAddress.init("/tls/sni/" & $expectedPeerId & "/ws").tryGet()
-      listenAddr =
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet() & sniSuffix
+      listenAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet() & sniSuffix
     await transport1.start(@[listenAddr])
     defer:
       await transport1.stop()
