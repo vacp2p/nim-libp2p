@@ -45,6 +45,9 @@ proc bridge(srcStream: Stream, dstStream: Stream) {.
     dstEof = false
     bufRead: int
 
+  defer:
+    await noCancel allFutures(futSrc.cancelAndWait(), futDst.cancelAndWait())
+
   try:
     while (not srcEof or not dstEof) and
         not srcStream.closed() and not dstStream.closed():
@@ -83,9 +86,6 @@ proc bridge(srcStream: Stream, dstStream: Stream) {.
     raise exc
   except LPStreamError:
     discard
-
-  await futSrc.cancelAndWait()
-  await futDst.cancelAndWait()
 
 proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
   let ma = @[MultiAddress.init(address).tryGet()]
