@@ -9,6 +9,7 @@ import ../../../libp2p/[peerid, stream/connection]
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
+  findNodeTables*: seq[RoutingTable]
   getValueResponse*: Opt[Message]
   handleAddProviderMessage*: Opt[Message]
   handleFindNodeDelay*: Duration
@@ -30,6 +31,7 @@ method findNode*(
     kad: MockKadDHT, target: Key, rtable: RoutingTable
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
+  kad.findNodeTables.add(rtable)
   if kad.findNodeStalls:
     await kad.stallUntilCancelled()
   rtable.findClosestPeerIds(target, kad.config.replication)
@@ -38,6 +40,7 @@ method findNode*(
     kad: MockKadDHT, target: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
+  kad.findNodeTables.add(kad.rtable)
   if kad.findNodeStalls:
     await kad.stallUntilCancelled()
   kad.rtable.findClosestPeerIds(target, kad.config.replication)
