@@ -211,8 +211,8 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     else:
       idle = true
 
-proc centerTarget(kad: KadDHT, rtable: RoutingTable): Opt[Key] =
-  ## A table with no peers of its own borrows the main table's to start the walk.
+proc centerTarget(kad: KadDHT, rtable: RoutingTable): Opt[Key] {.raises: [].} =
+  ## A table with no peers of its own borrows the main table's peers to start the walk.
   rtable.refreshSelfTarget().withValue(own):
     return Opt.some(own)
   rtable.nearestToCenter(kad.rtable.allKeys())

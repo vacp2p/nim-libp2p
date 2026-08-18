@@ -389,7 +389,9 @@ proc allKeys*(rtable: RoutingTable): seq[Key] =
 proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
   rng.pickOne(bucket.peers)
 
-proc nearestToCenter*(rtable: RoutingTable, candidates: openArray[Key]): Opt[Key] =
+proc nearestToCenter*(
+    rtable: RoutingTable, candidates: openArray[Key]
+): Opt[Key] {.raises: [].} =
   ## The candidate whose hash lands closest to this table's own center.
   if candidates.len == 0:
     return Opt.none(Key)
@@ -404,7 +406,7 @@ proc nearestToCenter*(rtable: RoutingTable, candidates: openArray[Key]): Opt[Key
       nearestDist = dist
   Opt.some(nearest)
 
-proc refreshSelfTarget*(rtable: RoutingTable): Opt[Key] =
+proc refreshSelfTarget*(rtable: RoutingTable): Opt[Key] {.raises: [].} =
   ## Key to run a findNode against in order to refresh the table's own center.
   if not rtable.config.selfIdPreHashed:
     return Opt.some(rtable.selfId)

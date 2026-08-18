@@ -164,7 +164,9 @@ proc allSortedPeers*(state: LookupState): seq[PeerId] =
   ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
   state.sortedShortlist(excludeResponded = false).mapIt(it[0])
 
-proc init*(T: type LookupState, kad: KadDHT, target: Key, rtable: RoutingTable): T =
+proc init*(
+    T: type LookupState, kad: KadDHT, target: Key, rtable: RoutingTable
+): T {.raises: [].} =
   ## Seeds and ranks with `rtable`; falls back to the main table when it has nobody to ask.
   let res = LookupState(kad: kad, rtable: rtable, target: target)
 
@@ -177,7 +179,7 @@ proc init*(T: type LookupState, kad: KadDHT, target: Key, rtable: RoutingTable):
 
   res
 
-proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
+proc init*(T: type LookupState, kad: KadDHT, target: Key): T {.raises: [].} =
   LookupState.init(kad, target, kad.rtable)
 
 proc dispatchFindNode*(
