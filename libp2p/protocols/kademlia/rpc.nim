@@ -18,6 +18,10 @@ proc countSent*[T](
   kad_messages_sent.inc(labelValues = [$msgType])
   kad_message_bytes_sent.inc(sentBytes, labelValues = [$msgType])
 
+proc dialAddrs*(kad: KadDHT, peer: PeerId): seq[MultiAddress] {.raises: [].} =
+  ## The addresses an RPC to `peer` dials when its caller names none.
+  kad.switch.peerStore[AddressBook][peer]
+
 proc dispatchRpc*(
     kad: KadDHT,
     peer: PeerId,
@@ -36,10 +40,7 @@ proc dispatchRpc*(
   var sendRes: Result[seq[byte], SendError]
   kad_message_duration_ms.time(labelValues = [$msgType]):
     sendRes = await kad.msgSender.sendRequest(
-      peer,
-      addrs.valueOr(kad.switch.peerStore[AddressBook][peer]),
-      move encoded,
-      kad.config.timeout,
+      peer, addrs.valueOr(kad.dialAddrs(peer)), move encoded, kad.config.timeout
     )
   sendRes.countSent(msgType, sentBytes)
 

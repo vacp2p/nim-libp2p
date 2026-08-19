@@ -160,9 +160,9 @@ suite "KadDHT Iterative Lookup":
     let msg = Message(
       msgType: MessageType.findNode,
       closerPeers: @[
-        Peer(id: existingPeer.toKey()),
-        Peer(id: newPeer.toKey()),
-        Peer(id: newPeer.toKey()), # Duplicate
+        closerPeer(existingPeer.toKey()),
+        closerPeer(newPeer.toKey()),
+        closerPeer(newPeer.toKey()), # Duplicate
       ],
     )
 
@@ -189,7 +189,7 @@ suite "KadDHT Iterative Lookup":
       closerPeers: @[
         Peer(id: Opt.none(seq[byte])), # Invalid: empty
         Peer(id: @[0'u8, 1]), # Invalid: malformed
-        Peer(id: validPeer.toKey()), # Valid
+        closerPeer(validPeer.toKey()), # Valid
       ],
     )
 
@@ -234,7 +234,7 @@ suite "KadDHT Iterative Lookup":
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
 
-    let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
+    let peers = state.addRandomPeers(kad, 4, targetKey)
     kad.config.beta = 3
 
     # only 2 successes, need 3
@@ -252,7 +252,7 @@ suite "KadDHT Iterative Lookup":
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
 
-    let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
+    let peers = state.addRandomPeers(kad, 4, targetKey)
     kad.config.beta = 3
 
     # Respond from 0, 2 and 3, but not 1
@@ -270,7 +270,7 @@ suite "KadDHT Iterative Lookup":
 
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
-    let peers = state.addRandomPeers(4, targetKey, kad.rtable.config.hasher)
+    let peers = state.addRandomPeers(kad, 4, targetKey)
 
     kad.config.beta = 5
     kad.config.replication = 2
@@ -287,7 +287,7 @@ suite "KadDHT Iterative Lookup":
 
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
-    let peers = state.addRandomPeers(5, targetKey, kad.rtable.config.hasher)
+    let peers = state.addRandomPeers(kad, 5, targetKey)
 
     state.responded[peers[0]] = RespondedStatus.Success
     state.responded[peers[1]] = RespondedStatus.Failed
@@ -331,7 +331,7 @@ suite "KadDHT Iterative Lookup":
     # Create message with 10 peers (more than k=3)
     var peers: seq[Peer]
     for i in 0 ..< 10:
-      peers.add(Peer(id: randomPeerId().toKey()))
+      peers.add(closerPeer(randomPeerId().toKey()))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     let added = state.updateShortlist(msg)
@@ -354,6 +354,23 @@ suite "KadDHT Iterative Lookup":
     discard await kad.iterativeLookup(targetKey, recordingDispatch(queried), noopReply)
 
     check queried[] == known
+
+  asyncTest "Lookup drops a shortlisted peer it has no address for":
+    let kad = setupLookupKad()
+
+    let targetKey = randomPeerId().toKey()
+    let (closest, known) = kad.seedRoutingTableBelow(5, targetKey)
+    # a reply shortlists the id even when admission stores no address for it
+    kad.switch.peerStore[AddressBook][closest] = @[]
+
+    let queried = new(seq[PeerId])
+    let dispatch = recordingDispatch(queried, {known[2]: @[closest]}.toTable())
+    let state = await kad.iterativeLookup(targetKey, dispatch, noopReply)
+
+    check:
+      # dialing it would fail with an empty address list, so it never runs
+      queried[] == known
+      closest notin state.shortlist
 
   asyncTest "Follow-up phase defers a peer it hears about to the next round":
     let kad = setupLookupKad()
