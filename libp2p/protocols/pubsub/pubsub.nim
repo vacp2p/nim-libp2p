@@ -267,7 +267,7 @@ proc sendResponse*(
   peer.sendResponse(msg, p.anonymize, priority, useCustomStream)
 
 proc countBroadcastMetrics(
-    p: PubSub, sendPeers: auto, msg: RPCMsg
+    p: PubSub, sendPeers: openArray[PubSubPeer], msg: RPCMsg
 ) {.raises: [].} =
   ## Increments the broadcast-related metrics for an outgoing RPC message.
   let npeers = sendPeers.len.int64
@@ -304,7 +304,7 @@ proc countBroadcastMetrics(
 
 proc broadcast*(
     p: PubSub,
-    sendPeers: auto, # Iteratble[PubSubPeer]
+    sendPeers: openArray[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
@@ -318,7 +318,7 @@ proc broadcast*(
   ##
   ## Parameters:
   ## - `p`: The `PubSub` instance.
-  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
+  ## - `sendPeers`: A sequence of `PubSubPeer` instances to which the message should be sent.
   ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
   ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
   ##   High priority messages are sent immediately, medium and low priority messages are queued
@@ -344,9 +344,21 @@ proc broadcast*(
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
 
+proc broadcast*(
+    p: PubSub,
+    sendPeers: HashSet[PubSubPeer],
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [MessageTooLargeError].} =
+  ## Overload for `HashSet[PubSubPeer]`: order is irrelevant for a broadcast,
+  ## so the peers are materialized into a sequence and delegated to the
+  ## `openArray` overload.
+  p.broadcast(sendPeers.toSeq, msg, priority, useCustomStream)
+
 proc broadcastResponse*(
     p: PubSub,
-    sendPeers: auto, # Iteratble[PubSubPeer]
+    sendPeers: openArray[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
@@ -371,6 +383,18 @@ proc broadcastResponse*(
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
+
+proc broadcastResponse*(
+    p: PubSub,
+    sendPeers: HashSet[PubSubPeer],
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Overload for `HashSet[PubSubPeer]`: order is irrelevant for a broadcast,
+  ## so the peers are materialized into a sequence and delegated to the
+  ## `openArray` overload.
+  p.broadcastResponse(sendPeers.toSeq, msg, priority, useCustomStream)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
