@@ -230,7 +230,7 @@ proc send*(
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
-) {.raises: [MessageTooLargeError].} =
+) {.raises: [].} =
   ## Sends an application-published `msg` (of type `RPCMsg`) to the specified
   ## remote peer in the PubSub network.
   ##
@@ -290,13 +290,9 @@ proc broadcast*(
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
-) {.raises: [MessageTooLargeError].} =
+) {.raises: [].} =
   ## Sends an application-published `msg` (of type `RPCMsg`) to a specified
   ## group of peers in the PubSub network.
-  ##
-  ## The message is sent as-is, without splitting - the application is
-  ## responsible for ensuring the message fits within `maxMessageSize`. Raises
-  ## `MessageTooLargeError` if the encoded message exceeds `maxMessageSize`.
   ##
   ## Parameters:
   ## - `p`: The `PubSub` instance.
@@ -317,7 +313,10 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
     if encoded.len > p.maxMessageSize:
-      raise MessageTooLargeError.new(encoded.len, p.maxMessageSize)
+      warn "message exceeds maximum message size",
+        encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
+      return
+
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
@@ -328,7 +327,7 @@ proc broadcast*(
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
-) {.raises: [MessageTooLargeError].} =
+) {.raises: [].} =
   ## Overload for `HashSet[PubSubPeer]`: order is irrelevant for a broadcast,
   ## so the peers are materialized into a sequence and delegated to the
   ## `openArray` overload.
@@ -649,16 +648,13 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.base, async: (raises: [MessageTooLargeError]).} =
+): Future[int] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
-  ##
-  ## Raises `MessageTooLargeError` if the message is larger than
-  ## `maxMessageSize`.
   handleSelfPublishing(p, topic, data)
 
   return 0

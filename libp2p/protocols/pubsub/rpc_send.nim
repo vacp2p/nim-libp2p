@@ -10,6 +10,10 @@ import ./pubsub, ./pubsubpeer, ./rpc/[messages, protobuf]
 logScope:
   topics = "libp2p pubsub"
 
+## This file implements methods for sending protocol messages aka responses. 
+## They are intentionally implemented in separated file to avoid exporting
+## it to downstream dependencies.
+
 proc sendResponse*(
     p: PubSub,
     peer: PubSubPeer,

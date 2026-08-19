@@ -9,7 +9,6 @@ import chronos, chronicles, nimcrypto/sha2, metrics
 import chronos/ratelimit
 import
   rpc/[messages, message, protobuf],
-  ./errors,
   ../../peerid,
   ../../peerinfo,
   ../../stream/connection,
@@ -638,12 +637,8 @@ proc send*(
     anonymize: bool,
     priority: MessagePriority,
     useCustomStream: bool = false,
-) {.raises: [MessageTooLargeError].} =
+) {.raises: [].} =
   ## Sends an application-published `RPCMsg` to this peer, without splitting.
-  ##
-  ## The message is sent as-is - the application is responsible for ensuring it
-  ## fits within `maxMessageSize`. Raises `MessageTooLargeError` if the encoded
-  ## message exceeds `maxMessageSize`.
   ##
   ## Parameters:
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
@@ -656,7 +651,8 @@ proc send*(
   var encoded = encodeRpcMsg(p, msg, anonymize)
 
   if encoded.len > p.maxMessageSize:
-    raise MessageTooLargeError.new(encoded.len, p.maxMessageSize)
+    warn "message exceeds maximum message size",
+      encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
 
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
   p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))

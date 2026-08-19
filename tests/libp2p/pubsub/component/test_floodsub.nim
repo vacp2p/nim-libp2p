@@ -256,9 +256,8 @@ suite "FloodSub Component":
     checkUntilTimeout:
       messageReceived == 2
 
-    # Publishing a message larger than the configured maxMessageSize raises.
-    expect MessageTooLargeError:
-      discard await smallNode.publish(topic, bigMessage)
+    # Publishing a message larger than the configured maxMessageSize will not publish.
+    check (await smallNode.publish(topic, bigMessage)) == 0
 
     # The larger node can still publish, but the smaller node cannot receive it
     # because its maxMessageSize is exceeded on the wire.

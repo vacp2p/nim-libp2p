@@ -195,7 +195,7 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.async: (raises: [MessageTooLargeError]).} =
+): Future[int] {.async: (raises: []).} =
   handleSelfPublishing(f, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog, topic
@@ -228,7 +228,9 @@ method publish*(
   # occur.
   let encodedSize = encode(RPCMsg.withMessages(msg), f.anonymize).len
   if encodedSize > f.maxMessageSize:
-    raise MessageTooLargeError.new(encodedSize, f.maxMessageSize)
+    warn "message exceeds maximum message size",
+      encodedSize, maxMessageSize = f.maxMessageSize
+    return 0
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

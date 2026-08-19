@@ -873,7 +873,7 @@ method publish*(
     topic: string,
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.async: (raises: [MessageTooLargeError]).} =
+): Future[int] {.async: (raises: []).} =
   logScope:
     topic
 
@@ -930,7 +930,9 @@ method publish*(
   # effects occur.
   let encodedSize = encode(RPCMsg.withMessages(msg), g.anonymize).len
   if encodedSize > g.maxMessageSize:
-    raise MessageTooLargeError.new(encodedSize, g.maxMessageSize)
+    warn "message exceeds maximum message size",
+      encodedSize, maxMessageSize = g.maxMessageSize
+    return 0
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
