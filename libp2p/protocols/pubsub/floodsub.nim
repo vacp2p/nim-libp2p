@@ -7,6 +7,7 @@ import std/[sets, hashes, tables, sequtils]
 import chronos, chronicles, metrics
 import
   ./pubsub,
+  ./rpc_send,
   ./pubsubpeer,
   ./timedcache,
   ./peertable,

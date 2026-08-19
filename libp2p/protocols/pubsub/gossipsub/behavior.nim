@@ -6,7 +6,7 @@
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring, extensions]
-import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub, rpc_send]
 import "../rpc"/[messages]
 import
   "../../.."/[

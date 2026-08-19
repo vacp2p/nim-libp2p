@@ -16,6 +16,7 @@ import
   ./peertable,
   ./mcache,
   ./timedcache,
+  ./rpc_send,
   ./rpc/[messages, message, protobuf],
   ../protocol,
   ../../stream/connection,
@@ -29,6 +30,9 @@ import
   ../../utils/future
 
 export types, scoring, behavior, pubsub, results
+
+when defined(libp2p_testing):
+  export sendResponse, broadcastResponse
 
 logScope:
   topics = "libp2p gossipsub"
