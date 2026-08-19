@@ -204,6 +204,15 @@ method publish*(
     debug "Empty topic, skipping publish", topic
     return 0
 
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup side effects
+  # occur.
+  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  if messageSize > f.maxMessageSize:
+    warn "message exceeds maximum message size",
+      encodedSize, maxMessageSize = f.maxMessageSize
+    return 0
+
   let peers = f.floodsub.getOrDefault(topic)
 
   if peers.len == 0:
@@ -222,15 +231,6 @@ method publish*(
       return 0
 
   trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
-
-  # Application-published messages are never split - reject oversized messages
-  # up front so the caller can handle the error before any dedup side effects
-  # occur.
-  let encodedSize = encode(RPCMsg.withMessages(msg), f.anonymize).len
-  if encodedSize > f.maxMessageSize:
-    warn "message exceeds maximum message size",
-      encodedSize, maxMessageSize = f.maxMessageSize
-    return 0
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

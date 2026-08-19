@@ -881,6 +881,15 @@ method publish*(
     debug "Empty topic, skipping publish"
     return 0
 
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup/cache side
+  # effects occur.
+  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  if messageSize > g.maxMessageSize:
+    warn "message exceeds maximum message size",
+      messageSize, maxMessageSize = g.maxMessageSize
+    return 0
+
   handleSelfPublishing(g, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog
@@ -924,15 +933,6 @@ method publish*(
     msgId = shortLog(msgId)
 
   trace "Created new message", message = shortLog(msg), peers = peers.len
-
-  # Application-published messages are never split - reject oversized messages
-  # up front so the caller can handle the error before any dedup/cache side
-  # effects occur.
-  let encodedSize = encode(RPCMsg.withMessages(msg), g.anonymize).len
-  if encodedSize > g.maxMessageSize:
-    warn "message exceeds maximum message size",
-      encodedSize, maxMessageSize = g.maxMessageSize
-    return 0
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
