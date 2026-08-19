@@ -11,7 +11,6 @@
 
 import std/[tables, sequtils, sets, strutils]
 import chronos, chronicles, metrics
-import chronos/ratelimit
 import
   ./errors as pubsub_errors,
   ./pubsubpeer,
@@ -335,11 +334,7 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
     if encoded.len > p.maxMessageSize:
-      raise newException(
-        MessageTooLargeError,
-        "message of size " & $encoded.len & " exceeds maxMessageSize " &
-          $p.maxMessageSize,
-      )
+      raise MessageTooLargeError.new(encoded.len, p.maxMessageSize)
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))

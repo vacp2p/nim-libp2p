@@ -654,11 +654,7 @@ proc send*(
   var encoded = encodeRpcMsg(p, msg, anonymize)
 
   if encoded.len > p.maxMessageSize:
-    raise newException(
-      MessageTooLargeError,
-      "message of size " & $encoded.len & " exceeds maxMessageSize " &
-        $p.maxMessageSize,
-    )
+    raise MessageTooLargeError.new(encoded.len, p.maxMessageSize)
 
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
   p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))

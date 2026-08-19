@@ -926,11 +926,7 @@ method publish*(
   # effects occur.
   let encodedSize = encode(RPCMsg.withMessages(msg), g.anonymize).len
   if encodedSize > g.maxMessageSize:
-    raise newException(
-      MessageTooLargeError,
-      "message of size " & $encodedSize & " exceeds maxMessageSize " &
-        $g.maxMessageSize,
-    )
+    raise MessageTooLargeError.new(encodedSize, g.maxMessageSize)
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -

@@ -227,11 +227,7 @@ method publish*(
   # occur.
   let encodedSize = encode(RPCMsg.withMessages(msg), f.anonymize).len
   if encodedSize > f.maxMessageSize:
-    raise newException(
-      MessageTooLargeError,
-      "message of size " & $encodedSize & " exceeds maxMessageSize " &
-        $f.maxMessageSize,
-    )
+    raise MessageTooLargeError.new(encodedSize, f.maxMessageSize)
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

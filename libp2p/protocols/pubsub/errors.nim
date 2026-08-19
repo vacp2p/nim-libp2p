@@ -15,3 +15,13 @@ type
   MessageTooLargeError* = object of LPError
     ## Raised when an application publishes a message whose encoded size
     ## exceeds `maxMessageSize`.
+
+func new*(
+    T: type MessageTooLargeError, encodedSize, maxMessageSize: int
+): ref MessageTooLargeError =
+  doAssert encodedSize > maxMessageSize, "encodedSize must exceed maxMessageSize"
+
+  (ref MessageTooLargeError)(
+    msg: "message of size " & $encodedSize & " exceeds maxMessageSize " &
+      $maxMessageSize
+  )
