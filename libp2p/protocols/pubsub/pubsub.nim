@@ -348,7 +348,9 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  peer.sendResponse(RPCMsg.withSubscriptions(subscriptions), p.anonymize, MessagePriority.High)
+  peer.sendResponse(
+    RPCMsg.withSubscriptions(subscriptions), p.anonymize, MessagePriority.High
+  )
 
   for topic in subTopics:
     if subscribe:

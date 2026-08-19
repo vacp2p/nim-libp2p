@@ -22,6 +22,6 @@ func new*(
   doAssert encodedSize > maxMessageSize, "encodedSize must exceed maxMessageSize"
 
   (ref MessageTooLargeError)(
-    msg: "message of size " & $encodedSize & " exceeds maxMessageSize " &
-      $maxMessageSize
+    msg:
+      "message of size " & $encodedSize & " exceeds maxMessageSize " & $maxMessageSize
   )

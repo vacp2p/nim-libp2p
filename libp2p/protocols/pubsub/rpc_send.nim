@@ -5,10 +5,7 @@
 
 import std/[sequtils, sets]
 import chronicles
-import
-  ./pubsub,
-  ./pubsubpeer,
-  ./rpc/[messages, protobuf]
+import ./pubsub, ./pubsubpeer, ./rpc/[messages, protobuf]
 
 logScope:
   topics = "libp2p pubsub"

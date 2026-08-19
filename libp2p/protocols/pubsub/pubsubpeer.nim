@@ -615,7 +615,9 @@ proc sendEncoded*(
       else:
         p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
-proc encodeRpcMsg(p: PubSubPeer, msg: RPCMsg, anonymize: bool): seq[byte] {.raises: [].} =
+proc encodeRpcMsg(
+    p: PubSubPeer, msg: RPCMsg, anonymize: bool
+): seq[byte] {.raises: [].} =
   ## Encodes an `RPCMsg` for sending, running send observers and metrics.
   ##
   ## We re-encode the message to protect against valid but redundantly encoded
