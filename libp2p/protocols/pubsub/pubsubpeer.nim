@@ -664,17 +664,35 @@ proc sendResponse*(
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## Sends a protocol response `RPCMsg` to this peer, splitting multi-message
-  ## responses into individual messages so that none exceed `maxMessageSize`.
+  ## Sends a protocol response `RPCMsg` to this peer, batching multi-message
+  ## responses together so that none exceed `maxMessageSize`.
   ##
   ## This is an internal, protocol-facing send path - individual messages that
   ## still exceed `maxMessageSize` are silently dropped.
 
   if msg.messages.len > 1:
+    # Batch as many messages as possible into a single encoded RPC instead of
+    # encoding one RPC per message. 
+    # Batches are sized with the cheap `byteSize` estimate, leaving 10% headroom 
+    # for protobuf encoding overhead on top of the raw payload sizes.
+    let maxBatchSize = (p.maxMessageSize * 90) div 100
+
+    var batch = RPCMsg()
+
     for m in msg.messages:
-      var single = RPCMsg(messages: @[m])
-      var encoded = encodeRpcMsg(p, single, anonymize)
-      trace "sending response msg to peer", peer = p, rpcMsg = shortLog(single)
+      if batch.messages.len > 0 and batch.byteSize() + m.byteSize() > maxBatchSize:
+        # The batch is full - send it and start a new one.
+        var encoded = encodeRpcMsg(p, batch, anonymize)
+        trace "sending response msg to peer", peer = p, rpcMsg = shortLog(batch)
+        p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
+        batch = RPCMsg()
+
+      batch.messages.add(m)
+
+    if batch.messages.len > 0:
+      var encoded = encodeRpcMsg(p, batch, anonymize)
+      trace "sending response msg to peer", peer = p, rpcMsg = shortLog(batch)
       p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
   else:
     var encoded = encodeRpcMsg(p, msg, anonymize)
