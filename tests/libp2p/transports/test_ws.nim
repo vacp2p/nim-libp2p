@@ -273,6 +273,7 @@ suite "WebSocket transport with autotls":
     # autotls should be used
     let autotlsCert = await autotls.getCertWhenReady()
     check wstransport.tlsCertificate == autotlsCert.cert
+    check wstransport.tlsPrivateKey == autotlsCert.privkey
 
   asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
@@ -316,6 +317,11 @@ suite "WebSocket transport with autotls":
 
     # TLSPrivateKey and TLSCertificate should not be set
     check not wstransport.secure
+
+    # the address it listens on and advertises drops to /ws
+    check:
+      WS.match(wstransport.addrs[0])
+      not WSS.match(wstransport.addrs[0])
 
   asyncTest "the transport stops when the autotls service never runs":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
