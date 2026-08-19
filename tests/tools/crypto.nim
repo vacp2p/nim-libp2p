@@ -27,3 +27,14 @@ proc tlsCertGenerator*(
     (secureKey, secureCert)
   except TLSStreamProtocolError, TLSCertificateError:
     raiseAssert "should not happen"
+
+proc tlsCertPemGenerator*(): string {.gcsafe, raises: [].} =
+  ## The certificate as a server hands it over, before `TLSCertificate.init`.
+  try:
+    let keyPair = KeyPair.random(PKScheme.RSA, rng()).get()
+    let certX509 =
+      generateX509(keyPair, encodingFormat = EncodingFormat.PEM).certificate
+
+    string.fromBytes(certX509)
+  except TLSCertificateError:
+    raiseAssert "should not happen"

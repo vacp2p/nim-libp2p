@@ -3,19 +3,32 @@
 
 {.used.}
 
-import chronos, json, net, sequtils, uri
+import chronos, json, net, results, sequtils, uri
 from times import now, initDuration, `+`
 import
-  ../../../libp2p/
-    [autotls/service, autotls/broker, autotls/acme/client, crypto/rsa, switch, wire]
+  ../../../libp2p/[
+    autotls/service,
+    autotls/broker,
+    autotls/utils,
+    autotls/acme/client,
+    crypto/rsa,
+    switch,
+    wire,
+  ]
 import
-  ../../tools/[unittest, crypto, multiaddress, resolver, stall_server, switch_builder]
+  ../../tools/[
+    unittest, cert_server, crypto, lifecycle, multiaddress, resolver, stall_server,
+    switch_builder,
+  ]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
 suite "AutoTLS certificate issuance and renewal":
   const
     RenewCheckTime = 20.milliseconds
     RenewBufferTime = 1.hours
+    ChallengeToken = "some-token"
+    NodeIP = "127.0.0.1"
+    DnsServerURL = "example.test"
 
   # RSA generation dominates the runtime of every test here, so one key pair each.
   let
@@ -132,13 +145,11 @@ suite "AutoTLS certificate issuance and renewal":
     check autotlsCert.cert == cert
 
   asyncTest "the broker is sent the addresses the peer announces":
-    const
-      NodeIP = "127.0.0.1"
-      AnnouncedAddrs =
-        ["/ip4/" & NodeIP & "/tcp/9000", "/ip4/" & NodeIP & "/tcp/9001/ws"]
+    const AnnouncedAddrs =
+      ["/ip4/" & NodeIP & "/tcp/9000", "/ip4/" & NodeIP & "/tcp/9001/ws"]
     switch.peerInfo.announcedAddrs = AnnouncedAddrs.mapIt(ma(it))
 
-    acmeApi.scriptChallenge("some-token")
+    acmeApi.scriptChallenge(ChallengeToken)
 
     var config = AutotlsConfig.new(
       ipAddress = Opt.some(parseIpAddress(NodeIP)), issueRetries = 0, dnsRetries = 0
@@ -148,6 +159,75 @@ suite "AutoTLS certificate issuance and renewal":
     await service.start(switch)
 
     check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs
+
+  asyncTest "a certificate is issued, installed, and not issued again":
+    let certPem = tlsCertPemGenerator()
+    let certServer = startCertServer(certPem)
+    defer:
+      await certServer.stop()
+
+    acmeApi.scriptChallenge(ChallengeToken)
+    acmeApi.scriptCertificate(certServer.url, initDuration(days = 365))
+
+    # issueRetries must be higher than zero to prove it's done only once
+    service = newService(
+      AutotlsConfig.new(
+        ipAddress = Opt.some(parseIpAddress(NodeIP)),
+        dnsServerURL = DnsServerURL,
+        issueRetries = 3,
+        issueRetryTime = 0.seconds,
+      )
+    )
+    let keyAuth = service.acmeClient.genKeyAuthorization(ChallengeToken)
+    let resolver =
+      StubNameResolver.new(txtRecords = @[keyAuth], ipAddresses = @[NodeIP])
+    service.config.nameResolver = resolver
+
+    await service.start(switch)
+    discard await service.getCertWhenReady().wait(10.seconds)
+    # Nothing signals a round that ended, so wait out a three retries window.
+    await sleepAsync(50.milliseconds)
+
+    let baseDomain = encodePeerId(switch.peerInfo.peerId) & "." & DnsServerURL
+    check:
+      # One round is 8 requests, so more would be a second attempt.
+      acmeApi.requestedUris.len == 8
+      resolver.txtQueries == @["_acme-challenge." & baseDomain]
+      resolver.ipQueries == @["127-0-0-1." & baseDomain]
+      parseJson(authClient.payloads[0])["value"].getStr == keyAuth
+
+  asyncTest "the certificate is not requested until the DNS records are published":
+    acmeApi.scriptChallenge(ChallengeToken)
+
+    var config = AutotlsConfig.new(
+      ipAddress = Opt.some(parseIpAddress(NodeIP)), issueRetries = 0, dnsRetries = 0
+    )
+    # The A record resolves, so only the missing TXT record holds issuance back.
+    config.nameResolver = StubNameResolver.new(ipAddresses = @[NodeIP])
+    service = newService(config)
+    await service.start(switch)
+
+    check acmeApi.requestedUris.len == 3
+
+  asyncTest "no certificate is issued without a TcpTransport, and the service still runs":
+    let memSwitch = makeStandardSwitch(MemoryAutoAddress())
+    startAndDeferStop(@[memSwitch])
+
+    service = newService()
+    await service.start(memSwitch)
+
+    check:
+      acmeApi.requestedUris.len == 0
+      service.running.isSet
+
+  asyncTest "issuance aborts when no IP address is configured":
+    # TODO: vacp2p/nim-libp2p#2957
+    # tryIssueCertificate catches CatchableError, so a Defect propagates out of start.
+    acmeApi.scriptChallenge(ChallengeToken)
+    service = newService(AutotlsConfig.new())
+
+    expect(ResultDefect):
+      await service.start(switch)
 
 suite "AutoTLS on a switch":
   asyncTeardown:
