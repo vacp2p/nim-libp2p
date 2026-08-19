@@ -65,6 +65,24 @@ proc scriptChallenge*(self: ACMEApiStub, token: string) =
     )
   )
 
+proc scriptCertificate*(self: ACMEApiStub, certificateURL: string, expires: string) =
+  ## Queues the five responses `getCertificate` consumes, ending in an order whose
+  ## certificate is served from `certificateURL`.
+  for body in [
+    %*{"url": ChallengeURL}, # sendChallengeCompleted
+    %*{"status": "valid"}, # checkChallengeCompleted
+    %*{"status": "valid"}, # requestFinalize
+    %*{"status": "valid"}, # checkCertFinalized
+  ]:
+    self.mockedResponses.add(HTTPResponse(body: body, headers: HttpTable.init()))
+
+  self.mockedResponses.add(
+    HTTPResponse(
+      body: %*{"certificate": certificateURL, "expires": expires},
+      headers: HttpTable.init(),
+    )
+  )
+
 proc respond(
     self: ACMEApiStub, uri: Uri
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, CancelledError]).} =
