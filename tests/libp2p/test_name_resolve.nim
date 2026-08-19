@@ -84,6 +84,11 @@ suite "Name resolving":
         "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
       )
 
+      await testOne(
+        "/dns4/localhost/tcp/443/tls/sni/example.com/ws",
+        "/ip4/127.0.0.1/tcp/443/tls/sni/example.com/ws",
+      )
+
     asyncTest "test non dns resolve":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
