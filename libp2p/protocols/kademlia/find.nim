@@ -63,11 +63,41 @@ proc dropPeer(state: LookupState, pid: PeerId) {.raises: [].} =
 proc isDialable(kad: KadDHT, peerId: PeerId): bool {.raises: [].} =
   kad.dialAddrs(peerId).len > 0 or kad.switch.isConnected(peerId)
 
+proc admissibleAddrs(
+    switch: Switch,
+    addressPolicy: PeerAddressPolicy,
+    rtable: RoutingTable,
+    p: PeerInfo,
+    caps: DiversityCaps,
+    pending: seq[PeerId] = @[],
+): seq[MultiAddress] {.raises: [].} =
+  let addrs = addressPolicy.filterAddrs(p.addrs)
+  if addrs.len == 0:
+    return @[]
+  if not switch.peerStore[AddressBook].hasIpDiversity(
+    rtable, p.peerId, addrs, caps, pending
+  ):
+    return @[]
+  addrs
+
+proc admissibleAddrs(
+    kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
+): seq[MultiAddress] {.raises: [].} =
+  kad.switch.admissibleAddrs(
+    kad.config.addressPolicy, rtable, p, kad.config.limits.diversityCaps(), pending
+  )
+
+proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
+  ## A probe for another table holds no slot in this one.
+  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
+
 proc canBecomeDialable(
-    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
+    state: LookupState, peerId: PeerId, addrs: seq[MultiAddress], pending: seq[PeerId]
 ): bool {.raises: [].} =
-  ## Whether admission could keep one of `addrs`, or the peer is reachable already.
-  addrs.anyIt(kad.config.addressPolicy.accepts(it)) or kad.isDialable(peerId)
+  ## Same conditions as ``admitPeers``, since nothing else records addresses.
+  let p = PeerInfo(peerId: peerId, addrs: addrs)
+  state.kad.admissibleAddrs(state.rtable, p, pending).len > 0 or
+    state.kad.isDialable(peerId)
 
 proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: [].} =
   ## Drop the worst (farthest) peer from the shortlist if it is farther than
@@ -85,6 +115,7 @@ proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: 
 proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
   let cap = state.kad.config.limits.maxShortlistSize
+  let pending = state.kad.pendingAdmissions(state.rtable.selfId)
 
   for newPeer in msg.closerPeers:
     let raw = newPeer.id.valueOr:
@@ -93,7 +124,7 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
       continue
     if state.shortlist.contains(pid):
       continue
-    if not state.kad.canBecomeDialable(pid, newPeer.addrs):
+    if not state.canBecomeDialable(pid, newPeer.addrs, pending):
       continue
 
     let dist = xorDistance(pid, state.target, state.rtable.config.hasher)
@@ -206,30 +237,6 @@ proc dispatchFindNode*(
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   await kad.dispatchRpc(peer, msg, addrs)
 
-proc admissibleAddrs(
-    switch: Switch,
-    addressPolicy: PeerAddressPolicy,
-    rtable: RoutingTable,
-    p: PeerInfo,
-    caps: DiversityCaps,
-    pending: seq[PeerId] = @[],
-): seq[MultiAddress] {.raises: [].} =
-  let addrs = addressPolicy.filterAddrs(p.addrs)
-  if addrs.len == 0:
-    return @[]
-  if not switch.peerStore[AddressBook].hasIpDiversity(
-    rtable, p.peerId, addrs, caps, pending
-  ):
-    return @[]
-  addrs
-
-proc admissibleAddrs(
-    kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
-): seq[MultiAddress] {.raises: [].} =
-  kad.switch.admissibleAddrs(
-    kad.config.addressPolicy, rtable, p, kad.config.limits.diversityCaps(), pending
-  )
-
 proc recordAddrs(
     switch: Switch,
     peerId: PeerId,
@@ -330,10 +337,6 @@ proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: 
       if kad.admissionProbes.getOrDefault(probeKey) == probe:
         kad.admissionProbes.del(probeKey)
   )
-
-proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
-  ## A probe for another table holds no slot in this one.
-  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
 
 proc tryRefreshAdmitted(rtable: RoutingTable, peerId: PeerId): bool {.raises: [].} =
   ## True when the peer already holds a seat, refreshing it instead of re-probing.
