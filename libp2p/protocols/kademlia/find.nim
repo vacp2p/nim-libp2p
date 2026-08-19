@@ -6,7 +6,8 @@ import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
 import ../../utils/future
-import ./[routing_table, protobuf, types, rpc, kademlia_metrics, ip_diversity]
+import
+  ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity]
 
 logScope:
   topics = "kad-dht find"
@@ -17,6 +18,7 @@ type RespondedStatus* = enum
 
 type LookupState* = ref object
   kad: KadDHT
+  rtable: RoutingTable
   target*: Key
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
@@ -80,7 +82,7 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
     if state.shortlist.contains(pid):
       continue
 
-    let dist = xorDistance(pid, state.target, state.kad.rtable.config.hasher)
+    let dist = xorDistance(pid, state.target, state.rtable.config.hasher)
 
     if state.shortlist.len >= cap and not state.tryEvictFarthest(dist):
       continue
@@ -163,12 +165,23 @@ proc allSortedPeers*(state: LookupState): seq[PeerId] =
   ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
   state.sortedShortlist(excludeResponded = false).mapIt(it[0])
 
-proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
-  let res = LookupState(kad: kad, target: target)
-  for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
-    res.shortlist[pid] = xorDistance(pid, target, kad.rtable.config.hasher)
+proc init*(
+    T: type LookupState, kad: KadDHT, target: Key, rtable: RoutingTable
+): T {.raises: [].} =
+  ## Seeds and ranks with `rtable`; falls back to the main table when it has nobody to ask.
+  let res = LookupState(kad: kad, rtable: rtable, target: target)
+
+  var seeds = rtable.findClosestPeerIds(target, kad.config.replication)
+  if seeds.len == 0:
+    seeds = kad.rtable.findClosestPeerIds(target, kad.config.replication)
+
+  for pid in seeds:
+    res.shortlist[pid] = xorDistance(pid, target, rtable.config.hasher)
 
   res
+
+proc init*(T: type LookupState, kad: KadDHT, target: Key): T {.raises: [].} =
+  LookupState.init(kad, target, kad.rtable)
 
 proc dispatchFindNode*(
     kad: KadDHT,
@@ -275,7 +288,9 @@ proc admitPeer(
       return
   if not reachable:
     trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    kad.probeRecordFailure(peerId, addrs)
     return
+  kad.probeClearFailures(peerId)
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
@@ -328,6 +343,10 @@ proc admitPeers*(
       continue
     let probeKey: ProbeKey = (rtable.selfId, p.peerId)
     if kad.admissionProbes.hasKey(probeKey):
+      continue
+    if kad.probeBackedOff(p.peerId, addrs):
+      trace "Kad admission probe backed off", peer = p.peerId.shortLog()
+      kad_admission_probes_backed_off.inc()
       continue
     if not kad.admissionSem.tryAcquire():
       break
@@ -559,7 +578,7 @@ proc iterativeLookup*(
   ## included, since its caller already has what it asked for. Until it holds,
   ## the lookup alternates core and follow-up until the k closest peers it knows
   ## of have all been queried.
-  let state = LookupState.init(kad, target)
+  let state = LookupState.init(kad, target, rtable)
   var pending: seq[Attempt]
   var phases = LookupPhases(phase: Core)
 

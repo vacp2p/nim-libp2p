@@ -238,9 +238,8 @@ proc handleDialRequest(
     await dialBackConn.close()
     await dialBackMux.close()
 
-  # if observed address for peer is not in address list to try
-  # then we perform Amplification Attack Prevention
-  if not ipAddrMatches(observedIPAddr, req.addrs):
+  # the spec exempts only a selected addr whose IP equals the observed IP
+  if not ipAddrMatches(observedIPAddr, [req.addrs[addrIdx]]):
     debug "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
     # send DialDataRequest and wait until dataReceived is enough

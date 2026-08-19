@@ -22,6 +22,21 @@ suite "IpAddr Utils":
       MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
       @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
     )
+    # same ipv6 address
+    check ipAddrMatches(
+      MultiAddress.init("/ip6/2001:db8::1/tcp/4041").get(),
+      @[MultiAddress.init("/ip6/2001:db8::1/tcp/4040").get()],
+    )
+    # different ipv6 address
+    check not ipAddrMatches(
+      MultiAddress.init("/ip6/2001:db8::2/tcp/4041").get(),
+      @[MultiAddress.init("/ip6/2001:db8::1/tcp/4040").get()],
+    )
+    # different family
+    check not ipAddrMatches(
+      MultiAddress.init("/ip6/::1/tcp/4041").get(),
+      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
+    )
 
   test "ipSupport":
     check ipSupport(@[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]) ==

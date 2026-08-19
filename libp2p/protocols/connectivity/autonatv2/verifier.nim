@@ -69,20 +69,15 @@ proc askPeer(
     Opt.none(AddrState)
 
 method verify*(
-    self: AutonatV2Verifier, addresses: seq[MultiAddress]
-): Future[seq[AddrVerdict]] {.async: (raises: [CancelledError]).} =
-  ## One request per address, each carrying that one address, to a random peer.
-  var verdicts: seq[AddrVerdict]
-  for address in addresses:
-    if not self.switch.hasEnoughIncomingSlots():
-      debug "No incoming slots left, stopping verification",
-        verified = verdicts.len, candidates = addresses.len
-      break
+    self: AutonatV2Verifier, address: MultiAddress
+): Future[Opt[AddrState]] {.async: (raises: [CancelledError]).} =
+  ## One request carrying that one address, to a random peer.
+  if not self.switch.hasEnoughIncomingSlots():
+    debug "No incoming slots left, skipping verification", address
+    return Opt.none(AddrState)
 
-    let peerId = self.selectPeer().valueOr:
-      debug "No peer to ask"
-      break
+  let peerId = self.selectPeer().valueOr:
+    debug "No peer to ask", address
+    return Opt.none(AddrState)
 
-    (await self.askPeer(peerId, address)).withValue(state):
-      verdicts.add(AddrVerdict(address: address, state: state))
-  verdicts
+  await self.askPeer(peerId, address)

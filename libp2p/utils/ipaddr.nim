@@ -65,23 +65,16 @@ proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
     candidates.add(ip)
   firstGlobalIP(candidates)
 
-proc ipAddrMatches*(
-    lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true
-): bool =
-  ## Checks ``lookup``'s IP is in any of addrs
+func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool =
+  ## Returns true when the ip4 or ip6 component of ``lookup`` equals that of any addr
 
-  let ipType =
-    if ip4:
-      multiCodec("ip4")
-    else:
-      multiCodec("ip6")
-
-  let lookup = lookup.getPart(ipType).valueOr:
-    return false
+  let lookupIp = lookup.getPart(multiCodec("ip4")).valueOr:
+    lookup.getPart(multiCodec("ip6")).valueOr:
+      return false
 
   for ma in addrs:
     ma[0].withValue(ipAddr):
-      if ipAddr == lookup:
+      if ipAddr == lookupIp:
         return true
   false
 

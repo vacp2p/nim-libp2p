@@ -44,8 +44,8 @@ proc autonatInteropTest*(
       confidence: Opt[float],
       dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
-    if networkReachability != NetworkReachability.Unknown and confidence.isSome() and
-        confidence.get() >= 0.3:
+    # AutoNAT v2 reports no confidence; the summary alone decides
+    if networkReachability != NetworkReachability.Unknown:
       awaiter.completeOnce()
 
   let nat = switch.natService().valueOr:

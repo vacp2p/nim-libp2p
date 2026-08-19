@@ -283,12 +283,8 @@ suite "AutonatV2":
         addrs: Opt.some(src.peerInfo.addrs[0]),
       )
 
-  asyncTest "Amplification attack prevention not skipped when observed IPv6 addr matches a requested addr":
-    # TODO: nim-libp2p#2731
-    # the requested addr matches the observed addr of the client,
-    # yet the server demands dial data before the dial back
-    # dialDataSize is set above what the client accepts to prove the demand:
-    # the DialDataRequest fails the request with AutonatV2Error
+  asyncTest "Amplification attack prevention skipped when observed IPv6 addr matches a requested addr":
+    # dialDataSize above the client cap proves the skip: a DialDataRequest would fail with AutonatV2Error
     let
       ipv6Addrs = @[TcpAutoAddressIP6]
       (src, dst, client) = await setupAutonat(
@@ -302,8 +298,16 @@ suite "AutonatV2":
     defer:
       await allFutures(src.stop(), dst.stop())
 
-    expect(AutonatV2Error):
-      discard await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)
+    check (await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)) ==
+      AutonatV2Response(
+        reachability: Reachable,
+        dialResp: DialResponse(
+          status: ResponseStatus.Ok,
+          dialStatus: Opt.some(DialStatus.Ok),
+          addrIdx: Opt.some(0.AddrIdx),
+        ),
+        addrs: Opt.some(src.peerInfo.addrs[0]),
+      )
 
   asyncTest "Server responding with invalid messages":
     let
@@ -344,6 +348,20 @@ suite "AutonatV2":
         dialResponse: DialResponse(
           status: ResponseStatus.Ok,
           addrIdx: Opt.some(1000.AddrIdx),
+          dialStatus: Opt.some(DialStatus.Ok),
+        ),
+      )
+    ).encode()
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    # 4. omitted addrIdx must still validate as index 0
+    autonatV2Mock.response = AutonatV2Msg(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialResponse,
+        dialResponse: DialResponse(
+          status: ResponseStatus.Ok,
+          addrIdx: Opt.none(AddrIdx),
           dialStatus: Opt.some(DialStatus.Ok),
         ),
       )

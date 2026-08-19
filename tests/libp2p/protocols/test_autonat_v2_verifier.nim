@@ -68,11 +68,8 @@ suite "AutonatV2 verifier":
     await pair.dialPeer()
 
     check:
-      (await pair.verifier.verify(addresses)) ==
-        @[
-          AddrVerdict(address: addresses[0], state: AddrState.Confirmed),
-          AddrVerdict(address: addresses[1], state: AddrState.Confirmed),
-        ]
+      (await pair.verifier.verify(addresses[0])) == Opt.some(AddrState.Confirmed)
+      (await pair.verifier.verify(addresses[1])) == Opt.some(AddrState.Confirmed)
 
       # one request per address, each carrying that address alone
       pair.client.allTestAddrs == @[@[addresses[0]], @[addresses[1]]]
@@ -87,8 +84,7 @@ suite "AutonatV2 verifier":
       await pair.stop()
     await pair.dialPeer()
 
-    check (await pair.verifier.verify(@[address])) ==
-      @[AddrVerdict(address: address, state: AddrState.Unreachable)]
+    check (await pair.verifier.verify(address)) == Opt.some(AddrState.Unreachable)
 
   asyncTest "a peer without a verdict leaves the state alone":
     let pair = makePair(Unknown)
@@ -98,7 +94,7 @@ suite "AutonatV2 verifier":
       await pair.stop()
     await pair.dialPeer()
 
-    check (await pair.verifier.verify(@[ma("/ip4/1.2.3.4/tcp/1")])).len == 0
+    check (await pair.verifier.verify(ma("/ip4/1.2.3.4/tcp/1"))).isNone()
 
   asyncTest "a peer which dialed us is not asked":
     let pair = makePair(Reachable)
@@ -109,5 +105,5 @@ suite "AutonatV2 verifier":
     await pair.peer.connect(pair.switch.peerInfo.peerId, pair.switch.peerInfo.addrs)
 
     check:
-      (await pair.verifier.verify(@[ma("/ip4/1.2.3.4/tcp/1")])).len == 0
+      (await pair.verifier.verify(ma("/ip4/1.2.3.4/tcp/1"))).isNone()
       pair.client.dials == 0

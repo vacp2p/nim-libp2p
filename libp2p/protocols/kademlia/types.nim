@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, heapqueue]
+import std/[tables, sequtils, sets, heapqueue, hashes]
 from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
@@ -33,6 +33,8 @@ const
     ## Maximum sleep between liveness-loop iterations when no peer needs a
     ## probe. Bound so a newly replaceable peer is noticed without waiting
     ## for the next bucket-refresh tick.
+  DefaultProbeBackoffMax* = 5.minutes
+    ## Cap of the re-probe backoff after a failed admission probe.
   DefaultFixLowPeersInterval* = 1.minutes ## How often to check the table size.
   DefaultMinRoutingTableSize* = 10
     ## Fewer peers than this triggers a re-seed. Zero turns the re-seed off.
@@ -68,6 +70,7 @@ const
     ## upper bound on concurrent routing-table admission probes (lookupCheck)
   DefaultMaxConcurrentLivenessProbes* = 20
     ## upper bound on concurrent routing-table liveness/eviction probes
+  DefaultMaxProbeFailures* = 1024 ## upper bound on cached admission-probe failures
   DefaultMaxPeersPerIp* = 4
     ## upper bound on Kademlia routing-table peers sharing one exact IP
   DefaultMaxPeersPerSubnet* = 10
@@ -462,6 +465,8 @@ type KadDHTLimits* = object
   maxConcurrentLivenessProbes*: int
     ## Maximum number of concurrent liveness/eviction probes. Independent of
     ## ``maxConcurrentProbes`` so admission is never starved by eviction.
+  maxProbeFailures*: int
+    ## Cache size of failed admission probes; its keys come from remote replies.
   maxPeersPerIp*: int
     ## Maximum number of Kademlia routing-table peers sharing one exact IP.
   maxPeersPerIpv4Subnet*: int
@@ -525,6 +530,7 @@ proc new*(T: typedesc[KadDHTLimits], replication: int, quorum: int): T {.raises:
     maxConcurrentRpcs: DefaultMaxConcurrentRpcs,
     maxConcurrentProbes: DefaultMaxConcurrentProbes,
     maxConcurrentLivenessProbes: DefaultMaxConcurrentLivenessProbes,
+    maxProbeFailures: DefaultMaxProbeFailures,
     maxPeersPerIp: DefaultMaxPeersPerIp,
     maxPeersPerIpv4Subnet: DefaultMaxPeersPerSubnet,
     maxPeersPerIpv6Subnet: DefaultMaxPeersPerSubnet,
@@ -542,6 +548,8 @@ type KadDHTConfig* = object
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
   livenessIdleInterval*: chronos.Duration
+  probeBackoffMax*: chronos.Duration
+    ## Cap of the exponential re-probe backoff, which starts at ``timeout``.
   fixLowPeersInterval*: chronos.Duration
   minRoutingTableSize*: int
   retries*: int
@@ -590,6 +598,7 @@ proc new*(
     usefulnessGracePeriod: chronos.Duration = DefaultUsefulnessGracePeriod,
     livenessGracePeriod: chronos.Duration = DefaultLivenessGracePeriod,
     livenessIdleInterval: chronos.Duration = DefaultLivenessIdleInterval,
+    probeBackoffMax: chronos.Duration = DefaultProbeBackoffMax,
     fixLowPeersInterval: chronos.Duration = DefaultFixLowPeersInterval,
     minRoutingTableSize: int = DefaultMinRoutingTableSize,
     retries: int = DefaultRetries,
@@ -640,6 +649,7 @@ proc new*(
   doAssert actualLimits.maxReceivedSize >= quorum,
     "maxReceivedSize must be >= quorum so getValue can ever satisfy quorum"
   doAssert livenessIdleInterval > 0.nanoseconds, "livenessIdleInterval must be > 0"
+  doAssert actualLimits.maxProbeFailures > 0, "maxProbeFailures must be > 0"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -649,6 +659,7 @@ proc new*(
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
     livenessIdleInterval: livenessIdleInterval,
+    probeBackoffMax: probeBackoffMax,
     fixLowPeersInterval: fixLowPeersInterval,
     minRoutingTableSize: minRoutingTableSize,
     retries: retries,
@@ -673,6 +684,11 @@ proc new*(
   )
 
 type ProbeKey* = tuple[tableId: Key, peerId: PeerId]
+
+type ProbeFailure* = object
+  count*: int ## consecutive failed admission probes
+  until*: Moment ## no re-probe before this instant
+  addrs*: Hash ## digest of the addresses the last failed probe dialed
 
 type AdmitHook* = proc(peerId: PeerId) {.gcsafe, raises: [].}
 
@@ -707,6 +723,8 @@ type KadDHT* = ref object of LPProtocol
     ## ``admissionSem`` so eviction never starves routing-table admission.
   admissionProbes*: Table[ProbeKey, Future[void]]
     ## In-flight admission probes, keyed by target table and candidate peer.
+  probeFailures*: Table[PeerId, ProbeFailure]
+    ## Keyed by peer alone: a dead peer is skipped for every routing table.
   livenessProbes*: Table[PeerId, Future[void]]
     ## In-flight liveness probes, keyed by peer only. A peer shared across
     ## multiple routing tables (main Kad + service tables) is probed once.
