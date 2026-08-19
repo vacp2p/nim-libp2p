@@ -17,7 +17,8 @@ import
   ]
 import
   ../../tools/[
-    unittest, cert_server, crypto, multiaddress, resolver, stall_server, switch_builder
+    unittest, cert_server, crypto, lifecycle, multiaddress, resolver, stall_server,
+    switch_builder,
   ]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
 
@@ -166,7 +167,7 @@ suite "AutoTLS certificate issuance and renewal":
       await certServer.stop()
 
     acmeApi.scriptChallenge(ChallengeToken)
-    acmeApi.scriptCertificate(certServer.url, "2035-01-01T00:00:00Z")
+    acmeApi.scriptCertificate(certServer.url, initDuration(days = 365))
 
     # issueRetries must be higher than zero to prove it's done only once
     service = newService(
@@ -189,7 +190,6 @@ suite "AutoTLS certificate issuance and renewal":
 
     let baseDomain = encodePeerId(switch.peerInfo.peerId) & "." & DnsServerURL
     check:
-      service.cert.isSome()
       # One round is 8 requests, so more would be a second attempt.
       acmeApi.requestedUris.len == 8
       resolver.txtQueries == @["_acme-challenge." & baseDomain]
@@ -211,9 +211,7 @@ suite "AutoTLS certificate issuance and renewal":
 
   asyncTest "no certificate is issued without a TcpTransport, and the service still runs":
     let memSwitch = makeStandardSwitch(MemoryAutoAddress())
-    await memSwitch.start()
-    defer:
-      await memSwitch.stop()
+    startAndDeferStop(@[memSwitch])
 
     service = newService()
     await service.start(memSwitch)

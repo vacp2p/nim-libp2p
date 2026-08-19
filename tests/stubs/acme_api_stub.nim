@@ -6,6 +6,7 @@
 {.push raises: [].}
 
 import json, uri
+from times import Duration, now, format, `+`
 import chronos, chronos/apps/http/httpclient
 import ../../libp2p/autotls/acme/[api, utils]
 
@@ -65,9 +66,12 @@ proc scriptChallenge*(self: ACMEApiStub, token: string) =
     )
   )
 
-proc scriptCertificate*(self: ACMEApiStub, certificateURL: string, expires: string) =
+proc scriptCertificate*(
+    self: ACMEApiStub, certificateURL: string, expiresIn: times.Duration
+) =
   ## Queues the five responses `getCertificate` consumes, ending in an order whose
   ## certificate is served from `certificateURL`.
+  let expires = (now() + expiresIn).format("yyyy-MM-dd'T'HH:mm:ss'Z'")
   for body in [
     %*{"url": ChallengeURL}, # sendChallengeCompleted
     %*{"status": "valid"}, # checkChallengeCompleted
