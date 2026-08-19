@@ -196,21 +196,10 @@ method publish*(
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
-  handleSelfPublishing(f, topic, data)
-
   trace "Publishing message on topic", data = data.shortLog, topic
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish", topic
-    return 0
-
-  # Application-published messages are never split - reject oversized messages
-  # up front so the caller can handle the error before any dedup side effects
-  # occur.
-  let messageSize = RPCMsg.withMessages(msg).byteSize()
-  if messageSize > f.maxMessageSize:
-    warn "message exceeds maximum message size",
-      encodedSize, maxMessageSize = f.maxMessageSize
     return 0
 
   let peers = f.floodsub.getOrDefault(topic)
@@ -232,10 +221,21 @@ method publish*(
 
   trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
 
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup side effects
+  # occur.
+  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  if messageSize > f.maxMessageSize:
+    warn "message exceeds maximum message size",
+      messageSize, maxMessageSize = f.maxMessageSize
+    return 0
+
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
     trace "Dropping already-seen message", msgId, topic
     return 0
+
+  f.handleSelfPublishing(topic, data)
 
   # Try to send to all peers that are known to be interested
   f.broadcast(peers, RPCMsg.withMessages(msg), MessagePriority.Medium)

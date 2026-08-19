@@ -881,17 +881,6 @@ method publish*(
     debug "Empty topic, skipping publish"
     return 0
 
-  # Application-published messages are never split - reject oversized messages
-  # up front so the caller can handle the error before any dedup/cache side
-  # effects occur.
-  let messageSize = RPCMsg.withMessages(msg).byteSize()
-  if messageSize > g.maxMessageSize:
-    warn "message exceeds maximum message size",
-      messageSize, maxMessageSize = g.maxMessageSize
-    return 0
-
-  handleSelfPublishing(g, topic, data)
-
   trace "Publishing message on topic", data = data.shortLog
 
   let pubParams = publishParams.get(PublishParams())
@@ -941,6 +930,15 @@ method publish*(
     trace "Dropping already-seen message"
     return 0
 
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup/cache side
+  # effects occur.
+  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  if messageSize > g.maxMessageSize:
+    warn "message exceeds maximum message size",
+      messageSize, maxMessageSize = g.maxMessageSize
+    return 0
+
   if not pubParams.skipMCache:
     g.mcache.put(msgId, msg)
 
@@ -952,6 +950,8 @@ method publish*(
       g.extensionsState.preambleBroadcast(
         RPCMsg.withPreamble(topic, msgId, msg.data.len), peers.mapIt(it.peerId)
       )
+
+  g.handleSelfPublishing(topic, data)
 
   g.broadcast(
     peers,
