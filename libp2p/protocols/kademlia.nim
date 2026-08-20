@@ -11,7 +11,7 @@ import
     routing_table, peer_registry, protobuf, types, find, get, put, keyspace, provider,
     ping, ip_diversity,
   ]
-import ./kademlia/[kademlia_metrics, netsize, probe_backoff]
+import ./kademlia/[kademlia_metrics, netsize, probe_backoff, rpc]
 
 export
   chronicles, routing_table, peer_registry, protobuf, types, find, get, put, keyspace,
@@ -87,7 +87,7 @@ proc checkAndEvictPeer(
     debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
-  let addrs = kad.switch.peerStore[AddressBook][peerId]
+  let addrs = kad.dialAddrs(peerId)
   if addrs.len == 0:
     var evicted = 0
     for rtable in dueTables:
