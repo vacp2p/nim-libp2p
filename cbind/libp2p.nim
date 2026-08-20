@@ -217,6 +217,7 @@ type PeerStoreEntryResponse {.ffi.} = object
 type IncomingStreamEvent {.ffi.} = object
   proto: string
   streamId: uint64
+  peerId: string
 
 type PubsubMessageEvent {.ffi.} = object
   topic: string
@@ -741,7 +742,11 @@ proc libp2pMountProtocol*(
     let releaseWaiter =
       Future[void].Raising([CancelledError]).init("cbind custom protocol release")
     streams.releaseWaiters[streamId] = releaseWaiter
-    onIncomingStream(IncomingStreamEvent(proto: selectedProto, streamId: streamId))
+    onIncomingStream(
+      IncomingStreamEvent(
+        proto: selectedProto, streamId: streamId, peerId: $stream.peerId
+      )
+    )
     await releaseWaiter
 
   let mountedProtocol = LPProtocol.new(codecs = @[proto], handler = handle)
