@@ -288,7 +288,7 @@ proc countBroadcastMetrics*(
 
 proc broadcast*(
     p: PubSub,
-    sendPeers: openArray[PubSubPeer],
+    sendPeers: openArray[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
@@ -322,18 +322,6 @@ proc broadcast*(
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
-
-proc broadcast*(
-    p: PubSub,
-    sendPeers: HashSet[PubSubPeer],
-    msg: RPCMsg,
-    priority: MessagePriority,
-    useCustomStream: bool = false,
-) {.raises: [].} =
-  ## Overload for `HashSet[PubSubPeer]`: order is irrelevant for a broadcast,
-  ## so the peers are materialized into a sequence and delegated to the
-  ## `openArray` overload.
-  p.broadcast(sendPeers.toSeq, msg, priority, useCustomStream)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
