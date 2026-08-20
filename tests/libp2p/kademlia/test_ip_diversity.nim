@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/sequtils
+import std/[sequtils, tables]
 import results
 import ../../../libp2p/[protocols/kademlia, switch, peerid, peerstore]
 import ../../tools/[unittest, multiaddress]
@@ -84,6 +84,31 @@ suite "KadDHT IP diversity":
       addressBook.hasIpDiversity(
         kad.rtable, candidate, @[ma("/ip4/8.8.8.2/tcp/4001")], caps, @[probed]
       )
+
+  test "updateShortlist refuses a peer the IP diversity cap would not admit":
+    ## Admission is what records the addresses, so such a peer never gets dialed.
+    let kad = kadWithBucketSubnetCap(1)
+    let
+      admitted = kad.peerIdInBucket(0)
+      refused = kad.peerIdInBucket(0)
+
+    kad.updatePeers(
+      @[PeerInfo(peerId: admitted, addrs: @[ma("/ip4/8.8.8.1/tcp/4001")])]
+    )
+
+    let state = LookupState.init(kad, randomPeerId().toKey())
+    state.shortlist.clear()
+
+    let added = state.updateShortlist(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: @[Peer(id: refused.toKey(), addrs: @[ma("/ip4/8.8.8.2/tcp/4001")])],
+      )
+    )
+
+    check:
+      added.len == 0
+      refused notin state.shortlist
 
   test "an unset per-bucket cap leaves the table-wide cap in charge":
     let kad = kadWithBucketSubnetCap(0)

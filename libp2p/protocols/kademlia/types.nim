@@ -66,7 +66,7 @@ const
   DefaultMaxLocalRecords* = 500 ## upper bound on locally stored value records
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
-  DefaultMaxConcurrentProbes* = 20
+  DefaultMaxConcurrentProbes* = 50
     ## upper bound on concurrent routing-table admission probes (lookupCheck)
   DefaultMaxConcurrentLivenessProbes* = 20
     ## upper bound on concurrent routing-table liveness/eviction probes

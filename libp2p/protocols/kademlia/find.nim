@@ -55,6 +55,50 @@ proc getFarthest(
   else:
     Opt.none((PeerId, XorDistance))
 
+proc dropPeer(state: LookupState, pid: PeerId) {.raises: [].} =
+  state.shortlist.del(pid)
+  state.attempts.del(pid)
+  state.responded.del(pid)
+
+proc isDialable(kad: KadDHT, peerId: PeerId): bool {.raises: [].} =
+  kad.dialAddrs(peerId).len > 0 or kad.switch.isConnected(peerId)
+
+proc admissibleAddrs(
+    switch: Switch,
+    addressPolicy: PeerAddressPolicy,
+    rtable: RoutingTable,
+    p: PeerInfo,
+    caps: DiversityCaps,
+    pending: seq[PeerId] = @[],
+): seq[MultiAddress] {.raises: [].} =
+  let addrs = addressPolicy.filterAddrs(p.addrs)
+  if addrs.len == 0:
+    return @[]
+  if not switch.peerStore[AddressBook].hasIpDiversity(
+    rtable, p.peerId, addrs, caps, pending
+  ):
+    return @[]
+  addrs
+
+proc admissibleAddrs(
+    kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
+): seq[MultiAddress] {.raises: [].} =
+  kad.switch.admissibleAddrs(
+    kad.config.addressPolicy, rtable, p, kad.config.limits.diversityCaps(), pending
+  )
+
+proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
+  ## A probe for another table holds no slot in this one.
+  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
+
+proc canBecomeDialable(
+    state: LookupState, peerId: PeerId, addrs: seq[MultiAddress], pending: seq[PeerId]
+): bool {.raises: [].} =
+  ## Same conditions as ``admitPeers``, since nothing else records addresses.
+  let p = PeerInfo(peerId: peerId, addrs: addrs)
+  state.kad.admissibleAddrs(state.rtable, p, pending).len > 0 or
+    state.kad.isDialable(peerId)
+
 proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: [].} =
   ## Drop the worst (farthest) peer from the shortlist if it is farther than
   ## ``newDist``. Considers all peers — including ones that already responded —
@@ -65,14 +109,13 @@ proc tryEvictFarthest(state: LookupState, newDist: XorDistance): bool {.raises: 
     return false
   if newDist >= dist:
     return false
-  state.shortlist.del(pid)
-  state.attempts.del(pid)
-  state.responded.del(pid)
+  state.dropPeer(pid)
   return true
 
 proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
   let cap = state.kad.config.limits.maxShortlistSize
+  let pending = state.kad.pendingAdmissions(state.rtable.selfId)
 
   for newPeer in msg.closerPeers:
     let raw = newPeer.id.valueOr:
@@ -80,6 +123,8 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
     let pid = PeerId.init(raw).valueOr:
       continue
     if state.shortlist.contains(pid):
+      continue
+    if not state.canBecomeDialable(pid, newPeer.addrs, pending):
       continue
 
     let dist = xorDistance(pid, state.target, state.rtable.config.hasher)
@@ -192,29 +237,13 @@ proc dispatchFindNode*(
   let msg = Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   await kad.dispatchRpc(peer, msg, addrs)
 
-proc admissibleAddrs(
+proc recordAddrs(
     switch: Switch,
-    addressPolicy: PeerAddressPolicy,
-    rtable: RoutingTable,
-    p: PeerInfo,
-    caps: DiversityCaps,
-    pending: seq[PeerId] = @[],
-): seq[MultiAddress] {.raises: [].} =
-  let addrs = addressPolicy.filterAddrs(p.addrs)
-  if addrs.len == 0:
-    return @[]
-  if not switch.peerStore[AddressBook].hasIpDiversity(
-    rtable, p.peerId, addrs, caps, pending
-  ):
-    return @[]
-  addrs
-
-proc admissibleAddrs(
-    kad: KadDHT, rtable: RoutingTable, p: PeerInfo, pending: seq[PeerId]
-): seq[MultiAddress] {.raises: [].} =
-  kad.switch.admissibleAddrs(
-    kad.config.addressPolicy, rtable, p, kad.config.limits.diversityCaps(), pending
-  )
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    confidence = AddressConfidence.Low,
+) {.raises: [].} =
+  switch.peerStore[AddressBook].extend(peerId, addrs, confidence)
 
 proc updatePeers*(
     switch: Switch,
@@ -224,14 +253,11 @@ proc updatePeers*(
     caps: DiversityCaps = defaultDiversityCaps(),
 ) {.raises: [].} =
   ## Unprobed admission, for trusted seed peers only; see ``admitPeers``.
-  let addressBook = switch.peerStore[AddressBook]
   for p in peerInfos:
     let addrs = switch.admissibleAddrs(addressPolicy, rtable, p, caps)
     if addrs.len == 0:
       continue
-    # Store before insert: a peer rejected for lack of bucket space still reaches
-    # the lookup shortlist, and would be undialable without its addresses.
-    addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
+    switch.recordAddrs(p.peerId, addrs, AddressConfidence.Medium)
     discard rtable.insert(p.peerId)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
@@ -274,13 +300,6 @@ proc admitPeer(
     addrs: seq[MultiAddress],
     onAdmit: AdmitHook,
 ) {.async: (raises: []).} =
-  ## Takes ownership of one ``admissionSem`` slot already acquired by the caller.
-  defer:
-    try:
-      kad.admissionSem.release()
-    except AsyncSemaphoreError:
-      raiseAssert "admissionSem released without acquire"
-
   let reachable =
     try:
       await kad.lookupCheck(peerId, addrs)
@@ -291,6 +310,9 @@ proc admitPeer(
     kad.probeRecordFailure(peerId, addrs)
     return
   kad.probeClearFailures(peerId)
+  # A seat outlives Low's TTL, so the addresses behind it must outlive it too.
+  kad.switch.recordAddrs(peerId, addrs, AddressConfidence.Medium)
+
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
     trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
@@ -309,9 +331,45 @@ proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: 
         kad.admissionProbes.del(probeKey)
   )
 
-proc pendingAdmissions(kad: KadDHT, tableId: Key): seq[PeerId] {.raises: [].} =
-  ## A probe for another table holds no slot in this one.
-  kad.admissionProbes.keys.toSeq().filterIt(it.tableId == tableId).mapIt(it.peerId)
+proc tryRefreshAdmitted(rtable: RoutingTable, peerId: PeerId): bool {.raises: [].} =
+  ## True when the peer already holds a seat, refreshing it instead of re-probing.
+  if peerId.toKey() notin rtable:
+    return false
+  discard rtable.insert(peerId)
+  true
+
+proc scheduleAdmissionProbe(
+    kad: KadDHT,
+    rtable: RoutingTable,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    onAdmit: AdmitHook,
+): bool {.raises: [].} =
+  ## False when no probe starts; the candidate is retried on a later reply.
+  let probeKey: ProbeKey = (rtable.selfId, peerId)
+  if kad.admissionProbes.hasKey(probeKey):
+    return false
+
+  if kad.probeBackedOff(peerId, addrs):
+    trace "Kad admission probe backed off", peer = peerId.shortLog()
+    kad_admission_probes_backed_off.inc()
+    return false
+
+  if not kad.admissionSem.tryAcquire():
+    trace "Kad admission probe dropped: no free slot", peer = peerId.shortLog()
+    kad_admission_probes_dropped.inc()
+    return false
+
+  let probe = kad.admitPeer(rtable, peerId, addrs, onAdmit)
+  probe.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      try:
+        kad.admissionSem.release()
+      except AsyncSemaphoreError:
+        raiseAssert "admissionSem released without acquire"
+  )
+  kad.trackProbe(probeKey, probe)
+  true
 
 proc admitPeers*(
     kad: KadDHT,
@@ -319,15 +377,11 @@ proc admitPeers*(
     peerInfos: seq[PeerInfo],
     onAdmit: AdmitHook = nil,
 ) {.raises: [].} =
-  ## Admit network-discovered peers into ``rtable`` behind a background probe.
-  ## Addresses are recorded up front regardless, so lookups can still dial them.
-  ## Probes are never queued — a candidate with no free slot is retried when a
-  ## later reply names it.
-  # A handler racing shutdown must not launch a probe: it would dial after the
-  # drain loop completed, leaking the stream past ``stop``.
+  ## Records the addresses, then admits into ``rtable`` behind a background probe.
+
+  # A probe launched while stopping dials past the drain loop and leaks its stream.
   if kad.stopping:
     return
-  let addressBook = kad.switch.peerStore[AddressBook]
   let selfPid = kad.switch.peerInfo.peerId
   var pending = kad.pendingAdmissions(rtable.selfId)
   for p in peerInfos:
@@ -336,22 +390,12 @@ proc admitPeers*(
     let addrs = kad.admissibleAddrs(rtable, p, pending)
     if addrs.len == 0:
       continue
-    addressBook.extend(p.peerId, addrs, AddressConfidence.Low)
-    if p.peerId.toKey() in rtable:
-      # already admitted, refresh recency without re-probing
-      discard rtable.insert(p.peerId)
+    kad.switch.recordAddrs(p.peerId, addrs)
+    if rtable.tryRefreshAdmitted(p.peerId):
       continue
-    let probeKey: ProbeKey = (rtable.selfId, p.peerId)
-    if kad.admissionProbes.hasKey(probeKey):
+    if not kad.scheduleAdmissionProbe(rtable, p.peerId, addrs, onAdmit):
       continue
-    if kad.probeBackedOff(p.peerId, addrs):
-      trace "Kad admission probe backed off", peer = p.peerId.shortLog()
-      kad_admission_probes_backed_off.inc()
-      continue
-    if not kad.admissionSem.tryAcquire():
-      break
     pending.add(p.peerId)
-    kad.trackProbe(probeKey, kad.admitPeer(rtable, p.peerId, addrs, onAdmit))
 
 proc admitPeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   kad.admitPeers(kad.rtable, peerInfos)
@@ -394,7 +438,7 @@ proc dispatchPeer(
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
-    error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+    debug "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -404,6 +448,19 @@ func activePeers(pending: seq[Attempt]): HashSet[PeerId] {.raises: [].} =
     if not a.abandoned:
       peers.incl(a.peer)
   peers
+
+proc dropUndialable(
+    kad: KadDHT, state: LookupState, candidates: seq[PeerId]
+): seq[PeerId] {.raises: [].} =
+  ## Returns the candidates that can still be dialed, dropping the rest.
+  var dialable: seq[PeerId]
+  for peerId in candidates:
+    if kad.isDialable(peerId):
+      dialable.add(peerId)
+    else:
+      state.dropPeer(peerId)
+      kad_lookup_undialable_peers.inc()
+  dialable
 
 proc fillSlots(
     kad: KadDHT,
@@ -598,7 +655,8 @@ proc iterativeLookup*(
     await noCancel stale.cancelAndWait()
 
     if not earlyExit(state):
-      kad.fillSlots(state, pending, dispatch, phases.targets(state))
+      let candidates = kad.dropUndialable(state, phases.targets(state))
+      kad.fillSlots(state, pending, dispatch, candidates)
 
     # Dispatching nothing new only stops the lookup once the RPCs already in
     # flight have drained, so the returned peer set stays complete.

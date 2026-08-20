@@ -221,11 +221,12 @@ proc randomServiceId*(): Key =
 
 proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
-    discard kad.rtable.insert(randomPeerId())
+    let peerId = randomPeerId()
+    if kad.rtable.insert(peerId):
+      kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
 
 proc insertRandomPeers*(kad: KadDHT, count: int): seq[PeerId] =
-  ## Inserts `count` random peers into the routing table. Unlike
-  ## `populateRoutingTable`, rejected ids are retried.
+  ## Inserts `count` random peers, each with an address the way admission does.
   const maxRetries = 1000
   let maxAttempts = count + maxRetries
   var peers: seq[PeerId]
@@ -237,12 +238,26 @@ proc insertRandomPeers*(kad: KadDHT, count: int): seq[PeerId] =
     # a full bucket rejects the insert and the id is simply redrawn.
     if not kad.rtable.insert(peerId):
       continue
+    kad.switch.peerStore[AddressBook][peerId] = @[ma("/ip4/127.0.0.1/tcp/1")]
     peers.add(peerId)
 
   doAssert peers.len == count,
     "routing table took only " & $peers.len & " of " & $count & " peers in " &
       $maxAttempts & " attempts"
   peers
+
+proc peersWithAddrs*(count: int): seq[PeerInfo] =
+  ## `count` fresh peers on distinct ports, so the IP-diversity caps admit them.
+  (0 ..< count).mapIt(
+    PeerInfo(
+      peerId: randomPeerId(),
+      addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
+    )
+  )
+
+proc closerPeer*(id: Key): Peer =
+  ## `toPeer` refuses an address-free peer, so no real reply carries one.
+  Peer(id: id, addrs: @[ma("/ip4/127.0.0.1/tcp/1")])
 
 proc addPeersWithAddrs*(kad: KadDHT, count: int) =
   ## Adds `count` random peers to the routing table, with an address each so they
@@ -315,12 +330,14 @@ proc seedRoutingTableBelow*(
   (drawn[0], drawn[1 .. ^1])
 
 proc addRandomPeers*(
-    state: LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
+    state: LookupState, kad: KadDHT, count: int, target: Key
 ): seq[PeerId] =
+  let hasher = kad.rtable.config.hasher
   var peers: seq[PeerId]
   for i in 0 ..< count:
     peers.add(randomPeerId())
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
+    kad.switch.peerStore[AddressBook][peers[i]] = @[ma("/ip4/127.0.0.1/tcp/1")]
   peers.sortPeers(target, hasher)
 
 proc sendAddProviderAndGetStatus*(

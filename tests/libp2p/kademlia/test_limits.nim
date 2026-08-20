@@ -6,7 +6,7 @@
 import chronos, results, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/utils/future
-import ../../tools/[lifecycle, stall_server, topology, unittest]
+import ../../tools/[lifecycle, multiaddress, stall_server, topology, unittest]
 import ./utils.nim
 
 suite "KadDHT - Limits":
@@ -17,12 +17,7 @@ suite "KadDHT - Limits":
     let kad = setupKad()
     kad.admissionSem = newAsyncSemaphore(2)
 
-    let peers = (0 ..< 5).mapIt(
-      PeerInfo(
-        peerId: randomPeerId(),
-        addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
-      )
-    )
+    let peers = peersWithAddrs(5)
     kad.admitPeers(peers)
 
     # candidates beyond the semaphore are dropped, never queued
@@ -30,6 +25,40 @@ suite "KadDHT - Limits":
 
     let probes = move kad.admissionProbes
     await noCancel probes.values.toSeq().cancelAndWait()
+
+  asyncTest "admitPeers records addresses of candidates past the probe cap":
+    let kad = setupKad()
+    kad.admissionSem = newAsyncSemaphore(2)
+
+    let peers = peersWithAddrs(5)
+    kad.admitPeers(peers)
+
+    # a lookup shortlists every candidate, so all of them must stay dialable
+    let addressBook = kad.switch.peerStore[AddressBook]
+    for p in peers:
+      check addressBook[p.peerId] == p.addrs
+
+    let probes = move kad.admissionProbes
+    await noCancel probes.values.toSeq().cancelAndWait()
+
+  asyncTest "a candidate dropped for a full probe cap is probed on a later call":
+    let kad = setupKad()
+    kad.admissionSem = newAsyncSemaphore(1)
+
+    let peers = peersWithAddrs(2)
+    kad.admitPeers(peers)
+    check kad.admissionProbes.len == 1
+
+    let firstProbes = move kad.admissionProbes
+    # cancelling the probe releases its slot through ``admitPeer``'s defer
+    await noCancel firstProbes.values.toSeq().cancelAndWait()
+    check kad.admissionSem.availableSlots() == 1
+
+    kad.admitPeers(@[peers[1]])
+    check kad.admissionProbes.len == 1
+
+    let secondProbes = move kad.admissionProbes
+    await noCancel secondProbes.values.toSeq().cancelAndWait()
 
   asyncTest "an admission probe frees its slot at the probe timeout":
     let stall = startStallServer()
@@ -56,12 +85,7 @@ suite "KadDHT - Limits":
     kad.livenessSem = newAsyncSemaphore(1)
     check kad.livenessSem.tryAcquire() # hold the only liveness slot
 
-    let peers = (0 ..< 3).mapIt(
-      PeerInfo(
-        peerId: randomPeerId(),
-        addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
-      )
-    )
+    let peers = peersWithAddrs(3)
     kad.admitPeers(peers)
 
     check kad.admissionProbes.len == 2
@@ -80,7 +104,7 @@ suite "KadDHT - Limits":
     # Generate 20 fresh peers and feed them through updateShortlist.
     var peers: seq[Peer]
     for i in 0 ..< 20:
-      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
+      peers.add(closerPeer(randomPeerId().toKey()))
 
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     discard state.updateShortlist(msg)
@@ -102,7 +126,8 @@ suite "KadDHT - Limits":
     # Insert a far peer first
     var farId: Key = newSeq[byte](32)
     farId[0] = 0xFF
-    let farMsg = Message(msgType: MessageType.findNode, closerPeers: @[Peer(id: farId)])
+    let farMsg =
+      Message(msgType: MessageType.findNode, closerPeers: @[closerPeer(farId)])
     discard state.updateShortlist(farMsg)
 
     # Now insert 5 close peers — they should evict the far one
@@ -110,11 +135,83 @@ suite "KadDHT - Limits":
     for i in 1 .. 5:
       var id: Key = newSeq[byte](32)
       id[31] = byte(i)
-      closePeers.add(Peer(id: id))
+      closePeers.add(closerPeer(id))
     let closeMsg = Message(msgType: MessageType.findNode, closerPeers: closePeers)
     discard state.updateShortlist(closeMsg)
 
     check state.shortlist.len == kad.config.limits.maxShortlistSize
+
+  test "updatePeers seeds addresses that outlive the liveness grace period":
+    ## Nothing dials a seed, so no `markConnected` or identify lifts it off Low.
+    let kad = setupKad()
+    let peers = peersWithAddrs(1)
+    kad.updatePeers(peers)
+
+    let entries = kad.switch.peerStore[AddressBook].entries(peers[0].peerId)
+    check:
+      kad.hasKey(peers[0].peerId.toKey())
+      entries[0].confidence >= AddressConfidence.Medium
+
+  test "updateShortlist rejects a closer peer no address can reach":
+    ## A remote that names bare ids must not displace peers the node can dial.
+    let kad = setupKad()
+    kad.config.limits.maxShortlistSize = 1
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    state.shortlist.clear()
+
+    let ranked =
+      @[randomPeerId(), randomPeerId()].sortPeers(targetKey, kad.rtable.config.hasher)
+    let (near, far) = (ranked[0], ranked[1])
+
+    discard state.updateShortlist(
+      Message(msgType: MessageType.findNode, closerPeers: @[closerPeer(far.toKey())])
+    )
+    check state.shortlist.len == 1
+
+    let added = state.updateShortlist(
+      Message(msgType: MessageType.findNode, closerPeers: @[Peer(id: near.toKey())])
+    )
+
+    check:
+      added.len == 0
+      near notin state.shortlist
+      far in state.shortlist
+
+  test "updateShortlist rejects a closer peer whose addresses the policy drops":
+    ## An address the node would never dial must not buy what an absent one cannot.
+    let kad = setupKad()
+    kad.config.addressPolicy = publicRoutableAddressPolicy
+    kad.config.limits.maxShortlistSize = 1
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    state.shortlist.clear()
+
+    let ranked =
+      @[randomPeerId(), randomPeerId()].sortPeers(targetKey, kad.rtable.config.hasher)
+    let (near, far) = (ranked[0], ranked[1])
+
+    discard state.updateShortlist(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: @[Peer(id: far.toKey(), addrs: @[ma("/ip4/1.2.3.4/tcp/1")])],
+      )
+    )
+    check state.shortlist.len == 1
+
+    let added = state.updateShortlist(
+      Message(
+        msgType: MessageType.findNode,
+        closerPeers: @[Peer(id: near.toKey(), addrs: @[ma("/ip4/192.168.1.5/tcp/1")])],
+      )
+    )
+
+    check:
+      added.len == 0
+      near notin state.shortlist
+      far in state.shortlist
 
   asyncTest "putValue rejects values larger than maxValueSize":
     let kads = setupKadSwitches(2)
