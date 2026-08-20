@@ -678,7 +678,7 @@ proc sendResponse*(
     let maxBatchSize = (p.maxMessageSize * 90) div 100
 
     var batch = RPCMsg()
-    
+
     # Multi-message batching currently supports message-only RPCs.
     # If an extension is associated to multiple messages, it would require
     # splitting associated to the extension itself
