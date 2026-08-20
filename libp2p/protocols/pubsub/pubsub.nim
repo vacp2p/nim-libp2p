@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, results
 import
   ./errors as pubsub_errors,
   ./pubsubpeer,
@@ -25,14 +25,8 @@ import
   ../../utils/opt,
   ../../utils/future
 
-import results
-export results
-
-export tables, sets
-export PubSubPeer
-export PubSubObserver
-export protocol
-export pubsub_errors
+export tables, sets, results, chronicles
+export PubSubPeer, PubSubObserver, protocol, pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -288,7 +282,7 @@ proc countBroadcastMetrics*(
 
 proc broadcast*(
     p: PubSub,
-    sendPeers: openArray[PubSubPeer]  | seq[PubSubPeer] | HashSet[PubSubPeer],
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
