@@ -11,8 +11,37 @@ import ../../tools/[unittest, crypto]
 import ../../stubs/acme_api_stub
 
 suite "AutoTLS ACME API":
+  const WildcardDomain = "*.example.libp2p.direct"
+
+  # RSA generation dominates the runtime of every test here, so one pair for all.
+  let
+    key = RsaPrivateKey.random(rng()).get()
+    certKey = RsaPrivateKey.random(rng()).get()
+
   var api {.threadvar.}: ACMEApiStub
-  var key {.threadvar.}: RsaPrivateKey
+
+  proc queueRegister() =
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"},
+        headers: HttpTable.init(@[("location", AccountURL)]),
+      )
+    )
+
+  proc queueOrder(status: string, authorizations: JsonNode) =
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{
+          "status": status, "authorizations": authorizations, "finalize": FinalizeURL
+        },
+        headers: HttpTable.init(@[("location", OrderURL)]),
+      )
+    )
+
+  proc queueChallenges(challenges: JsonNode) =
+    api.mockedResponses.add(
+      HTTPResponse(body: %*{"challenges": challenges}, headers: HttpTable.init())
+    )
 
   asyncTeardown:
     await api.close()
@@ -20,7 +49,6 @@ suite "AutoTLS ACME API":
 
   asyncSetup:
     api = ACMEApiStub.new()
-    key = RsaPrivateKey.random(rng()).get()
 
   asyncTest "register to acme server":
     api.mockedResponses.add(
@@ -168,7 +196,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      RsaPrivateKey.random(rng()).get,
+      certKey,
       key,
       "kid",
     )
@@ -187,7 +215,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      RsaPrivateKey.random(rng()).get,
+      certKey,
       key,
       "kid",
       retries = 1,
@@ -211,7 +239,7 @@ suite "AutoTLS ACME API":
       "some-domain",
       parseUri("http://example.com/some-finalize-url"),
       parseUri("http://example.com/some-order-url"),
-      RsaPrivateKey.random(rng()).get,
+      certKey,
       key,
       "kid",
     )
@@ -304,7 +332,7 @@ suite "AutoTLS ACME API":
       discard await api.requestFinalize(
         "some-domain",
         parseUri("http://example.com/some-finalize-url"),
-        RsaPrivateKey.random(rng()).get,
+        certKey,
         key,
         "kid",
       )
@@ -312,7 +340,138 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
 
+  asyncTest "the directory is fetched once and cached":
+    # The cache is only observable on a stub that was not handed a directory.
+    await api.close()
+    api = ACMEApiStub.new(directory = Opt.none(ACMEDirectory))
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{
+          "newNonce": StubDirectory.newNonce,
+          "newOrder": StubDirectory.newOrder,
+          "newAccount": StubDirectory.newAccount,
+        },
+        headers: HttpTable.init(),
+      )
+    )
+    for _ in 0 ..< 2:
+      api.mockedResponses.add(
+        HTTPResponse(
+          body: %*{}, headers: HttpTable.init(@[("Replay-Nonce", "some-nonce")])
+        )
+      )
+
+    # The stub overrides requestNonce, so call the real one that consults the directory.
+    discard await procCall requestNonce(ACMEApi(api))
+    discard await procCall requestNonce(ACMEApi(api))
+
+    check api.requestedUris ==
+      @[
+        parseUri(LetsEncryptURL & "/directory"),
+        parseUri(StubDirectory.newNonce),
+        parseUri(StubDirectory.newNonce),
+      ]
+
+  asyncTest "the replay nonce is read from the response header":
+    const nonce = "some-replay-nonce"
+    api.mockedResponses.add(
+      HTTPResponse(body: %*{}, headers: HttpTable.init(@[("Replay-Nonce", nonce)]))
+    )
+
+    check (await procCall requestNonce(ACMEApi(api))) == nonce
+
+  asyncTest "the register request is signed with a jwk":
+    queueRegister()
+
+    discard await api.requestRegister(key)
+
+    check api.protectedHeader(0).hasKey("jwk")
+
+  asyncTest "the register request agrees to the terms of service":
+    queueRegister()
+
+    discard await api.requestRegister(key)
+
+    check api.signedPayload(0)["termsOfServiceAgreed"].getBool
+
+  asyncTest "an order request is signed with the account kid":
+    queueOrder("pending", %*[AuthorizationsURL])
+
+    discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
+
+    check api.protectedHeader(0)["kid"].getStr == AccountURL
+
+  asyncTest "the order payload names the domain as a dns identifier":
+    queueOrder("pending", %*[AuthorizationsURL])
+
+    discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
+
+    check api.signedPayload(0)["identifiers"] ==
+      %*[{"type": "dns", "value": WildcardDomain}]
+
+  asyncTest "successive signed requests carry different nonces":
+    queueRegister()
+    queueOrder("pending", %*[AuthorizationsURL])
+
+    discard await api.requestRegister(key)
+    discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
+
+    check api.protectedHeader(0)["nonce"] != api.protectedHeader(1)["nonce"]
+
+  asyncTest "an order with no authorizations is refused":
+    queueOrder("pending", %*[])
+
+    expect(ACMEError):
+      discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
+
+  asyncTest "an order that is neither pending nor ready is refused":
+    queueOrder("invalid", %*[AuthorizationsURL])
+    # The authorization is in place, so only the status can stop the call.
+    queueChallenges(
+      %*[{"type": "dns-01", "url": ChallengeURL, "status": "pending", "token": "t"}]
+    )
+
+    expect(ACMEError):
+      discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
+
+  asyncTest "an authorization offering no dns-01 challenge is refused":
+    queueOrder("pending", %*[AuthorizationsURL])
+    queueChallenges(
+      %*[
+        {"type": "http-01", "url": ChallengeURL, "status": "pending", "token": "t"},
+        {"type": "tls-alpn-01", "url": ChallengeURL, "status": "pending", "token": "t"},
+      ]
+    )
+
+    expect(ACMEError):
+      discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
+
+  asyncTest "an unrecognized challenge type does not discard the dns-01 beside it":
+    queueChallenges(
+      %*[
+        {
+          "type": "dns-account-01",
+          "url": "https://acme.example/chal/2",
+          "status": "pending",
+          "token": "t",
+        },
+        {"type": "dns-01", "url": ChallengeURL, "status": "pending", "token": "t"},
+      ]
+    )
+
+    let authorizations =
+      await api.requestAuthorizations(@[AuthorizationsURL], key, AccountURL)
+
+    check authorizations.challenges.len == 1
+    check authorizations.challenges[0].`type` == ACMEChallengeType.DNS01
+    check authorizations.challenges[0].url == ChallengeURL
+
 suite "AutoTLS ACME Client":
+  # RSA generation dominates the runtime of every test here, so one pair for all.
+  let
+    key = RsaPrivateKey.random(rng()).get()
+    certKey = RsaPrivateKey.random(rng()).get()
+
   var acmeApi {.threadvar.}: ACMEApiStub
   var acme {.threadvar.}: ACMEClient
 
@@ -331,7 +490,7 @@ suite "AutoTLS ACME Client":
       )
     )
 
-    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
+    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(key))
     let kid = await acme.getOrInitKid()
     check kid == "some-expected-kid"
 
@@ -362,7 +521,7 @@ suite "AutoTLS ACME Client":
         body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
       )
     )
-    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
+    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(key))
     let kid = await acme.getOrInitKid()
     check kid == "some-expected-kid"
 
@@ -377,6 +536,4 @@ suite "AutoTLS ACME Client":
       ),
     )
     expect(ACMEError):
-      discard await acme.getCertificate(
-        api.Domain("some.domain"), RsaPrivateKey.random(rng()).get, challenge
-      )
+      discard await acme.getCertificate(api.Domain("some.domain"), certKey, challenge)

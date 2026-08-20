@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import json, uri
+import base64, json, uri
 from times import Duration, now, format, `+`
 import chronos, chronos/apps/http/httpclient
 import ../../libp2p/autotls/acme/[api, utils]
@@ -13,31 +13,50 @@ import ../../libp2p/autotls/acme/[api, utils]
 export api
 
 const
-  AccountURL = "https://acme.example/acct/1"
-  OrderURL = "https://acme.example/order/1"
-  FinalizeURL = "https://acme.example/finalize/1"
-  AuthorizationsURL = "https://acme.example/authz/1"
-  ChallengeURL = "https://acme.example/chal/1"
+  AccountURL* = "https://acme.example/acct/1"
+  OrderURL* = "https://acme.example/order/1"
+  FinalizeURL* = "https://acme.example/finalize/1"
+  AuthorizationsURL* = "https://acme.example/authz/1"
+  ChallengeURL* = "https://acme.example/chal/1"
+
+const StubDirectory* = ACMEDirectory(
+  newNonce: LetsEncryptURL & "/new-nonce",
+  newOrder: LetsEncryptURL & "/new-order",
+  newAccount: LetsEncryptURL & "/new-account",
+)
 
 type ACMEApiStub* = ref object of ACMEApi
-  ## Answers ACME requests from `mockedResponses`, recording what was requested.
-  ## An empty queue refuses the request instead. While `stalls` is set the request
-  ## stays pending, until it is cancelled.
+  ## Answers ACME requests from `mockedResponses`, recording what was requested
+  ## and the flattened JWS each POST carried. An empty queue refuses the request
+  ## instead. While `stalls` is set the request stays pending, until it is cancelled.
   mockedResponses*: seq[HTTPResponse]
   requestedUris*: seq[Uri]
+  payloads*: seq[string]
+  nonces: int
   stalls*: bool
 
-proc new*(T: typedesc[ACMEApiStub]): ACMEApiStub =
-  let directory = ACMEDirectory(
-    newNonce: LetsEncryptURL & "/new-nonce",
-    newOrder: LetsEncryptURL & "/new-order",
-    newAccount: LetsEncryptURL & "/new-account",
-  )
+proc new*(
+    T: typedesc[ACMEApiStub], directory: Opt[ACMEDirectory] = Opt.some(StubDirectory)
+): ACMEApiStub =
   ACMEApiStub(
     session: HttpSessionRef.new(),
-    directory: Opt.some(directory),
+    directory: directory,
     acmeServerURL: parseUri(LetsEncryptURL),
   )
+
+proc jwsMember(self: ACMEApiStub, index: int, member: string): JsonNode =
+  try:
+    parseJson(base64.decode(parseJson(self.payloads[index])[member].getStr))
+  except CatchableError as exc:
+    raiseAssert "stub could not read the JWS " & member & ": " & exc.msg
+
+proc protectedHeader*(self: ACMEApiStub, index: int): JsonNode =
+  ## The protected header of the `index`-th signed request.
+  self.jwsMember(index, "protected")
+
+proc signedPayload*(self: ACMEApiStub, index: int): JsonNode =
+  ## The payload of the `index`-th signed request.
+  self.jwsMember(index, "payload")
 
 proc scriptChallenge*(self: ACMEApiStub, token: string) =
   ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
@@ -103,11 +122,13 @@ proc respond(
 method requestNonce*(
     self: ACMEApiStub
 ): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]).} =
-  $self.acmeServerURL & "/acme/1234"
+  self.nonces += 1
+  $self.acmeServerURL & "/acme/" & $self.nonces
 
 method post*(
     self: ACMEApiStub, uri: Uri, payload: string
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
+  self.payloads.add(payload)
   await self.respond(uri)
 
 method get*(
