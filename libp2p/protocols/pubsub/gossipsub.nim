@@ -888,6 +888,15 @@ method publish*(
       inc g.msgSeqno
       Message.init(Opt.some(g.peerInfo), data, topic, Opt.some(g.msgSeqno), g.sign)
 
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup/cache side
+  # effects occur.
+  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  if messageSize > g.maxMessageSize:
+    warn "message exceeds maximum message size; message will not be published",
+      messageSize, maxMessageSize = g.maxMessageSize
+    return 0
+
   g.handleSelfPublishing(topic, data)
 
   trace "Publishing message on topic", data = data.shortLog
@@ -930,15 +939,6 @@ method publish*(
     # this might happen when not using sequence id:s and / or with a custom
     # message id provider
     trace "Dropping already-seen message"
-    return 0
-
-  # Application-published messages are never split - reject oversized messages
-  # up front so the caller can handle the error before any dedup/cache side
-  # effects occur.
-  let messageSize = RPCMsg.withMessages(msg).byteSize()
-  if messageSize > g.maxMessageSize:
-    warn "message exceeds maximum message size; message will not be published",
-      messageSize, maxMessageSize = g.maxMessageSize
     return 0
 
   if not pubParams.skipMCache:
