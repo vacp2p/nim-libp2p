@@ -3,7 +3,7 @@
 
 {.used.}
 
-import json, sequtils, uri
+import json, sequtils, strutils, times, uri
 import chronos, stew/byteutils
 import
   ../../../libp2p/[
@@ -12,6 +12,7 @@ import
     autotls/acme/client,
     crypto/crypto,
     multiaddress,
+    peeridauth/client,
     peerinfo,
   ]
 import ../../tools/[unittest, crypto]
@@ -63,3 +64,44 @@ suite "AutoTLS broker":
 
     expect(AutoTLSError):
       await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+  asyncTest "a live bearer authenticates the next registration without a handshake":
+    client.expires = Opt.some(now() + initDuration(hours = 1))
+
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+    check:
+      client.requestedUris.len == 3
+      client.authHeaders.len == 2
+      client.authHeaders[1] == PeerIDAuthPrefix & " bearer=\"" & client.token & "\""
+
+  asyncTest "an expired bearer is dropped and the handshake runs again":
+    client.expires = Opt.some(now() - initDuration(hours = 1))
+
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+    check:
+      client.requestedUris.len == 4
+      client.authHeaders.len == 2
+      client.authHeaders[1].startsWith(PeerIDAuthPrefix & " public-key=")
+
+  asyncTest "a bearer without an expiry is reused, not dropped":
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+    check:
+      client.requestedUris.len == 3
+      client.authHeaders.len == 2
+      client.authHeaders[1] == PeerIDAuthPrefix & " bearer=\"" & client.token & "\""
+
+  asyncTest "a bearer obtained during a rejected registration is kept":
+    client.status = 500
+
+    expect(AutoTLSError):
+      await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+    expect(AutoTLSError):
+      await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+    check client.authHeaders[1] == PeerIDAuthPrefix & " bearer=\"" & client.token & "\""
