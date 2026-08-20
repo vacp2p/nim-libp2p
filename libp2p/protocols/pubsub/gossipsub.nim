@@ -881,6 +881,15 @@ method publish*(
     debug "Empty topic, skipping publish"
     return 0
 
+  let msg =
+    if g.anonymize:
+      Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
+    else:
+      inc g.msgSeqno
+      Message.init(Opt.some(g.peerInfo), data, topic, Opt.some(g.msgSeqno), g.sign)
+
+  g.handleSelfPublishing(topic, data)
+
   trace "Publishing message on topic", data = data.shortLog
 
   let pubParams = publishParams.get(PublishParams())
@@ -906,17 +915,10 @@ method publish*(
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
-  let
-    msg =
-      if g.anonymize:
-        Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
-      else:
-        inc g.msgSeqno
-        Message.init(Opt.some(g.peerInfo), data, topic, Opt.some(g.msgSeqno), g.sign)
-    msgId = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish", error = error
-      libp2p_gossipsub_failed_publish.inc()
-      return 0
+  let msgId = g.msgIdProvider(msg).valueOr:
+    trace "Error generating message id, skipping publish", error = error
+    libp2p_gossipsub_failed_publish.inc()
+    return 0
 
   logScope:
     msgId = shortLog(msgId)
@@ -950,8 +952,6 @@ method publish*(
       g.extensionsState.preambleBroadcast(
         RPCMsg.withPreamble(topic, msgId, msg.data.len), peers.mapIt(it.peerId)
       )
-
-  g.handleSelfPublishing(topic, data)
 
   g.broadcast(
     peers,
