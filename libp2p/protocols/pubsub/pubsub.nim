@@ -249,7 +249,9 @@ proc send*(
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
 proc countBroadcastMetrics*(
-    p: PubSub, sendPeers: openArray[PubSubPeer], msg: RPCMsg
+    p: PubSub,
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
+    msg: RPCMsg,
 ) {.raises: [].} =
   ## Increments the broadcast-related metrics for an outgoing RPC message.
   let npeers = sendPeers.len.int64

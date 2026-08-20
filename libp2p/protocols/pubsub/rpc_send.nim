@@ -33,7 +33,7 @@ proc sendResponse*(
 
 proc broadcastResponse*(
     p: PubSub,
-    sendPeers: openArray[PubSubPeer],
+    sendPeers: seq[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
@@ -58,15 +58,3 @@ proc broadcastResponse*(
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
-
-proc broadcastResponse*(
-    p: PubSub,
-    sendPeers: HashSet[PubSubPeer],
-    msg: RPCMsg,
-    priority: MessagePriority,
-    useCustomStream: bool = false,
-) {.raises: [].} =
-  ## Overload for `HashSet[PubSubPeer]`: order is irrelevant for a broadcast,
-  ## so the peers are materialized into a sequence and delegated to the
-  ## `openArray` overload.
-  p.broadcastResponse(sendPeers.toSeq, msg, priority, useCustomStream)
