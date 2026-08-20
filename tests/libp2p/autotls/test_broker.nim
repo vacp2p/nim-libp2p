@@ -105,3 +105,17 @@ suite "AutoTLS broker":
       await broker.sendChallenge(peerInfo, addrs, KeyAuth)
 
     check client.authHeaders[1] == PeerIDAuthPrefix & " bearer=\"" & client.token & "\""
+
+  asyncTest "a 401 does not trigger re-authentication":
+    client.status = 401
+
+    expect(AutoTLSError):
+      await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+    expect(AutoTLSError):
+      await broker.sendChallenge(peerInfo, addrs, KeyAuth)
+
+    # TODO: vacp2p/nim-libp2p#2972
+    check:
+      client.requestedUris.len == 3
+      client.authHeaders.len == 2
+      client.authHeaders[1] == PeerIDAuthPrefix & " bearer=\"" & client.token & "\""
