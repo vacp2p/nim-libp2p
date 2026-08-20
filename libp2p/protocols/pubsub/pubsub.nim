@@ -288,7 +288,7 @@ proc countBroadcastMetrics*(
 
 proc broadcast*(
     p: PubSub,
-    sendPeers: openArray[PubSubPeer] | HashSet[PubSubPeer],
+    sendPeers: openArray[PubSubPeer]  | seq[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
     priority: MessagePriority,
     useCustomStream: bool = false,
