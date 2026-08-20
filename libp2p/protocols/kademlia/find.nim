@@ -300,13 +300,6 @@ proc admitPeer(
     addrs: seq[MultiAddress],
     onAdmit: AdmitHook,
 ) {.async: (raises: []).} =
-  ## Takes ownership of one ``admissionSem`` slot already acquired by the caller.
-  defer:
-    try:
-      kad.admissionSem.release()
-    except AsyncSemaphoreError:
-      raiseAssert "admissionSem released without acquire"
-
   let reachable =
     try:
       await kad.lookupCheck(peerId, addrs)
@@ -356,15 +349,26 @@ proc scheduleAdmissionProbe(
   let probeKey: ProbeKey = (rtable.selfId, peerId)
   if kad.admissionProbes.hasKey(probeKey):
     return false
+
   if kad.probeBackedOff(peerId, addrs):
     trace "Kad admission probe backed off", peer = peerId.shortLog()
     kad_admission_probes_backed_off.inc()
     return false
+
   if not kad.admissionSem.tryAcquire():
     trace "Kad admission probe dropped: no free slot", peer = peerId.shortLog()
     kad_admission_probes_dropped.inc()
     return false
-  kad.trackProbe(probeKey, kad.admitPeer(rtable, peerId, addrs, onAdmit))
+
+  let probe = kad.admitPeer(rtable, peerId, addrs, onAdmit)
+  probe.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      try:
+        kad.admissionSem.release()
+      except AsyncSemaphoreError:
+        raiseAssert "admissionSem released without acquire"
+  )
+  kad.trackProbe(probeKey, probe)
   true
 
 proc admitPeers*(
