@@ -935,7 +935,7 @@ method publish*(
   # effects occur.
   let messageSize = RPCMsg.withMessages(msg).byteSize()
   if messageSize > g.maxMessageSize:
-    warn "message exceeds maximum message size",
+    warn "message exceeds maximum message size; message will not be published",
       messageSize, maxMessageSize = g.maxMessageSize
     return 0
 

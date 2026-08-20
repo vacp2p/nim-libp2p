@@ -651,7 +651,7 @@ proc send*(
   var encoded = encodeRpcMsg(p, msg, anonymize)
 
   if encoded.len > p.maxMessageSize:
-    warn "message exceeds maximum message size",
+    warn "message exceeds maximum message size; message will not be sent",
       encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
 
   trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)

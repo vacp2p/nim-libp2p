@@ -315,7 +315,7 @@ proc broadcast*(
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
     if encoded.len > p.maxMessageSize:
-      warn "message exceeds maximum message size",
+      warn "message exceeds maximum message size; message will not be broadcasted",
         encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
       return
 
