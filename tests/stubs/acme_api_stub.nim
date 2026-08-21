@@ -95,14 +95,6 @@ proc queueStatus*(self: ACMEApiStub, status: string) =
     )
   )
 
-proc scriptChallenge*(self: ACMEApiStub, token: string) =
-  ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
-  self.queueRegister()
-  self.queueOrder("pending", %*[AuthorizationsURL])
-  self.queueChallenges(
-    %*[{"url": ChallengeURL, "type": "dns-01", "status": "pending", "token": token}]
-  )
-
 proc queueGetOrder*(self: ACMEApiStub, certificateURL: string, expires: string) =
   ## Queues the response `requestGetOrder` consumes.
   self.mockedResponses.add(
@@ -110,6 +102,14 @@ proc queueGetOrder*(self: ACMEApiStub, certificateURL: string, expires: string) 
       body: %*{"certificate": certificateURL, "expires": expires},
       headers: HttpTable.init(),
     )
+  )
+
+proc scriptChallenge*(self: ACMEApiStub, token: string) =
+  ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
+  self.queueRegister()
+  self.queueOrder("pending", %*[AuthorizationsURL])
+  self.queueChallenges(
+    %*[{"url": ChallengeURL, "type": "dns-01", "status": "pending", "token": token}]
   )
 
 proc scriptCertificate*(self: ACMEApiStub, certificateURL: string, expires: string) =
