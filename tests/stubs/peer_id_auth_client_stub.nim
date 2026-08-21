@@ -16,7 +16,8 @@ const
 
 type PeerIDAuthClientStub* = ref object of PeerIDAuthClient
   ## Answers the PeerID Auth handshake as a server would, recording what was sent.
-  ## Either header can be replaced to serve a malformed or absent one instead.
+  ## Either header can be replaced to serve a malformed or absent one instead, and
+  ## `challengeServer` signs over a challenge other than the one the client sent.
   serverKey: PrivateKey
   status*: int
   body*: seq[byte]
@@ -24,6 +25,7 @@ type PeerIDAuthClientStub* = ref object of PeerIDAuthClient
   expires*: Opt[DateTime]
   wwwAuthenticate*: Opt[string]
   authenticationInfo*: Opt[string]
+  challengeServer*: Opt[string]
   requestedUris*: seq[Uri]
   payloads*: seq[string]
   authHeaders*: seq[string]
@@ -38,9 +40,10 @@ proc new*(T: typedesc[PeerIDAuthClientStub]): PeerIDAuthClientStub =
     expires: Opt.none(DateTime),
     wwwAuthenticate: Opt.none(string),
     authenticationInfo: Opt.none(string),
+    challengeServer: Opt.none(string),
   )
 
-proc extractField(data, key: string): string =
+proc extractField*(data, key: string): string =
   for segment in data.split(","):
     if key in segment:
       return segment.split("=", 1)[1].strip(chars = {' ', '"'})
@@ -100,9 +103,9 @@ method post*(
     except ValueError as exc:
       raiseAssert "stub could not read the client public key: " & exc.msg
 
-    let sig = self.signAsServer(
-      authHeader.extractField("challenge-server"), uri.hostname, clientPubkey
-    )
+    let challengeServer =
+      self.challengeServer.valueOr(authHeader.extractField("challenge-server"))
+    let sig = self.signAsServer(challengeServer, uri.hostname, clientPubkey)
     var expires = ""
     if self.expires.isSome():
       expires =
