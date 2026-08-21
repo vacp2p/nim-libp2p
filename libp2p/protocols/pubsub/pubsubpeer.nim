@@ -672,6 +672,11 @@ proc sendResponse*(
   ## This is an internal, protocol-facing send path - individual messages that
   ## still exceed `maxMessageSize` are silently dropped.
 
+  proc send(toSendMsg: RPCMsg) =
+    var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
+    trace "sending response msg to peer", peer = p, rpcMsg = shortLog(toSendMsg)
+    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
   if msg.messages.len > 1 and msg.hasOnlyMessages():
     # Batch as many messages as possible into a single encoded RPC instead of
     # encoding one RPC per message. 
@@ -681,24 +686,24 @@ proc sendResponse*(
       batch.messages.add(m)
 
       if batch.messages.len > 0 and batch.encodedSize() > p.maxMessageSize:
-        discard batch.messages.pop() # Remove last element
+        # Last message has caused overflow, send batch without last message
+        discard batch.messages.pop()
 
-        # The batch is full - send it and start a new one.
-        var encoded = encodeRpcMsg(p, batch, anonymize)
-        trace "sending response msg to peer", peer = p, rpcMsg = shortLog(batch)
-        p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+        if batch.messages.len > 0:
+          # Send batch only if there were some messages
+          send(batch)
 
         batch = RPCMsg()
-        batch.messages.add(m) # Add message to new batch
+        batch.messages.add(m)
+
+        if batch.encodedSize() > p.maxMessageSize:
+          # Last message was alone larger then max message size
+          discard batch.messages.pop()
 
     if batch.messages.len > 0:
-      var encoded = encodeRpcMsg(p, batch, anonymize)
-      trace "sending response msg to peer", peer = p, rpcMsg = shortLog(batch)
-      p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+      send(batch)
   else:
-    var encoded = encodeRpcMsg(p, msg, anonymize)
-    trace "sending response msg to peer", peer = p, rpcMsg = shortLog(msg)
-    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+    send(msg)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
