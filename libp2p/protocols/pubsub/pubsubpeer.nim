@@ -171,6 +171,8 @@ type
     slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
+    overheadSecondWindowStart*: Moment
+    overheadBytesInSecondWindow*: int
     rpcmessagequeue: RpcMessageQueue
     maxHighPriorityQueueLen*: int
     maxMediumPriorityQueueLen*: int
@@ -814,6 +816,7 @@ proc new*(
     maxMessageSize: maxMessageSize,
     handler: handler,
     overheadRateLimitOpt: overheadRateLimitOpt,
+    overheadSecondWindowStart: Moment.now(),
     rpcmessagequeue: RpcMessageQueue.new(),
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,
     maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,

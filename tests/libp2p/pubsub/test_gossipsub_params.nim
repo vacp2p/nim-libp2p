@@ -15,7 +15,9 @@ suite "GossipSubParams validation":
 
   test "default parameters are valid":
     var params = newDefaultValidParams()
-    check params.validateParameters().isOk()
+    check:
+      params.validateParameters().isOk()
+      params.seenMaxSize == GossipSubSeenMaxSize
 
   test "dOut fails when equal to dLow":
     const errorMessage =
@@ -92,6 +94,19 @@ suite "GossipSubParams validation":
   test "historyGossip succeeds when zero":
     var params = newDefaultValidParams()
     params.historyGossip = 0
+    check params.validateParameters().isOk()
+
+  test "seenMaxSize fails when zero":
+    const errorMessage = "gossipsub: seenMaxSize parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.seenMaxSize = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "seenMaxSize succeeds when positive":
+    var params = newDefaultValidParams()
+    params.seenMaxSize = 1
     check params.validateParameters().isOk()
 
   test "publishThreshold fails when equal to gossipThreshold":

@@ -60,10 +60,28 @@ declareCounter(
 )
 declareCounter(libp2p_gossipsub_duplicate, "number of duplicates received")
 declareCounter(libp2p_gossipsub_received, "number of messages received (deduplicated)")
+declarePublicGauge(
+  libp2p_gossipsub_rpc_overhead_bytes_max,
+  "maximum RPC overhead bytes observed in the current one-minute window",
+)
+declarePublicGauge(
+  libp2p_gossipsub_peer_overhead_bytes_per_second_max,
+  "maximum per-peer overhead bytes observed in a one-second window during the current one-minute window",
+)
 
 const SubscriptionFloodPenalty = 0.1 ## behaviour penalty for subscription abuse
 
 when defined(libp2p_expensive_metrics):
+  declarePublicHistogram(
+    libp2p_gossipsub_rpc_overhead_bytes,
+    "RPC overhead bytes",
+    buckets = [1024.0, 4096.0, 16384.0, 65536.0, 262144.0, 1048576.0, 4194304.0],
+  )
+  declarePublicHistogram(
+    libp2p_gossipsub_peer_overhead_bytes_per_second,
+    "per-peer overhead bytes observed in one-second windows",
+    buckets = [1024.0, 4096.0, 16384.0, 65536.0, 262144.0, 1048576.0, 4194304.0],
+  )
   declareCounter(
     libp2p_pubsub_received_messages,
     "number of messages received",
@@ -90,6 +108,7 @@ proc init*(
     historyGossip = GossipSubHistoryGossip,
     fanoutTTL = GossipSubFanoutTTL,
     seenTTL = 2.minutes,
+    seenMaxSize = GossipSubSeenMaxSize,
     gossipThreshold = -100.0,
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
@@ -136,6 +155,7 @@ proc init*(
     historyGossip: historyGossip,
     fanoutTTL: fanoutTTL,
     seenTTL: seenTTL,
+    seenMaxSize: seenMaxSize,
     gossipThreshold: gossipThreshold,
     publishThreshold: publishThreshold,
     graylistThreshold: graylistThreshold,
@@ -192,6 +212,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: historyLength parameter error, Must be > 0")
   elif parameters.historyGossip < 0:
     err("gossipsub: historyGossip parameter error, Must be >= 0")
+  elif parameters.seenMaxSize <= 0:
+    err("gossipsub: seenMaxSize parameter error, Must be > 0")
   elif parameters.publishThreshold >= parameters.gossipThreshold:
     err("gossipsub: publishThreshold parameter error, Must be < gossipThreshold")
   elif parameters.graylistThreshold >= parameters.publishThreshold:
@@ -628,9 +650,43 @@ proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
 
   msgSize - payloadSize - controlSize
 
+proc recordOverheadMetrics(g: GossipSub, peer: PubSubPeer, overhead: int) =
+  let now = Moment.now()
+
+  if now - g.overheadMetricsWindowStart >= 1.minutes:
+    g.overheadMetricsWindowStart = now
+    g.rpcOverheadBytesMax = 0
+    g.peerOverheadBytesPerSecondMax = 0
+    libp2p_gossipsub_rpc_overhead_bytes_max.set(0)
+    libp2p_gossipsub_peer_overhead_bytes_per_second_max.set(0)
+
+  if overhead > g.rpcOverheadBytesMax:
+    g.rpcOverheadBytesMax = overhead
+    libp2p_gossipsub_rpc_overhead_bytes_max.set(overhead.int64)
+
+  when defined(libp2p_expensive_metrics):
+    libp2p_gossipsub_rpc_overhead_bytes.observe(overhead.int64)
+
+  if now - peer.overheadSecondWindowStart >= 1.seconds:
+    when defined(libp2p_expensive_metrics):
+      if peer.overheadBytesInSecondWindow > 0:
+        libp2p_gossipsub_peer_overhead_bytes_per_second.observe(
+          peer.overheadBytesInSecondWindow.int64
+        )
+    peer.overheadSecondWindowStart = now
+    peer.overheadBytesInSecondWindow = 0
+
+  peer.overheadBytesInSecondWindow += overhead
+  if peer.overheadBytesInSecondWindow > g.peerOverheadBytesPerSecondMax:
+    g.peerOverheadBytesPerSecondMax = peer.overheadBytesInSecondWindow
+    libp2p_gossipsub_peer_overhead_bytes_per_second_max.set(
+      peer.overheadBytesInSecondWindow.int64
+    )
+
 proc rateLimit*(
     g: GossipSub, peer: PubSubPeer, overhead: int
 ) {.async: (raises: [PeerRateLimitError]).} =
+  g.recordOverheadMetrics(peer, overhead)
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     if not overheadRateLimit.tryConsume(overhead):
       libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
@@ -1144,7 +1200,9 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
     raise newException(InitializationError, $validationRes.error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
-  g.seen = TimedCache[SaltedId].init(g.parameters.seenTTL)
+  g.seen =
+    TimedCache[SaltedId].init(g.parameters.seenTTL, maxSize = g.parameters.seenMaxSize)
+  g.overheadMetricsWindowStart = Moment.now()
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
