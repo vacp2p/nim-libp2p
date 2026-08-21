@@ -666,18 +666,16 @@ proc sendResponse*(
 ) {.raises: [].} =
   ## Sends a protocol response `RPCMsg` to this peer, batching multi-message
   ## responses together so that none exceed `maxMessageSize`.
+  ## Batching is only performed for message-only RPCs - if the RPC carries other
+  ## data (subscriptions, control or extensions), it is sent as-is.
   ##
   ## This is an internal, protocol-facing send path - individual messages that
   ## still exceed `maxMessageSize` are silently dropped.
 
-  if msg.messages.len > 1:
+  if msg.messages.len > 1 and msg.hasOnlyMessages():
     # Batch as many messages as possible into a single encoded RPC instead of
     # encoding one RPC per message. 
     var batch = RPCMsg()
-
-    # Multi-message batching currently supports message-only RPCs.
-    # If an extension is associated to multiple messages, it would require
-    # splitting associated to the extension itself
 
     for m in msg.messages:
       batch.messages.add(m)
