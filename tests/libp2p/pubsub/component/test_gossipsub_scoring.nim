@@ -69,7 +69,7 @@ suite "GossipSub Component - Scoring":
 
     let rateLimitHits = currentRateLimitHits()
 
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](10))),
       MessagePriority.High,
@@ -81,7 +81,7 @@ suite "GossipSub Component - Scoring":
 
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](12))),
       MessagePriority.High,
@@ -158,7 +158,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -172,7 +172,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg2, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg2, MessagePriority.High)
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
@@ -212,7 +212,7 @@ suite "GossipSub Component - Scoring":
     let rateLimitHits = currentRateLimitHits()
 
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -221,7 +221,7 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     let rateLimitHits2 = currentRateLimitHits()
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](35))),
       MessagePriority.High,
@@ -443,12 +443,12 @@ suite "GossipSub Component - Scoring":
     # When messages are broadcasted
     const messagesToSend = 5
     for i in 0 ..< messagesToSend:
-      nodes[1].broadcast(
+      nodes[1].broadcastResponse(
         nodes[1].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("valid_" & $i).toBytes())),
         MessagePriority.High,
       )
-      nodes[2].broadcast(
+      nodes[2].broadcastResponse(
         nodes[2].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("invalid_" & $i).toBytes())),
         MessagePriority.High,

@@ -174,6 +174,8 @@ suite "Message":
     )
     check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
+    check rpcMsg.encodedSize() == rpcMsg.encode(false).len
+
   test "downstream-compatible public pubsub fields":
     let
       peerId = PeerId(data: @[1'u8, 2, 3])
@@ -345,3 +347,30 @@ suite "Message":
     let rpc = RPCMsg(subscriptions: @[SubOpts(subscribe: true, topic: topic)])
     let anon = rpc.anonymize(true)
     check anon.messages.len == 0
+
+  test "hasOnlyMessages - message-only RPC returns true":
+    let rpc = RPCMsg.withMessages(@[Message(topic: topic), Message(topic: topic)])
+    check rpc.hasOnlyMessages()
+
+  test "hasOnlyMessages - empty RPC returns true":
+    check RPCMsg().hasOnlyMessages()
+
+  test "hasOnlyMessages - false when any non-message field is set":
+    # Reflection guard: iterate every RPCMsg field except `messages`, set it to a
+    # non-empty value, and assert `hasOnlyMessages` returns false. If a new field
+    # is added to RPCMsg in the future and `hasOnlyMessages` is not updated to
+    # account for it, this test fails.
+    var rpc = RPCMsg()
+    for name, value in fieldPairs(rpc):
+      when name != "messages":
+        when compiles(value.isSome): # Opt field (control/extensions)
+          value = Opt.some(default(typeof(value.get())))
+          check not rpc.hasOnlyMessages()
+          value = Opt.none(typeof(value.get()))
+        elif compiles(value.len): # seq field (subscriptions)
+          value = @[default(typeof(value[0]))]
+          check not rpc.hasOnlyMessages()
+          value.setLen(0)
+        else:
+          doAssert false, "RPCMsg field '" & name & "' has an unsupported type"
+    check rpc.hasOnlyMessages()

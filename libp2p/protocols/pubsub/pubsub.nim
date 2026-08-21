@@ -10,8 +10,7 @@
 {.push raises: [].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
-import chronos/ratelimit
+import chronos, chronicles, metrics, results
 import
   ./errors as pubsub_errors,
   ./pubsubpeer,
@@ -26,14 +25,8 @@ import
   ../../utils/opt,
   ../../utils/future
 
-import results
-export results
-
-export tables, sets
-export PubSubPeer
-export PubSubObserver
-export protocol
-export pubsub_errors
+export tables, sets, results, chronicles
+export PubSubPeer, PubSubObserver, protocol, pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -232,7 +225,11 @@ proc send*(
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
+  ## Sends an application-published `msg` (of type `RPCMsg`) to the specified
+  ## remote peer in the PubSub network.
+  ##
+  ## The message is sent as-is, without splitting - the application is
+  ## responsible for ensuring the message fits within `maxMessageSize`.
   ##
   ## Parameters:
   ## - `p`: The `PubSub` instance.
@@ -245,23 +242,12 @@ proc send*(
   trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
-proc broadcast*(
+proc countBroadcastMetrics*(
     p: PubSub,
-    sendPeers: auto, # Iteratble[PubSubPeer]
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
-    priority: MessagePriority,
-    useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
-  ##
-  ## Parameters:
-  ## - `p`: The `PubSub` instance.
-  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
-  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
-  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
-  ##   High priority messages are sent immediately, medium and low priority messages are queued
-  ##   and sent only after all high priority messages have been sent.
-
+  ## Increments the broadcast-related metrics for an outgoing RPC message.
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
     if sub.isSubscribe:
@@ -294,6 +280,26 @@ proc broadcast*(
         npeers, labelValues = [p.topicLabel(prune.topicID)]
       )
 
+proc broadcast*(
+    p: PubSub,
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Sends an application-published `msg` (of type `RPCMsg`) to a specified
+  ## group of peers in the PubSub network.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSub` instance.
+  ## - `sendPeers`: A sequence of `PubSubPeer` instances to which the message should be sent.
+  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
+
+  countBroadcastMetrics(p, sendPeers, msg)
+
   trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
@@ -302,6 +308,11 @@ proc broadcast*(
   else:
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
+    if encoded.len > p.maxMessageSize:
+      warn "message exceeds maximum message size; message will not be broadcasted",
+        encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
+      return
+
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
@@ -320,7 +331,9 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  p.send(peer, RPCMsg.withSubscriptions(subscriptions), MessagePriority.High)
+  peer.sendResponse(
+    RPCMsg.withSubscriptions(subscriptions), p.anonymize, MessagePriority.High
+  )
 
   for topic in subTopics:
     if subscribe:

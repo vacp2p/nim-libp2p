@@ -7,6 +7,7 @@ import std/[sets, hashes, tables, sequtils]
 import chronos, chronicles, metrics
 import
   ./pubsub,
+  ./rpc_send,
   ./pubsubpeer,
   ./timedcache,
   ./peertable,
@@ -169,7 +170,7 @@ method rpcHandler*(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    f.broadcast(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
+    f.broadcastResponse(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
@@ -195,13 +196,29 @@ method publish*(
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
-  handleSelfPublishing(f, topic, data)
-
   trace "Publishing message on topic", data = data.shortLog, topic
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish", topic
     return 0
+
+  let msg =
+    if f.anonymize:
+      Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
+    else:
+      inc f.msgSeqno
+      Message.init(Opt.some(f.peerInfo), data, topic, Opt.some(f.msgSeqno), f.sign)
+
+  # Application-published messages are never split - reject oversized messages
+  # up front so the caller can handle the error before any dedup side effects
+  # occur.
+  let messageSize = RPCMsg.withMessages(msg).encodedSize()
+  if messageSize > f.maxMessageSize:
+    warn "message exceeds maximum message size; message will not be published",
+      messageSize, maxMessageSize = f.maxMessageSize
+    return 0
+
+  f.handleSelfPublishing(topic, data)
 
   let peers = f.floodsub.getOrDefault(topic)
 
@@ -209,16 +226,9 @@ method publish*(
     debug "No peers for topic, skipping publish", topic
     return 0
 
-  let
-    msg =
-      if f.anonymize:
-        Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
-      else:
-        inc f.msgSeqno
-        Message.init(Opt.some(f.peerInfo), data, topic, Opt.some(f.msgSeqno), f.sign)
-    msgId = f.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish", error = error
-      return 0
+  let msgId = f.msgIdProvider(msg).valueOr:
+    trace "Error generating message id, skipping publish", error = error
+    return 0
 
   trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
 

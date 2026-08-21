@@ -614,38 +614,22 @@ proc sendEncoded*(
       else:
         p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
-iterator splitRPCMsg(
-    peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool
-): seq[byte] =
-  ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
-  ## Each new `RPCMsg` accumulates Messages until reaching the specified `maxSize`. If a single Message
-  ## exceeds the `maxSize` when trying to fit into an empty `RPCMsg`, the latter is skipped as too large to send.
-  ## Every constructed `RPCMsg` is then encoded, optionally anonymized, and yielded as a sequence of bytes.
-
-  var currentRPCMsg = RPCMsg()
-  var currentSize = 0
-
-  for msg in rpcMsg.messages:
-    let msgSize = byteSize(msg)
-
-    # Check if adding the next message will exceed maxSize
-    if currentSize + msgSize > maxSize:
-      if msgSize > maxSize:
-        warn "message too big to sent", peer, rpcMsg = shortLog(msg)
-        continue # Skip this message
-
-      trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-      yield encode(currentRPCMsg, anonymize)
-      currentRPCMsg = RPCMsg()
-      currentSize = 0
-
-    currentRPCMsg.messages.add(msg)
-    currentSize += msgSize
-
-  # Check if there is a non-empty currentRPCMsg left to be added
-  if currentRPCMsg.messages.len > 0:
-    trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-    yield encode(currentRPCMsg, anonymize)
+proc encodeRpcMsg(
+    p: PubSubPeer, msg: RPCMsg, anonymize: bool
+): seq[byte] {.raises: [].} =
+  ## Encodes an `RPCMsg` for sending, running send observers and metrics.
+  ##
+  ## We re-encode the message to protect against valid but redundantly encoded
+  ## protobufs with unknown or duplicated fields.
+  if p.hasObservers():
+    var mm = msg
+    # trigger send hooks
+    p.sendObservers(mm)
+    sendMetrics(mm)
+    encode(mm, anonymize)
+  else:
+    sendMetrics(msg)
+    encode(msg, anonymize)
 
 proc send*(
     p: PubSubPeer,
@@ -654,7 +638,7 @@ proc send*(
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
+  ## Sends an application-published `RPCMsg` to this peer, without splitting.
   ##
   ## Parameters:
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
@@ -663,35 +647,63 @@ proc send*(
   ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
-  # When sending messages, we take care to re-encode them with the right
-  # anonymization flag to ensure that we're not penalized for sending invalid
-  # or malicious data on the wire - in particular, re-encoding protects against
-  # some forms of valid but redundantly encoded protobufs with unknown or
-  # duplicated fields
-  var encoded =
-    if p.hasObservers():
-      var mm = msg
-      # trigger send hooks
-      p.sendObservers(mm)
-      sendMetrics(mm)
-      encode(mm, anonymize)
-    else:
-      # If there are no send hooks, we redundantly re-encode the message to
-      # protobuf for every peer - this could easily be improved!
-      sendMetrics(msg)
-      encode(msg, anonymize)
 
-  # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
-  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100
+  var encoded = encodeRpcMsg(p, msg, anonymize)
 
-  if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
-    for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
-      var ownedEncodedSplitMsg = encodedSplitMsg
-      p.trackSend(p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream))
-  else:
-    # If the message size is within limits, send it as is
-    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+  if encoded.len > p.maxMessageSize:
+    warn "message exceeds maximum message size; message will not be sent",
+      encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
+
+  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+  p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
+proc sendResponse*(
+    p: PubSubPeer,
+    msg: RPCMsg,
+    anonymize: bool,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Sends a protocol response `RPCMsg` to this peer, batching multi-message
+  ## responses together so that none exceed `maxMessageSize`.
+  ## Batching is only performed for message-only RPCs - if the RPC carries other
+  ## data (subscriptions, control or extensions), it is sent as-is.
+  ##
+  ## This is an internal, protocol-facing send path - individual messages that
+  ## still exceed `maxMessageSize` are silently dropped.
+
+  proc send(toSendMsg: RPCMsg) =
+    var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
+    trace "sending response msg to peer", peer = p, rpcMsg = shortLog(toSendMsg)
     p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
+  if msg.messages.len > 1 and msg.hasOnlyMessages():
+    # Batch as many messages as possible into a single encoded RPC instead of
+    # encoding one RPC per message. 
+    var batch = RPCMsg()
+
+    for m in msg.messages:
+      batch.messages.add(m)
+
+      if batch.messages.len > 0 and batch.encodedSize() > p.maxMessageSize:
+        # Last message has caused overflow, send batch without last message
+        discard batch.messages.pop()
+
+        if batch.messages.len > 0:
+          # Send batch only if there were some messages
+          send(batch)
+
+        batch = RPCMsg()
+        batch.messages.add(m)
+
+        if batch.encodedSize() > p.maxMessageSize:
+          # Last message was alone larger then max message size
+          discard batch.messages.pop()
+
+    if batch.messages.len > 0:
+      send(batch)
+  else:
+    send(msg)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():

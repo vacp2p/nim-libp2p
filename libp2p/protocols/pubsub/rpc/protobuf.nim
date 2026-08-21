@@ -36,3 +36,6 @@ proc decode*(_: type RPCMsg, buf: seq[byte]): Result[RPCMsg, string] =
     ok(msg)
   except SerializationError as e:
     err("failed to decode RPCMsg from protobuf bytes. " & e.msg)
+
+proc encodedSize*(rpc: RPCMsg): int =
+  Protobuf.computeSize(rpc)
