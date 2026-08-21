@@ -6,7 +6,7 @@
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
 import "."/[types, scoring, extensions]
-import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
+import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub, timedcache]
 import "../rpc"/[messages]
 import
   "../../.."/[
@@ -23,6 +23,9 @@ logScope:
   topics = "libp2p gossipsub"
 
 declareGauge(libp2p_gossipsub_cache_window_size, "the number of messages in the cache")
+declarePublicGauge(
+  libp2p_gossipsub_seen_cache_size, "number of message IDs retained in the seen cache"
+)
 declareGauge(
   libp2p_gossipsub_peers_per_topic_mesh,
   "gossipsub peers per topic in mesh",
@@ -711,6 +714,8 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
   return control
 
 proc onHeartbeat(g: GossipSub) =
+  libp2p_gossipsub_seen_cache_size.set(g.seen.len.int64)
+
   # reset IWANT budget
   # reset IHAVE cap
   block:

@@ -18,6 +18,7 @@ import
     pubsubpeer,
     rpc/message,
     rpc/protobuf,
+    timedcache,
   ]
 import ../../tools/[unittest, bufferstream, crypto, switch_builder, multiaddress]
 
@@ -420,9 +421,24 @@ suite "GossipSub":
       inc seqno
       let msg =
         Message.init(conn.peerId, ("bar" & $i).toBytes(), topic, Opt.some(seqno))
+      let msgId = gossipSub.salt(gossipSub.msgIdProvider(msg).get())
       await gossipSub.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
+      check msgId notin gossipSub.seen
 
     check gossipSub.mcache.msgs.len == 0
+
+  test "seen cache uses configured maximum size":
+    let
+      params = GossipSubParams.init(seenMaxSize = 3)
+      gossipSub =
+        TestGossipSub.init(makeStandardSwitch(), parameters = params, rng = rng())
+
+    for i in 0 .. 3:
+      discard gossipSub.addSeen(gossipSub.salt(($i).toBytes()))
+
+    check:
+      gossipSub.seen.len == 3
+      gossipSub.salt("0".toBytes()) notin gossipSub.seen
 
   asyncTest "rpcHandler - subscription limits":
     let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
@@ -534,6 +550,36 @@ suite "GossipSub":
 
     expect PeerMessageDecodeError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
+
+  asyncTest "rateLimit - records lightweight overhead metrics without a limiter":
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+      peer = peers[0]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    check peer.overheadRateLimitOpt.isNone()
+
+    gossipSub.overheadMetricsWindowStart = Moment.now()
+    peer.overheadSecondWindowStart = Moment.now()
+
+    await gossipSub.rateLimit(peer, 1024)
+    await gossipSub.rateLimit(peer, 4096)
+
+    check:
+      gossipSub.rpcOverheadBytesMax == 4096
+      gossipSub.peerOverheadBytesPerSecondMax == 5120
+
+    gossipSub.overheadMetricsWindowStart = Moment.now() - 1.minutes
+    peer.overheadSecondWindowStart = Moment.now() - 1.seconds
+    peer.overheadBytesInSecondWindow = 1024
+
+    await gossipSub.rateLimit(peer, 2048)
+
+    check:
+      gossipSub.rpcOverheadBytesMax == 2048
+      gossipSub.peerOverheadBytesPerSecondMax == 2048
+      peer.overheadBytesInSecondWindow == 2048
 
   asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
     # Given a GossipSub instance with one peer
