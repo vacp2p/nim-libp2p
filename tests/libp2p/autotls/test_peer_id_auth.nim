@@ -125,7 +125,7 @@ suite "PeerID Auth Client":
       )
 
   asyncTest "bearer expiry is parsed in local time":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2975
     let expires =
       (await requestWithExpires("2026-08-21T12:00:00.000Z")).bearer.expires.get()
 
@@ -133,7 +133,7 @@ suite "PeerID Auth Client":
     check expires.format("yyyy-MM-dd'T'HH:mm:ss") == "2026-08-21T12:00:00"
 
   asyncTest "bearer expiry reads a nanosecond fraction as milliseconds":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2975
     let expires =
       (await requestWithExpires("2026-08-21T11:36:41.621940726Z")).bearer.expires.get()
 
@@ -141,11 +141,11 @@ suite "PeerID Auth Client":
       initDuration(milliseconds = 621_940_726)
 
   asyncTest "bearer expiry without a fractional second is dropped":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2975
     check (await requestWithExpires("2026-08-21T12:00:00Z")).bearer.expires.isNone()
 
   asyncTest "bearer expiry without a zone raises IndexDefect":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2975
     expect IndexDefect:
       discard await requestWithExpires("2026-08-21T12:00:00")
 
