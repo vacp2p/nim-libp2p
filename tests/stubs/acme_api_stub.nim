@@ -58,31 +58,50 @@ proc signedPayload*(self: ACMEApiStub, index: int): JsonNode =
   ## The payload of the `index`-th signed request.
   self.jwsMember(index, "payload")
 
-proc scriptChallenge*(self: ACMEApiStub, token: string) =
-  ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
+proc queueRegister*(self: ACMEApiStub) =
+  ## Queues the response `requestRegister` consumes.
   self.mockedResponses.add(
     HTTPResponse(
       body: %*{"status": "valid"}, headers: HttpTable.init(@[("location", AccountURL)])
     )
   )
+
+proc queueOrder*(self: ACMEApiStub, status: string, authorizations: JsonNode) =
+  ## Queues the response `requestNewOrder` consumes.
   self.mockedResponses.add(
     HTTPResponse(
-      body: %*{
-        "status": "pending",
-        "authorizations": [AuthorizationsURL],
-        "finalize": FinalizeURL,
-      },
+      body:
+        %*{"status": status, "authorizations": authorizations, "finalize": FinalizeURL},
       headers: HttpTable.init(@[("location", OrderURL)]),
     )
   )
+
+proc queueChallenges*(self: ACMEApiStub, challenges: JsonNode) =
+  ## Queues the response `requestAuthorizations` consumes.
+  self.mockedResponses.add(
+    HTTPResponse(body: %*{"challenges": challenges}, headers: HttpTable.init())
+  )
+
+proc queueChallengeCompleted*(self: ACMEApiStub) =
+  ## Queues the response `sendChallengeCompleted` consumes.
+  self.mockedResponses.add(
+    HTTPResponse(body: %*{"url": ChallengeURL}, headers: HttpTable.init())
+  )
+
+proc queueStatus*(self: ACMEApiStub, status: string) =
+  ## Queues the status-only response `requestCheck` and `requestFinalize` consume.
   self.mockedResponses.add(
     HTTPResponse(
-      body: %*{
-        "challenges":
-          [{"url": ChallengeURL, "type": "dns-01", "status": "pending", "token": token}]
-      },
-      headers: HttpTable.init(),
+      body: %*{"status": status}, headers: HttpTable.init(@[("Retry-After", "0")])
     )
+  )
+
+proc scriptChallenge*(self: ACMEApiStub, token: string) =
+  ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
+  self.queueRegister()
+  self.queueOrder("pending", %*[AuthorizationsURL])
+  self.queueChallenges(
+    %*[{"url": ChallengeURL, "type": "dns-01", "status": "pending", "token": token}]
   )
 
 proc scriptCertificate*(
@@ -90,15 +109,12 @@ proc scriptCertificate*(
 ) =
   ## Queues the five responses `getCertificate` consumes, ending in an order whose
   ## certificate is served from `certificateURL`.
-  let expires = (now() + expiresIn).format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-  for body in [
-    %*{"url": ChallengeURL}, # sendChallengeCompleted
-    %*{"status": "valid"}, # checkChallengeCompleted
-    %*{"status": "valid"}, # requestFinalize
-    %*{"status": "valid"}, # checkCertFinalized
-  ]:
-    self.mockedResponses.add(HTTPResponse(body: body, headers: HttpTable.init()))
+  self.queueChallengeCompleted()
+  self.queueStatus("valid") # checkChallengeCompleted
+  self.queueStatus("valid") # requestFinalize
+  self.queueStatus("valid") # checkCertFinalized
 
+  let expires = (now() + expiresIn).format("yyyy-MM-dd'T'HH:mm:ss'Z'")
   self.mockedResponses.add(
     HTTPResponse(
       body: %*{"certificate": certificateURL, "expires": expires},

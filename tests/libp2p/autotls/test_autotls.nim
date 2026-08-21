@@ -20,29 +20,6 @@ suite "AutoTLS ACME API":
 
   var api {.threadvar.}: ACMEApiStub
 
-  proc queueRegister() =
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"},
-        headers: HttpTable.init(@[("location", AccountURL)]),
-      )
-    )
-
-  proc queueOrder(status: string, authorizations: JsonNode) =
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{
-          "status": status, "authorizations": authorizations, "finalize": FinalizeURL
-        },
-        headers: HttpTable.init(@[("location", OrderURL)]),
-      )
-    )
-
-  proc queueChallenges(challenges: JsonNode) =
-    api.mockedResponses.add(
-      HTTPResponse(body: %*{"challenges": challenges}, headers: HttpTable.init())
-    )
-
   asyncTeardown:
     await api.close()
     checkTrackers()
@@ -381,28 +358,28 @@ suite "AutoTLS ACME API":
     check (await procCall requestNonce(ACMEApi(api))) == nonce
 
   asyncTest "the register request is signed with a jwk":
-    queueRegister()
+    api.queueRegister()
 
     discard await api.requestRegister(key)
 
     check api.protectedHeader(0).hasKey("jwk")
 
   asyncTest "the register request agrees to the terms of service":
-    queueRegister()
+    api.queueRegister()
 
     discard await api.requestRegister(key)
 
     check api.signedPayload(0)["termsOfServiceAgreed"].getBool
 
   asyncTest "an order request is signed with the account kid":
-    queueOrder("pending", %*[AuthorizationsURL])
+    api.queueOrder("pending", %*[AuthorizationsURL])
 
     discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
 
     check api.protectedHeader(0)["kid"].getStr == AccountURL
 
   asyncTest "the order payload names the domain as a dns identifier":
-    queueOrder("pending", %*[AuthorizationsURL])
+    api.queueOrder("pending", %*[AuthorizationsURL])
 
     discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
 
@@ -410,8 +387,8 @@ suite "AutoTLS ACME API":
       %*[{"type": "dns", "value": WildcardDomain}]
 
   asyncTest "successive signed requests carry different nonces":
-    queueRegister()
-    queueOrder("pending", %*[AuthorizationsURL])
+    api.queueRegister()
+    api.queueOrder("pending", %*[AuthorizationsURL])
 
     discard await api.requestRegister(key)
     discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
@@ -419,15 +396,15 @@ suite "AutoTLS ACME API":
     check api.protectedHeader(0)["nonce"] != api.protectedHeader(1)["nonce"]
 
   asyncTest "an order with no authorizations is refused":
-    queueOrder("pending", %*[])
+    api.queueOrder("pending", %*[])
 
     expect(ACMEError):
       discard await api.requestNewOrder(@[WildcardDomain], key, AccountURL)
 
   asyncTest "an order that is neither pending nor ready is refused":
-    queueOrder("invalid", %*[AuthorizationsURL])
+    api.queueOrder("invalid", %*[AuthorizationsURL])
     # The authorization is in place, so only the status can stop the call.
-    queueChallenges(
+    api.queueChallenges(
       %*[{"type": "dns-01", "url": ChallengeURL, "status": "pending", "token": "t"}]
     )
 
@@ -435,8 +412,8 @@ suite "AutoTLS ACME API":
       discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
 
   asyncTest "an authorization offering no dns-01 challenge is refused":
-    queueOrder("pending", %*[AuthorizationsURL])
-    queueChallenges(
+    api.queueOrder("pending", %*[AuthorizationsURL])
+    api.queueChallenges(
       %*[
         {"type": "http-01", "url": ChallengeURL, "status": "pending", "token": "t"},
         {"type": "tls-alpn-01", "url": ChallengeURL, "status": "pending", "token": "t"},
@@ -447,7 +424,7 @@ suite "AutoTLS ACME API":
       discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
 
   asyncTest "an unrecognized challenge type does not discard the dns-01 beside it":
-    queueChallenges(
+    api.queueChallenges(
       %*[
         {
           "type": "dns-account-01",
@@ -467,6 +444,8 @@ suite "AutoTLS ACME API":
     check authorizations.challenges[0].url == ChallengeURL
 
 suite "AutoTLS ACME Client":
+  const CertDomain = "some.domain"
+
   # RSA generation dominates the runtime of every test here, so one pair for all.
   let
     key = RsaPrivateKey.random(rng()).get()
@@ -475,6 +454,18 @@ suite "AutoTLS ACME Client":
   var acmeApi {.threadvar.}: ACMEApiStub
   var acme {.threadvar.}: ACMEClient
 
+  proc dns01Challenge(): ACMEChallengeDns01Response =
+    ACMEChallengeDns01Response(
+      finalize: FinalizeURL,
+      order: OrderURL,
+      dns01: ACMEChallenge(
+        url: ChallengeURL,
+        `type`: ACMEChallengeType.DNS01,
+        status: ACMEChallengeStatus.PENDING,
+        token: ACMEChallengeToken("some-token"),
+      ),
+    )
+
   asyncSetup:
     acmeApi = ACMEApiStub.new()
 
@@ -482,58 +473,53 @@ suite "AutoTLS ACME Client":
     await acme.close()
     checkTrackers()
 
-  asyncTest "client registers new account when instantiated":
-    acmeApi.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"},
-        headers: HttpTable.init(@[("location", "some-expected-kid")]),
-      )
-    )
+  asyncTest "the account is registered once and its kid reused":
+    acmeApi.queueRegister()
 
     acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(key))
-    let kid = await acme.getOrInitKid()
-    check kid == "some-expected-kid"
 
-  asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
-    # register successful
-    acmeApi.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"},
-        headers: HttpTable.init(@[("location", "some-expected-kid")]),
-      )
-    )
-    # request completed successful
-    acmeApi.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
-      )
-    )
-    # finalize is invalid
-    # first request is processing, then invalid
-    acmeApi.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "processing"},
-        headers: HttpTable.init(@[("Retry-After", "0")]),
-      )
-    )
-    acmeApi.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-      )
-    )
+    check:
+      (await acme.getOrInitKid()) == AccountURL
+      (await acme.getOrInitKid()) == AccountURL
+      acmeApi.requestedUris == @[parseUri(StubDirectory.newAccount)]
+
+  asyncTest "getCertificate fails before finalization when the challenge never validates":
+    acmeApi.queueRegister()
+    acmeApi.queueChallengeCompleted()
+    acmeApi.queueStatus("pending") # checkChallengeCompleted
+
     acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(key))
-    let kid = await acme.getOrInitKid()
-    check kid == "some-expected-kid"
 
-    let challenge = ACMEChallengeDns01Response(
-      finalize: "https://finalize.com",
-      order: "https://order.com",
-      dns01: ACMEChallenge(
-        url: "https://some.domain",
-        `type`: ACMEChallengeType.DNS01,
-        status: ACMEChallengeStatus.VALID,
-        token: ACMEChallengeToken("some-token"),
-      ),
-    )
     expect(ACMEError):
-      discard await acme.getCertificate(api.Domain("some.domain"), certKey, challenge)
+      discard await acme.getCertificate(
+        api.Domain(CertDomain), certKey, dns01Challenge(), acmeRetries = 0
+      )
+
+    check acmeApi.requestedUris ==
+      @[
+        parseUri(StubDirectory.newAccount),
+        parseUri(ChallengeURL),
+        parseUri(ChallengeURL),
+      ]
+
+  asyncTest "getCertificate fails at finalization when the order turns invalid":
+    acmeApi.queueRegister()
+    acmeApi.queueChallengeCompleted()
+    acmeApi.queueStatus("valid") # checkChallengeCompleted
+    acmeApi.queueStatus("valid") # requestFinalize
+    acmeApi.queueStatus("invalid") # checkCertFinalized
+
+    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(key))
+
+    expect(ACMEError):
+      discard
+        await acme.getCertificate(api.Domain(CertDomain), certKey, dns01Challenge())
+
+    check acmeApi.requestedUris ==
+      @[
+        parseUri(StubDirectory.newAccount),
+        parseUri(ChallengeURL),
+        parseUri(ChallengeURL),
+        parseUri(FinalizeURL),
+        parseUri(OrderURL),
+      ]
