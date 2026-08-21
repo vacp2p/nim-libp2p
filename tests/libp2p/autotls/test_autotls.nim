@@ -3,7 +3,8 @@
 
 {.used.}
 
-import sequtils, json, times, uri, chronos, chronos/apps/http/httpclient
+import sequtils, json, uri, chronos, chronos/apps/http/httpclient
+from times import format, local, timezone, `==`
 import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, autotls/acme/client, crypto/rsa, wire]
@@ -17,6 +18,7 @@ suite "AutoTLS ACME API":
   let
     key = RsaPrivateKey.random(rng()).get()
     certKey = RsaPrivateKey.random(rng()).get()
+    certPem = tlsCertPemGenerator()
 
   var api {.threadvar.}: ACMEApiStub
 
@@ -444,7 +446,7 @@ suite "AutoTLS ACME API":
     check authorizations.challenges[0].url == ChallengeURL
 
   proc downloadWithExpires(expires: string): Future[ACMECertificateResponse] {.async.} =
-    let certServer = startCertServer(tlsCertPemGenerator())
+    let certServer = startCertServer(certPem)
     defer:
       await certServer.stop()
 
