@@ -43,11 +43,15 @@ proc new*(T: typedesc[PeerIDAuthClientStub]): PeerIDAuthClientStub =
     challengeServer: Opt.none(string),
   )
 
-proc extractField*(data, key: string): string =
+proc extractField(data, key: string): string =
   for segment in data.split(","):
     if key in segment:
       return segment.split("=", 1)[1].strip(chars = {' ', '"'})
   ""
+
+proc authField*(self: PeerIDAuthClientStub, index: int, key: string): string =
+  ## Reads one field back out of the Authorization header of the index'th request.
+  self.authHeaders[index].extractField(key)
 
 proc signAsServer(
     self: PeerIDAuthClientStub,
