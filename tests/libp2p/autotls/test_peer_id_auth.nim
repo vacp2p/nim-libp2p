@@ -104,7 +104,8 @@ suite "PeerID Auth Client":
       "somepayload",
     )
 
-    check client.authHeaders[0].extractField("sig") ==
+    # expected signature from peer-id-auth spec
+    check client.authField(0, "sig") ==
       "OrwJPO4buHKJdKXP2av8PFwv3XF_-m5MqndskeVV5UzufYzBCTm7RBaFnBS1sEhuQHZSZPh9RJgN5NmLzrUrBQ=="
 
   asyncTest "each handshake draws a fresh challenge-server":
@@ -112,8 +113,8 @@ suite "PeerID Auth Client":
     discard await client.send(uri, peerInfo, "somepayload")
     discard await client.send(uri, peerInfo, "somepayload")
 
-    check client.authHeaders[0].extractField("challenge-server") !=
-      client.authHeaders[1].extractField("challenge-server")
+    check client.authField(0, "challenge-server") !=
+      client.authField(1, "challenge-server")
 
   asyncTest "server signature over another challenge is rejected":
     client.challengeServer = Opt.some("someotherchallenge")
@@ -155,9 +156,7 @@ suite "PeerID Auth Client":
     let hostname = "example.com"
     let sig =
       "UA88qZbLUzmAxrD9KECbDCgSKAUBAvBHrOCF2X0uPLR1uUCF7qGfLPc7dw3Olo-LaFCDpk5sXN7TkLWPVvuXAA=="
-    let clientPublicKey = PublicKey
-      .init("080112208139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394")
-      .get()
+    let clientPublicKey = specClientKey.getPublicKey().get()
     check checkSignature(sig, serverPublicKey, challenge, clientPublicKey, hostname)
 
   asyncTest "checkSignature failed":
@@ -167,8 +166,6 @@ suite "PeerID Auth Client":
     let hostname = "example.com"
     let sig =
       "ZZZZZZZZZZZZZZZ9KECbDCgSKAUBAvBHrOCF2X0uPLR1uUCF7qGfLPc7dw3Olo-LaFCDpk5sXN7TkLWPVvuXAA=="
-    let clientPublicKey = PublicKey
-      .init("080112208139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394")
-      .get()
+    let clientPublicKey = specClientKey.getPublicKey().get()
     check checkSignature(sig, serverPublicKey, challenge, clientPublicKey, hostname) ==
       false
