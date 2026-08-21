@@ -673,10 +673,6 @@ proc sendResponse*(
   if msg.messages.len > 1:
     # Batch as many messages as possible into a single encoded RPC instead of
     # encoding one RPC per message. 
-    # Batches are sized with the cheap `byteSize` estimate, leaving 10% headroom 
-    # for protobuf encoding overhead on top of the raw payload sizes.
-    let maxBatchSize = (p.maxMessageSize * 90) div 100
-
     var batch = RPCMsg()
 
     # Multi-message batching currently supports message-only RPCs.
@@ -684,15 +680,18 @@ proc sendResponse*(
     # splitting associated to the extension itself
 
     for m in msg.messages:
-      if batch.messages.len > 0 and batch.byteSize() + m.byteSize() > maxBatchSize:
+      batch.messages.add(m)
+
+      if batch.messages.len > 0 and batch.encodedSize() > p.maxMessageSize:
+        discard batch.messages.pop() # Remove last element
+
         # The batch is full - send it and start a new one.
         var encoded = encodeRpcMsg(p, batch, anonymize)
         trace "sending response msg to peer", peer = p, rpcMsg = shortLog(batch)
         p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
         batch = RPCMsg()
-
-      batch.messages.add(m)
+        batch.messages.add(m) # Add message to new batch
 
     if batch.messages.len > 0:
       var encoded = encodeRpcMsg(p, batch, anonymize)

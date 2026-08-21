@@ -174,6 +174,8 @@ suite "Message":
     )
     check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
+    check rpcMsg.encodedSize() == rpcMsg.encode(false).len
+
   test "downstream-compatible public pubsub fields":
     let
       peerId = PeerId(data: @[1'u8, 2, 3])

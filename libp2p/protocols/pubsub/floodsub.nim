@@ -212,7 +212,7 @@ method publish*(
   # Application-published messages are never split - reject oversized messages
   # up front so the caller can handle the error before any dedup side effects
   # occur.
-  let messageSize = RPCMsg.withMessages(msg).byteSize()
+  let messageSize = RPCMsg.withMessages(msg).encodedSize()
   if messageSize > f.maxMessageSize:
     warn "message exceeds maximum message size; message will not be published",
       messageSize, maxMessageSize = f.maxMessageSize
