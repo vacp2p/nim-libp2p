@@ -488,12 +488,9 @@ func anonymize*(msg: RPCMsg, anonymize: bool): RPCMsg =
     msg
 
 func hasOnlyMessages*(msg: RPCMsg): bool =
-  msg.subscriptions.len == 0 and
-    msg.control.isNone and
-    msg.partialMessageExtension.isNone and
-    msg.testExtension.isNone and
-    msg.pingpongExtension.isNone and
-    msg.preambleExtension.isNone
+  msg.subscriptions.len == 0 and msg.control.isNone and
+    msg.partialMessageExtension.isNone and msg.testExtension.isNone and
+    msg.pingpongExtension.isNone and msg.preambleExtension.isNone
 
 func validate*(sub: SubOpts): Result[void, string] =
   if sub.topic.isNone:
