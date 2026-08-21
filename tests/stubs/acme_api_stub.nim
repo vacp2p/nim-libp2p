@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import base64, json, uri
-from times import Duration, now, format, `+`
 import chronos, chronos/apps/http/httpclient
 import ../../libp2p/autotls/acme/[api, utils]
 
@@ -104,23 +103,23 @@ proc scriptChallenge*(self: ACMEApiStub, token: string) =
     %*[{"url": ChallengeURL, "type": "dns-01", "status": "pending", "token": token}]
   )
 
-proc scriptCertificate*(
-    self: ACMEApiStub, certificateURL: string, expiresIn: times.Duration
-) =
-  ## Queues the five responses `getCertificate` consumes, ending in an order whose
-  ## certificate is served from `certificateURL`.
-  self.queueChallengeCompleted()
-  self.queueStatus("valid") # checkChallengeCompleted
-  self.queueStatus("valid") # requestFinalize
-  self.queueStatus("valid") # checkCertFinalized
-
-  let expires = (now() + expiresIn).format("yyyy-MM-dd'T'HH:mm:ss'Z'")
+proc queueGetOrder*(self: ACMEApiStub, certificateURL: string, expires: string) =
+  ## Queues the response `requestGetOrder` consumes.
   self.mockedResponses.add(
     HTTPResponse(
       body: %*{"certificate": certificateURL, "expires": expires},
       headers: HttpTable.init(),
     )
   )
+
+proc scriptCertificate*(self: ACMEApiStub, certificateURL: string, expires: string) =
+  ## Queues the five responses `getCertificate` consumes, ending in an order whose
+  ## certificate is served from `certificateURL`.
+  self.queueChallengeCompleted()
+  self.queueStatus("valid") # checkChallengeCompleted
+  self.queueStatus("valid") # requestFinalize
+  self.queueStatus("valid") # checkCertFinalized
+  self.queueGetOrder(certificateURL, expires)
 
 proc respond(
     self: ACMEApiStub, uri: Uri
