@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, json, net, results, sequtils, uri
-from times import now, initDuration, `+`
+from times import now, format, initDuration, `+`
 import
   ../../../libp2p/[
     autotls/service,
@@ -161,13 +161,14 @@ suite "AutoTLS certificate issuance and renewal":
     check parseJson(authClient.payloads[0])["addresses"] == %AnnouncedAddrs
 
   asyncTest "a certificate is issued, installed, and not issued again":
+    const OrderExpires = "2099-01-01T00:00:00Z"
     let certPem = tlsCertPemGenerator()
     let certServer = startCertServer(certPem)
     defer:
       await certServer.stop()
 
     acmeApi.scriptChallenge(ChallengeToken)
-    acmeApi.scriptCertificate(certServer.url, initDuration(days = 365))
+    acmeApi.scriptCertificate(certServer.url, OrderExpires)
 
     # issueRetries must be higher than zero to prove it's done only once
     service = newService(
@@ -184,7 +185,7 @@ suite "AutoTLS certificate issuance and renewal":
     service.config.nameResolver = resolver
 
     await service.start(switch)
-    discard await service.getCertWhenReady().wait(10.seconds)
+    let autotlsCert = await service.getCertWhenReady().wait(10.seconds)
     # Nothing signals a round that ended, so wait out a three retries window.
     await sleepAsync(50.milliseconds)
 
@@ -192,6 +193,8 @@ suite "AutoTLS certificate issuance and renewal":
     check:
       # One round is 8 requests, so more would be a second attempt.
       acmeApi.requestedUris.len == 8
+      # TODO: vacp2p/nim-libp2p#2977
+      autotlsCert.expiry.format("yyyy-MM-dd'T'HH:mm:ss'Z'") == OrderExpires
       resolver.txtQueries == @["_acme-challenge." & baseDomain]
       resolver.ipQueries == @["127-0-0-1." & baseDomain]
       parseJson(authClient.payloads[0])["value"].getStr == keyAuth
