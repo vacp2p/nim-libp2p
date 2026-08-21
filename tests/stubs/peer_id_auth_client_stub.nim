@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import base64, strutils, uri
+import base64, strutils, times, uri
 import chronos, chronos/apps/http/httpclient, stew/byteutils
 import ../../libp2p/[crypto/crypto, peeridauth/client, varint]
 import ../tools/crypto
@@ -21,10 +21,12 @@ type PeerIDAuthClientStub* = ref object of PeerIDAuthClient
   status*: int
   body*: seq[byte]
   token*: string
+  expires*: Opt[DateTime]
   wwwAuthenticate*: Opt[string]
   authenticationInfo*: Opt[string]
   requestedUris*: seq[Uri]
   payloads*: seq[string]
+  authHeaders*: seq[string]
 
 proc new*(T: typedesc[PeerIDAuthClientStub]): PeerIDAuthClientStub =
   PeerIDAuthClientStub(
@@ -33,6 +35,7 @@ proc new*(T: typedesc[PeerIDAuthClientStub]): PeerIDAuthClientStub =
     serverKey: PrivateKey.random(PKScheme.Ed25519, rng()).get(),
     status: 200,
     token: "somebearer",
+    expires: Opt.none(DateTime),
     wwwAuthenticate: Opt.none(string),
     authenticationInfo: Opt.none(string),
   )
@@ -81,6 +84,13 @@ method post*(
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]).} =
   self.requestedUris.add(uri)
   self.payloads.add(payload)
+  self.authHeaders.add(authHeader)
+
+  # a bearer-authenticated request carries no challenge to answer
+  if authHeader.extractField("bearer") != "":
+    return PeerIDAuthResponse(
+      status: self.status, headers: HttpTable.init(), body: self.body
+    )
 
   var authenticationInfo = self.authenticationInfo.valueOr:
     var clientPubkey: PublicKey
@@ -93,7 +103,12 @@ method post*(
     let sig = self.signAsServer(
       authHeader.extractField("challenge-server"), uri.hostname, clientPubkey
     )
-    PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & self.token & "\""
+    var expires = ""
+    if self.expires.isSome():
+      expires =
+        ", expires=\"" & self.expires.get().format("yyyy-MM-dd'T'HH:mm:ss") & ".000Z\""
+
+    PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & self.token & "\"" & expires
 
   var headers = HttpTable.init()
   headers.add("Authentication-Info", authenticationInfo)
