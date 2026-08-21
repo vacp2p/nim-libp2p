@@ -131,6 +131,14 @@ suite "PeerID Auth Client":
     check expires.timezone == local()
     check expires.format("yyyy-MM-dd'T'HH:mm:ss") == "2026-08-21T12:00:00"
 
+  asyncTest "bearer expiry reads a nanosecond fraction as milliseconds":
+    # TODO: vacp2p/nim-libp2p#NNNN
+    let expires =
+      (await requestWithExpires("2026-08-21T11:36:41.621940726Z")).bearer.expires.get()
+
+    check expires - dateTime(2026, mAug, 21, 11, 36, 41, zone = local()) ==
+      initDuration(milliseconds = 621_940_726)
+
   asyncTest "bearer expiry without a fractional second is dropped":
     # TODO: vacp2p/nim-libp2p#NNNN
     check (await requestWithExpires("2026-08-21T12:00:00Z")).bearer.expires.isNone()
