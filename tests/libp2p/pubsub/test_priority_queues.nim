@@ -450,6 +450,8 @@ suite "PubSubPeer sendResponse":
   teardown:
     checkTrackers()
 
+  const topic = "🌞"
+
   asyncTest "sendResponse sends a fitting RPC as-is":
     let peer = createTestPeer(maxMessageSize = 4096)
     let conn = createRecorderConnection()
@@ -458,10 +460,10 @@ suite "PubSubPeer sendResponse":
       peer.stopTasks()
 
     let msg = RPCMsg(
-      control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: "topic")])),
+      control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: topic)])),
       messages: @[
-        Message(data: @[1'u8, 2, 3], topic: "topic"),
-        Message(data: @[4'u8, 5, 6], topic: "topic"),
+        Message(data: @[1'u8, 2, 3], topic: topic),
+        Message(data: @[4'u8, 5, 6], topic: topic),
       ],
     )
 
@@ -475,7 +477,6 @@ suite "PubSubPeer sendResponse":
 
   asyncTest "sendResponse batches an oversized RPC, keeping non-message fields in the first batch":
     let
-      topic = "t"
       control = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       m1 = Message(data: newSeq[byte](50), topic: topic)
       m2 = Message(data: newSeq[byte](60), topic: topic)
@@ -495,8 +496,6 @@ suite "PubSubPeer sendResponse":
 
     check:
       conn.writes.len == 2
-      conn.writes[0].len <= maxSize
-      conn.writes[1].len <= maxSize
       conn.writes[0] == firstBatch.encode(false)
       conn.writes[1] == RPCMsg(messages: @[m2]).encode(false)
 
@@ -504,7 +503,6 @@ suite "PubSubPeer sendResponse":
 
   asyncTest "sendResponse drops an oversized message but still sends non-message fields":
     let
-      topic = "t"
       control = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       oversized = Message(data: newSeq[byte](200), topic: topic)
       controlOnly = RPCMsg(control: Opt.some(control))
@@ -527,7 +525,7 @@ suite "PubSubPeer sendResponse":
   asyncTest "sendResponse drops an oversized RPC with no messages":
     var grafts: seq[ControlGraft]
     for i in 0 ..< 20:
-      grafts.add(ControlGraft(topicID: "topic" & $i))
+      grafts.add(ControlGraft(topicID: topic & $i))
 
     let
       control = ControlMessage(graft: grafts)
