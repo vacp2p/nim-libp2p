@@ -6,6 +6,7 @@
 import chronos
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
+import ../../../libp2p/protocols/pubsub/rpc/[messages, protobuf]
 import ../../../libp2p/peerid
 import ../../../libp2p/utils/future
 import ../../tools/[unittest, crypto]
@@ -444,3 +445,101 @@ suite "Priority queue behavior":
       lowBlockedByMedium.priority == MessagePriority.Low
       lowBlockedByMedium.send == true
       lowBlockedByMedium.slowPeerPenaltyDelta == 0.0
+
+suite "PubSubPeer sendResponse":
+  teardown:
+    checkTrackers()
+
+  asyncTest "sendResponse sends a fitting RPC as-is":
+    let peer = createTestPeer(maxMessageSize = 4096)
+    let conn = createRecorderConnection()
+    peer.sendStream = conn
+    defer:
+      peer.stopTasks()
+
+    let msg = RPCMsg(
+      control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: "topic")])),
+      messages: @[
+        Message(data: @[1'u8, 2, 3], topic: "topic"),
+        Message(data: @[4'u8, 5, 6], topic: "topic"),
+      ],
+    )
+
+    peer.sendResponse(msg, false, MessagePriority.High)
+
+    check:
+      conn.writes.len == 1
+      conn.writes[0] == msg.encode(false)
+
+    conn.releaseFirstWrite()
+
+  asyncTest "sendResponse batches an oversized RPC, keeping non-message fields in the first batch":
+    let
+      topic = "t"
+      control = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+      m1 = Message(data: newSeq[byte](50), topic: topic)
+      m2 = Message(data: newSeq[byte](60), topic: topic)
+
+    let
+      firstBatch = RPCMsg(control: Opt.some(control), messages: @[m1])
+      fullMsg = RPCMsg(control: Opt.some(control), messages: @[m1, m2])
+      maxSize = fullMsg.encodedSize() - 1
+
+    let peer = createTestPeer(maxMessageSize = maxSize)
+    let conn = createRecorderConnection()
+    peer.sendStream = conn
+    defer:
+      peer.stopTasks()
+
+    peer.sendResponse(fullMsg, false, MessagePriority.High)
+
+    check:
+      conn.writes.len == 2
+      conn.writes[0].len <= maxSize
+      conn.writes[1].len <= maxSize
+      conn.writes[0] == firstBatch.encode(false)
+      conn.writes[1] == RPCMsg(messages: @[m2]).encode(false)
+
+    conn.releaseFirstWrite()
+
+  asyncTest "sendResponse drops an oversized message but still sends non-message fields":
+    let
+      topic = "t"
+      control = ControlMessage(graft: @[ControlGraft(topicID: topic)])
+      oversized = Message(data: newSeq[byte](200), topic: topic)
+      controlOnly = RPCMsg(control: Opt.some(control))
+      fullMsg = RPCMsg(control: Opt.some(control), messages: @[oversized])
+
+    let peer = createTestPeer(maxMessageSize = controlOnly.encodedSize())
+    let conn = createRecorderConnection()
+    peer.sendStream = conn
+    defer:
+      peer.stopTasks()
+
+    peer.sendResponse(fullMsg, false, MessagePriority.High)
+
+    check:
+      conn.writes.len == 1
+      conn.writes[0] == controlOnly.encode(false)
+
+    conn.releaseFirstWrite()
+
+  asyncTest "sendResponse drops an oversized RPC with no messages":
+    var grafts: seq[ControlGraft]
+    for i in 0 ..< 20:
+      grafts.add(ControlGraft(topicID: "topic" & $i))
+
+    let
+      control = ControlMessage(graft: grafts)
+      msg = RPCMsg(control: Opt.some(control))
+      maxSize = msg.encodedSize() - 1
+
+    let peer = createTestPeer(maxMessageSize = maxSize)
+    let conn = createRecorderConnection()
+    peer.sendStream = conn
+    defer:
+      peer.stopTasks()
+
+    peer.sendResponse(msg, false, MessagePriority.High)
+
+    check conn.writes.len == 0
