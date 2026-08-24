@@ -442,7 +442,7 @@ suite "AutoTLS ACME API":
     check base64.decode(api.signedPayload(0)["csr"].getStr).contains(WildcardDomain)
 
   asyncTest "the csr is sent with base64 padding":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#2982
     api.queueStatus("valid")
 
     discard await api.requestFinalize(
@@ -497,7 +497,7 @@ suite "AutoTLS ACME Client":
         url: ChallengeURL,
         `type`: ACMEChallengeType.DNS01,
         status: ACMEChallengeStatus.PENDING,
-        token: ACMEChallengeToken("some-token"),
+        token: ACMEChallengeToken(ChallengeToken),
       ),
     )
 
