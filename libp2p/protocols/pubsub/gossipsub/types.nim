@@ -29,6 +29,7 @@ const
 const
   GossipSubHistoryLength* = 5
   GossipSubHistoryGossip* = 3
+  GossipSubSeenMaxSize* = 4_000_000
 
   # heartbeat interval
   GossipSubHeartbeatInterval* = 1.seconds
@@ -130,6 +131,7 @@ type
 
     fanoutTTL*: Duration
     seenTTL*: Duration
+    seenMaxSize*: int
 
     gossipThreshold*: float64
     publishThreshold*: float64
@@ -211,6 +213,9 @@ type
     heartbeatEvents*: seq[AsyncEvent]
     scoringHeartbeatEvents*: seq[AsyncEvent]
     pendingTasks*: seq[Future[void]]
+    overheadMetricsWindowStart*: Moment
+    rpcOverheadBytesMax*: int
+    peerOverheadBytesPerSecondMax*: int
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64
