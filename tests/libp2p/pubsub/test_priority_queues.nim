@@ -475,6 +475,27 @@ suite "PubSubPeer sendResponse":
 
     conn.releaseFirstWrite()
 
+  asyncTest "sendResponse sizes an anonymized RPC after anonymization":
+    let msg = RPCMsg.withMessages(
+      @[Message(data: @[1'u8, 2, 3], topic: topic, signature: newSeq[byte](200))]
+    )
+    let encoded = msg.encode(true)
+    check msg.encodedSize() > encoded.len
+
+    let peer = createTestPeer(maxMessageSize = encoded.len)
+    let conn = createRecorderConnection()
+    peer.sendStream = conn
+    defer:
+      peer.stopTasks()
+
+    peer.sendResponse(msg, true, MessagePriority.High)
+
+    check:
+      conn.writes.len == 1
+      conn.writes[0] == encoded
+
+    conn.releaseFirstWrite()
+
   asyncTest "sendResponse batches an oversized RPC, keeping non-message fields in the first batch":
     let
       control = ControlMessage(graft: @[ControlGraft(topicID: topic)])

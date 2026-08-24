@@ -679,7 +679,11 @@ proc sendResponse*(
     trace "sending response msg to peer", peer = p, rpcMsg = shortLog(toSendMsg)
     p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
-  if msg.encodedSize() <= p.maxMessageSize:
+  template wireSize(toSizeMsg: RPCMsg): int =
+    toSizeMsg.anonymize(anonymize).encodedSize()
+
+  let msgSize = wireSize(msg)
+  if msgSize <= p.maxMessageSize:
     send(msg) # The whole RPC fits the limits, send it as-is.
     return
 
@@ -687,7 +691,7 @@ proc sendResponse*(
     # Nothing to split and nothing to send - the RPC only carries non-message
     # data that still exceeds `maxMessageSize`.
     warn "message exceeds maximum message size and contains no messages; message will not be sent",
-      encodedSize = msg.encodedSize(), maxMessageSize = p.maxMessageSize
+      encodedSize = msgSize, maxMessageSize = p.maxMessageSize
     return
 
   # Batch as many messages as possible into a single encoded RPC so that each
@@ -695,13 +699,13 @@ proc sendResponse*(
   # first batch only, so they are neither lost nor duplicated.
   var batch = msg
   batch.messages.setLen(0)
-  let firstBatchSize = batch.encodedSize()
+  let firstBatchSize = wireSize(batch)
   var isFirstBatch = true
 
   for m in msg.messages:
     batch.messages.add(m)
 
-    if batch.encodedSize() <= p.maxMessageSize:
+    if wireSize(batch) <= p.maxMessageSize:
       continue
 
     # The last message caused an overflow, send the batch without it.
@@ -721,9 +725,9 @@ proc sendResponse*(
     isFirstBatch = false
     batch.messages.add(m)
 
-    if batch.encodedSize() > p.maxMessageSize:
+    let messageSize = wireSize(batch)
+    if messageSize > p.maxMessageSize:
       # The message alone exceeds `maxMessageSize`.
-      let messageSize = batch.encodedSize()
       discard batch.messages.pop()
       warn "message exceeds maximum message size; message will not be sent",
         messageSize = messageSize, maxMessageSize = p.maxMessageSize
