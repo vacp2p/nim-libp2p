@@ -3,12 +3,13 @@
 
 {.used.}
 
-import sequtils, json, uri, chronos, chronos/apps/http/httpclient
+import base64, sequtils, json, strutils, uri, chronos, chronos/apps/http/httpclient
 import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, autotls/acme/client, crypto/rsa, wire]
 import ../../tools/[unittest, crypto]
 import ../../stubs/acme_api_stub
+import ./rfc_vectors
 
 suite "AutoTLS ACME API":
   const WildcardDomain = "*.example.libp2p.direct"
@@ -423,6 +424,33 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
 
+  asyncTest "a register response with no location header is refused":
+    api.mockedResponses.add(
+      HTTPResponse(body: %*{"status": "valid"}, headers: HttpTable.init())
+    )
+
+    expect(ACMEError):
+      discard await api.requestRegister(key)
+
+  asyncTest "the finalize payload carries a csr naming the domain":
+    api.queueStatus("valid")
+
+    discard await api.requestFinalize(
+      WildcardDomain, parseUri(FinalizeURL), rfc7517Key(), key, AccountURL
+    )
+
+    check base64.decode(api.signedPayload(0)["csr"].getStr).contains(WildcardDomain)
+
+  asyncTest "the csr is sent with base64 padding":
+    # TODO: vacp2p/nim-libp2p#NNNN
+    api.queueStatus("valid")
+
+    discard await api.requestFinalize(
+      WildcardDomain, parseUri(FinalizeURL), rfc7517Key(), key, AccountURL
+    )
+
+    check api.signedPayload(0)["csr"].getStr.endsWith('=')
+
   asyncTest "an unrecognized challenge type does not discard the dns-01 beside it":
     api.queueChallenges(
       %*[
@@ -444,7 +472,14 @@ suite "AutoTLS ACME API":
     check authorizations.challenges[0].url == ChallengeURL
 
 suite "AutoTLS ACME Client":
-  const CertDomain = "some.domain"
+  const
+    CertDomain = "some.domain"
+    ChallengeToken = "some-token"
+    # Not an RFC value. RFC 8555 §8.4 applied to ChallengeToken and the RFC 7638
+    # thumbprint, computed independently of libp2p with:
+    #   printf '%s' 'some-token.NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs' |
+    #     openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '='
+    Dns01Digest = "XChHH-xniF3XvbGZZSwSaim3CTuk885yHgQU3qHVdeY"
 
   # RSA generation dominates the runtime of every test here, so one pair for all.
   let
@@ -472,6 +507,12 @@ suite "AutoTLS ACME Client":
   asyncTeardown:
     await acme.close()
     checkTrackers()
+
+  asyncTest "the key authorization is the dns-01 digest of token and thumbprint":
+    acme =
+      ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi), key = Opt.some(rfc7517Key()))
+
+    check acme.genKeyAuthorization(ChallengeToken) == Dns01Digest
 
   asyncTest "the account is registered once and its kid reused":
     acmeApi.queueRegister()
