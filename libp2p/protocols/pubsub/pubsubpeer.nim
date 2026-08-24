@@ -668,44 +668,74 @@ proc sendResponse*(
 ) {.raises: [].} =
   ## Sends a protocol response `RPCMsg` to this peer, batching multi-message
   ## responses together so that none exceed `maxMessageSize`.
-  ## Batching is only performed for message-only RPCs - if the RPC carries other
-  ## data (subscriptions, control or extensions), it is sent as-is.
   ##
-  ## This is an internal, protocol-facing send path - individual messages that
-  ## still exceed `maxMessageSize` are silently dropped.
+  ## The RPC is sent as-is when it fits within `maxMessageSize`. Otherwise, when
+  ## it contains messages, the messages are split into batches. Non-message
+  ## fields (subscriptions, control and extensions) are attached to the first
+  ## batch so they are not lost. RPCs without messages that still exceed
+  ## `maxMessageSize`, and individual messages that still exceed
+  ## `maxMessageSize`, are dropped with a warning.
 
   proc send(toSendMsg: RPCMsg) =
     var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
     trace "sending response msg to peer", peer = p, rpcMsg = shortLog(toSendMsg)
     p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
-  if msg.messages.len > 1 and msg.hasOnlyMessages():
-    # Batch as many messages as possible into a single encoded RPC instead of
-    # encoding one RPC per message. 
-    var batch = RPCMsg()
+  template wireSize(toSizeMsg: RPCMsg): int =
+    toSizeMsg.anonymize(anonymize).encodedSize()
 
-    for m in msg.messages:
-      batch.messages.add(m)
+  let msgSize = wireSize(msg)
+  if msgSize <= p.maxMessageSize:
+    send(msg) # The whole RPC fits the limits, send it as-is.
+    return
 
-      if batch.messages.len > 0 and batch.encodedSize() > p.maxMessageSize:
-        # Last message has caused overflow, send batch without last message
-        discard batch.messages.pop()
+  if msg.messages.len == 0:
+    # Nothing to split and nothing to send - the RPC only carries non-message
+    # data that still exceeds `maxMessageSize`.
+    warn "message exceeds maximum message size and contains no messages; message will not be sent",
+      encodedSize = msgSize, maxMessageSize = p.maxMessageSize
+    return
 
-        if batch.messages.len > 0:
-          # Send batch only if there were some messages
-          send(batch)
+  # Batch as many messages as possible into a single encoded RPC so that each
+  # batch stays within `maxMessageSize`. Non-message fields are carried by the
+  # first batch only, so they are neither lost nor duplicated.
+  var batch = msg
+  batch.messages.setLen(0)
+  let firstBatchSize = wireSize(batch)
+  var isFirstBatch = true
 
-        batch = RPCMsg()
-        batch.messages.add(m)
+  for m in msg.messages:
+    batch.messages.add(m)
 
-        if batch.encodedSize() > p.maxMessageSize:
-          # Last message was alone larger then max message size
-          discard batch.messages.pop()
+    if wireSize(batch) <= p.maxMessageSize:
+      continue
+
+    # The last message caused an overflow, send the batch without it.
+    discard batch.messages.pop()
 
     if batch.messages.len > 0:
       send(batch)
-  else:
-    send(msg)
+    elif isFirstBatch and firstBatchSize > p.maxMessageSize:
+      warn "RPC non-message fields exceed maximum message size; they will not be sent",
+        encodedSize = firstBatchSize, maxMessageSize = p.maxMessageSize
+    elif isFirstBatch and firstBatchSize > 0:
+      # No message fits alongside the non-message fields. Send them on their own
+      # so they are not lost.
+      send(batch)
+
+    batch = RPCMsg()
+    isFirstBatch = false
+    batch.messages.add(m)
+
+    let messageSize = wireSize(batch)
+    if messageSize > p.maxMessageSize:
+      # The message alone exceeds `maxMessageSize`.
+      discard batch.messages.pop()
+      warn "message exceeds maximum message size; message will not be sent",
+        messageSize = messageSize, maxMessageSize = p.maxMessageSize
+
+  if batch.messages.len > 0:
+    send(batch)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
