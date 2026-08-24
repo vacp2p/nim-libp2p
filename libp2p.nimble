@@ -23,3 +23,4 @@ let nimc = getEnv("NIMC", "nim")
 task gen_multicodec,
   "Download the multicodec CSV and regenerate libp2p/multicodec_table.nim":
   exec nimc & " c -r tools/gen_multicodec.nim"
+ 
