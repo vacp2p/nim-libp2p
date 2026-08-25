@@ -148,31 +148,12 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   s.isEof = true
   s.pushedEof = true
 
-  # Essentially we need to handle the following cases
-  #
-  # - If a push was in progress but no reader is
-  # attached we need to pop the queue
-  # - If a read was in progress without without a
-  # push/data we need to push the Eof marker to
-  # notify the reader that the channel closed
-  #
-  # In all other cases, there should be a data to complete
-  # a read or enough room in the queue/buffer to complete a
-  # push.
-  #
-  # State       | Q Empty  | Q Full
-  # ------------|----------|-------
-  # Reading     | Push Eof | Na
-  # Pushing     | Na       | Pop
+  # The queue holds one item, so at most one of these branches can apply.
   try:
-    if not (s.reading and s.pushing):
-      if s.reading:
-        if s.readQueue.empty():
-          # There is an active reader
-          s.readQueue.addLastNoWait(Eof)
-      elif s.pushing:
-        if not s.readQueue.empty():
-          discard s.readQueue.popFirstNoWait()
+    if s.reading and s.readQueue.empty():
+      s.readQueue.addLastNoWait(Eof)
+    elif s.pushing and not s.readQueue.empty():
+      discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError as e:
     raiseAssert("closeImpl failed queue full: " & e.msg)
   except AsyncQueueEmptyError as e:
