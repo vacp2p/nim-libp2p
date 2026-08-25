@@ -43,6 +43,7 @@ type
   PeerMessageSender = ref object
     lock: AsyncLock ## serializes the RPCs sharing `stream`
     stream: Stream ## nil while no stream is open
+    watchFut: Future[void] ## completes when `stream` closes
     users: int ## RPCs holding or waiting for `lock`
     reuseFailures: int
     invalidated: bool
@@ -70,6 +71,30 @@ func init(
 func `$`*(e: SendError): string {.raises: [].} =
   $e.stage & ": " & e.msg
 
+proc forget(
+  ms: MessageSender, peerId: PeerId, ps: PeerMessageSender
+) {.raises: [], gcsafe.}
+
+proc watchStream(
+    ms: MessageSender, peerId: PeerId, ps: PeerMessageSender, stream: Stream
+) {.async: (raises: []), gcsafe.} =
+  ## A muxed stream resets itself when idle, and the next RPC may never come.
+  try:
+    await stream.join()
+  except CancelledError:
+    return
+
+  if ps.stream == stream:
+    ps.stream = nil
+    ps.watchFut = nil
+    kad_streams_dropped.inc()
+  ms.forget(peerId, ps)
+
+proc stopWatch(fut: Future[void]) {.async: (raises: []), gcsafe.} =
+  ## By value, so a stream opened before this runs keeps its own watcher.
+  if not fut.isNil():
+    await noCancel fut.cancelAndWait()
+
 proc discardStream(
     ps: PeerMessageSender, stream: Stream
 ) {.async: (raises: []), gcsafe.} =
@@ -78,6 +103,7 @@ proc discardStream(
   ## channel on that connection.
   if ps.stream == stream:
     ps.stream = nil
+    await stopWatch(move ps.watchFut)
   await stream.reset()
 
 proc retireStream(stream: Stream, deadline: Moment) {.async: (raises: []), gcsafe.} =
@@ -99,6 +125,7 @@ proc retire(
   ## a batch of one-way messages would then go out one round trip at a time.
   if ps.stream == stream:
     ps.stream = nil
+    ms.trackCleanup(stopWatch(move ps.watchFut))
   ms.trackCleanup(retireStream(stream, Moment.now() + timeout))
 
 proc dropPeer*(ms: MessageSender, peerId: PeerId) {.async: (raises: []), gcsafe.} =
@@ -110,6 +137,7 @@ proc dropPeer*(ms: MessageSender, peerId: PeerId) {.async: (raises: []), gcsafe.
   ms.senders.del(peerId)
   ps.invalidated = true
   let stream = move ps.stream
+  await stopWatch(move ps.watchFut)
   if not stream.isNil():
     await stream.reset()
 
@@ -131,6 +159,7 @@ proc stop*(ms: MessageSender) {.async: (raises: []), gcsafe.} =
   for ps in senders.values():
     ps.invalidated = true
     let stream = move ps.stream
+    await stopWatch(move ps.watchFut)
     if not stream.isNil():
       await stream.reset()
 
@@ -167,7 +196,9 @@ proc new*(
 proc senderFor(ms: MessageSender, peerId: PeerId): PeerMessageSender {.raises: [].} =
   ms.senders.mgetOrPut(peerId, PeerMessageSender(lock: newAsyncLock()))
 
-proc forget(ms: MessageSender, peerId: PeerId, ps: PeerMessageSender) {.raises: [].} =
+proc forget(
+    ms: MessageSender, peerId: PeerId, ps: PeerMessageSender
+) {.raises: [], gcsafe.} =
   ## Drop an idle entry. Peers we never reached leave no stream and raise no
   ## disconnect event, so without this the table grows with every peer id a
   ## lookup ever named.
@@ -240,6 +271,7 @@ proc prepStream(
     return err(SendError.init(dialStage, "peer message sender invalidated"))
 
   ps.stream = stream
+  ps.watchFut = ms.watchStream(peerId, ps, stream)
   kad_streams_opened.inc()
   ok((stream, false))
 
