@@ -501,8 +501,11 @@ suite "Multistream :: stream limits":
   asyncTest "e2e - inbound total stream limit":
     const maxTotalStreams = 3
 
+    # Every slot must be reserved before the extra dialer starts, otherwise the
+    # dialers race on reserveIncoming and the extra one may be the slot winner.
+    let reserved = newWaitGroup(maxTotalStreams)
     let protocol = LPProtocol.new(
-      codecs, makeBlockedHandler(), maxIncomingStreamsTotal = maxTotalStreams
+      codecs, makeBlockedHandler(reserved), maxIncomingStreamsTotal = maxTotalStreams
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -525,11 +528,10 @@ suite "Multistream :: stream limits":
     for _ in 0 ..< maxTotalStreams:
       dialers.add(connector())
 
+    await reserved.wait(5.seconds)
+
     expect LPStreamEOFError:
-      try:
-        await connector().wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector()
 
     await dialers.cancelAndWait()
     await transport2.stop()
@@ -537,9 +539,12 @@ suite "Multistream :: stream limits":
     await handlerWait.cancelAndWait()
 
   asyncTest "e2e - shared budget across compatible codecs":
+    # Both slots must be reserved before the third dialer starts, otherwise the
+    # dialers race on reserveIncoming and the third one may be the slot winner.
+    let reserved = newWaitGroup(2)
     let protocol = LPProtocol.new(
       @["/test/proto1/1.0.0", "/test/proto2/1.0.0"],
-      makeBlockedHandler(),
+      makeBlockedHandler(reserved),
       maxIncomingStreamsTotal = 2,
     )
 
@@ -562,11 +567,10 @@ suite "Multistream :: stream limits":
     var d1 = connector("/test/proto1/1.0.0")
     var d2 = connector("/test/proto2/1.0.0")
 
+    await reserved.wait(5.seconds)
+
     expect LPStreamEOFError:
-      try:
-        await connector("/test/proto1/1.0.0").wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector("/test/proto1/1.0.0")
 
     await @[d1, d2].cancelAndWait()
     await transport2.stop()

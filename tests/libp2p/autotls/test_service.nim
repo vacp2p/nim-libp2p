@@ -17,7 +17,7 @@ import
   ]
 import
   ../../tools/[
-    unittest, cert_server, crypto, lifecycle, multiaddress, resolver, stall_server,
+    unittest, http_server, crypto, lifecycle, multiaddress, resolver, stall_server,
     switch_builder,
   ]
 import ../../stubs/[acme_api_stub, peer_id_auth_client_stub]
@@ -163,7 +163,7 @@ suite "AutoTLS certificate issuance and renewal":
   asyncTest "a certificate is issued, installed, and not issued again":
     const OrderExpires = "2099-01-01T00:00:00Z"
     let certPem = tlsCertPemGenerator()
-    let certServer = startCertServer(certPem)
+    let certServer = startTestHttpServer(certPem)
     defer:
       await certServer.stop()
 
