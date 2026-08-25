@@ -12,6 +12,25 @@ suite "Memory transport":
   teardown:
     checkTrackers()
 
+  asyncTest "a dial has no cancellation point":
+    # It pairs the two ends with no await in between, so a cancel never splits them.
+    let server = MemoryTransport.new(rng = rng())
+    await server.start(@[MultiAddress.init(MemoryAutoAddress).get()])
+    let client = MemoryTransport.new(rng = rng())
+    defer:
+      await allFutures(client.stop(), server.stop())
+
+    let acceptFut = server.accept()
+    let dialFut = client.dial("", server.addrs[0])
+    await dialFut.cancelAndWait()
+
+    check dialFut.completed()
+    await dialFut.value().close()
+
+    # Closing one end closes the other, so the accepted side goes with it.
+    let accepted = await acceptFut
+    check accepted.closed()
+
   asyncTest "memory multiaddress":
     let ma = MultiAddress.init("/memorytransport/addr-1").get()
     check $ma == "/memorytransport/addr-1"

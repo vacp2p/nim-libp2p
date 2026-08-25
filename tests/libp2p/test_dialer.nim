@@ -4,7 +4,16 @@
 {.used.}
 
 import chronos, sequtils, results
-import ../../libp2p/[builders, peerstore, switch]
+import
+  ../../libp2p/[
+    builders,
+    muxers/muxer,
+    peerstore,
+    switch,
+    transports/transport,
+    upgrademngrs/upgrade,
+  ]
+import ../stubs/transportstub
 import ../tools/[unittest, futures, switch_builder, crypto, multiaddress, stall_server]
 
 proc replaceIdentifyHandler(sw: Switch, handler: LPProtoHandler) =
@@ -133,6 +142,64 @@ suite "Dialer":
       .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
       .wait(5.seconds)
     check dialed == dst.peerInfo.peerId
+
+  asyncTest "Dialing stops at the candidate limit":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+    )
+
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates * 2:
+      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialCalls == MaxDialCandidates
+
+  asyncTest "Cancelling a dial at any point leaves nothing open":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId, src.connManager, src.peerStore, src.transports, src.ms
+    )
+
+    const CancelSteps = 30
+      ## Longer than the transport walk: the upgrade parks on awaits of its own.
+
+    var cancelledDials = 0
+    for steps in 0 .. CancelSteps:
+      let dialFut =
+        dialer.dialAndUpgrade(Opt.some(dst.peerInfo.peerId), dst.peerInfo.addrs)
+      for _ in 0 ..< steps:
+        await sleepAsync(0.milliseconds)
+
+      await dialFut.cancelAndWait()
+
+      if dialFut.completed():
+        let muxed = dialFut.value()
+        if not muxed.isNil():
+          await muxed.close()
+      elif dialFut.cancelled():
+        cancelledDials.inc()
+
+    check cancelledDials > 0
 
   asyncTest "A remote that never answers identify gives up at the dial timeout":
     let

@@ -15,6 +15,7 @@ import
   ]
 import ../../tools/[unittest]
 import ./basic_tests
+import ./cancellation_tests
 import ./connection_tests
 import ./stream_tests
 import ./tcp_tests
@@ -58,6 +59,7 @@ suite "TCP transport":
     tcpTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
     invalidAddresses,
   )
+  cancellationTransportTest(tcpTransProvider, addressIP4)
   # tcp specific tests
   tcpTests()
 

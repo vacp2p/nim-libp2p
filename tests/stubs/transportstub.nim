@@ -8,6 +8,8 @@
 import chronos
 import
   ../../libp2p/[
+    multiaddress,
+    peerid,
     transports/transport,
     transports/memorytransport,
     upgrademngrs/upgrade,
@@ -59,6 +61,25 @@ proc new*(
   )
   procCall Transport(self).initialize()
   self
+
+type FailingDialTransport* = ref object of MemoryTransport
+  ## Counts the addresses a dial reaches the transport with, and refuses each one.
+  dialCalls*: int
+
+proc new*(T: typedesc[FailingDialTransport], upgrade: Upgrade, rng: Rng): T =
+  let self = T(upgrader: upgrade, rng: rng)
+  procCall Transport(self).initialize()
+  self
+
+method dial*(
+    self: FailingDialTransport,
+    hostname: string,
+    ma: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  inc self.dialCalls
+  raise newException(MemoryTransportError, "stub dial always fails")
 
 method accept*(
     self: MemoryTransportStub

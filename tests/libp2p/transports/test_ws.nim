@@ -20,6 +20,7 @@ import
   ]
 import ../../tools/[crypto, unittest]
 import ./basic_tests
+import ./cancellation_tests
 import ./connection_tests
 import ./stream_tests
 
@@ -95,6 +96,9 @@ suite "WebSocket transport":
 
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
+
+  cancellationTransportTest(wsTransProvider, wsAddress)
+  cancellationTransportTest(wsSecureTransProvider, wsSecureAddress)
 
   asyncTest "slow WebSocket headers do not block valid accepts":
     let server = WsTransport.new(
