@@ -4,10 +4,11 @@
 {.used.}
 
 import base64, sequtils, json, strutils, uri, chronos, chronos/apps/http/httpclient
+from times import format, local, timezone, `==`
 import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, autotls/acme/client, crypto/rsa, wire]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, http_server, crypto]
 import ../../stubs/acme_api_stub
 import ./rfc_vectors
 
@@ -18,6 +19,7 @@ suite "AutoTLS ACME API":
   let
     key = RsaPrivateKey.random(rng()).get()
     certKey = RsaPrivateKey.random(rng()).get()
+    certPem = tlsCertPemGenerator()
 
   var api {.threadvar.}: ACMEApiStub
 
@@ -470,6 +472,31 @@ suite "AutoTLS ACME API":
     check authorizations.challenges.len == 1
     check authorizations.challenges[0].`type` == ACMEChallengeType.DNS01
     check authorizations.challenges[0].url == ChallengeURL
+
+  proc downloadWithExpires(expires: string): Future[ACMECertificateResponse] {.async.} =
+    let certServer = startTestHttpServer(certPem)
+    defer:
+      await certServer.stop()
+
+    api.queueGetOrder(certServer.url, expires)
+    await api.downloadCertificate(parseUri(OrderURL))
+
+  asyncTest "the order's expires is parsed in local time":
+    # TODO: vacp2p/nim-libp2p#2975
+    let expiry = (await downloadWithExpires("2026-11-02T14:30:00Z")).certificateExpiry
+
+    check expiry.timezone == local()
+    check expiry.format("yyyy-MM-dd'T'HH:mm:ss") == "2026-11-02T14:30:00"
+
+  asyncTest "an expires with a fractional second is rejected":
+    # TODO: vacp2p/nim-libp2p#2975
+    expect(ACMEError):
+      discard await downloadWithExpires("2026-11-02T14:30:00.000Z")
+
+  asyncTest "an expires with a numeric UTC offset is rejected":
+    # TODO: vacp2p/nim-libp2p#2975
+    expect(ACMEError):
+      discard await downloadWithExpires("2026-11-02T14:30:00+00:00")
 
 suite "AutoTLS ACME Client":
   const
