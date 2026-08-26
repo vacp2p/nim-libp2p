@@ -148,6 +148,8 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   s.isEof = true
   s.pushedEof = true
 
+  s.readBuf.clear()
+
   # Essentially we need to handle the following cases
   #
   # - If a push was in progress but no reader is
