@@ -276,6 +276,33 @@ suite "BufferStream":
     check (await readFut) == 0
     check await pushFut.withTimeout(100.milliseconds)
 
+  asyncTest "close does not remove data reserved for an active reader":
+    let stream = BufferStream.new()
+    await stream.pushData("123".toBytes())
+
+    let pushFut = stream.pushData("456".toBytes())
+    discard stream.readQueue.popFirstNoWait()
+
+    var data: array[3, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    check:
+      stream.reading
+      stream.pushing
+      stream.readQueue.empty()
+
+    proc closeStream(udata: pointer) {.gcsafe, raises: [].} =
+      discard cast[BufferStream](udata).close()
+
+    # Run close after the parked pusher resumes, so the queue holds its item.
+    callSoon(closeStream, cast[pointer](stream))
+
+    let readCompleted = await readFut.withTimeout(100.milliseconds)
+    if not readCompleted:
+      await readFut.cancelAndWait()
+
+    check readCompleted
+    check await pushFut.withTimeout(100.milliseconds)
+
   asyncTest "reset is terminal and closeWithEOF returns immediately after reset":
     let stream = BufferStream.new()
 
