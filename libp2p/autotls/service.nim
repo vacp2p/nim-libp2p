@@ -266,3 +266,7 @@ method stop*(
   if not self.managerFut.isNil():
     await self.managerFut.cancelAndWait()
     self.managerFut = nil
+
+when defined(libp2p_testing):
+  func ipAddress*(config: AutotlsConfig): Opt[IpAddress] =
+    config.ipAddress

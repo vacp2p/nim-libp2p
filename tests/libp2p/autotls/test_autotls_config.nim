@@ -3,8 +3,15 @@
 
 {.used.}
 
-import chronos, uri
-import ../../../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
+import chronos, net, uri
+import
+  ../../../libp2p/[
+    autotls/service,
+    autotls/acme/api,
+    autotls/acme/client,
+    nameresolving/dnsresolver,
+    wire,
+  ]
 import ../../tools/[unittest, crypto]
 
 suite "AutoTLS Configuration Tests":
@@ -16,8 +23,11 @@ suite "AutoTLS Configuration Tests":
 
     check:
       config.acmeServerURL == parseUri(LetsEncryptURL)
+      config.ipAddress == Opt.none(IpAddress)
       config.renewCheckTime == DefaultRenewCheckTime
       config.renewBufferTime == DefaultRenewBufferTime
+      config.issueRetries == 3
+      config.issueRetryTime == 1.seconds
       config.brokerURL == DefaultBrokerURL
       config.dnsServerURL == AutoTLSDNSServer
       config.dnsRetries == 10
@@ -28,6 +38,13 @@ suite "AutoTLS Configuration Tests":
       config.finalizeRetryTime == 1.seconds
 
   asyncTest "AutotlsConfig constructor with custom values":
+    let customIpAddress = parseIpAddress("203.0.113.7")
+    let customNameServers =
+      @[initTAddress("192.0.2.53:53"), initTAddress("198.51.100.53:53")]
+    let customRenewCheckTime = 7.minutes
+    let customRenewBufferTime = 8.minutes
+    let customIssueRetries = 7
+    let customIssueRetryTime = 5.seconds
     let customBrokerURL = "custom-broker.example.com"
     let customDnsServerURL = "custom-dns.example.com"
     let customDnsRetries = 5
@@ -38,6 +55,12 @@ suite "AutoTLS Configuration Tests":
     let customFinalizeRetryTime = 4.seconds
 
     let config = AutotlsConfig.new(
+      ipAddress = Opt.some(customIpAddress),
+      nameServers = customNameServers,
+      renewCheckTime = customRenewCheckTime,
+      renewBufferTime = customRenewBufferTime,
+      issueRetries = customIssueRetries,
+      issueRetryTime = customIssueRetryTime,
       brokerURL = customBrokerURL,
       dnsServerURL = customDnsServerURL,
       dnsRetries = customDnsRetries,
@@ -49,6 +72,13 @@ suite "AutoTLS Configuration Tests":
     )
 
     check:
+      config.ipAddress == Opt.some(customIpAddress)
+      # nameServers reaches the config as the DnsResolver built out of it.
+      DnsResolver(config.nameResolver).nameServers == customNameServers
+      config.renewCheckTime == customRenewCheckTime
+      config.renewBufferTime == customRenewBufferTime
+      config.issueRetries == customIssueRetries
+      config.issueRetryTime == customIssueRetryTime
       config.brokerURL == customBrokerURL
       config.dnsServerURL == customDnsServerURL
       config.dnsRetries == customDnsRetries
