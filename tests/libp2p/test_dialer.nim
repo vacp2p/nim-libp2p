@@ -54,6 +54,7 @@ suite "Dialer":
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Max connections reached":
+    # TODO: vacp2p/nim-lsquic#162
     var switches: seq[Switch]
 
     let dst = makeStandardSwitchBuilder()
