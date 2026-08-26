@@ -348,6 +348,9 @@ suite "Quic transport":
     # TODO: vacp2p/nim-lsquic#162
     let server = await createQuicTransport(isServer = true)
     let client = await createQuicTransport()
+    defer:
+      await client.stop()
+      await server.stop()
 
     let acceptFut = server.accept()
     let clientConn = await client.dial("", server.addrs[0])
@@ -357,11 +360,16 @@ suite "Quic transport":
     await serverConn.close()
 
     let muxer = QuicMuxer.new(clientConn)
+    defer:
+      await muxer.close()
+
     let stream = await muxer.newStream()
     await stream.write("client")
 
     var response: array[1, byte]
     let readFut = stream.readOnce(addr response[0], response.len)
+    defer:
+      await readFut.cancelAndWait()
 
     # a CONNECTION_CLOSE crosses loopback in well under a millisecond
     # the dialer instead waits out lsquic's 30s idle timeout
@@ -369,11 +377,6 @@ suite "Quic transport":
       not (await readFut.withTimeout(1.seconds))
       serverConn.closed
       not clientConn.closed
-
-    await readFut.cancelAndWait()
-    await muxer.close()
-    await client.stop()
-    await server.stop()
 
   asyncTest "stream idle timeout resets only the idle stream":
     let server = await createQuicTransport(
