@@ -359,7 +359,7 @@ suite "Quic transport":
     # what the switch does when the incoming connection limit is reached
     await serverConn.close()
 
-    let muxer = QuicMuxer.new(clientConn)
+    let muxer = await client.upgrade(clientConn, Opt.none(PeerId))
     defer:
       await muxer.close()
 
