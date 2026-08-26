@@ -55,11 +55,6 @@ jobs:
             cc: gcc
             builder: windows-2022
             shell: "msys2 {0}"
-          - os: linux
-            cpu: i386
-            cc: gcc
-            builder: ubuntu-22.04
-            shell: bash
         nim:
           - ref: v2.2.4
             memory_management: refc

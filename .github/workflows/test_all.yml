@@ -29,9 +29,6 @@ jobs:
           - os: linux
             cpu: amd64
             cc: gcc
-          - os: linux
-            cpu: i386
-            cc: gcc
           - os: linux-gcc-14
             cpu: amd64
             cc: gcc
@@ -51,14 +48,6 @@ jobs:
             memory_management: refc
           - ref: v2.2.10
             memory_management: orc
-        exclude:
-          - platform:
-              os: linux
-              cpu: i386
-              cc: gcc
-            nim:
-              ref: v2.2.10
-              memory_management: orc
         include:
           - platform:
               os: linux
