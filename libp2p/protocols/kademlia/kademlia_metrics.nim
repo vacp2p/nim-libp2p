@@ -24,6 +24,8 @@ declarePublicCounter kad_streams_opened, "outbound RPC streams opened"
 declarePublicCounter kad_stream_reuses, "outbound RPCs sent on an already open stream"
 declarePublicCounter kad_stream_reuse_failures,
   "reused outbound streams that failed and were retried on a fresh stream"
+declarePublicCounter kad_streams_dropped,
+  "open outbound streams given up because the stream closed under us"
 
 # Lookup metrics
 declarePublicCounter kad_lookup_followups,
