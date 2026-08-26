@@ -86,6 +86,7 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    dialRanking: bool
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
@@ -347,6 +348,10 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.dialRanking = enabled
+  b
+
 proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.autonatEnabled = enabled
   b
@@ -515,8 +520,15 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
       )
     )
 
-  let dialer =
-    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, ms, b.nameResolver)
+  let dialer = Dialer.new(
+    peerInfo.peerId,
+    connManager,
+    peerStore,
+    transports,
+    ms,
+    b.nameResolver,
+    dialRanking = b.dialRanking,
+  )
 
   let switch = Switch(
     peerInfo: peerInfo,

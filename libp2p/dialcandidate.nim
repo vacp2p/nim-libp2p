@@ -5,8 +5,6 @@
 
 import multiaddress, peerid
 
-export multiaddress, peerid
-
 type DialCandidate* = object
   ## One address a dial can attempt, with dnsaddr and DNS already resolved.
   address*: MultiAddress

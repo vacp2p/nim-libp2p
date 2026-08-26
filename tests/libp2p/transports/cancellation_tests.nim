@@ -15,7 +15,7 @@ template cancellationTransportTest*(provider: TransportProvider, address: string
   block:
     let transportProvider = provider
 
-    asyncTest "cancelling a dial leaves nothing open":
+    asyncTest "a dial cancelled at any point leaves no socket open":
       let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()

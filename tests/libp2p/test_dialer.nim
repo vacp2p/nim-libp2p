@@ -8,6 +8,7 @@ import
   ../../libp2p/[
     builders,
     muxers/muxer,
+    nameresolving/mockresolver,
     peerstore,
     switch,
     transports/transport,
@@ -144,7 +145,32 @@ suite "Dialer":
       .wait(5.seconds)
     check dialed == dst.peerInfo.peerId
 
-  asyncTest "Dialing stops at the candidate limit":
+  asyncTest "Ranked dialing stops at the candidate limit":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialRanking = true,
+    )
+
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates * 2:
+      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialedAddrs.len == MaxDialCandidates
+
+  asyncTest "Dialing without ranking tries every address":
     let src = makeStandardSwitch()
     await src.start()
     defer:
@@ -166,7 +192,62 @@ suite "Dialer":
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
 
-    check transport.dialCalls == MaxDialCandidates
+    check transport.dialedAddrs.len == addrs.len
+
+  asyncTest "Ranked dialing skips the addresses no transport handles":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialRanking = true,
+    )
+
+    let handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates:
+      addrs.add(MultiAddress.init("/ip4/1.2.3.4/tcp/" & $(1000 + i)).tryGet())
+    addrs.add(handled)
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialedAddrs == @[handled]
+
+  asyncTest "Dialing skips an address that fails to resolve":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let resolver = MockResolver.new()
+    resolver.txtResponses["_dnsaddr.bad.example"] = @["dnsaddr=/not/a/multiaddress"]
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      resolver,
+    )
+
+    let
+      unresolvable = MultiAddress.init("/dnsaddr/bad.example").tryGet()
+      handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), @[unresolvable, handled])
+
+    check transport.dialedAddrs == @[handled]
 
   asyncTest "Cancelling a dial at any point leaves nothing open":
     let

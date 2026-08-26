@@ -60,6 +60,7 @@ type
     peerStore: PeerStore
     nameResolver: NameResolver
     ms: MultistreamSelect
+    dialRanking: bool ## resolve and rank every address before dialing any of them
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 proc transportFor(self: Dialer, address: MultiAddress): Opt[Transport] =
@@ -200,6 +201,32 @@ proc resolveWithDeadline(
     debug "Out of time resolving address", ma = address
     @[]
 
+proc tryExpandDnsAddr(
+    self: Dialer, peerId: Opt[PeerId], address: MultiAddress, deadline: Moment
+): Future[seq[(MultiAddress, Opt[PeerId])]] {.async: (raises: [CancelledError]).} =
+  ## Empty when the record is unusable, so one bad record cannot fail the dial.
+  try:
+    await self.expandDnsAddr(peerId, address, deadline)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    debug "Skipping the address, dnsaddr expansion failed",
+      peerId, ma = address, description = e.msg
+    @[]
+
+proc tryResolve(
+    self: Dialer, address: MultiAddress, deadline: Moment
+): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+  ## Empty when the name does not resolve, so one bad name cannot fail the dial.
+  try:
+    await self.resolveWithDeadline(address, deadline)
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    debug "Skipping the address, name resolution failed",
+      ma = address, description = e.msg
+    @[]
+
 proc normalizedDialAddrs(
     peerId: Opt[PeerId], addrs: seq[MultiAddress]
 ): seq[MultiAddress] =
@@ -210,10 +237,8 @@ proc normalizedDialAddrs(
 
 proc collectCandidates(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], deadline: Moment
-): Future[seq[DialCandidate]] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
-.} =
-  ## Expand dnsaddr records and resolve DNS names, stopping when `deadline` runs out.
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  ## Resolve the addresses a transport handles, until `deadline` runs out.
 
   var candidates: seq[DialCandidate]
 
@@ -223,12 +248,12 @@ proc collectCandidates(
         debug "Out of time expanding the remaining addresses", peerId, addrs
         break collect
 
-      for (expandedAddress, addrPeerId) in await self.expandDnsAddr(
+      for (expandedAddress, addrPeerId) in await self.tryExpandDnsAddr(
         peerId, rawAddress, deadline
       ):
         let
           hostname = expandedAddress.getHostname()
-          resolvedAddresses = await self.resolveWithDeadline(expandedAddress, deadline)
+          resolvedAddresses = await self.tryResolve(expandedAddress, deadline)
 
         debug "Expanded address and hostname",
           expandedAddress = expandedAddress,
@@ -236,6 +261,11 @@ proc collectCandidates(
           resolvedAddresses = resolvedAddresses
 
         for resolvedAddress in resolvedAddresses:
+          if self.transportFor(resolvedAddress).isNone():
+            debug "Skipping the address, no transport handles it",
+              peerId, ma = resolvedAddress
+            continue
+
           candidates.add(
             DialCandidate(
               address: resolvedAddress, hostname: hostname, peerId: addrPeerId
@@ -249,25 +279,51 @@ proc collectCandidates(
 
   candidates
 
-proc dialAndUpgrade*(
+proc dialInOrder(
     self: Dialer,
     peerId: Opt[PeerId],
     addrs: seq[MultiAddress],
-    dir = Direction.Out,
-    deadline = Moment.now() + self.dialTimeout,
-): Future[Muxer] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
-.} =
-  ## Dial the candidates in order, sharing one `deadline`. Nil when all of them fail.
+    dir: Direction,
+    deadline: Moment,
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Resolve one address at a time and dial it right away.
 
-  let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Dialing peer", peerId = peerId, addrs = dialAddrs
-
-  let candidates = await self.collectCandidates(peerId, dialAddrs, deadline)
-
-  for candidate in candidates:
+  for rawAddress in addrs:
     if deadline.timeLeft().isZero():
-      debug "Out of time for the remaining addresses", peerId, addrs = dialAddrs
+      debug "Out of time for the remaining addresses", peerId, addrs
+      return nil
+
+    for (expandedAddress, addrPeerId) in await self.tryExpandDnsAddr(
+      peerId, rawAddress, deadline
+    ):
+      let
+        hostname = expandedAddress.getHostname()
+        resolvedAddresses = await self.tryResolve(expandedAddress, deadline)
+
+      debug "Expanded address and hostname",
+        expandedAddress = expandedAddress,
+        hostname = hostname,
+        resolvedAddresses = resolvedAddresses
+
+      for resolvedAddress in resolvedAddresses:
+        let mux = await self.dialAndUpgrade(
+          addrPeerId, hostname, resolvedAddress, dir, deadline
+        )
+        if not isNil(mux):
+          return mux
+
+proc dialRanked(
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    dir: Direction,
+    deadline: Moment,
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Resolve every address up front, so the candidates can be ranked before any dial.
+
+  for candidate in await self.collectCandidates(peerId, addrs, deadline):
+    if deadline.timeLeft().isZero():
+      debug "Out of time for the remaining addresses", peerId, addrs
       return nil
 
     let mux = await self.dialAndUpgrade(
@@ -275,6 +331,23 @@ proc dialAndUpgrade*(
     )
     if not isNil(mux):
       return mux
+
+proc dialAndUpgrade*(
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    dir = Direction.Out,
+    deadline = Moment.now() + self.dialTimeout,
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
+
+  let dialAddrs = normalizedDialAddrs(peerId, addrs)
+  debug "Dialing peer", peerId = peerId, addrs = dialAddrs
+
+  if self.dialRanking:
+    await self.dialRanked(peerId, dialAddrs, dir, deadline)
+  else:
+    await self.dialInOrder(peerId, dialAddrs, dir, deadline)
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
@@ -364,11 +437,6 @@ proc establishConnection(
     except CancelledError as e:
       slot.release()
       raise e
-    except CatchableError as e:
-      slot.release()
-      raise newException(
-        DialFailedError, "failed dialAndUpgrade in establishConnection: " & e.msg, e
-      )
   if isNil(muxed): # None of the addresses connected
     slot.release()
     raise newException(
@@ -585,6 +653,7 @@ proc new*(
     ms: MultistreamSelect,
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
+    dialRanking = false,
 ): Dialer {.raises: [].} =
   T(
     localPeerId: localPeerId,
@@ -594,4 +663,5 @@ proc new*(
     nameResolver: nameResolver,
     ms: ms,
     dialTimeout: dialTimeout,
+    dialRanking: dialRanking,
   )
