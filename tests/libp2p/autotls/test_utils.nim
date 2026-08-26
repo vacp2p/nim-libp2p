@@ -3,9 +3,20 @@
 
 {.used.}
 
-import net, chronos
-import ../../../libp2p/[autotls/utils, autotls/acme/api, autotls/acme/client]
-import ../../tools/[unittest, resolver]
+import net, chronos, sequtils
+import stew/base36
+import
+  ../../../libp2p/[
+    autotls/utils,
+    autotls/acme/api,
+    autotls/acme/client,
+    cid,
+    crypto/crypto,
+    multicodec,
+    peerid,
+  ]
+import ../../tools/[unittest, resolver, crypto]
+import ./rfc_vectors
 
 suite "AutoTLS DNS records":
   const
@@ -175,3 +186,31 @@ suite "AutoTLS DNS records":
 
     check resolver.ipQueries ==
       @["0--1." & BaseDomain, "2001-db8--0." & BaseDomain, "0--0." & BaseDomain]
+
+suite "AutoTLS peer ID label":
+  # RSA and ECDSA public keys exceed maxInlineKeyLength, so their PeerIds carry a
+  # sha2-256 multihash rather than an inlined identity multihash.
+  let peerIds = @[
+    PeerId.init(PrivateKey.random(PKScheme.Ed25519, rng()).get()).get(),
+    PeerId.init(PrivateKey.random(PKScheme.Secp256k1, rng()).get()).get(),
+    PeerId.init(PrivateKey.random(PKScheme.ECDSA, rng()).get()).get(),
+    PeerId.init(PrivateKey.init(rfc7517Key())).get(),
+  ]
+
+  test "the label is the peer ID as a CIDv1 libp2p-key CID":
+    for peerId in peerIds:
+      let cid = Cid.init(Base36.decode(encodePeerId(peerId))).get()
+
+      check:
+        cid.version == CIDv1
+        cid.contentType.get == multiCodec("libp2p-key")
+        cid.mhash.get.data.buffer == peerId.data
+
+  test "every key type gives a legal DNS label":
+    for peerId in peerIds:
+      let label = encodePeerId(peerId)
+
+      check:
+        # RFC 1035 caps a DNS label at 63 octets.
+        label.len <= 63
+        label.allIt(it in {'0' .. '9', 'a' .. 'z'})
