@@ -235,49 +235,99 @@ proc normalizedDialAddrs(
   else:
     addrs
 
+proc cappedLookups(candidates: seq[DialCandidate]): seq[DialCandidate] =
+  ## The peer picks the list, so cap the names it can turn into lookups.
+  var
+    kept: seq[DialCandidate]
+    lookups = 0
+
+  for candidate in candidates:
+    if DNS.matchPartial(candidate.address):
+      lookups.inc()
+      if lookups > MaxDialCandidates:
+        continue
+    kept.add(candidate)
+
+  kept
+
+proc gatherCandidates(
+    futs: seq[Future[seq[DialCandidate]].Raising([CancelledError])]
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  ## Flatten what the lookups found, in the order the peer advertised them.
+  await allOrCancel(futs)
+
+  var candidates: seq[DialCandidate]
+  for fut in futs:
+    if fut.completed():
+      candidates.add(fut.value())
+
+  candidates
+
+proc expandCandidate(
+    self: Dialer, candidate: DialCandidate, deadline: Moment
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  ## The addresses one dnsaddr record stands for, each of them still unresolved.
+
+  var expanded: seq[DialCandidate]
+  for (address, addrPeerId) in
+      await self.tryExpandDnsAddr(candidate.peerId, candidate.address, deadline):
+    expanded.add(
+      DialCandidate(
+        address: address, hostname: address.getHostname(), peerId: addrPeerId
+      )
+    )
+
+  expanded
+
+proc resolveCandidate(
+    self: Dialer, candidate: DialCandidate, deadline: Moment
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  ## The wire addresses one name resolves to, minus the ones no transport handles.
+
+  let resolved = await self.tryResolve(candidate.address, deadline)
+
+  debug "Expanded address and hostname",
+    expandedAddress = candidate.address,
+    hostname = candidate.hostname,
+    resolvedAddresses = resolved
+
+  var candidates: seq[DialCandidate]
+  for address in resolved:
+    if self.transportFor(address).isNone():
+      debug "Skipping the address, no transport handles it",
+        peerId = candidate.peerId, ma = address
+      continue
+
+    candidates.add(
+      DialCandidate(
+        address: address, hostname: candidate.hostname, peerId: candidate.peerId
+      )
+    )
+
+  candidates
+
 proc collectCandidates(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], deadline: Moment
 ): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
-  ## Resolve the addresses a transport handles, until `deadline` runs out.
+  ## Resolve the addresses a transport handles, every lookup at once.
 
-  var candidates: seq[DialCandidate]
+  if deadline.timeLeft().isZero():
+    debug "Out of time expanding the addresses", peerId, addrs
+    return @[]
 
-  block collect:
-    for rawAddress in addrs:
-      if deadline.timeLeft().isZero():
-        debug "Out of time expanding the remaining addresses", peerId, addrs
-        break collect
+  let advertised = cappedLookups(addrs.mapIt(DialCandidate(address: it, peerId: peerId)))
+  let expanded = cappedLookups(
+    await gatherCandidates(advertised.mapIt(self.expandCandidate(it, deadline)))
+  )
 
-      for (expandedAddress, addrPeerId) in await self.tryExpandDnsAddr(
-        peerId, rawAddress, deadline
-      ):
-        let
-          hostname = expandedAddress.getHostname()
-          resolvedAddresses = await self.tryResolve(expandedAddress, deadline)
+  let candidates =
+    await gatherCandidates(expanded.mapIt(self.resolveCandidate(it, deadline)))
+  if candidates.len <= MaxDialCandidates:
+    return candidates
 
-        debug "Expanded address and hostname",
-          expandedAddress = expandedAddress,
-          hostname = hostname,
-          resolvedAddresses = resolvedAddresses
-
-        for resolvedAddress in resolvedAddresses:
-          if self.transportFor(resolvedAddress).isNone():
-            debug "Skipping the address, no transport handles it",
-              peerId, ma = resolvedAddress
-            continue
-
-          candidates.add(
-            DialCandidate(
-              address: resolvedAddress, hostname: hostname, peerId: addrPeerId
-            )
-          )
-
-          if candidates.len >= MaxDialCandidates:
-            debug "Dropping the addresses over the candidate limit",
-              peerId, limit = MaxDialCandidates
-            break collect
-
-  candidates
+  debug "Dropping the addresses over the candidate limit",
+    peerId, limit = MaxDialCandidates
+  candidates[0 ..< MaxDialCandidates]
 
 proc dialInOrder(
     self: Dialer,
