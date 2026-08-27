@@ -316,7 +316,8 @@ proc collectCandidates(
     debug "Out of time expanding the addresses", peerId, addrs
     return @[]
 
-  let advertised = cappedLookups(addrs.mapIt(DialCandidate(address: it, peerId: peerId)))
+  let advertised =
+    cappedLookups(addrs.mapIt(DialCandidate(address: it, peerId: peerId)))
   let expanded = cappedLookups(
     await gatherCandidates(advertised.mapIt(self.expandCandidate(it, deadline)))
   )
