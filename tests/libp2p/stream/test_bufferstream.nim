@@ -252,3 +252,31 @@ suite "BufferStream":
     check (await readFut) == 0
     check stream.closed
     check await stream.closeWithEOF().withTimeout(100.milliseconds)
+
+  asyncTest "close clears the read buffer":
+    let stream = BufferStream.new()
+    await stream.pushData("12345".toBytes())
+
+    var first: array[1, byte]
+    check 1 == await stream.readOnce(addr first[0], first.len)
+    check stream.len == 4
+
+    await stream.close()
+
+    check stream.len == 0
+    check stream.atEof()
+
+  asyncTest "close completes a parked reader with EOF":
+    let stream = BufferStream.new()
+    await stream.pushData("12345".toBytes())
+
+    var first: array[1, byte]
+    check 1 == await stream.readOnce(addr first[0], first.len)
+
+    var rest: array[10, byte]
+    let readFut = stream.readOnce(addr rest[0], rest.len)
+
+    await stream.close()
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 0

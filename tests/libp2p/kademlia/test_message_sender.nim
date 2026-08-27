@@ -3,10 +3,12 @@
 
 {.used.}
 
-import chronos, results, sequtils
+# included, not imported: the tests reach into the per-peer bookkeeping.
+include ../../../libp2p/protocols/kademlia/message_sender
+
+import sequtils
 import
-  ../../../libp2p/[protocols/kademlia, protocols/protocol, switch, builders],
-  ../../../libp2p/stream/connection
+  ../../../libp2p/[protocols/protocol, builders], ../../../libp2p/stream/bridgestream
 import
   ../../tools/[crypto, lifecycle, multiaddress, stall_server, switch_builder, unittest]
 
@@ -19,6 +21,7 @@ type CountingEcho = ref object of LPProtocol
   messages: int ## messages received across all of them
   reply: bool
   closeAfter: int ## close the stream once this many messages arrived; 0 keeps it open
+  lastInbound: Stream ## the newest inbound stream, for the test to reset
 
 proc newCountingEcho(reply = true, closeAfter = 0): CountingEcho =
   let echoProto = CountingEcho(reply: reply, closeAfter: closeAfter)
@@ -27,6 +30,7 @@ proc newCountingEcho(reply = true, closeAfter = 0): CountingEcho =
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     echoProto.streams.inc()
+    echoProto.lastInbound = stream
     defer:
       await stream.close()
 
@@ -264,6 +268,73 @@ suite "KadDHT message sender":
 
     await rpc.cancelAndWait().wait(5.seconds)
     check rpc.cancelled()
+
+  asyncTest "a reset stream is dropped without another RPC":
+    let proto = newCountingEcho()
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await sender.stop()
+
+    check (
+      await sender.sendRequest(
+        server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 1.seconds
+      )
+    ).isOk()
+    check sender.senders.len == 1
+
+    await proto.lastInbound.reset()
+
+    # Only the next RPC to a peer looks at its stream, and it may never come.
+    checkUntilTimeout:
+      sender.senders.len == 0
+
+  asyncTest "a closing stream keeps the entry an RPC still holds":
+    let client = makeStandardSwitch(TcpAutoAddress)
+    startAndDeferStop(@[client])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await sender.stop()
+
+    let peerId = PeerId.random(rng()).tryGet()
+    let (stream, remote) = bridgedConnections()
+    let ps = sender.senderFor(peerId)
+    ps.stream = stream
+    ps.watchFut = sender.watchStream(peerId, ps, stream)
+    ps.users = 1
+
+    await remote.close()
+    checkUntilTimeout:
+      ps.stream.isNil()
+    check sender.senders.len == 1
+
+    ps.users = 0
+    sender.forget(peerId, ps)
+    check sender.senders.len == 0
+
+  asyncTest "stop leaves no watcher behind":
+    let proto = newCountingEcho()
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    check (
+      await sender.sendRequest(
+        server.peerInfo.peerId, server.peerInfo.addrs, @[byte 1], 1.seconds
+      )
+    ).isOk()
+
+    let ps = sender.senders.getOrDefault(server.peerInfo.peerId)
+    require not ps.isNil()
+    check not ps.watchFut.isNil()
+
+    await sender.stop()
+    check:
+      ps.watchFut.isNil()
+      sender.senders.len == 0
 
   asyncTest "a stopped sender refuses to dial":
     let proto = newCountingEcho()
