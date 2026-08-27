@@ -424,6 +424,23 @@ suite "Mplex":
 
       await conn.close()
 
+    asyncTest "reset should clear buffered data":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(@[0'u8, 1, 2, 3, 4])
+      var first: array[1, byte]
+      check 1 == await chann.readOnce(addr first[0], first.len)
+      check chann.len == 4
+
+      await chann.reset()
+
+      check chann.len == 0
+      check chann.atEof()
+
+      await conn.close()
+
     asyncTest "channel should reset on timeout":
       let
         conn = TestBufferStream.new(noopWriteHandler)
