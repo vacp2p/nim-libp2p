@@ -162,19 +162,21 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   # a read or enough room in the queue/buffer to complete a
   # push.
   #
+  # A read and a push can be in flight at the same time. The reader wins: a
+  # queued item belongs to it, so we must not pop that item out from under it.
+  #
   # State       | Q Empty  | Q Full
   # ------------|----------|-------
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
   try:
-    if not (s.reading and s.pushing):
-      if s.reading:
-        if s.readQueue.empty():
-          # There is an active reader
-          s.readQueue.addLastNoWait(Eof)
-      elif s.pushing:
-        if not s.readQueue.empty():
-          discard s.readQueue.popFirstNoWait()
+    if s.reading:
+      if s.readQueue.empty():
+        # There is an active reader
+        s.readQueue.addLastNoWait(Eof)
+    elif s.pushing:
+      if not s.readQueue.empty():
+        discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError as e:
     raiseAssert("closeImpl failed queue full: " & e.msg)
   except AsyncQueueEmptyError as e:

@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos, stew/byteutils
+from times import now
 import
   ../../../libp2p/[
     autotls/service,
@@ -362,3 +363,37 @@ suite "WebSocket transport with autotls":
 
     let startFut = wstransport.start(ma)
     check not (await startFut.withTimeout(200.milliseconds))
+
+  asyncTest "a renewed certificate does not reach a running transport":
+    # TODO: vacp2p/nim-libp2p#2994
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+
+    let autotls = AutotlsService(
+      cert: Opt.some(AutotlsCert.new(secureCert, secureKey, now())),
+      certReady: newAsyncEvent(),
+      running: newAsyncEvent(),
+    )
+    autotls.running.fire()
+    autotls.certReady.fire()
+
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
+
+    check wstransport.tlsCertificate == secureCert
+
+    # what issueCertificate does once a renewal completes
+    let (renewedKey, renewedCert) = tlsCertGenerator()
+    autotls.cert = Opt.some(AutotlsCert.new(renewedCert, renewedKey, now()))
+    autotls.certReady.fire()
+
+    check:
+      wstransport.tlsCertificate == secureCert
+      wstransport.tlsPrivateKey == secureKey
