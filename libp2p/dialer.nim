@@ -23,7 +23,7 @@ import
   utils/future,
   errors
 
-export dial, dialcandidate, errors, results
+export dial, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -39,6 +39,9 @@ declarePublicHistogram libp2p_dial_duration_ms,
 
 const MaxDialCandidates* = 32
   ## A peer names as many addresses as it likes, and each dnsaddr fans out further.
+
+const MaxExpandedAddresses = MaxDialCandidates * 8
+  ## Ceiling on what one peer's dnsaddr chain holds in flight before the filter.
 
 const DefaultDialerTimeout* = 30.seconds
   ## Budget for reaching one peer. Every address it advertises shares it, and
@@ -60,7 +63,7 @@ type
     peerStore: PeerStore
     nameResolver: NameResolver
     ms: MultistreamSelect
-    dialRanking: bool ## resolve and rank every address before dialing any of them
+    dialRanking: bool ## resolve every address before the first dial
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 proc transportFor(self: Dialer, address: MultiAddress): Opt[Transport] =
@@ -77,7 +80,7 @@ proc dialAndUpgrade*(
     dir = Direction.Out,
     deadline = Moment.now() + self.dialTimeout,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial one resolved address and upgrade it. Returns nil when no transport connects.
+  ## Dial one resolved address, below candidate selection. Nil when no transport connects.
 
   let transport = self.transportFor(addrs).valueOr:
     return nil
@@ -105,8 +108,7 @@ proc dialAndUpgrade*(
   let mux =
     try:
       # A DCUtR simultaneous dial leaves both sides Outbound, so the initiator takes `dir`.
-      if dialed.dir != dir:
-        dialed.dir = dir
+      dialed.dir = dir
       transport.upgrade(dialed, peerId).awaitWithDeadline(deadline)
     except CancelledError as e:
       await dialed.close()
@@ -235,33 +237,27 @@ proc normalizedDialAddrs(
   else:
     addrs
 
-proc cappedLookups(candidates: seq[DialCandidate]): seq[DialCandidate] =
-  ## The peer picks the list, so cap the names it can turn into lookups.
+proc limitFanOut(candidates: seq[DialCandidate]): seq[DialCandidate] =
+  ## The peer picks the list, so cap the lookups and the addresses it can spawn.
   var
     kept: seq[DialCandidate]
     lookups = 0
 
   for candidate in candidates:
+    if kept.len >= MaxExpandedAddresses:
+      debug "Dropping the addresses over the fan-out limit",
+        limit = MaxExpandedAddresses
+      break
     if DNS.matchPartial(candidate.address):
       lookups.inc()
       if lookups > MaxDialCandidates:
         continue
     kept.add(candidate)
 
+  if lookups > MaxDialCandidates:
+    debug "Dropping the names over the lookup limit", limit = MaxDialCandidates
+
   kept
-
-proc gatherCandidates(
-    futs: seq[Future[seq[DialCandidate]].Raising([CancelledError])]
-): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
-  ## Flatten what the lookups found, in the order the peer advertised them.
-  await allOrCancel(futs)
-
-  var candidates: seq[DialCandidate]
-  for fut in futs:
-    if fut.completed():
-      candidates.add(fut.value())
-
-  candidates
 
 proc expandCandidate(
     self: Dialer, candidate: DialCandidate, deadline: Moment
@@ -287,7 +283,7 @@ proc resolveCandidate(
 
   let resolved = await self.tryResolve(candidate.address, deadline)
 
-  debug "Expanded address and hostname",
+  debug "Resolved address",
     expandedAddress = candidate.address,
     hostname = candidate.hostname,
     resolvedAddresses = resolved
@@ -307,6 +303,18 @@ proc resolveCandidate(
 
   candidates
 
+proc expandAll(
+    self: Dialer, candidates: seq[DialCandidate], deadline: Moment
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  let futs = limitFanOut(candidates).mapIt(self.expandCandidate(it, deadline))
+  concat(await collectCompleted(futs))
+
+proc resolveAll(
+    self: Dialer, candidates: seq[DialCandidate], deadline: Moment
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  let futs = limitFanOut(candidates).mapIt(self.resolveCandidate(it, deadline))
+  concat(await collectCompleted(futs))
+
 proc collectCandidates(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], deadline: Moment
 ): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
@@ -316,14 +324,11 @@ proc collectCandidates(
     debug "Out of time expanding the addresses", peerId, addrs
     return @[]
 
-  let advertised =
-    cappedLookups(addrs.mapIt(DialCandidate(address: it, peerId: peerId)))
-  let expanded = cappedLookups(
-    await gatherCandidates(advertised.mapIt(self.expandCandidate(it, deadline)))
-  )
+  let
+    advertised = addrs.mapIt(DialCandidate(address: it, peerId: peerId))
+    expanded = await self.expandAll(advertised, deadline)
+    candidates = await self.resolveAll(expanded, deadline)
 
-  let candidates =
-    await gatherCandidates(expanded.mapIt(self.resolveCandidate(it, deadline)))
   if candidates.len <= MaxDialCandidates:
     return candidates
 
@@ -345,21 +350,11 @@ proc dialInOrder(
       debug "Out of time for the remaining addresses", peerId, addrs
       return nil
 
-    for (expandedAddress, addrPeerId) in await self.tryExpandDnsAddr(
-      peerId, rawAddress, deadline
-    ):
-      let
-        hostname = expandedAddress.getHostname()
-        resolvedAddresses = await self.tryResolve(expandedAddress, deadline)
-
-      debug "Expanded address and hostname",
-        expandedAddress = expandedAddress,
-        hostname = hostname,
-        resolvedAddresses = resolvedAddresses
-
-      for resolvedAddress in resolvedAddresses:
+    let advertised = DialCandidate(address: rawAddress, peerId: peerId)
+    for expanded in await self.expandCandidate(advertised, deadline):
+      for candidate in await self.resolveCandidate(expanded, deadline):
         let mux = await self.dialAndUpgrade(
-          addrPeerId, hostname, resolvedAddress, dir, deadline
+          candidate.peerId, candidate.hostname, candidate.address, dir, deadline
         )
         if not isNil(mux):
           return mux
@@ -371,7 +366,7 @@ proc dialRanked(
     dir: Direction,
     deadline: Moment,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Resolve every address up front, so the candidates can be ranked before any dial.
+  ## Resolve every address up front, then dial in the advertised order.
 
   for candidate in await self.collectCandidates(peerId, addrs, deadline):
     if deadline.timeLeft().isZero():
