@@ -30,12 +30,12 @@ jobs:
       - name: Pick random platform
         id: pick
         run: |
-          declare -a OSS=("linux" "linux" "linux-gcc-14" "macos-15" "windows" "windows")
-          declare -a CPUS=("amd64" "i386" "amd64" "arm64" "amd64" "amd64")
-          declare -a CCS=("gcc" "gcc" "gcc" "clang" "clang" "gcc")
-          declare -a BUILDERS=("ubuntu-22.04" "ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
-          declare -a SHELLS=("bash" "bash" "bash" "bash" "bash" "msys2 {0}")
-          PLATFORM_INDEX=$((RANDOM % 6))
+          declare -a OSS=("linux" "linux-gcc-14" "macos-15" "windows" "windows")
+          declare -a CPUS=("amd64" "amd64" "arm64" "amd64" "amd64")
+          declare -a CCS=("gcc" "gcc" "clang" "clang" "gcc")
+          declare -a BUILDERS=("ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
+          declare -a SHELLS=("bash" "bash" "bash" "bash" "msys2 {0}")
+          PLATFORM_INDEX=$((RANDOM % ${#OSS[@]}))
           echo "os=${OSS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
           echo "cpu=${CPUS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
           echo "cc=${CCS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
