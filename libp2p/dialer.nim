@@ -269,8 +269,9 @@ proc expandCandidate(
   ## The addresses one dnsaddr record stands for, each of them still unresolved.
 
   var expanded: seq[DialCandidate]
-  for (address, addrPeerId) in
-      await self.tryExpandDnsAddr(candidate.peerId, candidate.address, deadline):
+  for (address, addrPeerId) in await self.tryExpandDnsAddr(
+    candidate.peerId, candidate.address, deadline
+  ):
     expanded.add(
       DialCandidate(
         address: address, hostname: address.getHostname(), peerId: addrPeerId
