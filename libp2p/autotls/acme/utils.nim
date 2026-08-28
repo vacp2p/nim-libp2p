@@ -62,4 +62,4 @@ proc createCSR*(
   let derCSR = cert_signing_req(domain, certKey).valueOr:
     raise newException(ACMEError, "Failed to create CSR")
 
-  base64.encode(derCSR, safe = true)
+  base64UrlEncode(derCSR)

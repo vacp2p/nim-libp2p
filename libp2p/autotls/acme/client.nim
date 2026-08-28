@@ -88,7 +88,7 @@ proc getCertificate*(
     raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
   trace "Downloading certificate"
-  await self.api.downloadCertificate(orderURL)
+  await self.api.downloadCertificate(orderURL, self.key, await self.getOrInitKid())
 
 proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
   await self.api.close()

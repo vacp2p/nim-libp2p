@@ -24,7 +24,7 @@ const
   HttpOk = 200
 
 type AutotlsBroker* = ref object
-  brokerURL: string
+  registrationURL: Uri
   peerIdAuthClient: PeerIDAuthClient
   bearer: Opt[BearerToken]
 
@@ -33,9 +33,10 @@ proc new*(
     rng: Rng,
     brokerURL: string = DefaultBrokerURL,
     peerIdAuthClient: PeerIDAuthClient = PeerIDAuthClient.new(rng),
+    registrationURL: Uri = parseUri("https://" & brokerURL & "/v1/_acme-challenge"),
 ): T =
   T(
-    brokerURL: brokerURL,
+    registrationURL: registrationURL,
     peerIdAuthClient: peerIdAuthClient,
     bearer: Opt.none(BearerToken),
   )
@@ -56,7 +57,6 @@ proc sendChallenge*(
 
   let strMultiaddresses = addrs.mapIt($it)
   let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
-  let registrationURL = parseUri("https://" & self.brokerURL & "/v1/_acme-challenge")
 
   # drop a bearer we already know to be expired so we re-authenticate
   # instead of looping on `PeerIDAuthError("Bearer expired")`
@@ -65,16 +65,17 @@ proc sendChallenge*(
     if cached.expires.isSome() and cached.expires.get() <= now():
       self.bearer = Opt.none(BearerToken)
 
-  trace "Sending challenge to AutoTLS broker", brokerURL = self.brokerURL
-  let (bearer, response) =
-    await self.peerIdAuthClient.send(registrationURL, peerInfo, payload, self.bearer)
+  trace "Sending challenge to AutoTLS broker", registrationURL = $self.registrationURL
+  let (bearer, response) = await self.peerIdAuthClient.send(
+    self.registrationURL, peerInfo, payload, self.bearer
+  )
   # remember the latest bearer in case the broker rotated it
   self.bearer = Opt.some(bearer)
 
   if response.status != HttpOk:
     raise newException(
       AutoTLSError,
-      "Failed to authenticate with AutoTLS broker " & self.brokerURL & " (status " &
+      "Failed to authenticate with AutoTLS broker " & $self.registrationURL & " (status " &
         $response.status & "): " & bytesToString(response.body),
     )
 

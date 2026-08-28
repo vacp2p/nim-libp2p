@@ -40,7 +40,7 @@ proc new*(
   ACMEApiStub(
     session: HttpSessionRef.new(),
     directory: directory,
-    acmeServerURL: parseUri(LetsEncryptURL),
+    directoryURL: parseUri(LetsEncryptURL) / "directory",
   )
 
 proc jwsMember(self: ACMEApiStub, index: int, member: string): JsonNode =
@@ -56,6 +56,13 @@ proc protectedHeader*(self: ACMEApiStub, index: int): JsonNode =
 proc signedPayload*(self: ACMEApiStub, index: int): JsonNode =
   ## The payload of the `index`-th signed request.
   self.jwsMember(index, "payload")
+
+proc encodedPayload*(self: ACMEApiStub, index: int): string =
+  ## The payload of the `index`-th signed request, still base64url-encoded.
+  try:
+    parseJson(self.payloads[index])["payload"].getStr
+  except CatchableError as exc:
+    raiseAssert "stub could not read the JWS payload: " & exc.msg
 
 proc queueRegister*(self: ACMEApiStub) =
   ## Queues the response `requestRegister` consumes.
@@ -138,7 +145,7 @@ method requestNonce*(
     self: ACMEApiStub
 ): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]).} =
   self.nonces += 1
-  $self.acmeServerURL & "/acme/" & $self.nonces
+  $self.directoryURL & "/acme/" & $self.nonces
 
 method post*(
     self: ACMEApiStub, uri: Uri, payload: string
