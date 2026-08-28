@@ -13,7 +13,7 @@ import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 const
   PebbleDirectoryURL = "https://127.0.0.1/dir"
-  ForgeRegistrationURL = "http://127.0.0.1:5380/v1/_acme-challenge"
+  ForgeRegistrationEndpoint = "http://127.0.0.1:5380"
   ForgeNameServer = "127.0.0.1:5354"
   NodeIP = "127.0.0.1"
   RenewCheckTime = 1.seconds
@@ -40,7 +40,7 @@ suite "AutoTLS against a local ACME server and broker":
           flags = {HttpClientFlag.NoVerifyHost, HttpClientFlag.NoVerifyServerName},
         ),
       ),
-      broker: AutotlsBroker.new(rng(), registrationURL = parseUri(ForgeRegistrationURL)),
+      broker: AutotlsBroker.new(rng(), parseUri(ForgeRegistrationEndpoint)),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
