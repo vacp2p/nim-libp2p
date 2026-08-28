@@ -17,9 +17,7 @@ permissions:
 
 jobs:
   autotls-docker-integration:
-    # No matrix: the test shares a network namespace with the containers, which only
-    # works on Linux.
-    name: Issue a certificate against a local ACME server and broker
+    name: Run Test AutoTLS Docker Integration
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
