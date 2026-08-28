@@ -1,5 +1,5 @@
 .PHONY: all build deps cbind clean test \
-        test_multiformat_exts test_integration \
+        test_multiformat_exts test_integration test_autotls_docker_integration \
         setup lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
@@ -101,6 +101,14 @@ test_integration: nimble.paths tests/nimble.paths
 	  $(if $(CICOV),--nimcache:nimcache/integration,) \
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
+
+test_autotls_docker_integration:
+	docker compose -f tests/integration/stack/docker-compose.yml build test
+	docker compose -f tests/integration/stack/docker-compose.yml up -d --wait
+	status=0; docker compose -f tests/integration/stack/docker-compose.yml run --rm test || status=$$?; \
+	  [ $$status -eq 0 ] || docker compose -f tests/integration/stack/docker-compose.yml logs; \
+	  docker compose -f tests/integration/stack/docker-compose.yml down -v; \
+	  exit $$status
 
 setup:
 	$(MAKE) nimble.paths tests/nimble.paths

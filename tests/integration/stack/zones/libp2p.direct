@@ -1,0 +1,17 @@
+$TTL 300
+$ORIGIN libp2p.direct.
+
+; ipparser reads the SOA from this file at startup and refuses to load without one.
+@   86400   IN  SOA ns1.libp2p.direct. hostmaster.libp2p.direct. (
+                    2026082700  ; serial
+                    86400       ; refresh
+                    2400        ; retry
+                    604800      ; expire
+                    86400       ; minimum
+                    )
+
+@   86400   IN  NS  ns1.libp2p.direct.
+ns1 86400   IN  A   127.0.0.1
+
+; Pebble validates CAA against its own identity, not Let's Encrypt's.
+@   86400   IN  CAA 0 issue "pebble.letsencrypt.org"

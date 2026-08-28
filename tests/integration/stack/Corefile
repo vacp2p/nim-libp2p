@@ -1,0 +1,15 @@
+# p2p-forge serving libp2p.direct for tests/integration/test_autotls_stack.nim.
+# No denylist block: its feeds are fetched from Spamhaus and URLhaus at startup.
+libp2p.direct {
+    log
+    errors
+    any # RFC 8482
+    ipparser libp2p.direct
+    file zones/libp2p.direct
+    acme libp2p.direct {
+        # the forge answers only requests whose Host header matches this, and
+        # chronos sends the host without the port
+        registration-domain 127.0.0.1 listen-address=:5380 external-tls=true
+        database-type badger badger.libp2p-direct-challenges
+    }
+}
