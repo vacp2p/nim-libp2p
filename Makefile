@@ -104,7 +104,6 @@ test_integration: nimble.paths tests/nimble.paths
 
 test_autotls_docker_integration:
 	docker compose -f tests/integration/autotls_docker/docker-compose.yml build test
-	docker compose -f tests/integration/autotls_docker/docker-compose.yml up -d --wait
 	status=0; docker compose -f tests/integration/autotls_docker/docker-compose.yml run --rm test || status=$$?; \
 	  [ $$status -eq 0 ] || docker compose -f tests/integration/autotls_docker/docker-compose.yml logs; \
 	  docker compose -f tests/integration/autotls_docker/docker-compose.yml down -v; \

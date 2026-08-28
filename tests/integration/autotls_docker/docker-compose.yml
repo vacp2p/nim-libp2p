@@ -30,8 +30,8 @@ services:
       - ./Corefile:/p2p-forge/Corefile:ro
       - ./zones:/p2p-forge/zones:ro
 
-  # behind a profile so `up` brings up only the servers; the Makefile target then
-  # runs the test with `run --rm test`
+  # behind a profile so it is not started as a server
+  # `run --rm test` starts pebble and forge through depends_on
   test:
     profiles: ["test"]
     build:

@@ -16,6 +16,7 @@ const
   ForgeRegistrationURL = "http://127.0.0.1:5380/v1/_acme-challenge"
   ForgeNameServer = "127.0.0.1:5354"
   NodeIP = "127.0.0.1"
+  RenewCheckTime = 1.seconds
   IssueTimeout = 60.seconds
 
 suite "AutoTLS against a local ACME server and broker":
@@ -24,8 +25,6 @@ suite "AutoTLS against a local ACME server and broker":
 
   asyncTest "a certificate is issued end to end":
     # TODO: vacp2p/nim-libp2p#2957
-    # The broker dials back over yamux, the only muxer go-libp2p still offers, which
-    # makeStandardSwitch does not carry.
     let switch = makeStandardSwitchBuilder(TcpAutoAddress).withYamux().build()
     await switch.start()
     defer:
@@ -48,6 +47,7 @@ suite "AutoTLS against a local ACME server and broker":
       config: AutotlsConfig.new(
         ipAddress = Opt.some(parseIpAddress(NodeIP)),
         nameServers = @[initTAddress(ForgeNameServer)],
+        renewCheckTime = RenewCheckTime,
       ),
       rng: rng(),
     )

@@ -18,7 +18,7 @@ when path == "":
   importTests(currentSourcePath().parentDir() / "tools", @[])
 else:
   # Run tests that match specific path substring
-  importTests(currentSourcePath().parentDir(), @[], path)
+  importTests(currentSourcePath().parentDir(), @["autotls_docker"], path)
 
 # Run final trackers check.
 # After all tests are executed final trackers check is performed to ensure that
