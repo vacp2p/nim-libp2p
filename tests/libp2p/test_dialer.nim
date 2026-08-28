@@ -15,7 +15,9 @@ import
     upgrademngrs/upgrade,
   ]
 import ../stubs/transportstub
-import ../tools/[unittest, futures, switch_builder, crypto, multiaddress, stall_server]
+import
+  ../tools/
+    [unittest, futures, switch_builder, crypto, multiaddress, resolver, stall_server]
 
 proc replaceIdentifyHandler(sw: Switch, handler: LPProtoHandler) =
   for holder in sw.ms.handlers:
@@ -220,6 +222,147 @@ suite "Dialer":
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
 
     check transport.dialedAddrs == @[handled]
+
+  asyncTest "Ranked dialing dials a wire address while a name still stalls":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = StallingResolver.new()
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      resolver,
+      dialRanking = true,
+    )
+
+    let stalling = MultiAddress.init("/dnsaddr/stalls.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[stalling] & dst.peerInfo.addrs).wait(
+      5.seconds
+    )
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+    check resolver.cancelled
+
+  asyncTest "Ranked dialing dials a name that answers while another one stalls":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = StallingResolver.new()
+    resolver.txtResponses["_dnsaddr.good.example"] =
+      @["dnsaddr=" & $dst.peerInfo.addrs[0]]
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      resolver,
+      dialRanking = true,
+    )
+
+    let
+      stalling = MultiAddress.init("/dnsaddr/stalls.example").tryGet()
+      good = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[stalling, good]).wait(5.seconds)
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+    check resolver.cancelled
+
+  asyncTest "Ranked dialing connects to a peer that advertises names only":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = MockResolver.new()
+    resolver.txtResponses["_dnsaddr.good.example"] =
+      @["dnsaddr=" & $dst.peerInfo.addrs[0]]
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      resolver,
+      dialRanking = true,
+    )
+
+    let name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[name]).wait(5.seconds)
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+
+  asyncTest "Ranked dialing reaches the resolved addresses when the wire ones fail":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = MockResolver.new()
+    resolver.txtResponses["_dnsaddr.good.example"] =
+      @["dnsaddr=" & $dst.peerInfo.addrs[0]]
+
+    let failing = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(failing)] & src.transports,
+      src.ms,
+      resolver,
+      dialRanking = true,
+    )
+
+    let
+      dead = MultiAddress.init("/memorytransport/addr-0").tryGet()
+      name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[dead, name]).wait(5.seconds)
+
+    check failing.dialedAddrs == @[dead]
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+
+  asyncTest "Ranked dialing carries the hostname of a wire address":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng(), handlesAny = true)
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialRanking = true,
+    )
+
+    let wss = MultiAddress.init("/ip4/1.2.3.4/tcp/443/wss").tryGet()
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), @[wss])
+
+    check transport.dialedHosts == @["1.2.3.4"]
 
   asyncTest "Dialing skips an address that fails to resolve":
     let src = makeStandardSwitch()
