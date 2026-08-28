@@ -15,6 +15,7 @@ import
   ]
 import ../../tools/[unittest, crypto as cryptoTools, multiaddress]
 import ./basic_tests
+import ./cancellation_tests
 import ./stream_tests
 import ./utils
 
@@ -59,6 +60,7 @@ suite "Quic transport":
     Opt.some(MultiAddress.init(addressIP6).get()),
     streamProvider,
   )
+  cancellationTransportTest(quicTransProvider, addressIP4)
 
   asyncTest "listener-role dial sends UDP hole-punch packets":
     let packetReceived =

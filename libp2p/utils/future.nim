@@ -113,17 +113,14 @@ template completeOnce*(fut: auto, val: auto) =
     fut.complete(val)
 
 proc collectCompleted*[T, E](
-    futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
+    futs: seq[InternalRaisesFuture[T, E]], timeout = InfiniteDuration
 ): Future[seq[T]] {.async: (raises: [CancelledError]).} =
-  ## Wait up to `timeout`; collect only successfully completed futures.
-  ## Ignore results from futures throwing errors
+  ## Collect the values of the futures that completed, cancelling the rest.
   try:
-    await futs.allFutures().wait(timeout)
+    await allOrCancel(futs).wait(timeout)
   except AsyncTimeoutError:
-    # Some futures didn’t finish in time, ignore
     discard
 
-  # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
 
 proc waitForTCPServer*(

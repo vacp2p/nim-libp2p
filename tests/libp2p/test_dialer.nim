@@ -4,7 +4,17 @@
 {.used.}
 
 import chronos, sequtils, results
-import ../../libp2p/[builders, peerstore, switch]
+import
+  ../../libp2p/[
+    builders,
+    muxers/muxer,
+    nameresolving/mockresolver,
+    peerstore,
+    switch,
+    transports/transport,
+    upgrademngrs/upgrade,
+  ]
+import ../stubs/transportstub
 import ../tools/[unittest, futures, switch_builder, crypto, multiaddress, stall_server]
 
 proc replaceIdentifyHandler(sw: Switch, handler: LPProtoHandler) =
@@ -134,6 +144,144 @@ suite "Dialer":
       .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
       .wait(5.seconds)
     check dialed == dst.peerInfo.peerId
+
+  asyncTest "Ranked dialing stops at the candidate limit":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialRanking = true,
+    )
+
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates * 2:
+      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialedAddrs.len == MaxDialCandidates
+
+  asyncTest "Dialing without ranking tries every address":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+    )
+
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates * 2:
+      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialedAddrs.len == addrs.len
+
+  asyncTest "Ranked dialing skips the addresses no transport handles":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialRanking = true,
+    )
+
+    let handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates:
+      addrs.add(MultiAddress.init("/ip4/1.2.3.4/tcp/" & $(1000 + i)).tryGet())
+    addrs.add(handled)
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+
+    check transport.dialedAddrs == @[handled]
+
+  asyncTest "Dialing skips an address that fails to resolve":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let resolver = MockResolver.new()
+    resolver.txtResponses["_dnsaddr.bad.example"] = @["dnsaddr=/not/a/multiaddress"]
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      resolver,
+    )
+
+    let
+      unresolvable = MultiAddress.init("/dnsaddr/bad.example").tryGet()
+      handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), @[unresolvable, handled])
+
+    check transport.dialedAddrs == @[handled]
+
+  asyncTest "Cancelling a dial at any point leaves nothing open":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId, src.connManager, src.peerStore, src.transports, src.ms
+    )
+
+    const CancelSteps = 30
+      ## Longer than the transport walk: the upgrade parks on awaits of its own.
+
+    var cancelledDials = 0
+    for steps in 0 .. CancelSteps:
+      let dialFut =
+        dialer.dialAndUpgrade(Opt.some(dst.peerInfo.peerId), dst.peerInfo.addrs)
+      for _ in 0 ..< steps:
+        await sleepAsync(0.milliseconds)
+
+      await dialFut.cancelAndWait()
+
+      if dialFut.completed():
+        let muxed = dialFut.value()
+        if not muxed.isNil():
+          await muxed.close()
+      elif dialFut.cancelled():
+        cancelledDials.inc()
+
+    check cancelledDials > 0
 
   asyncTest "A remote that never answers identify gives up at the dial timeout":
     let
