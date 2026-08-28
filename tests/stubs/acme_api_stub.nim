@@ -12,6 +12,7 @@ import ../../libp2p/autotls/acme/[api, utils]
 export api
 
 const
+  DirectoryURL* = "https://acme.example/directory"
   AccountURL* = "https://acme.example/acct/1"
   OrderURL* = "https://acme.example/order/1"
   FinalizeURL* = "https://acme.example/finalize/1"
@@ -19,9 +20,9 @@ const
   ChallengeURL* = "https://acme.example/chal/1"
 
 const StubDirectory* = ACMEDirectory(
-  newNonce: LetsEncryptURL & "/new-nonce",
-  newOrder: LetsEncryptURL & "/new-order",
-  newAccount: LetsEncryptURL & "/new-account",
+  newNonce: "https://acme.example/new-nonce",
+  newOrder: "https://acme.example/new-order",
+  newAccount: "https://acme.example/new-account",
 )
 
 type ACMEApiStub* = ref object of ACMEApi
@@ -40,7 +41,7 @@ proc new*(
   ACMEApiStub(
     session: HttpSessionRef.new(),
     directory: directory,
-    directoryURL: parseUri(LetsEncryptURL) / "directory",
+    directoryURL: parseUri(DirectoryURL),
   )
 
 proc jwsMember(self: ACMEApiStub, index: int, member: string): JsonNode =

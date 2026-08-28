@@ -20,7 +20,8 @@ logScope:
   topics = "libp2p autotls broker"
 
 const
-  DefaultBrokerURL* = "registration.libp2p.direct"
+  DefaultRegistrationEndpoint* = parseUri("https://registration.libp2p.direct")
+  RegistrationPath = "v1/_acme-challenge"
   HttpOk = 200
 
 type AutotlsBroker* = ref object
@@ -31,12 +32,13 @@ type AutotlsBroker* = ref object
 proc new*(
     T: typedesc[AutotlsBroker],
     rng: Rng,
-    brokerURL: string = DefaultBrokerURL,
+    registrationEndpoint: Uri = DefaultRegistrationEndpoint,
     peerIdAuthClient: PeerIDAuthClient = PeerIDAuthClient.new(rng),
-    registrationURL: Uri = parseUri("https://" & brokerURL & "/v1/_acme-challenge"),
 ): T =
+  ## `RegistrationPath` is p2p-forge's own API, so it is composed here rather
+  ## than asked of the caller.
   T(
-    registrationURL: registrationURL,
+    registrationURL: registrationEndpoint / RegistrationPath,
     peerIdAuthClient: peerIdAuthClient,
     bearer: Opt.none(BearerToken),
   )

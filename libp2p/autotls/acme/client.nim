@@ -27,7 +27,7 @@ logScope:
 proc new*(
     T: typedesc[ACMEClient],
     rng: Rng,
-    api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
+    api: ACMEApi = ACMEApi.new(),
     key: Opt[RsaPrivateKey] = Opt.none(RsaPrivateKey),
     kid: Kid = Kid(""),
 ): T {.raises: [].} =

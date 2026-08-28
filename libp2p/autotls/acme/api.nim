@@ -16,8 +16,9 @@ logScope:
   topics = "libp2p acme api"
 
 const
-  LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
-  LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
+  LetsEncryptDirectoryURL* = parseUri("https://acme-v02.api.letsencrypt.org/directory")
+  LetsEncryptStagingDirectoryURL* =
+    parseUri("https://acme-staging-v02.api.letsencrypt.org/directory")
 
 type Authorization* = string
 type Domain* = string
@@ -216,8 +217,7 @@ method get*(
 
 proc new*(
     T: typedesc[ACMEApi],
-    acmeServerURL: Uri = parseUri(LetsEncryptURL),
-    directoryURL: Uri = acmeServerURL / "directory",
+    directoryURL: Uri = LetsEncryptDirectoryURL,
     flags: HttpClientFlags = {},
 ): ACMEApi =
   let session = HttpSessionRef.new(flags)

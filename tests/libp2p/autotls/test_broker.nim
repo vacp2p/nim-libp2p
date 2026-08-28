@@ -20,9 +20,8 @@ import ../../stubs/peer_id_auth_client_stub
 
 suite "AutoTLS broker":
   const
-    BrokerURL = "broker.example"
+    RegistrationEndpoint = "https://broker.example"
     RegistrationURL = "https://broker.example/v1/_acme-challenge"
-    OverrideURL = "https://other.example/v1/_acme-challenge"
     KeyAuth = KeyAuthorization("expected-key-authorization")
     Addresses = ["/ip4/1.2.3.4/tcp/4001", "/ip4/1.2.3.4/tcp/4002/ws"]
 
@@ -37,7 +36,7 @@ suite "AutoTLS broker":
 
   asyncSetup:
     client = PeerIDAuthClientStub.new()
-    broker = AutotlsBroker.new(rng(), BrokerURL, client)
+    broker = AutotlsBroker.new(rng(), parseUri(RegistrationEndpoint), client)
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
     addrs = Addresses.mapIt(MultiAddress.init(it).get())
 
@@ -54,17 +53,10 @@ suite "AutoTLS broker":
       client.payloads.len == 1
       parseJson(client.payloads[0]) == %*{"value": KeyAuth, "addresses": Addresses}
 
-  asyncTest "the configured broker URL is the registration endpoint":
+  asyncTest "the challenge is registered under the endpoint's p2p-forge path":
     await broker.sendChallenge(peerInfo, addrs, KeyAuth)
 
     check client.requestedUris.mapIt($it) == @[RegistrationURL, RegistrationURL]
-
-  asyncTest "an explicit registration URL replaces the one derived from the broker URL":
-    broker = AutotlsBroker.new(rng(), BrokerURL, client, parseUri(OverrideURL))
-
-    await broker.sendChallenge(peerInfo, addrs, KeyAuth)
-
-    check client.requestedUris.mapIt($it) == @[OverrideURL, OverrideURL]
 
   asyncTest "a rejected registration raises":
     client.status = 403

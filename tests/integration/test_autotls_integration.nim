@@ -38,7 +38,7 @@ when defined(linux) and defined(amd64):
 
     asyncTest "request challenge without ACMEClient (ACMEApi only)":
       let key = RsaPrivateKey.random(rng()).get()
-      let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+      let acmeApi = ACMEApi.new(LetsEncryptStagingDirectoryURL)
       defer:
         await acmeApi.close()
 
@@ -61,9 +61,8 @@ when defined(linux) and defined(amd64):
       assertChallenge(challenge)
 
     asyncTest "request challenge with ACMEClient":
-      let acme = ACMEClient.new(
-        rng = rng(), api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
-      )
+      let acme =
+        ACMEClient.new(rng = rng(), api = ACMEApi.new(LetsEncryptStagingDirectoryURL))
       defer:
         await acme.close()
 
@@ -86,7 +85,8 @@ when defined(linux) and defined(amd64):
         )
         .withAutotls(
           config = AutotlsConfig.new(
-            acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
+            acmeDirectoryURL = LetsEncryptStagingDirectoryURL,
+            renewCheckTime = 1.seconds,
           )
         )
         .build()

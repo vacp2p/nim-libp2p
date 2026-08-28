@@ -322,6 +322,13 @@ suite "AutoTLS ACME API":
         parseUri("http://example.com/some-order-url"), key, "kid"
       )
 
+  asyncTest "the directory URL is used as given":
+    let acmeApi = ACMEApi.new(parseUri("http://acme.example/dir"))
+    defer:
+      await acmeApi.close()
+
+    check acmeApi.directoryURL == parseUri("http://acme.example/dir")
+
   asyncTest "the directory is fetched once and cached":
     # The cache is only observable on a stub that was not handed a directory.
     await api.close()
@@ -349,7 +356,7 @@ suite "AutoTLS ACME API":
 
     check api.requestedUris ==
       @[
-        parseUri(LetsEncryptURL & "/directory"),
+        parseUri(DirectoryURL),
         parseUri(StubDirectory.newNonce),
         parseUri(StubDirectory.newNonce),
       ]
