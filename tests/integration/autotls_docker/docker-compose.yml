@@ -1,6 +1,6 @@
-# The ACME server and AutoTLS broker tests/integration/test_autotls_stack.nim issues
-# a certificate against. Both share the host's network namespace so the forge can
-# dial the test node back on loopback and Pebble can query the forge's DNS.
+# The ACME server and AutoTLS broker test_autotls_docker.nim issues a certificate
+# against. Both share the host's network namespace so the forge can dial the test
+# node back on loopback and Pebble can query the forge's DNS.
 services:
   pebble:
     image: ghcr.io/letsencrypt/pebble:2@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199
@@ -30,11 +30,12 @@ services:
       - ./Corefile:/p2p-forge/Corefile:ro
       - ./zones:/p2p-forge/zones:ro
 
-  # behind a profile so `up` does not start it: CI runs the test natively instead
+  # behind a profile so `up` brings up only the servers; the Makefile target then
+  # runs the test with `run --rm test`
   test:
     profiles: ["test"]
     build:
       context: ../../..
-      dockerfile: tests/integration/stack/Dockerfile
+      dockerfile: tests/integration/autotls_docker/Dockerfile
     network_mode: host
     depends_on: [pebble, forge]

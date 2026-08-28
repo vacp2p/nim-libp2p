@@ -1,4 +1,4 @@
-# Runs tests/integration/test_autotls_stack.nim inside the stack's network namespace.
+# Runs test_autotls_docker.nim inside the containers' network namespace.
 # Docker on macOS runs containers in a Linux VM, so `network_mode: host` attaches to the
 # VM's loopback rather than the host's: a test running natively on macOS advertises an
 # address the forge cannot reach.
@@ -23,6 +23,6 @@ COPY . .
 # that do not exist here
 RUN make clean-nim && make setup
 
-RUN nim c -o:/app/test_autotls_stack tests/integration/test_autotls_stack.nim
+RUN nim c -o:/app/test_autotls_docker tests/integration/autotls_docker/test_autotls_docker.nim
 
-CMD ["/app/test_autotls_stack", "--output-level=VERBOSE", "--console"]
+CMD ["/app/test_autotls_docker", "--output-level=VERBOSE", "--console"]

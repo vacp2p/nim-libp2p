@@ -7,9 +7,9 @@ import net, uri
 from times import now, `<`
 import chronos, chronos/apps/http/httpclient
 import
-  ../../libp2p/
+  ../../../libp2p/
     [autotls/acme/api, autotls/acme/client, autotls/broker, autotls/service, switch]
-import ../tools/[unittest, crypto, multiaddress, switch_builder]
+import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 const
   PebbleDirectoryURL = "https://127.0.0.1/dir"
@@ -18,7 +18,7 @@ const
   NodeIP = "127.0.0.1"
   IssueTimeout = 60.seconds
 
-suite "AutoTLS on a local ACME and broker stack":
+suite "AutoTLS against a local ACME server and broker":
   asyncTeardown:
     checkTrackers()
 

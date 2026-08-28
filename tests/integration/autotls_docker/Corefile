@@ -1,4 +1,4 @@
-# p2p-forge serving libp2p.direct for tests/integration/test_autotls_stack.nim.
+# p2p-forge serving libp2p.direct for test_autotls_docker.nim.
 # No denylist block: its feeds are fetched from Spamhaus and URLhaus at startup.
 libp2p.direct {
     log
