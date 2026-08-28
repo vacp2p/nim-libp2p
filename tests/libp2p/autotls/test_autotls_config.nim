@@ -28,7 +28,7 @@ suite "AutoTLS Configuration Tests":
       config.renewBufferTime == DefaultRenewBufferTime
       config.issueRetries == 3
       config.issueRetryTime == 1.seconds
-      config.registrationEndpoint == DefaultRegistrationEndpoint
+      config.registrationURL == DefaultRegistrationURL
       config.dnsServerURL == AutoTLSDNSServer
       config.dnsRetries == 10
       config.dnsRetryTime == 1.seconds
@@ -46,7 +46,8 @@ suite "AutoTLS Configuration Tests":
     let customRenewBufferTime = 8.minutes
     let customIssueRetries = 7
     let customIssueRetryTime = 5.seconds
-    let customRegistrationEndpoint = parseUri("https://custom-broker.example.com")
+    let customRegistrationURL =
+      parseUri("https://custom-broker.example.com/v1/_acme-challenge")
     let customDnsServerURL = "custom-dns.example.com"
     let customDnsRetries = 5
     let customDnsRetryTime = 2.seconds
@@ -63,7 +64,7 @@ suite "AutoTLS Configuration Tests":
       renewBufferTime = customRenewBufferTime,
       issueRetries = customIssueRetries,
       issueRetryTime = customIssueRetryTime,
-      registrationEndpoint = customRegistrationEndpoint,
+      registrationURL = customRegistrationURL,
       dnsServerURL = customDnsServerURL,
       dnsRetries = customDnsRetries,
       dnsRetryTime = customDnsRetryTime,
@@ -82,7 +83,7 @@ suite "AutoTLS Configuration Tests":
       config.renewBufferTime == customRenewBufferTime
       config.issueRetries == customIssueRetries
       config.issueRetryTime == customIssueRetryTime
-      config.registrationEndpoint == customRegistrationEndpoint
+      config.registrationURL == customRegistrationURL
       config.dnsServerURL == customDnsServerURL
       config.dnsRetries == customDnsRetries
       config.dnsRetryTime == customDnsRetryTime

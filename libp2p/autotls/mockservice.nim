@@ -16,7 +16,7 @@ proc new*(
 ): T =
   T(
     acmeClient: ACMEClient.new(rng = rng, api = ACMEApi.new(config.acmeDirectoryURL)),
-    broker: AutotlsBroker.new(rng, config.registrationEndpoint),
+    broker: AutotlsBroker.new(rng, config.registrationURL),
     cert: Opt.none(AutotlsCert),
     certReady: newAsyncEvent(),
     running: newAsyncEvent(),

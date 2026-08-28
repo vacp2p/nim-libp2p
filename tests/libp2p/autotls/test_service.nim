@@ -48,7 +48,7 @@ suite "AutoTLS certificate issuance and renewal":
     AutotlsService(
       acmeClient:
         ACMEClient.new(rng(), api = ACMEApi(acmeApi), key = Opt.some(accountKey)),
-      broker: AutotlsBroker.new(rng(), DefaultRegistrationEndpoint, authClient),
+      broker: AutotlsBroker.new(rng(), DefaultRegistrationURL, authClient),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),

@@ -29,7 +29,7 @@ logScope:
   topics = "libp2p autotls"
 
 export
-  LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationEndpoint,
+  LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationURL,
   AutotlsBroker
 
 const
@@ -53,7 +53,7 @@ type AutotlsConfig* = object
   renewBufferTime*: Duration
   issueRetries*: int
   issueRetryTime*: Duration
-  registrationEndpoint*: Uri
+  registrationURL*: Uri
   dnsServerURL*: string
   dnsRetries*: int
   dnsRetryTime*: Duration
@@ -96,7 +96,7 @@ proc new*(
     renewBufferTime: Duration = DefaultRenewBufferTime,
     issueRetries: int = DefaultIssueRetries,
     issueRetryTime: Duration = DefaultIssueRetryTime,
-    registrationEndpoint: Uri = DefaultRegistrationEndpoint,
+    registrationURL: Uri = DefaultRegistrationURL,
     dnsServerURL: string = AutoTLSDNSServer,
     dnsRetries: int = 10,
     dnsRetryTime: Duration = 1.seconds,
@@ -113,7 +113,7 @@ proc new*(
     renewBufferTime: renewBufferTime,
     issueRetries: issueRetries,
     issueRetryTime: issueRetryTime,
-    registrationEndpoint: registrationEndpoint,
+    registrationURL: registrationURL,
     dnsServerURL: dnsServerURL,
     dnsRetries: dnsRetries,
     dnsRetryTime: dnsRetryTime,
@@ -128,7 +128,7 @@ proc new*(
 ): T =
   T(
     acmeClient: ACMEClient.new(api = ACMEApi.new(config.acmeDirectoryURL), rng = rng),
-    broker: AutotlsBroker.new(rng, config.registrationEndpoint),
+    broker: AutotlsBroker.new(rng, config.registrationURL),
     cert: Opt.none(AutotlsCert),
     certReady: newAsyncEvent(),
     running: newAsyncEvent(),
