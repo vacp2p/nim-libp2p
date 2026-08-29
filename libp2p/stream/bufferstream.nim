@@ -20,6 +20,7 @@ type BufferStream* = ref object of Connection
   readBuf: ZeroQueue # zero queue buffer for readOnce
   pushing*: bool # number of ongoing push operations
   reading*: bool # is there an ongoing read? (only allow one)
+  pendingRead: Future[seq[byte]] # queue pop owned by the active read
   pushedEof*: bool # eof marker has been put on readQueue
   returnedEof*: bool # 0-byte readOnce has been completed
 
@@ -112,13 +113,22 @@ method readOnce*(
     raise newLPStreamEOFError()
 
   if not s.isEof and s.readBuf.len < nbytes:
+    s.reading = true
+    let pendingRead = s.readQueue.popFirst()
+    s.pendingRead = pendingRead
     let buf =
       try:
-        s.reading = true
-        await s.readQueue.popFirst()
+        await pendingRead
       except CancelledError as exc:
+        if s.isEof and not s.readQueue.empty() and s.readQueue[0].len == 0:
+          try:
+            # Do not leave the close marker blocking an admitted pusher.
+            discard s.readQueue.popFirstNoWait()
+          except AsyncQueueEmptyError as error:
+            raiseAssert("readOnce failed queue empty: " & error.msg)
         raise exc
       finally:
+        s.pendingRead = nil
         s.reading = false
 
     if buf.len == 0:
@@ -163,16 +173,18 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   # push.
   #
   # A read and a push can be in flight at the same time. The reader wins: a
-  # queued item belongs to it, so we must not pop that item out from under it.
+  # pending queue pop belongs to it, so we must not pop an item out from under
+  # it. `reading` remains true briefly after that pop completes, hence the
+  # separate future check.
   #
   # State       | Q Empty  | Q Full
   # ------------|----------|-------
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
   try:
-    if s.reading:
+    if s.reading and not s.pendingRead.finished():
       if s.readQueue.empty():
-        # There is an active reader
+        # There is a reader still waiting on the queue.
         s.readQueue.addLastNoWait(Eof)
     elif s.pushing:
       if not s.readQueue.empty():

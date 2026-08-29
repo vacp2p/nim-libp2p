@@ -303,6 +303,50 @@ suite "BufferStream":
     check readCompleted
     check await pushFut.withTimeout(100.milliseconds)
 
+  asyncTest "close does not strand a push after the reader dequeues data":
+    let stream = BufferStream.new()
+
+    var data: array[1, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    await stream.pushData("A".toBytes())
+    let pushFut = stream.pushData("B".toBytes())
+
+    proc closeStream(udata: pointer) {.gcsafe, raises: [].} =
+      discard cast[BufferStream](udata).close()
+
+    # The queue getter runs before close, while the outer read resumes later.
+    callSoon(closeStream, cast[pointer](stream))
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 1
+    check ['A'] == string.fromBytes(data)
+    check await pushFut.withTimeout(100.milliseconds)
+    await pushFut
+
+  asyncTest "close does not strand a push after reader cancellation":
+    let stream = BufferStream.new()
+    await stream.pushData("A".toBytes())
+    let pushFut = stream.pushData("B".toBytes())
+
+    var first: array[1, byte]
+    let firstRead = stream.readOnce(addr first[0], first.len)
+    check firstRead.finished()
+    check (await firstRead) == 1
+
+    var second: array[1, byte]
+    let secondRead = stream.readOnce(addr second[0], second.len)
+    check:
+      stream.reading
+      stream.pushing
+      stream.readQueue.empty()
+
+    secondRead.cancelSoon()
+    await stream.close()
+    await secondRead.cancelAndWait()
+
+    check await pushFut.withTimeout(100.milliseconds)
+    await pushFut
+
   asyncTest "reset is terminal and closeWithEOF returns immediately after reset":
     let stream = BufferStream.new()
 
