@@ -6,10 +6,10 @@
 import std/[tables, sets]
 import chronos, chronicles, metrics
 import chronos/ratelimit
-import "."/[types]
-import ".."/[pubsubpeer]
+import ./[types]
+import ../[pubsubpeer]
 import ../rpc/messages
-import "../../.."/[peerid, multiaddress, switch, utils/heartbeat, utils/future]
+import ../../../[peerid, multiaddress, switch, utils/heartbeat, utils/future]
 import ../pubsub
 
 logScope:

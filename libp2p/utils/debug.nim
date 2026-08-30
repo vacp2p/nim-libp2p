@@ -106,7 +106,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[by
   try:
     if open(handle, pathName, fmAppend):
       if bytes.len > 0:
-        discard writeBuffer(handle, unsafeAddr bytes[0], bytes.len)
+        discard writeBuffer(handle, addr bytes[0], bytes.len)
   finally:
     close(handle)
 
