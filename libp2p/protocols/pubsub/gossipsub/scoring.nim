@@ -9,7 +9,7 @@ import chronos/ratelimit
 import ./[types]
 import ../[pubsubpeer]
 import ../rpc/messages
-import ../../../[peerid, multiaddress, switch, utils/heartbeat, utils/future]
+import "../../.."/[peerid, multiaddress, switch, utils/heartbeat, utils/future]
 import ../pubsub
 
 logScope:
