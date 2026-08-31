@@ -342,6 +342,65 @@ suite "Dialer":
     check failing.dialedAddrs == @[dead]
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
 
+  asyncTest "Ranked dialing gives up the lookups once the candidate limit is reached":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let
+      resolver = StallingResolver.new()
+      transport = FailingDialTransport.new(Upgrade(), rng())
+      dialer = Dialer.new(
+        src.peerInfo.peerId,
+        src.connManager,
+        src.peerStore,
+        @[Transport(transport)],
+        src.ms,
+        resolver,
+        dialRanking = true,
+      )
+
+    var addrs: seq[MultiAddress]
+    for i in 0 ..< MaxDialCandidates:
+      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+    addrs.add(MultiAddress.init("/dnsaddr/stalls.example").tryGet())
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs).wait(1.seconds)
+
+    check resolver.cancelled
+
+  asyncTest "Ranked dialing dials each address one time":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let wire = MultiAddress.init("/ip4/1.2.3.4/tcp/443").tryGet()
+    let resolver = MockResolver.new()
+    resolver.txtResponses["_dnsaddr.good.example"] = @["dnsaddr=" & $wire]
+
+    let
+      transport = FailingDialTransport.new(Upgrade(), rng(), handlesAny = true)
+      dialer = Dialer.new(
+        src.peerInfo.peerId,
+        src.connManager,
+        src.peerStore,
+        @[Transport(transport)],
+        src.ms,
+        resolver,
+        dialRanking = true,
+      )
+
+    let name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), @[wire, wire, name]).wait(
+        5.seconds
+      )
+
+    check transport.dialedAddrs == @[wire]
+
   asyncTest "Ranked dialing carries the hostname of a wire address":
     let src = makeStandardSwitch()
     await src.start()

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, tables]
+import std/[sequtils, sets, tables]
 
 import pkg/[chronos, chronicles, metrics, results]
 
@@ -240,20 +240,48 @@ proc normalizedDialAddrs(
   else:
     addrs
 
-proc remaining(limit: int): ref int =
-  ## One count shared by every holder, so concurrent lookups keep to one cap.
-  let left = new(int)
-  left[] = max(limit, 0)
-  left
+type DialBudget = ref object
+  ## One cap and one seen set shared by every holder of the same dial.
+  left: int
+  seen: HashSet[string]
+  exhausted: AsyncEvent
 
-proc takeCandidates(left: ref int, candidates: seq[DialCandidate]): seq[DialCandidate] =
-  let limit = left[]
-  if candidates.len > limit:
-    debug "Dropping the addresses over the candidate limit", limit
+proc newBudget(limit: int): DialBudget =
+  let budget = DialBudget(left: max(limit, 0), exhausted: newAsyncEvent())
+  if budget.left == 0:
+    budget.exhausted.fire()
+  budget
 
-  let taken = candidates.take(limit)
-  left[] -= taken.len
+proc take(budget: DialBudget, candidates: seq[DialCandidate]): seq[DialCandidate] =
+  var fresh: seq[DialCandidate]
+  for candidate in candidates:
+    if not budget.seen.containsOrIncl(candidate.key()):
+      fresh.add(candidate)
+
+  if fresh.len > budget.left:
+    debug "Dropping the addresses over the candidate limit", limit = budget.left
+
+  let taken = fresh.take(budget.left)
+  budget.left -= taken.len
+  if budget.left == 0:
+    budget.exhausted.fire()
   taken
+
+proc awaitLookup(
+    budget: DialBudget, lookup: Future[seq[DialCandidate]].Raising([CancelledError])
+): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
+  ## Empty once the budget leaves no room for the answer, so a stalling name ends here.
+
+  let exhausted = budget.exhausted.wait()
+  defer:
+    await noCancel allFutures(exhausted.cancelAndWait(), lookup.cancelAndWait())
+
+  discard await race(lookup, exhausted)
+  if lookup.completed():
+    return lookup.value()
+
+  debug "Giving up the lookup, the dial candidate limit is reached"
+  @[]
 
 proc expandCandidate(
     self: Dialer, candidate: DialCandidate, deadline: Moment
@@ -300,11 +328,11 @@ proc resolveCandidate(
   candidates
 
 proc resolveName(
-    self: Dialer, candidate: DialCandidate, left: ref int, deadline: Moment
+    self: Dialer, candidate: DialCandidate, budget: DialBudget, deadline: Moment
 ): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
   ## Every wire address one advertised name stands for, dnsaddr chain included.
 
-  let expanded = left.takeCandidates(await self.expandCandidate(candidate, deadline))
+  let expanded = budget.take(await self.expandCandidate(candidate, deadline))
   concat(await collectCompleted(expanded.mapIt(self.resolveCandidate(it, deadline))))
 
 proc directCandidates(
@@ -403,13 +431,13 @@ proc dialAll(
 proc dialResolved(
     self: Dialer,
     lookup: Future[seq[DialCandidate]].Raising([CancelledError]),
-    left: ref int,
+    budget: DialBudget,
     dir: Direction,
     deadline: Moment,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial one name's addresses the moment that name answers.
 
-  await self.dialAll(left.takeCandidates(await lookup), dir, deadline)
+  await self.dialAll(budget.take(await budget.awaitLookup(lookup)), dir, deadline)
 
 proc dialRanked(
     self: Dialer,
@@ -421,11 +449,11 @@ proc dialRanked(
   ## Dial the wire addresses at once, and each name's as soon as it resolves.
 
   let
-    dialable = remaining(MaxDialCandidates)
-    names = remaining(MaxDialCandidates)
-    unresolved = remaining(MaxExpandedAddresses)
-    direct = dialable.takeCandidates(self.directCandidates(peerId, addrs))
-    lookups = names.takeCandidates(dnsCandidates(peerId, addrs)).mapIt(
+    dialable = newBudget(MaxDialCandidates)
+    names = newBudget(MaxDialCandidates)
+    unresolved = newBudget(MaxExpandedAddresses)
+    direct = dialable.take(self.directCandidates(peerId, addrs))
+    lookups = names.take(dnsCandidates(peerId, addrs)).mapIt(
         self.resolveName(it, unresolved, deadline)
       )
 
