@@ -318,7 +318,16 @@ suite "AutoTLS ACME API":
       )
 
     expect(ACMEError):
-      discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
+      discard await api.requestGetOrder(
+        parseUri("http://example.com/some-order-url"), key, "kid"
+      )
+
+  asyncTest "the directory URL is used as given":
+    let acmeApi = ACMEApi.new(parseUri("http://acme.example/dir"))
+    defer:
+      await acmeApi.close()
+
+    check acmeApi.directoryURL == parseUri("http://acme.example/dir")
 
   asyncTest "the directory is fetched once and cached":
     # The cache is only observable on a stub that was not handed a directory.
@@ -347,7 +356,7 @@ suite "AutoTLS ACME API":
 
     check api.requestedUris ==
       @[
-        parseUri(LetsEncryptURL & "/directory"),
+        parseUri(DirectoryURL),
         parseUri(StubDirectory.newNonce),
         parseUri(StubDirectory.newNonce),
       ]
@@ -443,15 +452,14 @@ suite "AutoTLS ACME API":
 
     check base64.decode(api.signedPayload(0)["csr"].getStr).contains(WildcardDomain)
 
-  asyncTest "the csr is sent with base64 padding":
-    # TODO: vacp2p/nim-libp2p#2982
+  asyncTest "the csr is sent as base64url without padding":
     api.queueStatus("valid")
 
     discard await api.requestFinalize(
       WildcardDomain, parseUri(FinalizeURL), rfc7517Key(), key, AccountURL
     )
 
-    check api.signedPayload(0)["csr"].getStr.endsWith('=')
+    check not api.signedPayload(0)["csr"].getStr.endsWith('=')
 
   asyncTest "an unrecognized challenge type does not discard the dns-01 beside it":
     api.queueChallenges(
@@ -473,13 +481,28 @@ suite "AutoTLS ACME API":
     check authorizations.challenges[0].`type` == ACMEChallengeType.DNS01
     check authorizations.challenges[0].url == ChallengeURL
 
+  asyncTest "authorization, status and order resources are read with POST-as-GET":
+    api.queueChallenges(
+      %*[{"type": "dns-01", "url": ChallengeURL, "status": "pending", "token": "t"}]
+    )
+    api.queueStatus("valid")
+    api.queueGetOrder("https://acme.example/cert/1", "2099-01-01T00:00:00Z")
+
+    discard await api.requestAuthorizations(@[AuthorizationsURL], key, AccountURL)
+    discard await api.requestCheck(parseUri(OrderURL), ACMEOrderCheck, key, AccountURL)
+    discard await api.requestGetOrder(parseUri(OrderURL), key, AccountURL)
+
+    check api.payloads.len == 3
+    for index in 0 ..< api.payloads.len:
+      check api.encodedPayload(index) == ""
+
   proc downloadWithExpires(expires: string): Future[ACMECertificateResponse] {.async.} =
     let certServer = startTestHttpServer(certPem)
     defer:
       await certServer.stop()
 
     api.queueGetOrder(certServer.url, expires)
-    await api.downloadCertificate(parseUri(OrderURL))
+    await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
 
   asyncTest "the order's expires is parsed in local time":
     # TODO: vacp2p/nim-libp2p#2975

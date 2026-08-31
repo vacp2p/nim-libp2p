@@ -16,8 +16,9 @@ logScope:
   topics = "libp2p acme api"
 
 const
-  LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
-  LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
+  LetsEncryptDirectoryURL* = parseUri("https://acme-v02.api.letsencrypt.org/directory")
+  LetsEncryptStagingDirectoryURL* =
+    parseUri("https://acme-staging-v02.api.letsencrypt.org/directory")
 
 type Authorization* = string
 type Domain* = string
@@ -32,7 +33,7 @@ type ACMEDirectory* = object
 type ACMEApi* = ref object of RootObj
   directory: Opt[ACMEDirectory]
   session: HttpSessionRef
-  acmeServerURL*: Uri
+  directoryURL*: Uri
 
 type HTTPResponse* = object
   body*: JsonNode
@@ -215,12 +216,14 @@ method get*(
 .}
 
 proc new*(
-    T: typedesc[ACMEApi], acmeServerURL: Uri = parseUri(LetsEncryptURL)
+    T: typedesc[ACMEApi],
+    directoryURL: Uri = LetsEncryptDirectoryURL,
+    flags: HttpClientFlags = {},
 ): ACMEApi =
-  let session = HttpSessionRef.new()
+  let session = HttpSessionRef.new(flags)
 
   ACMEApi(
-    session: session, directory: Opt.none(ACMEDirectory), acmeServerURL: acmeServerURL
+    session: session, directory: Opt.none(ACMEDirectory), directoryURL: directoryURL
   )
 
 proc getDirectory(
@@ -228,7 +231,7 @@ proc getDirectory(
 ): Future[ACMEDirectory] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("getDirectory"):
     self.directory.valueOr:
-      let acmeResponse = await self.get(self.acmeServerURL / "directory")
+      let acmeResponse = await self.get(self.directoryURL)
       let directory = acmeResponse.body.to(ACMEDirectory)
       self.directory = Opt.some(directory)
       directory
@@ -307,6 +310,14 @@ proc createSignedAcmeRequest(
   handleError("createSignedAcmeRequest"):
     $toFlattenedJws(%*acmeHeader, %*payload, key)
 
+proc createPostAsGetRequest(
+    self: ACMEApi, uri: Uri, key: RsaPrivateKey, kid: Kid
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  ## RFC 8555 section 6.3: a POST-as-GET is a signed POST with a zero-length payload.
+  let acmeHeader = await self.acmeHeader(uri, key, needsJwk = false, Opt.some(kid))
+  handleError("createPostAsGetRequest"):
+    $toFlattenedJws(%*acmeHeader, "", key)
+
 proc requestRegister*(
     self: ACMEApi, key: RsaPrivateKey
 ): Future[ACMERegisterResponse] {.async: (raises: [ACMEError, CancelledError]).} =
@@ -358,7 +369,9 @@ proc requestAuthorizations*(
   handleError("requestAuthorizations"):
     doAssert authorizations.len > 0
 
-    let acmeResponse = await self.get(parseUri(authorizations[0]))
+    let authorizationURL = parseUri(authorizations[0])
+    let payload = await self.createPostAsGetRequest(authorizationURL, key, kid)
+    let acmeResponse = await self.post(authorizationURL, payload)
 
     var challenges: seq[ACMEChallenge]
     for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
@@ -396,7 +409,8 @@ proc requestCheck*(
     self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
-    let acmeResponse = await self.get(checkURL)
+    let payload = await self.createPostAsGetRequest(checkURL, key, kid)
+    let acmeResponse = await self.post(checkURL, payload)
     let retryAfter =
       try:
         parseInt(acmeResponse.headers.keyOrError("Retry-After")).seconds
@@ -521,20 +535,30 @@ proc certificateFinalized*(
   return await self.checkCertFinalized(order, key, kid, retries = retries)
 
 proc requestGetOrder*(
-    self: ACMEApi, order: Uri
+    self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid
 ): Future[ACMEOrderResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestGetOrder"):
-    let acmeResponse = await self.get(order)
+    let payload = await self.createPostAsGetRequest(order, key, kid)
+    let acmeResponse = await self.post(order, payload)
     acmeResponse.body.to(ACMEOrderResponse)
 
 proc downloadCertificate*(
-    self: ACMEApi, order: Uri
+    self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let orderResponse = await self.requestGetOrder(order)
+  let orderResponse = await self.requestGetOrder(order, key, kid)
+
+  let certificateURL = parseUri(orderResponse.certificate)
+  let payload = await self.createPostAsGetRequest(certificateURL, key, kid)
 
   handleError("downloadCertificate"):
+    # not `self.post` as it reads the response as JSON, and a certificate is PEM
     let rawResponse = await HttpClientRequestRef
-      .get(self.session, orderResponse.certificate)
+      .post(
+        self.session,
+        orderResponse.certificate,
+        body = payload,
+        headers = ACMEHttpHeaders,
+      )
       .get()
       .send()
     ACMECertificateResponse(

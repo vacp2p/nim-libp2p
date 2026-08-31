@@ -28,7 +28,9 @@ import
 logScope:
   topics = "libp2p autotls"
 
-export LetsEncryptURL, AutoTLSError, DefaultDnsServers, DefaultBrokerURL, AutotlsBroker
+export
+  LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationURL,
+  AutotlsBroker
 
 const
   DefaultRenewCheckTime* = 1.hours
@@ -44,14 +46,14 @@ type AutotlsCert* = ref object
   expiry*: DateTime
 
 type AutotlsConfig* = object
-  acmeServerURL*: Uri
+  acmeDirectoryURL*: Uri
   nameResolver*: NameResolver
   ipAddress: Opt[IpAddress]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
   issueRetries*: int
   issueRetryTime*: Duration
-  brokerURL*: string
+  registrationURL*: Uri
   dnsServerURL*: string
   dnsRetries*: int
   dnsRetryTime*: Duration
@@ -89,12 +91,12 @@ proc new*(
     T: typedesc[AutotlsConfig],
     ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
     nameServers: seq[TransportAddress] = DefaultDnsServers,
-    acmeServerURL: Uri = parseUri(LetsEncryptURL),
+    acmeDirectoryURL: Uri = LetsEncryptDirectoryURL,
     renewCheckTime: Duration = DefaultRenewCheckTime,
     renewBufferTime: Duration = DefaultRenewBufferTime,
     issueRetries: int = DefaultIssueRetries,
     issueRetryTime: Duration = DefaultIssueRetryTime,
-    brokerURL: string = DefaultBrokerURL,
+    registrationURL: Uri = DefaultRegistrationURL,
     dnsServerURL: string = AutoTLSDNSServer,
     dnsRetries: int = 10,
     dnsRetryTime: Duration = 1.seconds,
@@ -105,13 +107,13 @@ proc new*(
 ): T =
   T(
     nameResolver: DnsResolver.new(nameServers),
-    acmeServerURL: acmeServerURL,
+    acmeDirectoryURL: acmeDirectoryURL,
     ipAddress: ipAddress,
     renewCheckTime: renewCheckTime,
     renewBufferTime: renewBufferTime,
     issueRetries: issueRetries,
     issueRetryTime: issueRetryTime,
-    brokerURL: brokerURL,
+    registrationURL: registrationURL,
     dnsServerURL: dnsServerURL,
     dnsRetries: dnsRetries,
     dnsRetryTime: dnsRetryTime,
@@ -125,9 +127,8 @@ proc new*(
     T: typedesc[AutotlsService], rng: Rng, config: AutotlsConfig = AutotlsConfig.new()
 ): T =
   T(
-    acmeClient:
-      ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL), rng = rng),
-    broker: AutotlsBroker.new(rng, brokerURL = config.brokerURL),
+    acmeClient: ACMEClient.new(api = ACMEApi.new(config.acmeDirectoryURL), rng = rng),
+    broker: AutotlsBroker.new(rng, config.registrationURL),
     cert: Opt.none(AutotlsCert),
     certReady: newAsyncEvent(),
     running: newAsyncEvent(),

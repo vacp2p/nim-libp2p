@@ -27,7 +27,7 @@ logScope:
 proc new*(
     T: typedesc[ACMEClient],
     rng: Rng,
-    api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
+    api: ACMEApi = ACMEApi.new(),
     key: Opt[RsaPrivateKey] = Opt.none(RsaPrivateKey),
     kid: Kid = Kid(""),
 ): T {.raises: [].} =
@@ -88,7 +88,7 @@ proc getCertificate*(
     raise newException(ACMEError, "Failed to finalize certificate for domain " & domain)
 
   trace "Downloading certificate"
-  await self.api.downloadCertificate(orderURL)
+  await self.api.downloadCertificate(orderURL, self.key, await self.getOrInitKid())
 
 proc close*(self: ACMEClient) {.async: (raises: [CancelledError]).} =
   await self.api.close()

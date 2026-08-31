@@ -48,7 +48,7 @@ suite "AutoTLS certificate issuance and renewal":
     AutotlsService(
       acmeClient:
         ACMEClient.new(rng(), api = ACMEApi(acmeApi), key = Opt.some(accountKey)),
-      broker: AutotlsBroker.new(rng(), DefaultBrokerURL, authClient),
+      broker: AutotlsBroker.new(rng(), DefaultRegistrationURL, authClient),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
@@ -249,7 +249,7 @@ suite "AutoTLS on a switch":
       .withAutotls(
         AutotlsConfig.new(
           ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
-          acmeServerURL =
+          acmeDirectoryURL =
             parseUri("http://" & $acmeServer.address.initTAddress().tryGet()),
         )
       )
@@ -261,7 +261,7 @@ suite "AutoTLS on a switch":
     defer:
       await startFut.cancelAndWait()
 
-    # Issuance would connect to acmeServerURL, so no connection means no attempt.
+    # Issuance would connect to acmeDirectoryURL, so no connection means no attempt.
     check not (await acmeServer.waitAccepted().withTimeout(200.milliseconds))
 
   asyncTest "a switch listening on wss never finishes starting without a certificate":
@@ -275,7 +275,7 @@ suite "AutoTLS on a switch":
           ipAddress = Opt.some(parseIpAddress("127.0.0.1")),
           # A refused connection fails issuance at once, leaving the certificate
           # wait as the only thing that can hang.
-          acmeServerURL = parseUri("http://127.0.0.1:1"),
+          acmeDirectoryURL = parseUri("http://127.0.0.1:1"),
         )
       )
       .build()
