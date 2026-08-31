@@ -4,7 +4,7 @@
 {.used.}
 {.push raises: [].}
 
-import chronos, uri, base64, times
+import chronos, chronos/apps/http/httpclient, uri, base64, times
 import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, peeridauth/client, wire, crypto/crypto]
@@ -148,6 +148,15 @@ suite "PeerID Auth Client":
     # TODO: vacp2p/nim-libp2p#2975
     expect IndexDefect:
       discard await requestWithExpires("2026-08-21T12:00:00")
+
+  asyncTest "a url the session cannot turn into an address is an http error":
+    # The stub overrides post, so this drives the real one.
+    let realClient = PeerIDAuthClient.new(rng())
+    defer:
+      await realClient.close()
+
+    expect(HttpError):
+      discard await realClient.post(parseUri(""), "somepayload", "someauthheader")
 
   asyncTest "checkSignature successful":
     # example from peer-id-auth spec

@@ -146,19 +146,18 @@ proc checkSignature*(
 method post*(
     self: PeerIDAuthClient, uri: Uri, payload: string, authHeader: string
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]), base.} =
-  let rawResponse = await HttpClientRequestRef
-    .post(
-      self.session,
-      $uri,
-      body = payload,
-      headers = [
-        ("Content-Type", "application/json"),
-        ("User-Agent", NimLibp2pUserAgent),
-        ("Authorization", authHeader),
-      ],
-    )
-    .get()
-    .send()
+  let request = HttpClientRequestRef.post(
+    self.session,
+    $uri,
+    body = payload,
+    headers = [
+      ("Content-Type", "application/json"),
+      ("User-Agent", NimLibp2pUserAgent),
+      ("Authorization", authHeader),
+    ],
+  ).valueOr:
+    raiseHttpAddressError(error)
+  let rawResponse = await request.send()
 
   PeerIDAuthResponse(
     status: rawResponse.status,

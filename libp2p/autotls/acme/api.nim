@@ -278,10 +278,11 @@ method post*(
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let rawResponse = await HttpClientRequestRef
-    .post(self.session, $uri, body = payload, headers = ACMEHttpHeaders)
-    .get()
-    .send()
+  let request = HttpClientRequestRef.post(
+    self.session, $uri, body = payload, headers = ACMEHttpHeaders
+  ).valueOr:
+    raiseHttpAddressError(error)
+  let rawResponse = await request.send()
   let body = await rawResponse.getResponseBody()
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
@@ -292,7 +293,9 @@ method get*(
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let rawResponse = await HttpClientRequestRef.get(self.session, $uri).get().send()
+  let request = HttpClientRequestRef.get(self.session, $uri).valueOr:
+    raiseHttpAddressError(error)
+  let rawResponse = await request.send()
   let body = await rawResponse.getResponseBody()
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
@@ -552,15 +555,11 @@ proc downloadCertificate*(
 
   handleError("downloadCertificate"):
     # not `self.post` as it reads the response as JSON, and a certificate is PEM
-    let rawResponse = await HttpClientRequestRef
-      .post(
-        self.session,
-        orderResponse.certificate,
-        body = payload,
-        headers = ACMEHttpHeaders,
-      )
-      .get()
-      .send()
+    let request = HttpClientRequestRef.post(
+      self.session, orderResponse.certificate, body = payload, headers = ACMEHttpHeaders
+    ).valueOr:
+      raiseHttpAddressError(error)
+    let rawResponse = await request.send()
     ACMECertificateResponse(
       rawCertificate: bytesToString(await rawResponse.getBodyBytes()),
       certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
