@@ -141,8 +141,7 @@ suite "AutoTLS against a local ACME server and broker":
       AutoTLSDNSServer
 
     await client.connect(
-      server.peerInfo.peerId,
-      @[ma("/dns4/" & serverDomain & "/tcp/" & $port & "/wss")],
+      server.peerInfo.peerId, @[ma("/dns4/" & serverDomain & "/tcp/" & $port & "/wss")]
     )
     check client.isConnected(server.peerInfo.peerId)
     checkUntilTimeout:
