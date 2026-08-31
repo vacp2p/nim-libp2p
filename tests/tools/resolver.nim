@@ -12,6 +12,39 @@ proc default*(T: typedesc[MockResolver]): T =
   resolver.ipResponses[("localhost", true)] = @["::1"]
   resolver
 
+type StallingResolver* = ref object of NameResolver
+  ## Answers the scripted names, never answers any other, records a cancellation.
+  txtResponses*: Table[string, seq[string]]
+  cancelled*: bool
+
+proc stall(self: StallingResolver) {.async: (raises: [CancelledError]).} =
+  try:
+    await sleepAsync(1.hours)
+  except CancelledError as e:
+    self.cancelled = true
+    raise e
+
+method resolveIp*(
+    self: StallingResolver,
+    address: string,
+    port: Port,
+    domain: Domain = Domain.AF_UNSPEC,
+): Future[seq[TransportAddress]] {.
+    async: (raises: [CancelledError, TransportAddressError])
+.} =
+  await self.stall()
+  @[]
+
+method resolveTxt*(
+    self: StallingResolver, address: string
+): Future[seq[string]] {.async: (raises: [CancelledError]).} =
+  if address notin self.txtResponses:
+    await self.stall()
+  self.txtResponses.getOrDefault(address)
+
+proc new*(T: typedesc[StallingResolver]): T =
+  T()
+
 type StubNameResolverIpOutcome* {.pure.} = enum
   Resolve
   RaiseAddressError

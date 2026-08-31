@@ -63,13 +63,25 @@ proc new*(
   self
 
 type FailingDialTransport* = ref object of MemoryTransport
-  ## Records the addresses a dial reaches the transport with, and refuses each one.
+  ## Records what a dial reaches the transport with, and refuses each address.
   dialedAddrs*: seq[MultiAddress]
+  dialedHosts*: seq[string]
+  handlesAny: bool ## handle every address, not only the memory ones
 
-proc new*(T: typedesc[FailingDialTransport], upgrade: Upgrade, rng: Rng): T =
-  let self = T(upgrader: upgrade, rng: rng)
+proc new*(
+    T: typedesc[FailingDialTransport],
+    upgrade: Upgrade,
+    rng: Rng,
+    handlesAny: bool = false,
+): T =
+  let self = T(upgrader: upgrade, rng: rng, handlesAny: handlesAny)
   procCall Transport(self).initialize()
   self
+
+method handles*(
+    self: FailingDialTransport, ma: MultiAddress
+): bool {.gcsafe, raises: [].} =
+  self.handlesAny or procCall MemoryTransport(self).handles(ma)
 
 method dial*(
     self: FailingDialTransport,
@@ -79,6 +91,7 @@ method dial*(
     dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   self.dialedAddrs.add(ma)
+  self.dialedHosts.add(hostname)
   raise newException(MemoryTransportError, "stub dial always fails")
 
 method accept*(

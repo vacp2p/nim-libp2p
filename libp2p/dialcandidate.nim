@@ -8,6 +8,9 @@ import multiaddress, peerid
 type DialCandidate* = object
   ## One address a dial can attempt, with dnsaddr and DNS already resolved.
   address*: MultiAddress
-  hostname*: string
-    ## Name the address was resolved from, empty when it is a wire address.
+  hostname*: string ## Host the address was reached under, for TLS and the Host header.
   peerId*: Opt[PeerId] ## Pinned by a dnsaddr record, otherwise the dialed peer's.
+
+func key*(candidate: DialCandidate): string =
+  ## Two candidates with the same key stand for the same dial.
+  $candidate.address & "|" & candidate.hostname & "|" & $candidate.peerId
