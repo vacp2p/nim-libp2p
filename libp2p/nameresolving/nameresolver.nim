@@ -5,7 +5,7 @@
 
 import std/[sets, sequtils, strutils]
 import chronos, chronicles, stew/endians2
-import ".."/[multiaddress, multicodec]
+import ../[multiaddress, multicodec]
 
 logScope:
   topics = "libp2p nameresolver"
