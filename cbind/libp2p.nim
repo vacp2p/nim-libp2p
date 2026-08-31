@@ -912,32 +912,35 @@ proc libp2pKadGetProviders*(
     providers.add(ProviderInfo(peerId: $peerId, addrs: provider.addrs.mapIt($it)))
   ok(ProvidersResponse(providers: providers))
 
-proc resolveServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
+proc runningServiceDiscovery(lib: LibP2P): Result[ServiceDiscovery, string] =
   let kad = lib.kad.valueOr:
     return err("service discovery not initialized")
   if not (kad of ServiceDiscovery):
     return err("service discovery not mounted")
+  # Before the switch runs there is no listen address and no signed peer record.
+  if not lib.running:
+    return err("switch not started; call libp2p_ctx_start first")
   ok(ServiceDiscovery(kad))
 
 proc libp2pKadRandomRecords*(
     lib: LibP2P
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
   ## Extended peer records collected from a random DHT walk.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   let records = await disco.lookupRandom()
   ok(toExtendedRecordsResponse(records))
 
 proc libp2pServiceDiscoStart*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
-  ## Starts the service-discovery background loops.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  ## Resumes discovery after `libp2p_ctx_service_disco_stop`; `libp2p_ctx_start` already starts it.
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.start()
   ok(true)
 
 proc libp2pServiceDiscoStop*(lib: LibP2P): Future[Result[bool, string]] {.ffi.} =
-  ## Stops the service-discovery background loops.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  ## Stops the discovery loops while the switch keeps running.
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.stop()
   ok(true)
@@ -951,7 +954,7 @@ proc libp2pServiceDiscoStartAdvertising*(
   ## record does not decode, is oversized, or does not list `serviceId`.
   ## A service that is already advertised fails here: stop it first, then start
   ## it again with the new advertisement.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
 
   disco.startAdvertising(
@@ -966,7 +969,7 @@ proc libp2pServiceDiscoStopAdvertising*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
   ## Stops advertising `serviceId`.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   await disco.stopAdvertising(serviceId)
   ok(true)
@@ -975,7 +978,7 @@ proc libp2pServiceDiscoRegisterInterest*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
   ## Registers interest in `serviceId` so its providers are cached locally.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   discard disco.registerInterest(serviceId)
   ok(true)
@@ -984,7 +987,7 @@ proc libp2pServiceDiscoUnregisterInterest*(
     lib: LibP2P, serviceId: string
 ): Future[Result[bool, string]] {.ffi.} =
   ## Drops the interest previously registered for `serviceId`.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   disco.unregisterInterest(serviceId)
   ok(true)
@@ -993,7 +996,7 @@ proc libp2pServiceDiscoLookup*(
     lib: LibP2P, req: LookupRequest
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
   ## Looks up the extended peer records advertising `serviceId`.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   let service = ServiceInfo(id: req.serviceId, data: Opt.some(req.serviceData))
   let res = await disco.lookup(service)
@@ -1005,7 +1008,7 @@ proc libp2pServiceDiscoRandomLookup*(
     lib: LibP2P
 ): Future[Result[ExtendedRecordsResponse, string]] {.ffi.} =
   ## Extended peer records from a random walk, whatever they advertise.
-  let disco = resolveServiceDiscovery(lib).valueOr:
+  let disco = runningServiceDiscovery(lib).valueOr:
     return err(error)
   let records = await disco.lookupRandom()
   ok(toExtendedRecordsResponse(records))

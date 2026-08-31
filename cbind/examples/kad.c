@@ -111,18 +111,6 @@ static LibP2PCtx *kadNode(const char *listenAddr, const char *label,
   return await_create(&cfg, label);
 }
 
-// Dials `to` from `from` so identify runs and a live connection backs the DHT
-// RPCs that follow.
-static bool dial(LibP2PCtx *from, const PeerInfoWaiter *to) {
-  NimFfiStr connAddrs[MAX_ADDRS];
-  for (size_t i = 0; i < to->naddrs; i++)
-    connAddrs[i] = nimffi_str(to->addrs[i]);
-  ConnectRequest req = {nimffi_str(to->peerId), {connAddrs, to->naddrs}, 0};
-  BoolWaiter bw;
-  return AWAIT_BOOL(bw, libp2p_ctx_connect(from, &req, on_bool, &bw),
-                    "connect");
-}
-
 int main(void) {
   int status = 1;
   BoolWaiter bw;
@@ -141,7 +129,7 @@ int main(void) {
   if (!client)
     goto cleanup_server;
   if (!AWAIT_BOOL(bw, libp2p_ctx_start(client, on_bool, &bw), "start client") ||
-      !dial(client, &serverInfo))
+      !await_connect(client, &serverInfo))
     goto cleanup_client;
 
   // ── Value round-trip: server stores, client fetches over the DHT ──────────

@@ -106,7 +106,9 @@ task examples, "Build and run the C bindings examples":
     cborObjs.add obj
   let cborObjsStr = cborObjs.join(" ")
 
-  for example in ["echo", "gossipsub", "kad", "relay", "peerstore", "metrics"]:
+  for example in [
+    "echo", "gossipsub", "kad", "service_disco", "relay", "peerstore", "metrics"
+  ]:
     let outBin = "../build/" & example
     exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
       cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
