@@ -17,43 +17,45 @@ import
   ]
 import ../tools/[unittest, multiaddress]
 
-const unixPlatform =
-  defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
-  defined(netbsd) or defined(openbsd) or defined(dragonfly)
+suite "System nameserver discovery":
+  test "nameserver entries are parsed in order":
+    check parseNameServers("""
+# a comment
+search example.com
+nameserver 10.0.0.2
+nameserver 10.0.0.3
+options ndots:5
+""") == @[initTAddress("10.0.0.2:53"), initTAddress("10.0.0.3:53")]
 
-when unixPlatform:
-  import std/strutils, chronicles
+  test "IPv6 nameservers are bracketed":
+    check parseNameServers("nameserver fd00::2\n") == @[initTAddress("[fd00::2]:53")]
 
-proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
-  when unixPlatform:
-    var resultSeq = newSeqOfCap[TransportAddress](3)
-    try:
-      for l in lines("/etc/resolv.conf"):
-        let lineParsed = l.strip().split(seps = Whitespace + {'%'}, maxsplit = 2)
-        if lineParsed.len < 2:
-          continue
-        if lineParsed[0].startsWith('#'):
-          continue
+  test "IPv6 zone indices are stripped":
+    check parseNameServers("nameserver fe80::1%eth0\n") ==
+      @[initTAddress("[fe80::1]:53")]
 
-        if lineParsed[0] == "nameserver":
-          resultSeq.add(initTAddress(lineParsed[1], Port(53)))
+  test "at most 3 nameservers are used (resolv.conf(5))":
+    check parseNameServers("""
+nameserver 10.0.0.1
+nameserver 10.0.0.2
+nameserver 10.0.0.3
+nameserver 10.0.0.4
+""") == @[initTAddress("10.0.0.1:53"), initTAddress("10.0.0.2:53"), initTAddress("10.0.0.3:53")]
 
-          if resultSeq.len > 2:
-            break
-            #3 nameserver max on linux
-    except IOError as exc:
-      debug "Failed to get unix nameservers", description = exc.msg
-    except TransportAddressError as exc:
-      debug "Failed to init address", description = exc.msg
-    finally:
-      if resultSeq.len > 0:
-        return resultSeq
-      return DefaultDnsServers
-  elif defined(windows):
-    #TODO
-    return DefaultDnsServers
-  else:
-    return DefaultDnsServers
+  test "unparseable nameserver entries are skipped":
+    check parseNameServers("""
+nameserver not-an-address
+nameserver 10.0.0.2
+""") == @[initTAddress("10.0.0.2:53")]
+
+  test "missing or empty resolv.conf content yields no servers":
+    check:
+      parseNameServers("").len == 0
+      parseNameServers("search example.com\noptions ndots:5\n").len == 0
+
+  test "system name servers are never empty":
+    # Either parsed from /etc/resolv.conf or the default public resolvers
+    check getSystemNameServers().len > 0
 
 suite "Name resolving":
   suite "Generic Resolving":
@@ -289,12 +291,12 @@ suite "Name resolving":
       await unresponsiveServer.closeWait()
 
     asyncTest "inexisting domain resolving":
-      let dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(getSystemNameServers())
       let invalid = await dnsresolver.resolveIp("thisdomain.doesnot.exist", 0.Port)
       check invalid.len == 0
 
     asyncTest "wrong domain resolving":
-      let dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(getSystemNameServers())
       let invalid = await dnsresolver.resolveIp("", 0.Port)
       check invalid.len == 0
 

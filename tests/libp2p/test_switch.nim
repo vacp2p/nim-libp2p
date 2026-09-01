@@ -21,7 +21,9 @@ import
     muxers/muxer,
     muxers/mplex/lpchannel,
     stream/lpstream,
+    nameresolving/nameresolver,
     nameresolving/mockresolver,
+    nameresolving/dnsresolver,
     stream/chronosstream,
     transports/tcptransport,
     transports/wstransport,
@@ -230,6 +232,19 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
+
+  test "switch builder wires a DnsResolver by default":
+    let switch = makeStandardSwitch()
+    check switch.nameResolver of DnsResolver
+
+  test "switch builder name resolver opt-out":
+    let switch = makeStandardSwitchBuilder().withoutNameResolver().build()
+    check switch.nameResolver.isNil
+
+  test "explicit name resolver takes precedence over the default":
+    let resolver = MockResolver.new()
+    let switch = makeStandardSwitchBuilder().withNameResolver(resolver).build()
+    check switch.nameResolver == NameResolver(resolver)
 
   asyncTest "e2e connect to peer with known PeerId":
     let switch1 = makeStandardSwitch()

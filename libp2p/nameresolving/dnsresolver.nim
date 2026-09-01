@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sets, sequtils], chronos, chronicles, ./dnsmessage
+import std/[sets, sequtils, strutils], chronos, chronicles, ./dnsmessage
 
 import nameresolver
 import ../crypto/rng, ../utils/future
@@ -16,6 +16,35 @@ const DefaultDnsServers* = @[
   initTAddress("1.0.0.1:53"),
   initTAddress("[2606:4700:4700::1111]:53"),
 ]
+
+proc parseNameServers*(conf: string): seq[TransportAddress] =
+  ## Extracts nameserver addresses from resolv.conf-formatted content.
+  ## resolv.conf(5): at most 3 nameservers are used.
+  for line in conf.splitLines():
+    let parts = line.splitWhitespace()
+    if parts.len >= 2 and parts[0] == "nameserver":
+      # Drop any IPv6 zone index ("fe80::1%eth0") and bracket IPv6
+      # addresses so the port can be appended
+      let host = parts[1].split('%', 1)[0]
+      try:
+        result.add(initTAddress((if ':' in host: "[" & host & "]" else: host) & ":53"))
+      except TransportAddressError:
+        discard
+    if result.len >= 3:
+      break
+
+proc getSystemNameServers*(): seq[TransportAddress] =
+  ## Best-effort system nameserver discovery, falling back to
+  ## `DefaultDnsServers` when /etc/resolv.conf is missing or has no usable
+  ## entries (e.g. on Windows).
+  var conf: string
+  try:
+    conf = readFile("/etc/resolv.conf")
+  except IOError, OSError:
+    discard
+  result = parseNameServers(conf)
+  if result.len == 0:
+    result = DefaultDnsServers
 
 type DnsResolver* = ref object of NameResolver
   nameServers*: seq[TransportAddress]
