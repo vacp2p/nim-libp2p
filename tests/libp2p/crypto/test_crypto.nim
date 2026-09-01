@@ -507,19 +507,27 @@ suite "Key interface test suite":
     ChaChaPoly.encrypt(key, nonce, ntag, text, aed)
     check text.toHex == cipher.toHex
     check ntag.toHex == tag.toHex
-    ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
+    check ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
     check text.toHex == plain.toHex
-    check ntag.toHex == tag.toHex
+
+    # a flipped tag bit must not authenticate, and must zero the output
+    block:
+      var
+        forged = plain
+        forgedTag: ChaChaPolyTag
+      ChaChaPoly.encrypt(key, nonce, forgedTag, forged, aed)
+      forgedTag[0] = forgedTag[0] xor 1
+      check not ChaChaPoly.decrypt(key, nonce, forgedTag, forged, aed)
+      check forged == newSeq[byte](plain.len)
 
     # ensure even a 2 byte array works
     var
-      smallPlain: array[2, byte]
+      smallPlain = [0x11.byte, 0x22]
       btag: ChaChaPolyTag
       noaed: array[0, byte]
     ChaChaPoly.encrypt(key, nonce, btag, smallPlain, noaed)
-    ntag = btag
-    ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
-    check ntag.toHex == btag.toHex
+    check ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
+    check smallPlain == [0x11.byte, 0x22]
 
     # ensure even a 0 byte array works
     block:
@@ -528,9 +536,7 @@ suite "Key interface test suite":
         btag: ChaChaPolyTag
         noaed: array[0, byte]
       ChaChaPoly.encrypt(key, nonce, btag, emptyPlain, noaed)
-      ntag = btag
-      ChaChaPoly.decrypt(key, nonce, btag, emptyPlain, noaed)
-      check ntag.toHex == btag.toHex
+      check ChaChaPoly.decrypt(key, nonce, btag, emptyPlain, noaed)
 
   test "Curve25519":
     # from bearssl test_crypto.c

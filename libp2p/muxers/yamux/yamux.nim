@@ -65,13 +65,13 @@ proc readHeader(
 
   var hdr: YamuxHeader
   hdr.version = buffer[0]
-  let flags = fromBytesBE(uint16, buffer[2 .. 3])
+  let flags = fromBytesBE(uint16, buffer.toOpenArray(2, 3))
   if hdr.version != YamuxVersion or not hdr.msgType.checkedEnumAssign(buffer[1]) or
       flags notin 0'u16 .. 15'u16:
     raise newException(YamuxError, "Wrong header")
   hdr.flags = cast[set[MsgFlags]](flags)
-  hdr.streamId = fromBytesBE(uint32, buffer[4 .. 7])
-  hdr.length = fromBytesBE(uint32, buffer[8 .. 11])
+  hdr.streamId = fromBytesBE(uint32, buffer.toOpenArray(4, 7))
+  hdr.length = fromBytesBE(uint32, buffer.toOpenArray(8, 11))
   hdr
 
 proc `$`(header: YamuxHeader): string =
