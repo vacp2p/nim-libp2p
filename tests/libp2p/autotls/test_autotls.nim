@@ -502,7 +502,9 @@ suite "AutoTLS ACME API":
       await certServer.stop()
 
     api.queueGetOrder(certServer.url, expires)
-    await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
+    # A tail `await` is freed by the deferred `await` before its value is read.
+    let response = await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
+    response
 
   asyncTest "the order's expires is parsed in local time":
     # TODO: vacp2p/nim-libp2p#2975

@@ -120,7 +120,7 @@ proc handleReserve(
   trace "reserving relay slot for", pid = stream.peerId
   let
     pid = stream.peerId
-    expire = now().utc + r.reservationTTL
+    expire = getTime().utc + r.reservationTTL
     msg = r.createReserveResponse(pid, expire).valueOr:
       libp2p_relay_reservation_attempts.inc(labelValues = ["signing_error"])
       trace "error signing the voucher", pid
@@ -412,7 +412,7 @@ proc new*(
 proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
   heartbeat "Reservation timeout", r.heartbeatSleepTime.seconds():
     try:
-      let n = now().utc
+      let n = getTime().utc
       for k in toSeq(r.rsvp.keys):
         if n > r.rsvp[k]:
           r.rsvp.del(k)

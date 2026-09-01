@@ -10,12 +10,40 @@ import os, strutils
 
 requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
-const
-  # orc below: refc's conservative stack scan overruns its `registers` buffer.
-  NimAsanFlags =
-    " -d:useMalloc --debugger:native --passC:-fno-omit-frame-pointer" &
-    " --passC:-fsanitize=address --passL:-fsanitize=address"
-  CcAsanFlags = " -fno-omit-frame-pointer -fsanitize=address -g"
+proc sanitizer(): string =
+  ## Sanitizer the `examples` task builds under, from LIBP2P_SAN.
+  let san = getEnv("LIBP2P_SAN", "asan")
+  if san notin ["asan", "tsan"]:
+    raise newException(ValueError, "unknown LIBP2P_SAN: " & san)
+  san
+
+proc nimSanFlags(san: string): string =
+  # orc, not the shipped refc: refc's conservative stack scan reads past its
+  # `registers` buffer and ASan calls that a stack-buffer-overflow.
+  let common =
+    " --mm:orc -d:useMalloc --debugger:native --passC:-fno-omit-frame-pointer"
+  case san
+  of "tsan":
+    common & " --passC:-fsanitize=thread --passL:-fsanitize=thread"
+  else:
+    common & " --passC:-fsanitize=address --passL:-fsanitize=address"
+
+proc ccSanFlags(san: string): string =
+  # -O1 for tsan: -O2 inlines away the frames its reports need.
+  let common = " -g -fno-omit-frame-pointer"
+  case san
+  of "tsan":
+    " -O1" & common & " -fsanitize=thread"
+  else:
+    " -O2" & common & " -fsanitize=address"
+
+proc sanRunEnv(san: string): string =
+  # ASan needs LSan off: orc frees at collection time, so live objects look like leaks.
+  case san
+  of "tsan":
+    "TSAN_OPTIONS=suppressions=" & thisDir() / "tsan.supp" & " "
+  else:
+    "ASAN_OPTIONS=detect_leaks=0 "
 
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
@@ -53,14 +81,21 @@ proc ffiLibExt(): string =
   else:
     "so"
 
-proc buildFfiLib(asan = false) =
+proc buildFfiLib(san = "") =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
 
-  let asanFlags = if asan: NimAsanFlags else: ""
-  let nimcache = if asan: "nimcache_asan" else: "nimcache"
-  let mm = if asan: "orc" else: "refc"
+  let sanFlags =
+    if san.len > 0:
+      nimSanFlags(san)
+    else:
+      " --mm:refc"
+  let nimcache =
+    if san.len > 0:
+      "nimcache_" & san
+    else:
+      "nimcache"
   # libplum's vendored C is pulled in via Nim `{.compile.}`, so no separate
   # native-library build step is needed here.
   # Name the output `lib<name>` so the file matches the soname nim derives from
@@ -69,9 +104,9 @@ proc buildFfiLib(asan = false) =
   # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
   # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
-    " --threads:on --app:lib --opt:size --noMain --mm:" & mm & " -d:metrics" &
+    " --threads:on --app:lib --opt:size --noMain -d:metrics" & sanFlags &
     " -d:chronicles_runtime_filtering=on -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
-    asanFlags & " --nimMainPrefix:liblibp2p --nimcache:" & nimcache & " libp2p.nim"
+    " --nimMainPrefix:liblibp2p --nimcache:" & nimcache & " libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
   buildFfiLib()
@@ -99,8 +134,10 @@ proc findFfiVendorDir(): string =
   vendor
 
 task examples, "Build and run the C bindings examples":
+  let san = sanitizer()
+  let ccFlags = ccSanFlags(san)
   let lib = "../build/liblibp2p." & ffiLibExt()
-  buildFfiLib(asan = true)
+  buildFfiLib(san)
   if not fileExists("c_bindings/libp2p.h"):
     genBindingsFor("c", "c_bindings")
 
@@ -111,7 +148,7 @@ task examples, "Build and run the C bindings examples":
     "cborparser_dup_string", "cborerrorstrings",
   ]:
     let obj = "../build/" & name & ".o"
-    exec "gcc -std=c99 -O2 -fPIC" & CcAsanFlags & " -I " & vendor & " -I " & vendor &
+    exec "gcc -std=c99 -fPIC" & ccFlags & " -I " & vendor & " -I " & vendor &
       "/tinycbor -c " & vendor & "/tinycbor/" & name & ".c -o " & obj
     cborObjs.add obj
   let cborObjsStr = cborObjs.join(" ")
@@ -120,8 +157,7 @@ task examples, "Build and run the C bindings examples":
     "echo", "gossipsub", "kad", "service_disco", "relay", "peerstore", "metrics"
   ]:
     let outBin = "../build/" & example
-    exec "gcc -std=c11 -O2" & CcAsanFlags & " -I c_bindings -I " & vendor & " examples/" &
+    exec "gcc -std=c11" & ccFlags & " -I c_bindings -I " & vendor & " examples/" &
       example & ".c " & cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " &
       outBin
-    # orc frees at collection time, so LeakSanitizer reports live objects.
-    exec "ASAN_OPTIONS=detect_leaks=0 " & outBin
+    exec sanRunEnv(san) & outBin
