@@ -24,12 +24,13 @@ suite "AutoTLS Configuration Tests":
     check:
       config.acmeDirectoryURL == LetsEncryptDirectoryURL
       config.ipAddress == Opt.none(IpAddress)
+      DnsResolver(config.nameResolver).nameServers == DefaultDnsServers
       config.renewCheckTime == DefaultRenewCheckTime
       config.renewBufferTime == DefaultRenewBufferTime
       config.issueRetries == 3
       config.issueRetryTime == 1.seconds
       config.registrationURL == DefaultRegistrationURL
-      config.dnsServerURL == AutoTLSDNSServer
+      config.domainSuffix == DefaultDomainSuffix
       config.dnsRetries == 10
       config.dnsRetryTime == 1.seconds
       config.acmeRetries == 10
@@ -48,7 +49,7 @@ suite "AutoTLS Configuration Tests":
     let customIssueRetryTime = 5.seconds
     let customRegistrationURL =
       parseUri("https://custom-broker.example.com/v1/_acme-challenge")
-    let customDnsServerURL = "custom-dns.example.com"
+    let customDomainSuffix = "custom.example.test"
     let customDnsRetries = 5
     let customDnsRetryTime = 2.seconds
     let customAcmeRetries = 15
@@ -65,7 +66,7 @@ suite "AutoTLS Configuration Tests":
       issueRetries = customIssueRetries,
       issueRetryTime = customIssueRetryTime,
       registrationURL = customRegistrationURL,
-      dnsServerURL = customDnsServerURL,
+      domainSuffix = customDomainSuffix,
       dnsRetries = customDnsRetries,
       dnsRetryTime = customDnsRetryTime,
       acmeRetries = customAcmeRetries,
@@ -84,7 +85,7 @@ suite "AutoTLS Configuration Tests":
       config.issueRetries == customIssueRetries
       config.issueRetryTime == customIssueRetryTime
       config.registrationURL == customRegistrationURL
-      config.dnsServerURL == customDnsServerURL
+      config.domainSuffix == customDomainSuffix
       config.dnsRetries == customDnsRetries
       config.dnsRetryTime == customDnsRetryTime
       config.acmeRetries == customAcmeRetries
