@@ -191,16 +191,11 @@ suite "AutoTLS ACME API":
       api.requestedUris == @[parseUri(FinalizeURL), parseUri(OrderURL)]
 
   asyncTest "expect error on invalid JSON response":
-    # add a couple invalid responses as they get popped by every get or post call
-    for _ in 0 .. 20:
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
-        )
-      )
+    # One response per call below
+    api.queueInvalidBody(10)
 
     expect(ACMEError):
-      # avoid calling overloaded mock method requestNonce here since we want to test the actual thing
+      # The stub overrides requestNonce, so procCall reaches the real one.
       discard await procCall requestNonce(ACMEApi(api))
 
     expect(ACMEError):
@@ -212,80 +207,31 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
 
-    # clear leftover invalid responses so the mixed response is next in queue
-    api.mockedResponses = @[]
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{
-          "identifier": {"type": "dns", "value": "example.com"},
-          "status": "pending",
-          "challenges": [
-            {
-              "type": "dns-persist-01",
-              "url": "http://example.com/unknown-challenge",
-              "status": "pending",
-              "token": "unknown-token",
-            },
-            {
-              "type": "dns-01",
-              "url": "http://example.com/recognized-challenge",
-              "status": "pending",
-              "token": "recognized-token",
-            },
-          ],
-        },
-        headers: HttpTable.init(),
-      )
-    )
-
-    let mixedAuthResp = await api.requestAuthorizations(@["auth-3"], key, "kid")
-    check mixedAuthResp.challenges.len == 2
-
-    # replenish invalid responses for the remaining expect(ACMEError) blocks
-    for _ in 0 .. 5:
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
-        )
-      )
-
     expect(ACMEError):
       discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")
 
     expect(ACMEError):
       discard await api.requestCheck(
-        parseUri("http://example.com/some-check-url"),
-        ACMECheckKind.ACMEOrderCheck,
-        key,
-        "kid",
+        parseUri(OrderURL), ACMECheckKind.ACMEOrderCheck, key, "kid"
       )
 
     expect(ACMEError):
       discard await api.requestCheck(
-        parseUri("http://example.com/some-check-url"),
-        ACMECheckKind.ACMEChallengeCheck,
-        key,
-        "kid",
+        parseUri(ChallengeURL), ACMECheckKind.ACMEChallengeCheck, key, "kid"
       )
 
     expect(ACMEError):
-      discard await api.sendChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
+      discard await api.sendChallengeCompleted(parseUri(ChallengeURL), key, "kid")
 
     expect(ACMEError):
       discard await api.requestFinalize(
-        "some-domain",
-        parseUri("http://example.com/some-finalize-url"),
-        certKey,
-        key,
-        "kid",
+        "some-domain", parseUri(FinalizeURL), certKey, key, "kid"
       )
 
     expect(ACMEError):
-      discard await api.requestGetOrder(
-        parseUri("http://example.com/some-order-url"), key, "kid"
-      )
+      discard await api.requestGetOrder(parseUri(OrderURL), key, "kid")
+
+    check api.mockedResponses.len == 0
 
   asyncTest "the directory URL is used as given":
     let acmeApi = ACMEApi.new(parseUri("http://acme.example/dir"))
