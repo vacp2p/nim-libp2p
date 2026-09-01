@@ -7,7 +7,7 @@ import pkg/[chronos, chronicles, metrics, results]
 
 import
   dial,
-  dialbackoff,
+  dial_backoff,
   dialcandidate,
   peerid,
   peerinfo,
@@ -25,7 +25,7 @@ import
   utils/future,
   errors
 
-export dial, dialbackoff, errors, results
+export dial, dial_backoff, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -68,7 +68,7 @@ type
     nameResolver: NameResolver
     ms: MultistreamSelect
     dialRanking: bool ## overlap the name lookups with the dials
-    dialBackoff: DialBackoff ## nil unless the switch opted in
+    dialBackoff: Opt[DialBackoff] ## none unless the switch opted in
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 proc transportFor(self: Dialer, address: MultiAddress): Opt[Transport] =
@@ -84,14 +84,18 @@ proc dialAndUpgrade*(
     addrs: MultiAddress,
     dir = Direction.Out,
     deadline = Moment.now() + self.dialTimeout,
+    forceDial = false,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial one resolved address, below candidate selection. Nil when no transport connects.
 
   let transport = self.transportFor(addrs).valueOr:
     return nil
 
-  if self.dialBackoff.blocked(addrs):
-    return nil
+  let backoffKey = backoffKey(addrs, peerId)
+  self.dialBackoff.withValue(backoff):
+    # `forceDial` already overrides the connection limits, so it overrides the wait too.
+    if not forceDial and backoff.blocked(backoffKey):
+      return nil
 
   let dialStarted = Moment.now()
   trace "Dialing address", addrs, peerId, hostname
@@ -109,7 +113,8 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
       )
-      self.dialBackoff.recordFailure(addrs)
+      self.dialBackoff.withValue(backoff):
+        backoff.recordFailure(backoffKey)
       return nil # Try the next address
 
   libp2p_successful_dials.inc()
@@ -134,7 +139,8 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["upgrade_failed"]
       )
-      self.dialBackoff.recordFailure(addrs)
+      self.dialBackoff.withValue(backoff):
+        backoff.recordFailure(backoffKey)
 
       # Try other address
       return nil
@@ -145,7 +151,8 @@ proc dialAndUpgrade*(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
 
-  self.dialBackoff.recordSuccess(addrs)
+  self.dialBackoff.withValue(backoff):
+    backoff.recordSuccess(backoffKey)
 
   let filtered = self.peerStore.addressPolicy.filterAddrs(@[addrs])
   if filtered.len > 0:
@@ -375,6 +382,7 @@ proc dialInOrder(
     addrs: seq[MultiAddress],
     dir: Direction,
     deadline: Moment,
+    forceDial: bool,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Resolve one address at a time and dial it right away.
 
@@ -387,7 +395,8 @@ proc dialInOrder(
     for expanded in await self.expandCandidate(advertised, deadline):
       for candidate in await self.resolveCandidate(expanded, deadline):
         let mux = await self.dialAndUpgrade(
-          candidate.peerId, candidate.hostname, candidate.address, dir, deadline
+          candidate.peerId, candidate.hostname, candidate.address, dir, deadline,
+          forceDial,
         )
         if not isNil(mux):
           return mux
@@ -427,13 +436,17 @@ proc firstConnected(
       return mux
 
 proc dialAll(
-    self: Dialer, candidates: seq[DialCandidate], dir: Direction, deadline: Moment
+    self: Dialer,
+    candidates: seq[DialCandidate],
+    dir: Direction,
+    deadline: Moment,
+    forceDial: bool,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial every candidate at once. Nil when none of them connects.
 
   await firstConnected(
     candidates.mapIt(
-      self.dialAndUpgrade(it.peerId, it.hostname, it.address, dir, deadline)
+      self.dialAndUpgrade(it.peerId, it.hostname, it.address, dir, deadline, forceDial)
     )
   )
 
@@ -443,10 +456,13 @@ proc dialResolved(
     budget: DialBudget,
     dir: Direction,
     deadline: Moment,
+    forceDial: bool,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial one name's addresses the moment that name answers.
 
-  await self.dialAll(budget.take(await budget.awaitLookup(lookup)), dir, deadline)
+  await self.dialAll(
+    budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial
+  )
 
 proc dialRanked(
     self: Dialer,
@@ -454,6 +470,7 @@ proc dialRanked(
     addrs: seq[MultiAddress],
     dir: Direction,
     deadline: Moment,
+    forceDial: bool,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial the wire addresses at once, and each name's as soon as it resolves.
 
@@ -467,8 +484,8 @@ proc dialRanked(
       )
 
   await firstConnected(
-    @[self.dialAll(direct, dir, deadline)] &
-      lookups.mapIt(self.dialResolved(it, dialable, dir, deadline))
+    @[self.dialAll(direct, dir, deadline, forceDial)] &
+      lookups.mapIt(self.dialResolved(it, dialable, dir, deadline, forceDial))
   )
 
 proc dialAndUpgrade*(
@@ -477,6 +494,7 @@ proc dialAndUpgrade*(
     addrs: seq[MultiAddress],
     dir = Direction.Out,
     deadline = Moment.now() + self.dialTimeout,
+    forceDial = false,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
@@ -484,9 +502,9 @@ proc dialAndUpgrade*(
   debug "Dialing peer", peerId = peerId, addrs = dialAddrs
 
   if self.dialRanking:
-    await self.dialRanked(peerId, dialAddrs, dir, deadline)
+    await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial)
   else:
-    await self.dialInOrder(peerId, dialAddrs, dir, deadline)
+    await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial)
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
@@ -561,12 +579,12 @@ proc establishConnection(
       self.tryReusingConnection(peerId).withValue(mux):
         return mux
 
-  # `forceDial` already overrides the connection limits, so it overrides the wait too.
-  if not forceDial and self.dialBackoff.blocked(peerId):
-    raise newException(
-      DialFailedError,
-      "peer on dial backoff in establishConnection: peer_id=" & shortLog(peerId),
-    )
+  self.dialBackoff.withValue(backoff):
+    if not forceDial and backoff.blocked(peerId):
+      raise newException(
+        DialFailedError,
+        "peer on dial backoff in establishConnection: peer_id=" & shortLog(peerId),
+      )
 
   let slot =
     try:
@@ -579,22 +597,27 @@ proc establishConnection(
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
   let muxed =
     try:
-      await self.dialAndUpgrade(peerId, dialAddrs, dir, Moment.now() + self.dialTimeout)
+      await self.dialAndUpgrade(
+        peerId, dialAddrs, dir, Moment.now() + self.dialTimeout, forceDial
+      )
     except CancelledError as e:
       slot.release()
       raise e
   if isNil(muxed): # None of the addresses connected
     slot.release()
-    self.dialBackoff.recordFailure(peerId)
+    self.dialBackoff.withValue(backoff):
+      backoff.recordFailure(peerId)
     raise newException(
       DialFailedError,
       "Unable to establish outgoing link in establishConnection: peer_id=" &
         shortLog(peerId) & " addrs=" & $dialAddrs,
     )
 
-  self.dialBackoff.recordSuccess(peerId)
   slot.trackMuxer(muxed)
   await self.finishUpgrade(muxed, dir)
+
+  self.dialBackoff.withValue(backoff):
+    backoff.recordSuccess(peerId)
   muxed
 
 proc internalConnect(
@@ -802,8 +825,12 @@ proc new*(
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
     dialRanking = false,
-    dialBackoff: DialBackoff = nil,
+    dialBackoff = Opt.none(DialBackoffConfig),
 ): Dialer {.raises: [].} =
+  var backoff = Opt.none(DialBackoff)
+  dialBackoff.withValue(backoffConfig):
+    backoff = Opt.some(DialBackoff.new(backoffConfig))
+
   T(
     localPeerId: localPeerId,
     connManager: connManager,
@@ -813,5 +840,5 @@ proc new*(
     ms: ms,
     dialTimeout: dialTimeout,
     dialRanking: dialRanking,
-    dialBackoff: dialBackoff,
+    dialBackoff: backoff,
   )

@@ -464,7 +464,7 @@ suite "Dialer":
       src.peerStore,
       @[Transport(transport)],
       src.ms,
-      dialBackoff = DialBackoff.new(
+      dialBackoff = Opt.some(
         DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
       ),
     )
@@ -479,6 +479,10 @@ suite "Dialer":
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
     check transport.dialedAddrs.len == 1
 
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs, forceDial = true)
+    check transport.dialedAddrs.len == 2
+
   asyncTest "A peer whose addresses all failed is not dialed again while it is on backoff":
     let src = makeStandardSwitch()
     await src.start()
@@ -492,7 +496,7 @@ suite "Dialer":
       src.peerStore,
       @[Transport(transport)],
       src.ms,
-      dialBackoff = DialBackoff.new(
+      dialBackoff = Opt.some(
         DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
       ),
     )

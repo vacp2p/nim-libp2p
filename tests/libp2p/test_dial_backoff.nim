@@ -4,20 +4,23 @@
 {.used.}
 
 import chronos, results
-import ../../libp2p/[dialbackoff, multiaddress, peerid]
+import ../../libp2p/[dial_backoff, multiaddress, multicodec, peerid]
 import ../tools/[unittest, crypto]
 
 proc memoryAddr(i: int): MultiAddress =
   MultiAddress.init("/memorytransport/addr-" & $i).tryGet()
 
 suite "Dial backoff":
-  let config =
-    DialBackoffConfig(tolerance: 2, base: 1.seconds, factor: 2, maxDelay: 8.seconds)
+  let
+    config =
+      DialBackoffConfig(tolerance: 2, base: 1.seconds, factor: 2, maxDelay: 8.seconds)
+    noTolerance =
+      DialBackoffConfig(tolerance: 0, base: 1.seconds, factor: 2, maxDelay: 8.seconds)
+    peerId = PeerId.random(rng()).tryGet()
 
   test "A failure under the tolerance blocks nothing":
     let
       backoff = DialBackoff.new(config)
-      peerId = PeerId.random(rng()).tryGet()
       start = Moment.now()
 
     backoff.recordFailure(peerId, start)
@@ -28,7 +31,6 @@ suite "Dial backoff":
   test "The wait doubles with each further failure":
     let
       backoff = DialBackoff.new(config)
-      peerId = PeerId.random(rng()).tryGet()
       start = Moment.now()
 
     for _ in 0 ..< 3:
@@ -45,7 +47,6 @@ suite "Dial backoff":
   test "The wait stops at the ceiling":
     let
       backoff = DialBackoff.new(config)
-      peerId = PeerId.random(rng()).tryGet()
       start = Moment.now()
 
     for _ in 0 ..< 20:
@@ -58,7 +59,6 @@ suite "Dial backoff":
   test "A successful dial clears the backoff":
     let
       backoff = DialBackoff.new(config)
-      peerId = PeerId.random(rng()).tryGet()
       start = Moment.now()
 
     for _ in 0 ..< 4:
@@ -74,10 +74,7 @@ suite "Dial backoff":
 
   test "The peer scope and the address scope count apart":
     let
-      backoff = DialBackoff.new(
-        DialBackoffConfig(tolerance: 0, base: 1.seconds, factor: 2, maxDelay: 8.seconds)
-      )
-      peerId = PeerId.random(rng()).tryGet()
+      backoff = DialBackoff.new(noTolerance)
       address = memoryAddr(0)
       start = Moment.now()
 
@@ -94,26 +91,11 @@ suite "Dial backoff":
 
   test "A dial without a peer id is never blocked":
     let
-      backoff = DialBackoff.new(
-        DialBackoffConfig(tolerance: 0, base: 1.seconds, factor: 2, maxDelay: 8.seconds)
-      )
+      backoff = DialBackoff.new(noTolerance)
       start = Moment.now()
 
     backoff.recordFailure(Opt.none(PeerId), start)
     check not backoff.blocked(Opt.none(PeerId), start)
-
-  test "A nil backoff blocks nothing":
-    let
-      backoff: DialBackoff = nil
-      peerId = PeerId.random(rng()).tryGet()
-      start = Moment.now()
-
-    backoff.recordFailure(peerId, start)
-    backoff.recordFailure(memoryAddr(0), start)
-    backoff.recordSuccess(peerId)
-    check:
-      not backoff.blocked(peerId, start)
-      not backoff.blocked(memoryAddr(0), start)
 
   test "An idle entry decays, and the count starts over":
     let
@@ -129,6 +111,70 @@ suite "Dial backoff":
     backoff.recordFailure(address, later)
     backoff.recordFailure(address, later)
     check not backoff.blocked(address, later)
+
+  test "A factor of one repeats the base wait":
+    let
+      backoff = DialBackoff.new(
+        DialBackoffConfig(tolerance: 0, base: 1.seconds, factor: 1, maxDelay: 8.seconds)
+      )
+      address = memoryAddr(0)
+      start = Moment.now()
+
+    for _ in 0 ..< 5:
+      backoff.recordFailure(address, start)
+
+    check:
+      backoff.blocked(address, start + 900.milliseconds)
+      not backoff.blocked(address, start + 1100.milliseconds)
+
+  test "A base of zero blocks nothing":
+    let
+      backoff = DialBackoff.new(
+        DialBackoffConfig(
+          tolerance: 0, base: ZeroDuration, factor: 2, maxDelay: 8.seconds
+        )
+      )
+      address = memoryAddr(0)
+      start = Moment.now()
+
+    for _ in 0 ..< 5:
+      backoff.recordFailure(address, start)
+
+    check not backoff.blocked(address, start)
+
+  test "The jitter draws the wait down, never up":
+    let start = Moment.now()
+
+    for i in 0 ..< 50:
+      let
+        backoff = DialBackoff.new(
+          DialBackoffConfig(
+            tolerance: 0, base: 1.seconds, factor: 2, maxDelay: 8.seconds, jitter: 0.5
+          )
+        )
+        address = memoryAddr(i)
+
+      backoff.recordFailure(address, start)
+      check:
+        backoff.blocked(address, start + 499.milliseconds)
+        not backoff.blocked(address, start + 1.seconds)
+
+  test "A relayed address is keyed by the peer it reaches":
+    let
+      relayId = PeerId.random(rng()).tryGet()
+      relay =
+        MultiAddress.init("/ip4/1.2.3.4/tcp/4001").tryGet() &
+        MultiAddress.init(multiCodec("p2p"), relayId.data).tryGet() &
+        MultiAddress.init("/p2p-circuit").tryGet()
+      direct = memoryAddr(0)
+      first = PeerId.random(rng()).tryGet()
+      second = PeerId.random(rng()).tryGet()
+
+    check:
+      backoffKey(direct, Opt.some(first)) == direct
+      backoffKey(relay, Opt.none(PeerId)) == relay
+      backoffKey(relay, Opt.some(first)) != relay
+      backoffKey(relay, Opt.some(first)) != backoffKey(relay, Opt.some(second))
 
   test "A full table drops the entry whose wait ends first":
     let

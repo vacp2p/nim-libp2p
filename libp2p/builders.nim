@@ -526,10 +526,6 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
       )
     )
 
-  var dialBackoff: DialBackoff
-  b.dialBackoff.withValue(config):
-    dialBackoff = DialBackoff.new(config)
-
   let dialer = Dialer.new(
     peerInfo.peerId,
     connManager,
@@ -538,7 +534,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     ms,
     b.nameResolver,
     dialRanking = b.dialRanking,
-    dialBackoff = dialBackoff,
+    dialBackoff = b.dialBackoff,
   )
 
   let switch = Switch(

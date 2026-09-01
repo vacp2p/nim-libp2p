@@ -72,6 +72,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
+          cache-dependency-path: interop/autonatv2/go-peer/go.sum
 
       - name: Set up Nim
         uses: "./.github/actions/install_nim"
@@ -81,13 +82,16 @@ jobs:
           shell: bash
           nim_ref: v2.2.10
 
+      - name: Build the Go peer
+        working-directory: interop/autonatv2/go-peer
+        run: go build -mod=readonly -o testautonatv2 .
+
       - name: Run Go and Nim together
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           cd interop/autonatv2/go-peer
-          go mod tidy
-          go run testautonatv2.go &
+          ./testautonatv2 &
           cd ../nim-peer
           nim r -d:chronicles_log_level=DEBUG src/nim_peer.nim $(cat ../go-peer/peer.id)
 
