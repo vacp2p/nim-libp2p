@@ -15,7 +15,7 @@ import
 import ../../tools/unittest
 
 suite "AutoTLS Configuration Tests":
-  asyncTeardown:
+  teardown:
     checkTrackers()
 
   test "AutotlsConfig constructor with default values":

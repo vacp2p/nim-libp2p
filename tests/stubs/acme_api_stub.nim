@@ -112,7 +112,7 @@ proc queueGetOrder*(self: ACMEApiStub, certificateURL: string, expires: string) 
     )
   )
 
-proc queueInvalidBody*(self: ACMEApiStub, count: int = 1) =
+proc queueInvalidBody*(self: ACMEApiStub, count: int) =
   ## Queues `count` responses whose body is well-formed JSON but not the shape
   ## the caller decodes.
   for _ in 0 ..< count:

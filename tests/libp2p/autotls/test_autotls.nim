@@ -31,53 +31,30 @@ suite "AutoTLS ACME API":
     api = ACMEApiStub.new()
 
   asyncTest "register to acme server":
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"},
-        headers: HttpTable.init(@[("location", "some-expected-kid")]),
-      )
-    )
+    api.queueRegister()
 
     let registerResponse = await api.requestRegister(key)
-    check registerResponse.kid == "some-expected-kid"
+    check registerResponse.kid == AccountURL
 
   asyncTest "request challenge for a domain":
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{
-          "status": "pending",
-          "authorizations": ["http://example.com/expected-authorizations-url"],
-          "finalize": "http://example.com/expected-finalize-url",
-        },
-        headers:
-          HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
-      )
-    )
+    api.queueOrder("pending", %*[AuthorizationsURL])
 
     let challengeResponse =
       await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
     check challengeResponse.status == ACMEOrderStatus.PENDING
-    check challengeResponse.authorizations ==
-      ["http://example.com/expected-authorizations-url"]
-    check challengeResponse.finalize == "http://example.com/expected-finalize-url"
-    check challengeResponse.order == "http://example.com/expected-order-url"
+    check challengeResponse.authorizations == [AuthorizationsURL]
+    check challengeResponse.finalize == FinalizeURL
+    check challengeResponse.order == OrderURL
 
-    # reset mocked obj for second request
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{
-          "challenges": [
-            {
-              "url": "http://example.com/expected-dns01-url",
-              "type": "dns-01",
-              "status": "pending",
-              "token": "expected-dns01-token",
-            }
-          ]
-        },
-        headers:
-          HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
-      )
+    api.queueChallenges(
+      %*[
+        {
+          "url": ChallengeURL,
+          "type": "dns-01",
+          "status": "pending",
+          "token": "expected-dns01-token",
+        }
+      ]
     )
 
     let authorizationsResponse =
@@ -87,7 +64,7 @@ suite "AutoTLS ACME API":
     let dns01 = authorizationsResponse.challenges.filterIt(
       it.`type` == ACMEChallengeType.DNS01
     )[0]
-    check dns01.url == "http://example.com/expected-dns01-url"
+    check dns01.url == ChallengeURL
     check dns01.`type` == ACMEChallengeType.DNS01
     check dns01.token == ACMEChallengeToken("expected-dns01-token")
     check dns01.status == ACMEChallengeStatus.PENDING
@@ -231,7 +208,7 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await api.requestGetOrder(parseUri(OrderURL), key, "kid")
 
-    check api.mockedResponses.len == 0
+    check api.requestedUris.len == 10
 
   asyncTest "the directory URL is used as given":
     let acmeApi = ACMEApi.new(parseUri("http://acme.example/dir"))
