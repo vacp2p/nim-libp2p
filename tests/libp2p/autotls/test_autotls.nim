@@ -93,137 +93,102 @@ suite "AutoTLS ACME API":
     check dns01.status == ACMEChallengeStatus.PENDING
 
   asyncTest "challenge completed successful":
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
-      )
-    )
-    discard await api.sendChallengeCompleted(
-      parseUri("http://example.com/some-chal-url"), key, "kid"
-    )
+    api.queueChallengeCompleted()
+    discard await api.sendChallengeCompleted(parseUri(ChallengeURL), key, "kid")
 
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-      )
-    )
-    let completed = await api.checkChallengeCompleted(
-      parseUri("http://example.com/some-chal-url"), key, "kid"
-    )
-    check completed == true
+    api.queueStatus("valid")
+    let completed =
+      await api.checkChallengeCompleted(parseUri(ChallengeURL), key, "kid")
+
+    check:
+      completed == true
+      api.requestedUris == @[parseUri(ChallengeURL), parseUri(ChallengeURL)]
 
   asyncTest "challenge completed max retries reached":
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
-      )
-    )
-    discard await api.sendChallengeCompleted(
-      parseUri("http://example.com/some-chal-url"), key, "kid"
-    )
+    api.queueChallengeCompleted()
+    discard await api.sendChallengeCompleted(parseUri(ChallengeURL), key, "kid")
 
-    # add this mocked response a few times since checkChallengeCompleted might get more than once
-    for _ in 0 .. 5:
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "pending"},
-          headers: HttpTable.init(@[("Retry-After", "0")]),
-        )
-      )
-    let completed = await api.checkChallengeCompleted(
-      parseUri("http://example.com/some-chal-url"), key, "kid", retries = 1
-    )
-    check completed == false
+    # retries is the number of checks after the first one, so two polls
+    api.queueStatus("pending")
+    api.queueStatus("pending")
+    let completed =
+      await api.checkChallengeCompleted(parseUri(ChallengeURL), key, "kid", retries = 1)
+
+    check:
+      completed == false
+      api.requestedUris ==
+        @[parseUri(ChallengeURL), parseUri(ChallengeURL), parseUri(ChallengeURL)]
 
   asyncTest "challenge completed invalid":
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
-      )
-    )
-    discard await api.sendChallengeCompleted(
-      parseUri("http://example.com/some-chal-url"), key, "kid"
-    )
+    api.queueChallengeCompleted()
+    discard await api.sendChallengeCompleted(parseUri(ChallengeURL), key, "kid")
 
-    # add this mocked response a few times since checkChallengeCompleted might get more than once
-    for _ in 0 .. 5:
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "invalid"},
-          headers: HttpTable.init(@[("Retry-After", "0")]),
-        )
-      )
-
+    api.queueStatus("invalid")
     expect(ACMEError):
-      discard await api.checkChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
+      discard await api.checkChallengeCompleted(parseUri(ChallengeURL), key, "kid")
+
+    # an invalid challenge raises on the first check instead of polling on
+    check api.requestedUris == @[parseUri(ChallengeURL), parseUri(ChallengeURL)]
 
   asyncTest "finalize certificate successful":
-    # first status is processing, then valid
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "processing"},
-        headers: HttpTable.init(@[("Retry-After", "0")]),
-      )
-    )
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-      )
-    )
+    api.queueStatus("valid") # requestFinalize
+    api.queueStatus("valid") # checkCertFinalized
+
     let finalized = await api.certificateFinalized(
-      "some-domain",
-      parseUri("http://example.com/some-finalize-url"),
-      parseUri("http://example.com/some-order-url"),
-      certKey,
-      key,
-      "kid",
+      "some-domain", parseUri(FinalizeURL), parseUri(OrderURL), certKey, key, "kid"
     )
-    check finalized == true
+
+    check:
+      finalized == true
+      api.requestedUris == @[parseUri(FinalizeURL), parseUri(OrderURL)]
+
+  asyncTest "finalize certificate processing then valid":
+    api.queueStatus("valid") # requestFinalize
+    api.queueStatus("processing")
+    api.queueStatus("valid")
+
+    let finalized = await api.certificateFinalized(
+      "some-domain", parseUri(FinalizeURL), parseUri(OrderURL), certKey, key, "kid"
+    )
+
+    check:
+      finalized == true
+      api.requestedUris ==
+        @[parseUri(FinalizeURL), parseUri(OrderURL), parseUri(OrderURL)]
 
   asyncTest "finalize certificate max retries reached":
-    # add this mocked response a few times since checkCertFinalized might get more than once
-    for _ in 0 .. 5:
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "processing"},
-          headers: HttpTable.init(@[("Retry-After", "0")]),
-        )
-      )
+    api.queueStatus("valid") # requestFinalize
+    # retries is the number of checks after the first one, so two polls
+    api.queueStatus("processing")
+    api.queueStatus("processing")
+
     let finalized = await api.certificateFinalized(
       "some-domain",
-      parseUri("http://example.com/some-finalize-url"),
-      parseUri("http://example.com/some-order-url"),
+      parseUri(FinalizeURL),
+      parseUri(OrderURL),
       certKey,
       key,
       "kid",
       retries = 1,
     )
-    check finalized == false
+
+    check:
+      finalized == false
+      api.requestedUris ==
+        @[parseUri(FinalizeURL), parseUri(OrderURL), parseUri(OrderURL)]
 
   asyncTest "finalize certificate invalid":
-    # first request is processing, then invalid
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "processing"},
-        headers: HttpTable.init(@[("Retry-After", "0")]),
-      )
-    )
-    api.mockedResponses.add(
-      HTTPResponse(
-        body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-      )
-    )
+    api.queueStatus("valid") # requestFinalize
+    api.queueStatus("invalid")
+
     let finalized = await api.certificateFinalized(
-      "some-domain",
-      parseUri("http://example.com/some-finalize-url"),
-      parseUri("http://example.com/some-order-url"),
-      certKey,
-      key,
-      "kid",
+      "some-domain", parseUri(FinalizeURL), parseUri(OrderURL), certKey, key, "kid"
     )
-    check finalized == false
+
+    check:
+      finalized == false
+      # an invalid order ends the poll instead of retrying
+      api.requestedUris == @[parseUri(FinalizeURL), parseUri(OrderURL)]
 
   asyncTest "expect error on invalid JSON response":
     # add a couple invalid responses as they get popped by every get or post call
