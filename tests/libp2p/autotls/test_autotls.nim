@@ -521,6 +521,50 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await downloadWithExpires("2026-11-02T14:30:00+00:00")
 
+  asyncTest "an order whose certificate url has no hostname is a network error":
+    api.queueGetOrder("", "2026-11-02T14:30:00Z")
+
+    expect(ACMENetworkError):
+      discard await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
+
+suite "AutoTLS ACME API over HTTP":
+  # The stub overrides get and post, so these drive the real ones.
+
+  asyncTeardown:
+    checkTrackers()
+
+  asyncTest "a url the session cannot turn into an address is an http error":
+    let api = ACMEApi.new()
+    defer:
+      await api.close()
+
+    expect(HttpError):
+      discard await api.get(parseUri(""))
+
+    expect(HttpError):
+      discard await api.post(parseUri(""), "{}")
+
+  asyncTest "a post carries the server's response body back":
+    let server = startTestHttpServer($ %*{"status": "valid"})
+    let api = ACMEApi.new()
+    defer:
+      await api.close()
+      await server.stop()
+
+    check (await api.post(parseUri(server.url), "{}")).body == %*{"status": "valid"}
+
+  asyncTest "a directory url with no hostname is a network error":
+    let server = startTestHttpServer(
+      $ %*{"newNonce": "", "newOrder": OrderURL, "newAccount": AccountURL}
+    )
+    let api = ACMEApi.new(directoryURL = parseUri(server.url))
+    defer:
+      await api.close()
+      await server.stop()
+
+    expect(ACMENetworkError):
+      discard await api.requestNonce()
+
 suite "AutoTLS ACME Client":
   const
     CertDomain = "some.domain"
