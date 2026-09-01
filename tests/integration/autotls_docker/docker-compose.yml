@@ -1,0 +1,41 @@
+# The ACME server and AutoTLS broker test_autotls_docker.nim issues a certificate
+# against. Both share the host's network namespace so the forge can dial the test
+# node back on loopback and Pebble can query the forge's DNS.
+services:
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:2@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199
+    network_mode: host
+    # Pebble queries a custom resolver over TCP; CoreDNS serves both.
+    command: ["-dnsserver", "127.0.0.1:5354"]
+    # Pebble builds the URLs it advertises in its directory from the request's Host
+    # header, and chronos writes Host without the port, so it must answer on 443.
+    # Otherwise the shipped config.
+    volumes:
+      - ./pebble-config.json:/test/config/pebble-config.json:ro
+    environment:
+      # Validating the real TXT record is the point of the test, so
+      # PEBBLE_VA_ALWAYS_VALID stays unset. The rest is Pebble's built-in
+      # flakiness: an artificial validation delay, 5% of good nonces rejected,
+      # and half of all authorizations reused instead of revalidated.
+      PEBBLE_VA_NOSLEEP: "1"
+      PEBBLE_WFE_NONCEREJECT: "0"
+      PEBBLE_AUTHZREUSE: "0"
+
+  forge:
+    image: ghcr.io/ipshipyard/p2p-forge:v0.10.1@sha256:e892f1aa2324d3b2ba0df9775f149668463e87baa7145c78e91e6c3c4fcbdbeb
+    network_mode: host
+    # the image ships neither a Corefile nor zones
+    command: ["-conf", "/p2p-forge/Corefile", "-dns.port", "5354"]
+    volumes:
+      - ./Corefile:/p2p-forge/Corefile:ro
+      - ./zones:/p2p-forge/zones:ro
+
+  # behind a profile so it is not started as a server
+  # `run --rm test` starts pebble and forge through depends_on
+  test:
+    profiles: ["test"]
+    build:
+      context: ../../..
+      dockerfile: tests/integration/autotls_docker/Dockerfile
+    network_mode: host
+    depends_on: [pebble, forge]
