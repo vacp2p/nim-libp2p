@@ -7,6 +7,7 @@ import pkg/[chronos, chronicles, metrics, results]
 
 import
   dial,
+  dialbackoff,
   dialcandidate,
   peerid,
   peerinfo,
@@ -24,7 +25,7 @@ import
   utils/future,
   errors
 
-export dial, errors, results
+export dial, dialbackoff, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -67,6 +68,7 @@ type
     nameResolver: NameResolver
     ms: MultistreamSelect
     dialRanking: bool ## overlap the name lookups with the dials
+    dialBackoff: DialBackoff ## nil unless the switch opted in
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 proc transportFor(self: Dialer, address: MultiAddress): Opt[Transport] =
@@ -88,6 +90,9 @@ proc dialAndUpgrade*(
   let transport = self.transportFor(addrs).valueOr:
     return nil
 
+  if self.dialBackoff.blocked(addrs):
+    return nil
+
   let dialStarted = Moment.now()
   trace "Dialing address", addrs, peerId, hostname
   let dialed =
@@ -104,6 +109,7 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
       )
+      self.dialBackoff.recordFailure(addrs)
       return nil # Try the next address
 
   libp2p_successful_dials.inc()
@@ -128,6 +134,7 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["upgrade_failed"]
       )
+      self.dialBackoff.recordFailure(addrs)
 
       # Try other address
       return nil
@@ -137,6 +144,8 @@ proc dialAndUpgrade*(
   libp2p_dial_duration_ms.observe(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
+
+  self.dialBackoff.recordSuccess(addrs)
 
   let filtered = self.peerStore.addressPolicy.filterAddrs(@[addrs])
   if filtered.len > 0:
@@ -552,6 +561,13 @@ proc establishConnection(
       self.tryReusingConnection(peerId).withValue(mux):
         return mux
 
+  # `forceDial` already overrides the connection limits, so it overrides the wait too.
+  if not forceDial and self.dialBackoff.blocked(peerId):
+    raise newException(
+      DialFailedError,
+      "peer on dial backoff in establishConnection: peer_id=" & shortLog(peerId),
+    )
+
   let slot =
     try:
       self.connManager.getOutgoingSlot(forceDial)
@@ -569,12 +585,14 @@ proc establishConnection(
       raise e
   if isNil(muxed): # None of the addresses connected
     slot.release()
+    self.dialBackoff.recordFailure(peerId)
     raise newException(
       DialFailedError,
       "Unable to establish outgoing link in establishConnection: peer_id=" &
         shortLog(peerId) & " addrs=" & $dialAddrs,
     )
 
+  self.dialBackoff.recordSuccess(peerId)
   slot.trackMuxer(muxed)
   await self.finishUpgrade(muxed, dir)
   muxed
@@ -784,6 +802,7 @@ proc new*(
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
     dialRanking = false,
+    dialBackoff: DialBackoff = nil,
 ): Dialer {.raises: [].} =
   T(
     localPeerId: localPeerId,
@@ -794,4 +813,5 @@ proc new*(
     ms: ms,
     dialTimeout: dialTimeout,
     dialRanking: dialRanking,
+    dialBackoff: dialBackoff,
   )
