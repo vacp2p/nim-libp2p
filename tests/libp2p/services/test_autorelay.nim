@@ -172,7 +172,7 @@ suite "Autorelay":
     check relayMAs.allIt(it in switchClient.peerInfo.addrs)
 
   asyncTest "an in-flight reservation still writes relayAddresses after stop has run":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#3018
     let
       relay = Relay.new()
       reservationRequested = newFuture[void]()
@@ -208,7 +208,7 @@ suite "Autorelay":
       autorelay.getAddresses() == relayMAs # bug: written after stop
 
   asyncTest "start announces the previous cycle's relay address and never withdraws it":
-    # TODO: vacp2p/nim-libp2p#NNNN
+    # TODO: vacp2p/nim-libp2p#3018
     switchRelay = createSwitch(Relay.new())
     relayClient = RelayClient.new()
     autorelay = AutoRelayService.new(3, relayClient, nil, rng())
