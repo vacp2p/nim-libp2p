@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue, hashes]
-from std/times import format, now, parse, toTime, toUnix, utc
+from std/times import format, getTime, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
@@ -355,7 +355,7 @@ type Timestamp* = string
 const TimestampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
 
 proc now*(T: typedesc[Timestamp]): Timestamp {.gcsafe, raises: [].} =
-  T(now().utc.format(TimestampFormat))
+  T(getTime().utc.format(TimestampFormat))
 
 proc toUnixSeconds*(
     time: Timestamp
@@ -364,7 +364,7 @@ proc toUnixSeconds*(
     parse(time, TimestampFormat, utc()).toTime().toUnix()
 
 proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
-  now().utc.toTime().toUnix()
+  getTime().toUnix()
 
 type EntryRecord* = object
   value*: seq[byte]

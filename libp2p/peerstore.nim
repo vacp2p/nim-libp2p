@@ -532,7 +532,10 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
 
   peerStore.toClean.add(peerId)
   while peerStore.toClean.len > peerStore.capacity:
-    peerStore.del(peerStore.toClean[0])
+    # `del` shifts `toClean` down, so own the id before it frees the slot.
+    let oldest = move(peerStore.toClean[0])
+    peerStore.toClean.delete(0)
+    peerStore.del(oldest)
 
 proc retireStream(stream: Stream, identified: bool) {.async: (raises: []).} =
   ## `noCancel` swallows the caller's deadline, so the close carries its own.

@@ -43,7 +43,7 @@ proc reserveAndUpdate(
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
       relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
-      ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
+      ttl = rsvp.expire.int64 - times.getTime().toUnix
     if ttl <= 60:
       # A reservation under a minute is basically useless
       break

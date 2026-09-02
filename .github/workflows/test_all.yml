@@ -179,3 +179,97 @@ jobs:
           list-suites: 'failed'
           list-tests: 'failed'
           fail-on-error: 'false'
+
+  # orc + -d:useMalloc is the only combination where ASan sees Nim heap objects.
+  test-asan:
+    env:
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
+      NIM_REF: v2.2.10
+    permissions:
+      checks: write
+      contents: read
+    timeout-minutes: 55
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "linux-amd64 (Nim v2.2.10 / gcc / orc / asan)"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          os: linux
+          cpu: amd64
+          shell: bash
+          nim_ref: ${{ env.NIM_REF }}
+
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_test_deps"
+        with:
+          os: linux
+          cpu: amd64
+          cc: gcc
+          nim_ref: ${{ env.NIM_REF }}
+          shell: bash
+
+      - name: Setup deps
+        run: |
+          NIM_VERSION="${{ env.NIM_REF }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          make NIM_VERSION="$NIM_VERSION" setup
+
+      - name: Restore build cache
+        id: nimcache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: nimcache
+          key: nimcache-test_all_asan-linux-amd64-gcc-${{ env.NIM_REF }}-orc-${{ github.run_id }}
+          restore-keys: |
+            nimcache-test_all_asan-linux-amd64-gcc-${{ env.NIM_REF }}-orc
+
+      - name: Build test_all
+        run: |
+          NIMFLAGS="--nimcache:nimcache/test_all_asan --mm:orc -d:useMalloc --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=INFO"
+          NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --define:nimStackTraceOverride"
+          NIMFLAGS="$NIMFLAGS --passC:-fno-omit-frame-pointer --passC:-fsanitize=address --passL:-fsanitize=address"
+          nim c $NIMFLAGS ./tests/test_all
+
+      - name: Save build cache
+        uses: actions/cache/save@v5
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        with:
+          path: nimcache
+          key: ${{ steps.nimcache-restore.outputs.cache-primary-key }}
+
+      - name: Run tests
+        id: run-tests
+        # orc frees at collection time, so LeakSanitizer reports live objects.
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: |
+          ./tests/test_all --output-level=VERBOSE --console --xml:tests/results_test_all_asan.xml
+
+      - name: Fix xml newlines
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        run: |
+          nim c -r tools/fix_xml_newlines.nim
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
+        with:
+          name: Test Report (asan)
+          path: tests/results_test_all_asan.xml
+          reporter: jest-junit
+          list-suites: 'failed'
+          list-tests: 'failed'
+          fail-on-error: 'false'
