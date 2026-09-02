@@ -15,10 +15,10 @@ import
 import ../../tools/unittest
 
 suite "AutoTLS Configuration Tests":
-  asyncTeardown:
+  teardown:
     checkTrackers()
 
-  asyncTest "AutotlsConfig constructor with default values":
+  test "AutotlsConfig constructor with default values":
     let config = AutotlsConfig.new()
 
     check:
@@ -38,7 +38,7 @@ suite "AutoTLS Configuration Tests":
       config.finalizeRetries == 10
       config.finalizeRetryTime == 1.seconds
 
-  asyncTest "AutotlsConfig constructor with custom values":
+  test "AutotlsConfig constructor with custom values":
     let customIpAddress = parseIpAddress("203.0.113.7")
     let customNameServers =
       @[initTAddress("192.0.2.53:53"), initTAddress("198.51.100.53:53")]
