@@ -418,11 +418,12 @@ suite "GossipSub Behavior":
     ]
 
     # When node handles iDontWants
-    gossipSub.handleIDontWant(peer, iDontWants)
+    let savedBytes = gossipSub.handleIDontWant(peer, iDontWants)
 
     # Then it saves max IDontWantMaxCount messages in the history and the rest is dropped
     check:
       peer.iDontWants[0].len == IDontWantMaxCount
+      savedBytes == 0 # nothing was queued for this peer
 
   asyncTest "handlePrune - peer is pruned and backoff is set":
     # Given a GossipSub instance with one peer in mesh

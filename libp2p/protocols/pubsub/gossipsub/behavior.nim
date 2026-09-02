@@ -321,12 +321,25 @@ proc handleIHave*(
     g.rng.shuffle(res.messageIDs)
     return res
 
-proc handleIDontWant*(g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWant]) =
+proc handleIDontWant*(
+    g: GossipSub, peer: PubSubPeer, iDontWants: seq[ControlIWant]
+): int =
+  ## Records what the peer does not want, and counts the bytes saved by the relays it cancels.
+  var unwanted = initHashSet[SaltedId]()
+
   for dontWant in iDontWants:
     for messageId in dontWant.messageIDs:
       if peer.iDontWants[0].len >= IDontWantMaxCount:
         break
-      peer.iDontWants[0].incl(g.salt(messageId))
+
+      let saltedId = g.salt(messageId)
+      peer.iDontWants[0].incl(saltedId)
+      unwanted.incl(saltedId)
+
+  peer.cancelQueuedRelays(
+    proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
+      saltedId in unwanted
+  )
 
 proc handleIWant*(
     g: GossipSub, peer: PubSubPeer, iwants: seq[ControlIWant]
