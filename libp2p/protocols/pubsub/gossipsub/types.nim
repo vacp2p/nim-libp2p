@@ -102,10 +102,6 @@ type
     slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
 
-  RateLimit* = object
-    bytes*: int
-    interval*: Duration
-
   GossipSubParams* = object
     # explicit is used to check if the GossipSubParams instance was created by the user either passing params to GossipSubParams(...)
     # or GossipSubParams.init(...). In the first case explicit should be set to true when calling the Nim constructor.

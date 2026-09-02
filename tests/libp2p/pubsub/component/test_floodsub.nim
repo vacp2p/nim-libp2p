@@ -4,6 +4,7 @@
 {.used.}
 
 import sequtils, tables, sets, chronos, stew/byteutils
+import chronos/ratelimit
 import
   ../utils,
   ../../../../libp2p/[
@@ -11,6 +12,7 @@ import
     stream/connection,
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
+    protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
     protocols/pubsub/peertable,
@@ -18,6 +20,23 @@ import
   ]
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../../tools/[lifecycle, topology, unittest, futures]
+
+proc addRateLimitedPeer(f: FloodSub, bucket: TokenBucket): PubSubPeer =
+  let peerId = randomPeerId()
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
+  .} =
+    raise (ref GetStreamDialError)(msg: "unused")
+
+  let peer =
+    PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler)
+  peer.overheadRateLimitOpt = Opt.some(bucket)
+  f.peers[peerId] = peer
+
+  peer
+
+func failingMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+  err(ValidationResult.Reject)
 
 suite "FloodSub Component":
   const topic = "foobar"
@@ -346,3 +365,46 @@ suite "FloodSub Component":
 
     node.unsubscribePeer(peerId)
     check node.floodsub.len == 0
+
+  asyncTest "FloodSub charges the overhead budget when message id generation fails":
+    const bytes = 10
+
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(bytes, 1.hours))
+
+    node.msgIdProvider = failingMsgIdProvider
+
+    let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
+    await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
+
+    check not peer.overheadRateLimitOpt.get().tryConsume(bytes)
+
+  asyncTest "FloodSub disconnects a peer above the overhead budget":
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(1, 1.millis))
+
+    node.msgIdProvider = failingMsgIdProvider
+    node.disconnectPeerAboveRateLimit = true
+
+    let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
+
+    expect PeerRateLimitError:
+      await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
+
+  asyncTest "FloodSub gives a new peer a bucket built from overheadRateLimit":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 10, interval: 1.hours))
+
+    let peer = node.getOrCreatePeer(randomPeerId(), @[FloodSubCodec])
+    check peer.overheadRateLimitOpt.isSome()
+
+  asyncTest "FloodSub ignores an overheadRateLimit that refuses every charge":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 0, interval: 1.hours))
+
+    let peer = node.getOrCreatePeer(randomPeerId(), @[FloodSubCodec])
+    check:
+      peer.overheadRateLimitOpt.isNone()
+      peer.tryCharge(1024)
