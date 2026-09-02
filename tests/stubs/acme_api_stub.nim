@@ -112,6 +112,16 @@ proc queueGetOrder*(self: ACMEApiStub, certificateURL: string, expires: string) 
     )
   )
 
+proc queueInvalidBody*(self: ACMEApiStub, count: int) =
+  ## Queues `count` responses whose body is well-formed JSON but not the shape
+  ## the caller decodes.
+  for _ in 0 ..< count:
+    self.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"invalid field": "invalid value"}, headers: HttpTable.init()
+      )
+    )
+
 proc scriptChallenge*(self: ACMEApiStub, token: string) =
   ## Queues the three responses `getChallenge` consumes, carrying `token` in the challenge.
   self.queueRegister()
