@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos
+import nimcrypto/sha2
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
 import ../../../libp2p/protocols/pubsub/rpc/[messages, protobuf]
@@ -134,6 +135,13 @@ proc createTestPeer(
     maxLowPriorityQueueLen = maxLow,
   )
 
+func testSaltedId(seed: byte): SaltedId =
+  SaltedId(data: sha256.digest([seed]))
+
+func matches(wanted: SaltedId): proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
+  proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
+    saltedId == wanted
+
 suite "Priority queue behavior":
   teardown:
     checkTrackers()
@@ -252,6 +260,48 @@ suite "Priority queue behavior":
     check:
       not disconnectRequestedForTest[]
       peer.hasSendStream()
+
+  asyncTest "Cancelling a queued relay drops it and leaves the other queued messages":
+    let peer = createTestPeer(maxLow = 4)
+    let conn = createRecorderConnection()
+    defer:
+      peer.stopTasks()
+
+    peer.sendStream = conn
+
+    let
+      highMsg = @[1'u8, 2, 3]
+      cancelledMsg = @[30'u8, 0, 0]
+      keptMsg = @[31'u8, 0, 0]
+      cancelledId = testSaltedId(1)
+      keptId = testSaltedId(2)
+
+    var queuedHighMsg = highMsg
+    let highFut = peer.sendEncoded(move(queuedHighMsg), MessagePriority.High)
+    check highFut.finished
+
+    var queuedCancelledMsg = cancelledMsg
+    let cancelledFut = peer.sendEncoded(
+      move(queuedCancelledMsg),
+      MessagePriority.Low,
+      relayedSaltedId = Opt.some(cancelledId),
+    )
+    var queuedKeptMsg = keptMsg
+    let keptFut = peer.sendEncoded(
+      move(queuedKeptMsg), MessagePriority.Low, relayedSaltedId = Opt.some(keptId)
+    )
+
+    check:
+      cancelledFut.finished
+      keptFut.finished
+      conn.writes == @[highMsg]
+      peer.cancelQueuedRelays(matches(cancelledId)) == cancelledMsg.len
+      peer.cancelQueuedRelays(matches(cancelledId)) == 0
+
+    conn.releaseFirstWrite()
+
+    checkUntilTimeout:
+      conn.writes == @[highMsg, keptMsg]
 
   asyncTest "Empty queues fast-path medium and low sends while returning completed futures":
     let mediumPeer = createTestPeer()
