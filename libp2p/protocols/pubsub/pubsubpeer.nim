@@ -365,6 +365,9 @@ proc connectOnce(
         await p.getStream().wait(5.seconds)
       except AsyncTimeoutError:
         raise newException(GetStreamDialError, "establishing stream timed out")
+    if p.disconnected:
+      await newStream.close()
+      return
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -386,7 +389,7 @@ proc connectOnce(
       # if codec was not know, it can be retrieved from newly established stream
       p.codec = newStream.protocol
 
-    p.connectedFut.complete()
+    p.connectedFut.completeOnce()
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.StreamOpened))
 
@@ -579,7 +582,7 @@ proc sendEncoded*(
   ## Parameters:
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
   ## - `msg`: The message to be sent, encoded as a sequence of bytes (`seq[byte]`).
-  ## - `priority`: 
+  ## - `priority`:
   ##   - `High` or any priority when all queues are empty: sent immediately
   ##   - `Medium`: queued in `mediumPriorityQueue`. Dropped when full.
   ##   - `Low`: queued in `lowPriorityQueue`. Dropped when full.
