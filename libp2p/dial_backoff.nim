@@ -19,9 +19,7 @@ declareCounter libp2p_dial_backoff_skips, "dials skipped while on backoff", ["sc
 const MaxBackoffEntries* = 1024
   ## Cap per table, so a peer that names a fresh address per dial stays bounded.
 
-const
-  p2pCodec = multiCodec("p2p")
-  circuitCodec = multiCodec("p2p-circuit")
+const p2pCodec = multiCodec("p2p")
 
 type
   DialBackoffConfig* = object
@@ -47,12 +45,7 @@ const DefaultDialBackoff* = DialBackoffConfig(
 )
 
 proc backoffKey*(address: MultiAddress, peerId: Opt[PeerId]): MultiAddress =
-  ## A relayed address names the relay, so every peer reserved there would share one backoff.
-
-  let relayed = address.contains(circuitCodec).valueOr:
-    return address
-  if not relayed:
-    return address
+  ## Any peer can advertise any address, so the key holds the peer that named it.
 
   let pid = peerId.valueOr:
     return address

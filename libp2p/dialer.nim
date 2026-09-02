@@ -54,6 +54,10 @@ const DefaultDialerTimeout* = 30.seconds
 type
   DialAttempt = Future[Muxer].Raising([CancelledError])
 
+  DialReach* = ref object
+    ## Shared by every address of one dial, so the peer answers for a real dial only.
+    dialed: bool
+
   DialLock = ref object
     lock: AsyncLock
     users: int ## dials holding or waiting for `lock`
@@ -85,6 +89,7 @@ proc dialAndUpgrade*(
     dir = Direction.Out,
     deadline = Moment.now() + self.dialTimeout,
     forceDial = false,
+    reach = DialReach(),
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial one resolved address, below candidate selection. Nil when no transport connects.
 
@@ -96,6 +101,8 @@ proc dialAndUpgrade*(
     # `forceDial` already overrides the connection limits, so it overrides the wait too.
     if not forceDial and backoff.blocked(backoffKey):
       return nil
+
+  reach.dialed = true
 
   let dialStarted = Moment.now()
   trace "Dialing address", addrs, peerId, hostname
@@ -383,6 +390,7 @@ proc dialInOrder(
     dir: Direction,
     deadline: Moment,
     forceDial: bool,
+    reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Resolve one address at a time and dial it right away.
 
@@ -396,7 +404,7 @@ proc dialInOrder(
       for candidate in await self.resolveCandidate(expanded, deadline):
         let mux = await self.dialAndUpgrade(
           candidate.peerId, candidate.hostname, candidate.address, dir, deadline,
-          forceDial,
+          forceDial, reach,
         )
         if not isNil(mux):
           return mux
@@ -441,12 +449,15 @@ proc dialAll(
     dir: Direction,
     deadline: Moment,
     forceDial: bool,
+    reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial every candidate at once. Nil when none of them connects.
 
   await firstConnected(
     candidates.mapIt(
-      self.dialAndUpgrade(it.peerId, it.hostname, it.address, dir, deadline, forceDial)
+      self.dialAndUpgrade(
+        it.peerId, it.hostname, it.address, dir, deadline, forceDial, reach
+      )
     )
   )
 
@@ -457,11 +468,12 @@ proc dialResolved(
     dir: Direction,
     deadline: Moment,
     forceDial: bool,
+    reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial one name's addresses the moment that name answers.
 
   await self.dialAll(
-    budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial
+    budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial, reach
   )
 
 proc dialRanked(
@@ -471,6 +483,7 @@ proc dialRanked(
     dir: Direction,
     deadline: Moment,
     forceDial: bool,
+    reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial the wire addresses at once, and each name's as soon as it resolves.
 
@@ -484,8 +497,8 @@ proc dialRanked(
       )
 
   await firstConnected(
-    @[self.dialAll(direct, dir, deadline, forceDial)] &
-      lookups.mapIt(self.dialResolved(it, dialable, dir, deadline, forceDial))
+    @[self.dialAll(direct, dir, deadline, forceDial, reach)] &
+      lookups.mapIt(self.dialResolved(it, dialable, dir, deadline, forceDial, reach))
   )
 
 proc dialAndUpgrade*(
@@ -495,6 +508,7 @@ proc dialAndUpgrade*(
     dir = Direction.Out,
     deadline = Moment.now() + self.dialTimeout,
     forceDial = false,
+    reach = DialReach(),
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
@@ -502,9 +516,9 @@ proc dialAndUpgrade*(
   debug "Dialing peer", peerId = peerId, addrs = dialAddrs
 
   if self.dialRanking:
-    await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial)
+    await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
   else:
-    await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial)
+    await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial, reach)
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
@@ -594,19 +608,22 @@ proc establishConnection(
         DialFailedError, "failed getOutgoingSlot in establishConnection: " & e.msg, e
       )
 
-  let dialAddrs = normalizedDialAddrs(peerId, addrs)
+  let
+    dialAddrs = normalizedDialAddrs(peerId, addrs)
+    reach = DialReach()
   let muxed =
     try:
       await self.dialAndUpgrade(
-        peerId, dialAddrs, dir, Moment.now() + self.dialTimeout, forceDial
+        peerId, dialAddrs, dir, Moment.now() + self.dialTimeout, forceDial, reach
       )
     except CancelledError as e:
       slot.release()
       raise e
   if isNil(muxed): # None of the addresses connected
     slot.release()
-    self.dialBackoff.withValue(backoff):
-      backoff.recordFailure(peerId)
+    if reach.dialed:
+      self.dialBackoff.withValue(backoff):
+        backoff.recordFailure(peerId)
     raise newException(
       DialFailedError,
       "Unable to establish outgoing link in establishConnection: peer_id=" &
@@ -614,7 +631,12 @@ proc establishConnection(
     )
 
   slot.trackMuxer(muxed)
-  await self.finishUpgrade(muxed, dir)
+  try:
+    await self.finishUpgrade(muxed, dir)
+  except DialFailedError as e:
+    self.dialBackoff.withValue(backoff):
+      backoff.recordFailure(peerId)
+    raise e
 
   self.dialBackoff.withValue(backoff):
     backoff.recordSuccess(peerId)

@@ -159,7 +159,7 @@ suite "Dial backoff":
         backoff.blocked(address, start + 499.milliseconds)
         not backoff.blocked(address, start + 1.seconds)
 
-  test "A relayed address is keyed by the peer it reaches":
+  test "An address is keyed by the peer it reaches":
     let
       relayId = PeerId.random(rng()).tryGet()
       relay =
@@ -171,8 +171,10 @@ suite "Dial backoff":
       second = PeerId.random(rng()).tryGet()
 
     check:
-      backoffKey(direct, Opt.some(first)) == direct
+      backoffKey(direct, Opt.none(PeerId)) == direct
       backoffKey(relay, Opt.none(PeerId)) == relay
+      backoffKey(direct, Opt.some(first)) != direct
+      backoffKey(direct, Opt.some(first)) != backoffKey(direct, Opt.some(second))
       backoffKey(relay, Opt.some(first)) != relay
       backoffKey(relay, Opt.some(first)) != backoffKey(relay, Opt.some(second))
 
