@@ -38,7 +38,7 @@ const
   DefaultIssueRetries = 3
   DefaultIssueRetryTime = 1.seconds
 
-  AutoTLSDNSServer* = "libp2p.direct"
+  DefaultDomainSuffix* = "libp2p.direct"
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
@@ -54,7 +54,7 @@ type AutotlsConfig* = object
   issueRetries*: int
   issueRetryTime*: Duration
   registrationURL*: Uri
-  dnsServerURL*: string
+  domainSuffix*: string
   dnsRetries*: int
   dnsRetryTime*: Duration
   acmeRetries*: int
@@ -97,7 +97,7 @@ proc new*(
     issueRetries: int = DefaultIssueRetries,
     issueRetryTime: Duration = DefaultIssueRetryTime,
     registrationURL: Uri = DefaultRegistrationURL,
-    dnsServerURL: string = AutoTLSDNSServer,
+    domainSuffix: string = DefaultDomainSuffix,
     dnsRetries: int = 10,
     dnsRetryTime: Duration = 1.seconds,
     acmeRetries: int = 10,
@@ -114,7 +114,7 @@ proc new*(
     issueRetries: issueRetries,
     issueRetryTime: issueRetryTime,
     registrationURL: registrationURL,
-    dnsServerURL: dnsServerURL,
+    domainSuffix: domainSuffix,
     dnsRetries: dnsRetries,
     dnsRetryTime: dnsRetryTime,
     acmeRetries: acmeRetries,
@@ -156,9 +156,9 @@ method issueCertificate(
   if self.peerInfo.isNil():
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
 
-  # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
+  # generate autotls domain string: "*.{peerID}.{domainSuffix}"
   let baseDomain =
-    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
+    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.domainSuffix)
 
   trace "Requesting ACME challenge"
   let dns01Challenge =

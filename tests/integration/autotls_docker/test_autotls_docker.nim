@@ -138,7 +138,7 @@ suite "AutoTLS against a local ACME server and broker":
     let port = server.peerInfo.listenAddrs[0].initTAddress().tryGet().port
     let serverDomain =
       NodeIP.replace('.', '-') & "." & encodePeerId(server.peerInfo.peerId) & "." &
-      AutoTLSDNSServer
+      DefaultDomainSuffix
 
     await client.connect(
       server.peerInfo.peerId, @[ma("/dns4/" & serverDomain & "/tcp/" & $port & "/wss")]
