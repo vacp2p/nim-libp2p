@@ -45,3 +45,6 @@ tests/**/test*[^.]*
 
 # nix builds
 result
+
+# AI working files
+TODO.md
