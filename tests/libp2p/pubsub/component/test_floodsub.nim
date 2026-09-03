@@ -367,7 +367,7 @@ suite "FloodSub Component":
     check node.floodsub.len == 0
 
   asyncTest "FloodSub charges the overhead budget when message id generation fails":
-    const budget = 10
+    const budget = 1024
 
     let
       node = generateNodes(1).toFloodSub()[0]
@@ -378,7 +378,10 @@ suite "FloodSub Component":
     let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
     await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
-    check not peer.overheadRateLimitOpt.get().tryConsume(budget)
+    let bucket = peer.overheadRateLimitOpt.get()
+    check:
+      bucket.tryConsume(budget - msg.byteSize())
+      not bucket.tryConsume(1)
 
   asyncTest "FloodSub disconnects a peer above the overhead budget":
     let
@@ -399,6 +402,17 @@ suite "FloodSub Component":
 
     let peer = node.getOrCreatePeer(randomPeerId(), @[FloodSubCodec])
     check peer.overheadRateLimitOpt.isSome()
+
+  asyncTest "FloodSub keeps the bucket a known peer already spent":
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(10, 1.hours))
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 10, interval: 1.hours))
+
+    check peer.tryCharge(10)
+    discard node.getOrCreatePeer(peer.peerId, @[FloodSubCodec])
+
+    check not peer.tryCharge(1)
 
   asyncTest "FloodSub ignores an overheadRateLimit that refuses every charge":
     let node = generateNodes(1).toFloodSub()[0]

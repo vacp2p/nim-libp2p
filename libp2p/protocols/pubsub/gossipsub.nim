@@ -1216,7 +1216,9 @@ method getOrCreatePeer*(
     protoNegotiated: string = "",
 ): PubSubPeer =
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
-  peer.overheadRateLimitOpt = newOverheadBucket(g.parameters.overheadRateLimit)
+  # a returning peer keeps its bucket, so a new stream is no way to refill it
+  if peer.overheadRateLimitOpt.isNone():
+    peer.overheadRateLimitOpt = newOverheadBucket(g.parameters.overheadRateLimit)
   peer.maxHighPriorityQueueLen = g.parameters.maxHighPriorityQueueLen
   peer.maxMediumPriorityQueueLen = g.parameters.maxMediumPriorityQueueLen
   peer.maxLowPriorityQueueLen = g.parameters.maxLowPriorityQueueLen

@@ -219,6 +219,9 @@ proc newOverheadBucket*(overheadRateLimit: Opt[RateLimit]): Opt[TokenBucket] =
 
 proc tryCharge*(peer: PubSubPeer, overhead: int): bool =
   ## Charges `overhead` bytes of useless data to the peer, false when it cannot pay.
+  if overhead <= 0:
+    return true
+
   peer.overheadRateLimitOpt.withValue(overheadRateLimit):
     return overheadRateLimit.tryConsume(overhead)
 
