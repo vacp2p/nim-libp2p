@@ -72,13 +72,13 @@ tests/nimble.paths: tests/tests.nimble libp2p.nimble
 test: nimble.paths tests/nimble.paths
 ifeq ($(TEST_PATH),)
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  --nimcache:nimcache/test_all \
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 	$(MAKE) test_multiformat_exts
 else
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  --nimcache:nimcache/test_all \
 	  -d:path=$(TEST_PATH) \
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
