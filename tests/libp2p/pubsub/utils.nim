@@ -204,6 +204,7 @@ proc generateNodes*(
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
     overheadRateLimit: Opt[RateLimit] = Opt.none(RateLimit),
+    disconnectPeerAboveRateLimit: bool = false,
     codecs: seq[string] = @[],
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
@@ -253,6 +254,7 @@ proc generateNodes*(
             p.fanoutTTL = fanoutTTL
             p.enablePX = enablePX
             p.overheadRateLimit = overheadRateLimit
+            p.disconnectPeerAboveRateLimit = disconnectPeerAboveRateLimit
             p.sendIDontWantOnPublish = sendIDontWantOnPublish
             p.opportunisticGraftThreshold = opportunisticGraftThreshold
             p.gossipThreshold = gossipThreshold
@@ -282,6 +284,8 @@ proc generateNodes*(
           msgIdProvider = msgIdProvider,
           maxMessageSize = maxMessageSize,
           anonymize = anonymize,
+          overheadRateLimit = overheadRateLimit,
+          disconnectPeerAboveRateLimit = disconnectPeerAboveRateLimit,
         ).PubSub
 
     switch.mount(pubsub)

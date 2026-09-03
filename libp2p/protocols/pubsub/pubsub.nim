@@ -743,6 +743,8 @@ proc init*[PubParams: object | bool](
     rng: Rng,
     parameters: PubParams = false,
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
+    overheadRateLimit: Opt[RateLimit] = Opt.none(RateLimit),
+    disconnectPeerAboveRateLimit: bool = false,
 ): P {.raises: [InitializationError].} =
   let pubsub =
     when PubParams is bool:
@@ -776,6 +778,11 @@ proc init*[PubParams: object | bool](
         topicsHigh: DefaultTopicsHigh,
         customStreamCallbacks: customStreamCallbacks,
       )
+
+  # only FloodSub and its subtypes carry these fields, and pubsub cannot import floodsub
+  when compiles(pubsub.overheadRateLimit):
+    pubsub.overheadRateLimit = overheadRateLimit
+    pubsub.disconnectPeerAboveRateLimit = disconnectPeerAboveRateLimit
 
   proc peerEventHandler(
       peerId: PeerId, event: PeerEvent

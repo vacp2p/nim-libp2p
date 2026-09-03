@@ -123,13 +123,12 @@ method rpcHandler*(
 
     f.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
 
-  var invalidBytesSent = 0
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
-      invalidBytesSent += msg.data.len
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     let
@@ -144,13 +143,13 @@ method rpcHandler*(
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
-      invalidBytesSent += msg.data.len
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
-      invalidBytesSent += msg.data.len
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if f.addSeen(saltedId):
@@ -184,7 +183,6 @@ method rpcHandler*(
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
-  f.chargeOverhead(peer, invalidBytesSent)
 
 method init*(f: FloodSub) =
   proc handler(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
@@ -275,7 +273,9 @@ method getOrCreatePeer*(
     f: FloodSub, peerId: PeerId, protosToDial: seq[string], protoNegotiated: string = ""
 ): PubSubPeer =
   let peer = procCall PubSub(f).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
-  peer.overheadRateLimitOpt = newOverheadBucket(f.overheadRateLimit)
+  # a returning peer keeps its bucket, so a new stream is no way to refill it
+  if peer.overheadRateLimitOpt.isNone():
+    peer.overheadRateLimitOpt = newOverheadBucket(f.overheadRateLimit)
 
   peer
 
