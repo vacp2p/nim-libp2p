@@ -4,7 +4,7 @@
 
 from std/strutils import toUpper
 import std/[sequtils, algorithm]
-import bearssl/[hash, rand], nimcrypto/utils
+import nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
 
@@ -627,6 +627,20 @@ suite "Key interface test suite":
 
     sha256.hkdf(salt, ikm, info, output)
     check output[0].toHex(true) == truth
+
+  test "HKDF outputs continue one OKM stream":
+    let
+      ikm = fromHex("0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
+      salt = fromHex("0x000102030405060708090a0b0c")
+      info = fromHex("0xf0f1f2f3f4f5f6f7f8f9")
+      truth =
+        "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf" &
+        "34007208d5b887185865b4b0a85a993b89b9b65683d60f0106d28fff039d0b6f" &
+        "3408900c0f2a9d4463de83622056be50a881bebf2b983ab43e069912f0a57582"
+    var output: array[3, array[32, byte]]
+
+    sha256.hkdf(salt, ikm, info, output)
+    check output[0].toHex(true) & output[1].toHex(true) & output[2].toHex(true) == truth
 
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
