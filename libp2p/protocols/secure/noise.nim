@@ -159,24 +159,29 @@ proc encryptWithAd(
     tag = byteutils.toHex(tag), data = buf.shortLog, nonce = state.n - 1
   buf
 
-proc decryptWithAd(
-    state: var CipherState, ad, data: openArray[byte]
-): seq[byte] {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
-  var
-    tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
-    tagOut: ChaChaPolyTag
-    nonce: ChaChaPolyNonce
-    buf = data[0 .. (data.high - ChaChaPolyTag.len)]
+proc decryptInPlaceWithAd(
+    state: var CipherState, ad: openArray[byte], data: var seq[byte]
+) {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
+  ## Replaces the ciphertext frame in `data` with its plaintext.
+  let tag = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
+  var nonce: ChaChaPolyNonce
   nonce[4 ..< 12] = toBytesLE(state.n)
-  ChaChaPoly.decrypt(state.k, nonce, tagOut, buf, ad)
-  trace "decryptWithAd",
-    tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
-  if tagIn != tagOut:
-    debug "decryptWithAd failed", data = shortLog(data)
+
+  data.setLen(data.len - ChaChaPolyTag.len)
+  if not ChaChaPoly.decrypt(state.k, nonce, tag, data, ad):
+    debug "decryptWithAd failed", tag = tag.shortLog, nonce = state.n, len = data.len
     raise (ref NoiseDecryptTagError)(msg: "decryptWithAd failed tag authentication.")
+
+  trace "decryptWithAd", tag = tag.shortLog, nonce = state.n
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+
+proc decryptWithAd(
+    state: var CipherState, ad, data: openArray[byte]
+): seq[byte] {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
+  var buf = @data
+  state.decryptInPlaceWithAd(ad, buf)
   buf
 
 # Symmetricstate
@@ -429,14 +434,14 @@ method readMessage*(
     sconn: NoiseConnection
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   while true: # Discard 0-length payloads
-    let frame = await sconn.stream.readFrame()
+    var frame = await sconn.stream.readFrame()
     sconn.activity = true
     if frame.len > ChaChaPolyTag.len:
-      let res = sconn.readCs.decryptWithAd([], frame)
-      if res.len > 0:
+      sconn.readCs.decryptInPlaceWithAd([], frame)
+      if frame.len > 0:
         when defined(libp2p_dump):
-          dumpMessage(sconn, FlowDirection.Incoming, res)
-        return res
+          dumpMessage(sconn, FlowDirection.Incoming, frame)
+        return frame
 
     when defined(libp2p_dump):
       dumpMessage(sconn, FlowDirection.Incoming, [])

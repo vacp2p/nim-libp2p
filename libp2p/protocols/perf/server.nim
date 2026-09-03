@@ -36,10 +36,9 @@ proc new*(T: typedesc[Perf]): T =
         except LPStreamEOFError:
           break
 
-      var writeBuffer: array[PerfSize, byte]
       while uploadSize > 0:
         let toWrite = min(uploadSize, PerfSize)
-        await stream.write(writeBuffer[0 ..< toWrite])
+        await stream.write(newSeq[byte](toWrite))
         uploadSize -= toWrite
     except CancelledError as exc:
       trace "cancelled perf handler"
