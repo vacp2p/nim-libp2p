@@ -148,6 +148,10 @@ type
     customStreamCreationCB*: CustomStreamCreationProc
     customPeerSelectionCB*: CustomPeerSelectionProc
 
+  RateLimit* = object
+    bytes*: int
+    interval*: Duration
+
   PubSubPeer* = ref object of RootObj
     getStream*: GetStream # callback to establish a new send stream
     onEvent*: OnEvent # Connectivity updates for peer
@@ -201,6 +205,27 @@ proc getAgent*(peer: PubSubPeer): string =
       if peer.shortAgent.len > 0: peer.shortAgent else: "unknown"
     else:
       "unknown"
+
+proc newOverheadBucket*(overheadRateLimit: Opt[RateLimit]): Opt[TokenBucket] =
+  overheadRateLimit.withValue(limit):
+    if limit.bytes <= 0 or limit.interval <= ZeroDuration:
+      # such a bucket refuses every charge, which would disconnect every peer
+      warn "ignoring an unusable overhead rate limit", limit
+      return Opt.none(TokenBucket)
+
+    return Opt.some(TokenBucket.new(limit.bytes, limit.interval))
+
+  Opt.none(TokenBucket)
+
+proc tryCharge*(peer: PubSubPeer, overhead: int): bool =
+  ## Charges `overhead` bytes of useless data to the peer, false when it cannot pay.
+  if overhead <= 0:
+    return true
+
+  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+    return overheadRateLimit.tryConsume(overhead)
+
+  true
 
 proc `$`*(p: PubSubPeer): string =
   $p.peerId

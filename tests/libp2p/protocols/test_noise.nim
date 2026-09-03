@@ -18,7 +18,7 @@ import
     protocols/secure/plaintext,
     protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, futures, switch_builder]
+import ../../tools/[unittest, crypto, futures, multiaddress, switch_builder]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -55,11 +55,11 @@ suite "Noise":
   teardown:
     checkTrackers()
 
-  let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+  let maddr = TcpWildcardAddress
 
   asyncTest "e2e: handle write + noise":
     let
-      server = @[ma]
+      server = @[maddr]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -98,7 +98,7 @@ suite "Noise":
 
   asyncTest "e2e: handle write + noise (wrong prologue)":
     let
-      server = @[ma]
+      server = @[maddr]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
@@ -133,7 +133,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise":
     let
-      server = @[ma]
+      server = @[maddr]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -169,7 +169,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise fragmented":
     let
-      server = @[ma]
+      server = @[maddr]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -211,8 +211,8 @@ suite "Noise":
     await listenFut
 
   asyncTest "e2e: use switch dial proto string":
-    var switch1 = makeSwitch(ma, false)
-    var switch2 = makeSwitch(ma, true)
+    var switch1 = makeSwitch(maddr, false)
+    var switch2 = makeSwitch(maddr, true)
 
     let testProto = new TestProto
     testProto.init()
@@ -230,8 +230,8 @@ suite "Noise":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e: test wrong secure negotiation":
-    var switch1 = makeSwitch(ma, false)
-    var switch2 = makeSwitch(ma, true, true)
+    var switch1 = makeSwitch(maddr, false)
+    var switch2 = makeSwitch(maddr, true, true)
       # PlainText enabled; mismatched with Noise, so we want this to fail
 
     let testProto = new TestProto

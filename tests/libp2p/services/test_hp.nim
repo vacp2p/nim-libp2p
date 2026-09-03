@@ -74,10 +74,7 @@ suite "Hole Punching":
       peerSwitch.start(),
     )
     publicPeerSwitch.peerInfo.addrs.add(
-      [
-        MultiAddress.init("/dns4/localhost/").tryGet() &
-          publicPeerSwitch.peerInfo.addrs[0][1].tryGet()
-      ]
+      [ma("/dns4/localhost/") & publicPeerSwitch.peerInfo.addrs[0][1].tryGet()]
     )
 
     await privatePeerSwitch.connect(
@@ -134,10 +131,7 @@ suite "Hole Punching":
       peerSwitch.start(),
     )
     publicPeerSwitch.peerInfo.addrs.add(
-      [
-        MultiAddress.init("/dns4/localhost/").tryGet() &
-          publicPeerSwitch.peerInfo.addrs[0][1].tryGet()
-      ]
+      [ma("/dns4/localhost/") & publicPeerSwitch.peerInfo.addrs[0][1].tryGet()]
     )
 
     await privatePeerSwitch.connect(

@@ -170,10 +170,7 @@ suite "KadDHT message sender":
 
     let unreachable = PeerId.random(rng()).tryGet()
     let reply = await sender.sendRequest(
-      unreachable,
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/1").tryGet()],
-      @[byte 1],
-      1.seconds,
+      unreachable, @[ma("/ip4/127.0.0.1/tcp/1")], @[byte 1], 1.seconds
     )
     check:
       reply.isErr()

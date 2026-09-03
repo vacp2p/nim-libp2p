@@ -85,9 +85,9 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
-      let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
+      let maddr = ma(server.sock.getLocalAddress())
       let client = TcpTransport.new(upgrade = Upgrade())
-      let conn = await client.dial(ma)
+      let conn = await client.dial(maddr)
 
       var msg = newSeq[byte](message.len)
       await conn.readExactly(addr msg[0], message.len)
@@ -119,9 +119,9 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
-      let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
+      let maddr = ma(server.sock.getLocalAddress())
       let client = TcpTransport.new(upgrade = Upgrade())
-      let conn = await client.dial(ma)
+      let conn = await client.dial(maddr)
       await conn.write(message)
 
       await handlerFut.wait(1.seconds)
@@ -132,13 +132,13 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       await server.join()
 
 template tcpTests*() =
-  tcpListenerIPTests("ipv4", MultiAddress.init(zeroMAStrIP4).tryGet())
-  tcpListenerIPTests("ipv6", MultiAddress.init(zeroMAStrIP6).tryGet())
+  tcpListenerIPTests("ipv4", ma(zeroMAStrIP4))
+  tcpListenerIPTests("ipv6", ma(zeroMAStrIP6))
   tcpDialerIPTest("ipv4", initTAddress(zeroTAStrIP4))
   tcpDialerIPTest("ipv6", initTAddress(zeroTAStrIP6))
 
   block:
-    let listenMA = MultiAddress.init(zeroMAStrIP4).tryGet()
+    let listenMA = ma(zeroMAStrIP4)
 
     asyncTest "starting with duplicate but zero ports addresses must NOT fail":
       let transport = TcpTransport.new(upgrade = Upgrade())
@@ -212,7 +212,7 @@ template tcpTests*() =
       check acceptedPort == listeningPort
 
     asyncTest "start cleans up bound servers when a later bind fails":
-      let unbindable = MultiAddress.init("/ip4/192.0.2.1/tcp/0").tryGet()
+      let unbindable = ma("/ip4/192.0.2.1/tcp/0")
       let transport = TcpTransport.new(upgrade = Upgrade())
 
       expect LPError:
