@@ -14,6 +14,7 @@ import
     nameresolving/nameresolver,
     nameresolving/dnsresolver,
     nameresolving/mockresolver,
+    nameresolving/systemresolver,
   ]
 import ../tools/[unittest, multiaddress]
 
@@ -56,6 +57,53 @@ nameserver 10.0.0.2
   test "system name servers are never empty":
     # Either parsed from /etc/resolv.conf or the default public resolvers
     check getSystemNameServers().len > 0
+
+suite "System Resolving":
+  teardown:
+    checkTrackers()
+
+  asyncTest "resolves localhost via the OS resolver":
+    # localhost is in /etc/hosts (or equivalent) everywhere, so this works
+    # without network access - and is something DnsResolver cannot do.
+    let resolver = SystemResolver.new()
+    let addrs = await resolver.resolveIp("localhost", 4001.Port)
+    check:
+      addrs.len > 0
+      initTAddress("127.0.0.1:4001") in addrs
+    await resolver.close()
+
+  asyncTest "AF_INET filter returns only IPv4 addresses":
+    let resolver = SystemResolver.new()
+    let addrs = await resolver.resolveIp("localhost", 0.Port, Domain.AF_INET)
+    check:
+      addrs.len > 0
+      addrs.allIt(it.family == AddressFamily.IPv4)
+    await resolver.close()
+
+  asyncTest "unresolvable name yields an empty result":
+    let resolver = SystemResolver.new()
+    check (await resolver.resolveIp("thisdomain.doesnot.exist", 0.Port)).len == 0
+    await resolver.close()
+
+  asyncTest "TXT queries are delegated to the fallback resolver":
+    let fallback = MockResolver.new()
+    fallback.txtResponses["_dnsaddr.test.io"] = @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
+    let resolver = SystemResolver.new(txtResolver = fallback)
+    check await(resolver.resolveTxt("_dnsaddr.test.io")) ==
+      @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
+    await resolver.close()
+
+  asyncTest "concurrent resolutions all complete":
+    let resolver = SystemResolver.new()
+    # all submitted before awaiting any, so they resolve concurrently
+    let futs = (0 ..< 8).mapIt(resolver.resolveIp("localhost", Port(4001 + it)))
+    for fut in futs:
+      check (await fut).len > 0
+    await resolver.close()
+
+  asyncTest "close without any resolution":
+    let resolver = SystemResolver.new()
+    await resolver.close()
 
 suite "Name resolving":
   suite "Generic Resolving":
