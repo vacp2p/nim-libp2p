@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos
+import std/[deques, sets]
 import nimcrypto/sha2
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
@@ -137,10 +138,6 @@ proc createTestPeer(
 
 func testSaltedId(seed: byte): SaltedId =
   SaltedId(data: sha256.digest([seed]))
-
-func matches(wanted: SaltedId): proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
-  proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
-    saltedId == wanted
 
 suite "Priority queue behavior":
   teardown:
@@ -295,13 +292,48 @@ suite "Priority queue behavior":
       cancelledFut.finished
       keptFut.finished
       conn.writes == @[highMsg]
-      peer.cancelQueuedRelays(matches(cancelledId)) == cancelledMsg.len
-      peer.cancelQueuedRelays(matches(cancelledId)) == 0
+      peer.cancelQueuedRelays([cancelledId]) == cancelledMsg.len
+      peer.cancelQueuedRelays([cancelledId]) == 0
 
     conn.releaseFirstWrite()
 
     checkUntilTimeout:
       conn.writes == @[highMsg, keptMsg]
+
+  asyncTest "An IDONTWANT in the peer history cancels a queued relay":
+    let peer = createTestPeer(maxLow = 4)
+    let conn = createRecorderConnection()
+    defer:
+      peer.stopTasks()
+
+    peer.sendStream = conn
+
+    let
+      highMsg = @[1'u8, 2, 3]
+      unwantedMsg = @[30'u8, 0, 0]
+      unwantedId = testSaltedId(3)
+
+    var queuedHighMsg = highMsg
+    check peer.sendEncoded(move(queuedHighMsg), MessagePriority.High).finished
+
+    var queuedUnwantedMsg = unwantedMsg
+    check peer.sendEncoded(
+      move(queuedUnwantedMsg),
+      MessagePriority.Low,
+      relayedSaltedId = Opt.some(unwantedId),
+    ).finished
+
+    # The whole history counts, not only the current heartbeat slot.
+    peer.iDontWants.addFirst(default(HashSet[SaltedId]))
+    peer.iDontWants[1].incl(unwantedId)
+
+    let noDuplicates: seq[SaltedId] = @[]
+    check peer.cancelQueuedRelays(noDuplicates) == unwantedMsg.len
+
+    conn.releaseFirstWrite()
+
+    checkUntilTimeout:
+      conn.writes == @[highMsg]
 
   asyncTest "Empty queues fast-path medium and low sends while returning completed futures":
     let mediumPeer = createTestPeer()

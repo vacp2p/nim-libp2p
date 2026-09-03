@@ -232,7 +232,11 @@ suite "GossipSub Component - Priority Queues":
       mock.writes == highMsgs & mediumMsgs & lowMsgs
 
   asyncTest "A copy from the peer cancels the relay still queued for it":
-    let nodes = generateNodes(3, gossip = true).toGossipSub()
+    # Anonymous, so the cancel cannot lean on the `fromPeer` exclusion.
+    let nodes = generateNodes(
+        3, gossip = true, sign = false, verifySignature = false, anonymize = true
+      )
+      .toGossipSub()
     nodes[0].parameters.maxLowPriorityQueueLen = 4
 
     startAndDeferStop(nodes)
@@ -268,7 +272,7 @@ suite "GossipSub Component - Priority Queues":
     checkUntilTimeout:
       copiesAtNode0 == 2
 
-    # Queued after the cancel, so a surviving relay would be written first.
+    # Queued behind the relay, so its write proves the queue drained past it.
     let sentinel = message(7)
     check peer.sendEncoded(sentinel, MessagePriority.Low).finished
 

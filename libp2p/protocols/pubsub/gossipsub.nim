@@ -461,9 +461,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
-  libp2p_gossipsub_saved_bytes.inc(
-    g.handleIDontWant(peer, control.idontwant).int64, labelValues = ["idontwant"]
-  )
+  g.handleIDontWant(peer, control.idontwant)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
@@ -604,14 +602,12 @@ proc validateAndRelay(
       toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
-      for iDontWant in it.iDontWants:
-        if saltedId in iDontWant:
-          libp2p_gossipsub_idontwant_saved_messages.inc
-          libp2p_gossipsub_saved_bytes.inc(
-            msg.data.len.int64, labelValues = ["idontwant"]
-          )
-          return true
-      return false
+      if not it.holdsIDontWant(saltedId):
+        return false
+
+      libp2p_gossipsub_idontwant_saved_messages.inc()
+      libp2p_gossipsub_saved_bytes.inc(msg.data.len.int64, labelValues = ["idontwant"])
+      true
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
@@ -748,6 +744,9 @@ method rpcHandler*(
       peer, size = rpcMsg.subscriptions.len, limit = g.topicsHigh
     peer.behaviourPenalty += SubscriptionFloodPenalty
 
+  # Gathered from the whole RPC, so that the queue is scanned at most once.
+  var duplicates: seq[SaltedId]
+
   for i in 0 ..< rpcMsg.messages.len(): # for every message
     template msg(): untyped =
       rpcMsg.messages[i]
@@ -792,13 +791,7 @@ method rpcHandler*(
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
       # The peer holds the message, so a relay of it still in our queue is waste.
-      let cancelledBytes = peer.cancelQueuedRelays(
-        proc(saltedId: SaltedId): bool {.gcsafe, raises: [].} =
-          saltedId == msgIdSalted
-      )
-      libp2p_gossipsub_saved_bytes.inc(
-        cancelledBytes.int64, labelValues = ["relay_in_flight"]
-      )
+      duplicates.add(msgIdSalted)
 
       var alreadyReceived = false
       g.validationSeen.withValue(msgIdSalted, seen):
@@ -826,8 +819,17 @@ method rpcHandler*(
 
     g.pendingTasks.trackFut(g.validateAndRelay(msg, msgId, msgIdSalted, peer))
 
+  let sawIDontWant =
+    rpcMsg.control.isSome() and rpcMsg.control.unsafeGet().idontwant.len > 0
+
   if rpcMsg.control.isSome():
     g.handleControl(peer, rpcMsg.control.unsafeGet())
+
+  # Runs after handleControl, so the scan sees the IDONTWANTs of this RPC.
+  if duplicates.len > 0 or sawIDontWant:
+    libp2p_gossipsub_saved_bytes.inc(
+      peer.cancelQueuedRelays(duplicates).int64, labelValues = ["cancelled_relay"]
+    )
 
   # Now, check subscription to update the meshes if required
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
