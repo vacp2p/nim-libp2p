@@ -593,6 +593,49 @@ suite "Dialer":
 
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
 
+  asyncTest "An address-only identify failure backs the address off":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    dst.stallIdentify()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      dialTimeout = 1.seconds,
+      dialBackoff = Opt.some(
+        DialBackoffConfig(
+          tolerance: 0, base: 100.milliseconds, factor: 4, maxDelay: 1.minutes
+        )
+      ),
+    )
+
+    expect DialFailedError:
+      discard await dialer
+        .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
+        .wait(5.seconds)
+
+    await sleepAsync(110.milliseconds)
+
+    expect DialFailedError:
+      discard await dialer
+        .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
+        .wait(5.seconds)
+
+    await sleepAsync(150.milliseconds)
+
+    expect DialFailedError:
+      discard await dialer
+        .connect(dst.peerInfo.addrs[0], allowUnknownPeerId = true)
+        .wait(100.milliseconds)
+
   asyncTest "Cancelling a dial at any point leaves nothing open":
     let
       src = makeStandardSwitch(TcpAutoAddress)
