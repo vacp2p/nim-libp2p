@@ -9,7 +9,7 @@ import ../../../libp2p/[builders, switch, multiaddress, multicodec, peerinfo, wi
 import ../../../libp2p/services/natservice
 import ../../../libp2p/services/nat/portmapper
 import ../../../libp2p/protocols/connectivity/dcutr/core
-import ../../tools/[unittest, crypto, multiaddress]
+import ../../tools/[unittest, multiaddress, switch_builder]
 
 type
   MockCallKind = enum
@@ -88,13 +88,7 @@ proc closed(m: MockPortMapper): bool =
   m.countCalls(mckClose) > 0
 
 proc standardBuilder(listenAddrs: seq[MultiAddress]): SwitchBuilder =
-  SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(listenAddrs, false)
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
+  makeStandardSwitchBuilder(listenAddrs).withWildcardResolver(false)
 
 proc makeSwitch(
     config: NATConfig,

@@ -1107,19 +1107,9 @@ suite "Switch":
 
   asyncTest "e2e multiple transports coexistence":
     let
-      destSwitch = SwitchBuilder
-        .new()
-        .withAddresses(@[TcpAutoAddress, WsAutoAddress, QuicAutoAddress])
-        .withRng(rng())
-        .withMplex()
-        .withTcpTransport()
-        .withTransport(
-          proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr, config.rng)
-        )
-        .withQuicTransport()
-        .withNoise()
-        .build()
+      destSwitch = makeStandardSwitchBuilder(
+        @[TcpAutoAddress, WsAutoAddress, QuicAutoAddress]
+      ).build()
 
       srcTcpSwitch = makeStandardSwitch(TcpAutoAddress)
       srcWsSwitch = makeStandardSwitch(WsAutoAddress)

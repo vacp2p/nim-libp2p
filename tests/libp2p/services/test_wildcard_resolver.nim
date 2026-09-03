@@ -7,7 +7,7 @@ import chronos, metrics
 import
   ../../../libp2p/
     [builders, switch, services/wildcardresolverservice, multiaddress, multicodec]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, switch_builder]
 
 proc getAddressesMock(
     addrFamily: AddressFamily
@@ -28,14 +28,7 @@ proc getAddressesMock(
     fail()
 
 proc createSwitch(svc: Service, addrs: seq[MultiAddress]): Switch =
-  var switch = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(addrs, false)
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  var switch = makeStandardSwitchBuilder(addrs).withWildcardResolver(false).build()
 
   switch.add(svc)
 

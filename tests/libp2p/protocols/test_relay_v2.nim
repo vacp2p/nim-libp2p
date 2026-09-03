@@ -15,16 +15,13 @@ import
     signed_envelope,
     peerid,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
-  var builder = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
+  var builder = makeStandardSwitchBuilder(
+    MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+  )
     .withCircuitRelay(r)
-    .withNoise()
 
   if useYamux:
     builder = builder.withYamux()
