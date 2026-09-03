@@ -3,9 +3,13 @@
 
 {.used.}
 
+import chronos
 import ../../libp2p/[multiaddress]
 
 template ma*(address: string): MultiAddress =
+  MultiAddress.init(address).get()
+
+template ma*(address: TransportAddress): MultiAddress =
   MultiAddress.init(address).get()
 
 template MemoryAutoAddress*(): MultiAddress =

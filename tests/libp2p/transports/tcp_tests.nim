@@ -85,7 +85,7 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
-      let maddr = ma($server.sock.getLocalAddress())
+      let maddr = ma(server.sock.getLocalAddress())
       let client = TcpTransport.new(upgrade = Upgrade())
       let conn = await client.dial(maddr)
 
@@ -119,7 +119,7 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
-      let maddr = ma($server.sock.getLocalAddress())
+      let maddr = ma(server.sock.getLocalAddress())
       let client = TcpTransport.new(upgrade = Upgrade())
       let conn = await client.dial(maddr)
       await conn.write(message)

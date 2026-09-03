@@ -226,7 +226,7 @@ suite "WebSocket transport":
       await transport1.stop()
 
     let
-      base = ma($transport1.addrs[0].initTAddress().tryGet())
+      base = ma(transport1.addrs[0].initTAddress().tryGet())
       wrongAddress = base & ma("/tls/sni/ws.wronghostname/ws")
     check transport1.addrs[0][2 .. ^1].tryGet() == sniSuffix
 

@@ -88,7 +88,7 @@ proc bridge(
     discard
 
 proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
-  await self.tcpTransport.start(@[ma($address)])
+  await self.tcpTransport.start(@[ma(address)])
 
   var msg = newSeq[byte](3)
   while self.tcpTransport.running:
