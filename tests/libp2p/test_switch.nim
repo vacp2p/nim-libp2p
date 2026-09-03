@@ -1107,11 +1107,7 @@ suite "Switch":
 
   asyncTest "e2e multiple transports coexistence":
     let
-      destSwitch = makeStandardSwitchBuilder(
-          @[TcpAutoAddress, WsAutoAddress, QuicAutoAddress]
-        )
-        .build()
-
+      destSwitch = makeStandardSwitch(@[TcpAutoAddress, WsAutoAddress, QuicAutoAddress])
       srcTcpSwitch = makeStandardSwitch(TcpAutoAddress)
       srcWsSwitch = makeStandardSwitch(WsAutoAddress)
       srcQuicSwitch = makeStandardSwitch(QuicAutoAddress)
@@ -1125,21 +1121,18 @@ suite "Switch":
     check destSwitch.peerInfo.addrs.len == 3
 
     # Test TCP transport connection
-    await srcTcpSwitch.connect(
-      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[0]]
-    )
+    let tcpAddr = destSwitch.peerInfo.addrs.filterIt(TCP.match(it))[0]
+    await srcTcpSwitch.connect(destSwitch.peerInfo.peerId, @[tcpAddr])
     check srcTcpSwitch.isConnected(destSwitch.peerInfo.peerId)
 
     # Test WebSocket transport connection
-    await srcWsSwitch.connect(
-      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[1]]
-    )
+    let wsAddr = destSwitch.peerInfo.addrs.filterIt(WebSockets.match(it))[0]
+    await srcWsSwitch.connect(destSwitch.peerInfo.peerId, @[wsAddr])
     check srcWsSwitch.isConnected(destSwitch.peerInfo.peerId)
 
     # Test QUIC transport connection
-    await srcQuicSwitch.connect(
-      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[2]]
-    )
+    let quicAddr = destSwitch.peerInfo.addrs.filterIt(QUIC_V1.match(it))[0]
+    await srcQuicSwitch.connect(destSwitch.peerInfo.peerId, @[quicAddr])
     check srcQuicSwitch.isConnected(destSwitch.peerInfo.peerId)
 
   asyncTest "mount unstarted protocol":
