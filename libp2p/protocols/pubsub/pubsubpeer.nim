@@ -121,7 +121,7 @@ type
     data: seq[byte]
     useCustomStream: bool
     relayedSaltedId: Opt[SaltedId]
-      ## Set when this RPC carries one relayed message and was not split, so the send stays cancellable.
+      ## Id of the one relayed message this RPC carries, when it was not split.
 
   RpcMessageQueue* = ref object
     # Tracks async tasks for sending high-priority peer-published messages.
@@ -601,13 +601,16 @@ proc dropNonHighPriorityMessage(
     raiseAssert "high-priority messages are not dropped via queue overflow scoring"
   return newFutureCompleted[void]()
 
-proc cancelQueuedRelays*(
-    p: PubSubPeer, isUnwanted: proc(saltedId: SaltedId): bool {.gcsafe, raises: [].}
-): int =
-  ## Drops every queued relay that `isUnwanted` accepts, in one pass, and counts the saved bytes.
-  if p.rpcmessagequeue.lowPriorityQueue.len == 0:
-    return 0
+func holdsIDontWant*(p: PubSubPeer, id: SaltedId): bool =
+  ## True when the peer sent an IDONTWANT for `id` within the kept history.
+  for iDontWant in p.iDontWants:
+    if id in iDontWant:
+      return true
 
+  false
+
+proc cancelQueuedRelays*(p: PubSubPeer, duplicates: openArray[SaltedId]): int =
+  ## Drops every queued relay the peer already holds and counts the saved bytes.
   var savedBytes = 0
 
   for _ in 0 ..< p.rpcmessagequeue.lowPriorityQueue.len:
@@ -615,7 +618,7 @@ proc cancelQueuedRelays*(
 
     var cancel = false
     queued.relayedSaltedId.withValue(id):
-      cancel = isUnwanted(id)
+      cancel = id in duplicates or p.holdsIDontWant(id)
 
     if not cancel:
       p.rpcmessagequeue.lowPriorityQueue.addLast(queued)
@@ -645,6 +648,7 @@ proc sendEncoded*(
   ##   - `Low`: queued in `lowPriorityQueue`. Dropped when full.
   ## - `useCustomStream`: boolean used to indicate if a custom stream is going to
   ##   be used for sending this message
+  ## - `relayedSaltedId`: id that lets `cancelQueuedRelays` drop this queued send.
   ## Low and medium priority messages are queued and sent only after all high
   ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
@@ -740,18 +744,24 @@ proc sendResponse*(
   ## `maxMessageSize`, and individual messages that still exceed
   ## `maxMessageSize`, are dropped with a warning.
 
-  proc send(toSendMsg: RPCMsg, msgId = Opt.none(SaltedId)) =
+  proc send(toSendMsg: RPCMsg, saltedId = Opt.none(SaltedId)) =
     var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
     trace "Sending PubSub RPC response",
       peerId = p.peerId, messageType = "rpc", messageSize = encoded.len
-    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream, msgId))
+    p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream, saltedId))
 
   template wireSize(toSizeMsg: RPCMsg): int =
     toSizeMsg.anonymize(anonymize).encodedSize()
 
   let msgSize = wireSize(msg)
   if msgSize <= p.maxMessageSize:
-    send(msg, relayedSaltedId) # The whole RPC fits the limits, send it as-is.
+    # A cancel drops the whole RPC, so tag it only when it carries that one message.
+    let saltedId =
+      if msg.messages.len == 1:
+        relayedSaltedId
+      else:
+        Opt.none(SaltedId)
+    send(msg, saltedId) # The whole RPC fits the limits, send it as-is.
     return
 
   if msg.messages.len == 0:
