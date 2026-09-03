@@ -139,7 +139,9 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     for i in 10 .. 30:
       if i mod 10 == 0:
         let ip = "192.168.1." & $i
-        registrar.seedAd(filler, makeAdvertisement(addrs = @[makeMultiAddress(ip)]), now)
+        registrar.seedAd(
+          filler, makeAdvertisement(addrs = @[makeMultiAddress(ip)]), now
+        )
 
     let ad = makeAdvertisement(
       addrs = @[
@@ -358,7 +360,9 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.boundIp[ip2] = initMoment(1500)
     registrar.timestampIp[ip2] = initMoment(1000)
 
-    let ad = makeAdvertisement($serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)])
+    let ad = makeAdvertisement(
+      $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
+    )
 
     let w = registrar.waitingTime(discoConfig, serviceId, ad.ipsFromAd(), now)
 
@@ -411,7 +415,9 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let serviceId = makeServiceId()
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
-    let ad = makeAdvertisement($serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)])
+    let ad = makeAdvertisement(
+      $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
+    )
     let now = initMoment(1000)
     let w = 500.secs
 
@@ -695,7 +701,9 @@ suite "Service Discovery Registrar - Edge Cases":
     let now = Moment.now()
     let filler = makeServiceId(99)
 
-    registrar.seedAd(filler, makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.1")]), now)
+    registrar.seedAd(
+      filler, makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.1")]), now
+    )
 
     let ipv4Addr = makeMultiAddress("192.168.1.50")
     let ipv6Addr = ma("/ip6/::1/tcp/9000")
@@ -1031,10 +1039,16 @@ suite "Service Discovery Registrar - registration replaces by advertiser":
     let serviceId = serviceName.hashServiceId()
     let privateKey = PrivateKey.random(rng()).get()
     let ad1 = makeAdvertisement(
-      serviceName, privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
     )
     let ad2 = makeAdvertisement(
-      serviceName, privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.2")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.2")],
     )
     let now = Moment.now()
 
@@ -1131,10 +1145,16 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     let now = Moment.now()
 
     let oldAd = makeAdvertisement(
-      serviceName, privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 1,
+      addrs = @[makeMultiAddress("10.0.0.1")],
     )
     let newAd = makeAdvertisement(
-      serviceName, privateKey = privateKey, seqNo = 2, addrs = @[makeMultiAddress("10.0.0.2")]
+      serviceName,
+      privateKey = privateKey,
+      seqNo = 2,
+      addrs = @[makeMultiAddress("10.0.0.2")],
     )
 
     disco.acceptAd(now, serviceId, oldAd)
