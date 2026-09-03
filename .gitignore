@@ -45,3 +45,5 @@ tests/**/test*[^.]*
 
 # nix builds
 result
+
+/interop/autonatv2/go-peer/testautonatv2
