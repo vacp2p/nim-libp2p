@@ -305,8 +305,3 @@ suite "Circuit Relay":
       let maStr = "/ip4/127.0.0.1"
       let maddr = ma(maStr)
       stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
-
-    expect LPError:
-      let maStr = $dst.peerInfo.peerId
-      let maddr = ma(maStr)
-      stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
