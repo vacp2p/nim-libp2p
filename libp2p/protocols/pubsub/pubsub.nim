@@ -452,23 +452,22 @@ method getOrCreatePeer*(
 
   return pubSubPeer
 
-proc disconnectPeer*(p: PubSub, peer: PubSubPeer) {.async: (raises: []).} =
-  try:
-    await p.switch.disconnect(peer.peerId)
-  except CatchableError as e:
-    trace "Failed to close connection", peer, errName = e.name, description = e.msg
+proc disconnectPeer*(
+    p: PubSub, peer: PubSubPeer
+) {.async: (raises: [CancelledError]).} =
+  await p.switch.disconnect(peer.peerId)
 
-proc punishOverBudget*(
-    p: PubSub, peer: PubSubPeer, overhead: int, disconnectAboveLimit: bool
-) {.async: (raises: [PeerRateLimitError]).} =
+template punishOverBudget*(
+    p: PubSub, punished: PubSubPeer, invalidBytesSent: int, disconnectAboveLimit: bool
+) =
+  # a template, so that only the disconnect path allocates a future
   debug "Peer sent too much useless application data and it's above rate limit.",
-    peer, overhead
-  if not disconnectAboveLimit:
-    return
-
-  await p.disconnectPeer(peer)
-  raise
-    newException(PeerRateLimitError, "Peer disconnected because it's above rate limit.")
+    peer = punished, overhead = invalidBytesSent
+  if disconnectAboveLimit:
+    await p.disconnectPeer(punished)
+    raise newException(
+      PeerRateLimitError, "Peer disconnected because it's above rate limit."
+    )
 
 proc handleData*(
     p: PubSub, topic: string, data: seq[byte]

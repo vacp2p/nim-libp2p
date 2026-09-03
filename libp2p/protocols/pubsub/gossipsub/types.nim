@@ -12,6 +12,7 @@ import results
 import extensions, preamblestore
 
 export results, tables, sets
+export RateLimit # downstream code names it through this module
 
 const
   GossipSubCodec_13* = "/meshsub/1.3.0"

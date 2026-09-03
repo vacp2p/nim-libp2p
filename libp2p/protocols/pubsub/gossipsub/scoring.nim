@@ -336,13 +336,11 @@ proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
 
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
-) {.async: (raises: [PeerRateLimitError]).} =
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   if not peer.tryCharge(msg.data.len):
     # counted before the disconnect below, which raises
     libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
-    await g.punishOverBudget(
-      peer, msg.data.len, g.parameters.disconnectPeerAboveRateLimit
-    )
+    g.punishOverBudget(peer, msg.data.len, g.parameters.disconnectPeerAboveRateLimit)
 
   if msg.topic notin g.topics:
     return

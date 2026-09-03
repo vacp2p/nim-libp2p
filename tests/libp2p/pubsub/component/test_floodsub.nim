@@ -367,18 +367,18 @@ suite "FloodSub Component":
     check node.floodsub.len == 0
 
   asyncTest "FloodSub charges the overhead budget when message id generation fails":
-    const bytes = 10
+    const budget = 10
 
     let
       node = generateNodes(1).toFloodSub()[0]
-      peer = node.addRateLimitedPeer(TokenBucket.new(bytes, 1.hours))
+      peer = node.addRateLimitedPeer(TokenBucket.new(budget, 1.hours))
 
     node.msgIdProvider = failingMsgIdProvider
 
     let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
     await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
 
-    check not peer.overheadRateLimitOpt.get().tryConsume(bytes)
+    check not peer.overheadRateLimitOpt.get().tryConsume(budget)
 
   asyncTest "FloodSub disconnects a peer above the overhead budget":
     let

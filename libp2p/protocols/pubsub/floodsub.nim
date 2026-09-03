@@ -99,11 +99,10 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
-proc punishIfOverBudget(
-    f: FloodSub, peer: PubSubPeer, overhead: int
-) {.async: (raises: [PeerRateLimitError]).} =
+template chargeOverhead(f: FloodSub, peer: PubSubPeer, overhead: int) =
+  # a template, so that a peer within its budget allocates no future
   if not peer.tryCharge(overhead):
-    await f.punishOverBudget(peer, overhead, f.disconnectPeerAboveRateLimit)
+    f.punishOverBudget(peer, overhead, f.disconnectPeerAboveRateLimit)
 
 method rpcHandler*(
     f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
@@ -111,7 +110,7 @@ method rpcHandler*(
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
-    await f.punishIfOverBudget(peer, msgSize)
+    f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
   trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
@@ -124,12 +123,13 @@ method rpcHandler*(
 
     f.handleSubscribe(peer, sub.topic.get(), sub.isSubscribe)
 
+  var invalidBytesSent = 0
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
-      await f.punishIfOverBudget(peer, msg.data.len)
+      invalidBytesSent += msg.data.len
       continue
 
     let
@@ -144,13 +144,13 @@ method rpcHandler*(
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
-      await f.punishIfOverBudget(peer, msg.data.len)
+      invalidBytesSent += msg.data.len
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
-      await f.punishIfOverBudget(peer, msg.data.len)
+      invalidBytesSent += msg.data.len
       continue
 
     if f.addSeen(saltedId):
@@ -184,6 +184,7 @@ method rpcHandler*(
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
+  f.chargeOverhead(peer, invalidBytesSent)
 
 method init*(f: FloodSub) =
   proc handler(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =

@@ -685,14 +685,14 @@ proc recordOverheadMetrics(g: GossipSub, peer: PubSubPeer, overhead: int) =
 
 proc rateLimit*(
     g: GossipSub, peer: PubSubPeer, overhead: int
-) {.async: (raises: [PeerRateLimitError]).} =
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   g.recordOverheadMetrics(peer, overhead)
   if peer.tryCharge(overhead):
     return
 
   # counted before the disconnect below, which raises
   libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
-  await g.punishOverBudget(peer, overhead, g.parameters.disconnectPeerAboveRateLimit)
+  g.punishOverBudget(peer, overhead, g.parameters.disconnectPeerAboveRateLimit)
 
 method rpcHandler*(
     g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
