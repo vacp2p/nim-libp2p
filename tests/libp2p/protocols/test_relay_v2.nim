@@ -25,8 +25,6 @@ proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
 
   if useYamux:
     builder = builder.withYamux()
-  else:
-    builder = builder.withMplex()
 
   return builder.build()
 
