@@ -19,8 +19,8 @@ import ../../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = makeStandardSwitchBuilder(
-    MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-  )
+      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    )
     .withCircuitRelay(r)
 
   if useYamux:

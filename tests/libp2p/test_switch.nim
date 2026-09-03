@@ -1108,8 +1108,9 @@ suite "Switch":
   asyncTest "e2e multiple transports coexistence":
     let
       destSwitch = makeStandardSwitchBuilder(
-        @[TcpAutoAddress, WsAutoAddress, QuicAutoAddress]
-      ).build()
+          @[TcpAutoAddress, WsAutoAddress, QuicAutoAddress]
+        )
+        .build()
 
       srcTcpSwitch = makeStandardSwitch(TcpAutoAddress)
       srcWsSwitch = makeStandardSwitch(WsAutoAddress)
