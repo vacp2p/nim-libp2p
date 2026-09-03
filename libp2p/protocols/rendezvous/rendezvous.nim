@@ -92,6 +92,8 @@ type
     # the value is the index sequence corresponding to this
     # namespace in the offsettedqueue.
     namespaces*: Table[string, seq[int]]
+    # Number of entries of `registered` per peer.
+    registeredCount*: Table[PeerId, int]
     rng*: Rng
     config*: RendezVousConfig
     salt*: string
@@ -163,8 +165,13 @@ proc sendDiscoverResponseError*(
   )
   await stream.writeLp(msg)
 
-proc countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
-  rdv.registered.countIt(it.peerId == peerId)
+func countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
+  rdv.registeredCount.getOrDefault(peerId)
+
+proc recountRegistered[E](rdv: GenericRendezVous[E]) =
+  rdv.registeredCount.clear()
+  for reg in rdv.registered.s:
+    rdv.registeredCount.mgetOrPut(reg.peerId, 0).inc()
 
 proc save*[E](
     rdv: GenericRendezVous[E],
@@ -188,6 +195,7 @@ proc save*[E](
         data: r,
       )
     )
+    rdv.registeredCount.mgetOrPut(peerId, 0).inc()
     rdv.namespaces[nsSalted].add(rdv.registered.high)
   #    rdv.registerEvent.fire()
   except exceptions.KeyError as e:
@@ -634,6 +642,7 @@ proc deletesRegister*[E](
     let n = Moment.now()
     rdv.clearExpiredRegistrations(n)
     rdv.dropExpiredNamespaces(n)
+    rdv.recountRegistered()
     libp2p_rendezvous_registered.set(int64(rdv.liveRegistrations()))
     libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
