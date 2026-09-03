@@ -524,8 +524,7 @@ suite "Mplex":
       await mplexDialFut
 
     asyncTest "write fragmented":
-      let
-        listenJob = newFuture[void]()
+      let listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
       for _ in 0 ..< MaxMsgSize:
