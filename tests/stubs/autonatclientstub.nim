@@ -10,6 +10,7 @@ import
   ../../libp2p/[protocols/connectivity/autonat/client, peerid, multiaddress, switch]
 from ../../libp2p/protocols/connectivity/autonat/types import
   NetworkReachability, AutonatUnreachableError, AutonatError
+import ../tools/multiaddress
 
 type
   AutonatClientStub* = ref object of AutonatClient
@@ -37,7 +38,7 @@ method dialMe*(
     self.finished.complete()
   case self.answer
   of NetworkReachability.Reachable:
-    return MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+    return TcpWildcardAddress
   of NetworkReachability.NotReachable:
     raise newException(AutonatUnreachableError, "")
   of NetworkReachability.Unknown:

@@ -6,12 +6,12 @@ import results
 import
   ../../../libp2p/
     [multiaddress, peerid, protocols/kademlia, protocols/kademlia/protobuf]
-import ../../tools/unittest
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 suite "KadDHT Protobuffers":
   test "Message encode/decode":
-    let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
+    let maddrs = @[ma("/ip4/127.0.0.1/tcp/9000")]
     # encode with hideConnectionStatus=false to preserve connection type for round-trip check
     let peer =
       Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ConnectionStatus.connected)
@@ -35,10 +35,10 @@ suite "KadDHT Protobuffers":
 
   test "Peer with multiple multiaddresses":
     let maddrs = @[
-      MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get(),
-      MultiAddress.init("/ip4/192.168.1.1/tcp/4001").get(),
-      MultiAddress.init("/ip6/::1/tcp/9000").get(),
-      MultiAddress.init("/dns4/example.com/tcp/443").get(),
+      ma("/ip4/127.0.0.1/tcp/9000"),
+      ma("/ip4/192.168.1.1/tcp/4001"),
+      ma("/ip6/::1/tcp/9000"),
+      ma("/dns4/example.com/tcp/443"),
     ]
     let peer = Peer(id: @[1'u8, 2, 3, 4, 5], addrs: maddrs, connection: canConnect)
     let encoded = peer.encode(hideConnectionStatus = false)
@@ -61,21 +61,21 @@ suite "KadDHT Protobuffers":
       decoded == msg
 
   test "Peer encode with hideConnectionStatus=true always emits notConnected":
-    let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
+    let maddrs = @[ma("/ip4/127.0.0.1/tcp/9000")]
     for ct in [connected, canConnect, cannotConnect, notConnected]:
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
       let decoded = Peer.decode(peer.encode(hideConnectionStatus = true)).get()
       check decoded.connection == Opt.none(ConnectionStatus)
 
   test "Peer encode with hideConnectionStatus=false preserves actual connection type":
-    let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
+    let maddrs = @[ma("/ip4/127.0.0.1/tcp/9000")]
     for ct in [connected, canConnect, cannotConnect, notConnected]:
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
       let decoded = Peer.decode(peer.encode(hideConnectionStatus = false)).get()
       check decoded.connection == ct
 
   test "Message encode with hideConnectionStatus=true hides connection in both peer lists":
-    let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
+    let maddrs = @[ma("/ip4/127.0.0.1/tcp/9000")]
     let msg = Message(
       msgType: MessageType.findNode,
       key: @[1'u8],

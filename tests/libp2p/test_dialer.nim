@@ -165,7 +165,7 @@ suite "Dialer":
 
     var addrs: seq[MultiAddress]
     for i in 0 ..< MaxDialCandidates * 2:
-      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+      addrs.add(ma("/memorytransport/addr-" & $i))
 
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
@@ -189,7 +189,7 @@ suite "Dialer":
 
     var addrs: seq[MultiAddress]
     for i in 0 ..< MaxDialCandidates * 2:
-      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
+      addrs.add(ma("/memorytransport/addr-" & $i))
 
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
@@ -212,10 +212,10 @@ suite "Dialer":
       dialRanking = true,
     )
 
-    let handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+    let handled = ma("/memorytransport/addr-0")
     var addrs: seq[MultiAddress]
     for i in 0 ..< MaxDialCandidates:
-      addrs.add(MultiAddress.init("/ip4/1.2.3.4/tcp/" & $(1000 + i)).tryGet())
+      addrs.add(ma("/ip4/1.2.3.4/tcp/" & $(1000 + i)))
     addrs.add(handled)
 
     expect DialFailedError:
@@ -243,7 +243,7 @@ suite "Dialer":
       dialRanking = true,
     )
 
-    let stalling = MultiAddress.init("/dnsaddr/stalls.example").tryGet()
+    let stalling = ma("/dnsaddr/stalls.example")
     await dialer.connect(dst.peerInfo.peerId, @[stalling] & dst.peerInfo.addrs).wait(
       5.seconds
     )
@@ -275,8 +275,8 @@ suite "Dialer":
     )
 
     let
-      stalling = MultiAddress.init("/dnsaddr/stalls.example").tryGet()
-      good = MultiAddress.init("/dnsaddr/good.example").tryGet()
+      stalling = ma("/dnsaddr/stalls.example")
+      good = ma("/dnsaddr/good.example")
     await dialer.connect(dst.peerInfo.peerId, @[stalling, good]).wait(5.seconds)
 
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
@@ -305,7 +305,7 @@ suite "Dialer":
       dialRanking = true,
     )
 
-    let name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    let name = ma("/dnsaddr/good.example")
     await dialer.connect(dst.peerInfo.peerId, @[name]).wait(5.seconds)
 
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
@@ -335,8 +335,8 @@ suite "Dialer":
     )
 
     let
-      dead = MultiAddress.init("/memorytransport/addr-0").tryGet()
-      name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+      dead = ma("/memorytransport/addr-0")
+      name = ma("/dnsaddr/good.example")
     await dialer.connect(dst.peerInfo.peerId, @[dead, name]).wait(5.seconds)
 
     check failing.dialedAddrs == @[dead]
@@ -363,8 +363,8 @@ suite "Dialer":
 
     var addrs: seq[MultiAddress]
     for i in 0 ..< MaxDialCandidates:
-      addrs.add(MultiAddress.init("/memorytransport/addr-" & $i).tryGet())
-    addrs.add(MultiAddress.init("/dnsaddr/stalls.example").tryGet())
+      addrs.add(ma("/memorytransport/addr-" & $i))
+    addrs.add(ma("/dnsaddr/stalls.example"))
 
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), addrs).wait(1.seconds)
@@ -377,7 +377,7 @@ suite "Dialer":
     defer:
       await src.stop()
 
-    let wire = MultiAddress.init("/ip4/1.2.3.4/tcp/443").tryGet()
+    let wire = ma("/ip4/1.2.3.4/tcp/443")
     let resolver = MockResolver.new()
     resolver.txtResponses["_dnsaddr.good.example"] = @["dnsaddr=" & $wire]
 
@@ -393,7 +393,7 @@ suite "Dialer":
         dialRanking = true,
       )
 
-    let name = MultiAddress.init("/dnsaddr/good.example").tryGet()
+    let name = ma("/dnsaddr/good.example")
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), @[wire, wire, name]).wait(
         5.seconds
@@ -417,7 +417,7 @@ suite "Dialer":
       dialRanking = true,
     )
 
-    let wss = MultiAddress.init("/ip4/1.2.3.4/tcp/443/wss").tryGet()
+    let wss = ma("/ip4/1.2.3.4/tcp/443/wss")
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), @[wss])
 
@@ -443,8 +443,8 @@ suite "Dialer":
     )
 
     let
-      unresolvable = MultiAddress.init("/dnsaddr/bad.example").tryGet()
-      handled = MultiAddress.init("/memorytransport/addr-0").tryGet()
+      unresolvable = ma("/dnsaddr/bad.example")
+      handled = ma("/memorytransport/addr-0")
 
     expect DialFailedError:
       await dialer.connect(PeerId.random(rng()).tryGet(), @[unresolvable, handled])

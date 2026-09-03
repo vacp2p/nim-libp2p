@@ -6,7 +6,7 @@
 import std/sequtils
 import chronos
 import ../../../libp2p/[stream/connection, transports/transport, multiaddress]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 const CancelSteps = 12 ## Poll steps to walk the cancel through, one dial per step.
@@ -16,10 +16,8 @@ proc countCancelledDials*(
 ): Future[int] {.async: (raises: [CatchableError]).} =
   ## Dial and cancel one step later each round. Counts the dials the cancel won.
 
-  let ma = @[MultiAddress.init(address).tryGet()]
-
   let server = provider()
-  await server.start(ma)
+  await server.start(@[ma(address)])
   let client = provider()
 
   var accepted: seq[RawConn]

@@ -219,8 +219,7 @@ suite "Switch":
       @["dnsaddr=" & $switch1.peerInfo.addrs[0] & "/p2p/" & $switch1.peerInfo.peerId]
 
     check:
-      (await switch2.connect(MultiAddress.init("/dnsaddr/test.io/").tryGet(), true)) ==
-        switch1.peerInfo.peerId
+      (await switch2.connect(ma("/dnsaddr/test.io/"), true)) == switch1.peerInfo.peerId
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     # via direct ip
@@ -693,10 +692,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e closing remote raw connection should not leak":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
     let transport = TcpTransport.new(upgrade = Upgrade())
-    await transport.start(ma)
+    await transport.start(@[TcpWildcardAddress])
 
     proc acceptHandler() {.async.} =
       let rawConn = await transport.accept()
@@ -761,7 +758,7 @@ suite "Switch":
   asyncTest "connect to inexistent peer":
     let switch2 = makeStandardSwitch(TcpAutoAddress)
     await switch2.start()
-    let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
+    let someAddr = ma("/ip4/127.128.0.99")
     let seckey = PrivateKey.random(ECDSA, rng()).get()
     let somePeer = PeerInfo.new(seckey, [someAddr])
     expect(DialFailedError):
@@ -1049,9 +1046,7 @@ suite "Switch":
     await destSwitch.start()
     await srcSwitch.start()
 
-    let testAddr =
-      MultiAddress.init("/dns4/localhost/").tryGet() &
-      destSwitch.peerInfo.addrs[0][1].tryGet()
+    let testAddr = ma("/dns4/localhost/") & destSwitch.peerInfo.addrs[0][1].tryGet()
 
     await srcSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
     check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
@@ -1079,7 +1074,7 @@ suite "Switch":
     ]
     resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
 
-    let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
+    let testAddr = ma("/dnsaddr/test.io/")
 
     await srcTcpSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
     check srcTcpSwitch.isConnected(destSwitch.peerInfo.peerId)
@@ -1187,12 +1182,7 @@ suite "Switch":
     await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
-    let switch = makeStandardSwitch(
-      @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-        MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
-      ]
-    )
+    let switch = makeStandardSwitch(@[TcpWildcardAddress, ma("/ip4/1.1.1.1/tcp/0")])
 
     expect LPError:
       await switch.start()
@@ -1212,7 +1202,7 @@ suite "Switch":
     # peerInfo.addrs verbatim regardless of the mapper chain (including the
     # wildcard resolver, which would normally rewrite/expand listenAddrs).
     let
-      announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
+      announcedAddr = ma("/ip4/203.0.113.7/tcp/9000")
       switch = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAnnouncedAddresses(@[announcedAddr])
         .build()
@@ -1295,7 +1285,7 @@ suite "Switch :: IdentifyPusher Service":
       switch2.isConnected(switch1.peerInfo.peerId)
 
     # switch2 starts listening on new address
-    let extra = MultiAddress.init("/ip4/127.0.0.1/tcp/999").tryGet()
+    let extra = ma("/ip4/127.0.0.1/tcp/999")
     switch2.peerInfo.listenAddrs.add(extra)
     await switch2.peerInfo.update()
 
