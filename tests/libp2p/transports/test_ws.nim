@@ -152,8 +152,6 @@ suite "WebSocket transport":
   )
 
   asyncTest "Hostname verification":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/wss")]
-
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
     let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
@@ -169,7 +167,7 @@ suite "WebSocket transport":
     )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
-    await transport1.start(maddr)
+    await transport1.start(@[ma("/ip4/0.0.0.0/tcp/0/wss")])
     defer:
       await transport1.stop()
     check correctPattern.match(transport1.addrs[0])
@@ -191,10 +189,9 @@ suite "WebSocket transport":
       discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
   asyncTest "handles tls/ws":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
     let transport1 = wsSecureTransProvider()
     const correctPattern = mapAnd(TCP, mapEq("tls"), mapEq("ws"))
-    await transport1.start(maddr)
+    await transport1.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     check transport1.handles(transport1.addrs[0])
     check correctPattern.match(transport1.addrs[0])
 
@@ -246,8 +243,6 @@ suite "WebSocket transport with autotls":
     checkTrackers()
 
   asyncTest "autotls certificate is used when manual tlscertificate is not specified":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
-
     let key = KeyPair.random(PKScheme.RSA, rng()).get()
     let (privkey, cert) = tlsCertGenerator(Opt.some(key))
     let autotls = MockAutotlsService.new(rng())
@@ -262,7 +257,7 @@ suite "WebSocket transport with autotls":
       Opt.some(AutotlsService(autotls)),
       rng(),
     )
-    await wstransport.start(maddr)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
@@ -275,8 +270,6 @@ suite "WebSocket transport with autotls":
     check wstransport.tlsPrivateKey == autotlsCert.privkey
 
   asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
-
     let key = KeyPair.random(PKScheme.RSA, rng()).get()
     let (privkey, cert) = tlsCertGenerator(Opt.some(key))
     let autotls = MockAutotlsService.new(rng())
@@ -290,7 +283,7 @@ suite "WebSocket transport with autotls":
     let wstransport = WsTransport.new(
       Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
     )
-    await wstransport.start(maddr)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
@@ -302,7 +295,6 @@ suite "WebSocket transport with autotls":
     check wstransport.tlsPrivateKey == manualKey
 
   asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
     let wstransport = WsTransport.new(
       Upgrade(),
       nil, # TLSPrivateKey
@@ -310,7 +302,7 @@ suite "WebSocket transport with autotls":
       Opt.none(AutotlsService),
       rng(),
     )
-    await wstransport.start(maddr)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
@@ -323,8 +315,6 @@ suite "WebSocket transport with autotls":
       not WSS.match(wstransport.addrs[0])
 
   asyncTest "the transport stops when the autotls service never runs":
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
-
     let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
     let wstransport = WsTransport.new(
       Upgrade(),
@@ -335,7 +325,7 @@ suite "WebSocket transport with autotls":
     )
 
     # The wait for a running service is bounded by DefaultAutotlsWaitTimeout, 3 seconds.
-    await wstransport.start(maddr).wait(5.seconds)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]).wait(5.seconds)
 
     check:
       not wstransport.running
@@ -343,8 +333,6 @@ suite "WebSocket transport with autotls":
 
   asyncTest "start never returns when the autotls certificate never arrives":
     # TODO: vacp2p/nim-libp2p#2957
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
-
     let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
     autotls.running.fire()
     let wstransport = WsTransport.new(
@@ -355,13 +343,11 @@ suite "WebSocket transport with autotls":
       rng(),
     )
 
-    let startFut = wstransport.start(maddr)
+    let startFut = wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     check not (await startFut.withTimeout(200.milliseconds))
 
   asyncTest "a renewed certificate does not reach a running transport":
     # TODO: vacp2p/nim-libp2p#2994
-    let maddr = @[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]
-
     let autotls = AutotlsService(
       cert: Opt.some(AutotlsCert.new(secureCert, secureKey, now())),
       certReady: newAsyncEvent(),
@@ -377,7 +363,7 @@ suite "WebSocket transport with autotls":
       Opt.some(autotls),
       rng(),
     )
-    await wstransport.start(maddr)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 

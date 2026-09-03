@@ -36,9 +36,8 @@ suite "Memory transport":
     check $maddr == "/memorytransport/addr-1"
 
   asyncTest "can handle local address":
-    let maddr = @[ma("/memorytransport/addr-1")]
     let transport: MemoryTransport = MemoryTransport.new(rng = rng())
-    await transport.start(maddr)
+    await transport.start(@[ma("/memorytransport/addr-1")])
     check transport.handles(transport.addrs[0])
     await transport.stop()
 

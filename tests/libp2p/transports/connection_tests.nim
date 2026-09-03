@@ -19,8 +19,6 @@ template connectionTransportTest*(
       "Transparent, immutable records, as we will see, are critical to good governance"
 
     asyncTest "handle write":
-      let maddr = @[ma(ma1)]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         defer:
@@ -41,7 +39,7 @@ template connectionTransportTest*(
         check string.fromBytes(buffer) == message
 
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -49,8 +47,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "handle read":
-      let maddr = @[ma(ma1)]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         defer:
@@ -71,7 +67,7 @@ template connectionTransportTest*(
         await conn.write(message)
 
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -125,8 +121,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "read or write on closed connection":
-      let maddr = @[ma(ma1)]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         await conn.close()
@@ -150,7 +144,7 @@ template connectionTransportTest*(
           await conn.write(buffer)
 
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -158,10 +152,8 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "write after remote half-close":
-      let maddr = @[ma(ma1)]
-
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[ma(ma1)])
       let acceptFut = server.accept()
       let client = transportProvider()
       let clientConn = await client.dial(server.addrs[0])
