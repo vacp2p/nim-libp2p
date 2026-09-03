@@ -451,6 +451,148 @@ suite "Dialer":
 
     check transport.dialedAddrs == @[handled]
 
+  asyncTest "An address that failed is skipped while it is on backoff":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialBackoff = Opt.some(
+        DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
+      ),
+    )
+
+    let address = MultiAddress.init("/memorytransport/addr-0").tryGet()
+
+    # no peer id, so only the address backoff can stop the second dial
+    expect DialFailedError:
+      discard await dialer.connect(address, allowUnknownPeerId = true)
+    check transport.dialedAddrs.len == 1
+
+    expect DialFailedError:
+      discard await dialer.connect(address, allowUnknownPeerId = true)
+    check transport.dialedAddrs.len == 1
+
+  asyncTest "An address that failed for one peer is still dialed for another":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialBackoff = Opt.some(
+        DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
+      ),
+    )
+
+    let addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+    check transport.dialedAddrs.len == 1
+
+    expect DialFailedError:
+      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+    check transport.dialedAddrs.len == 2
+
+  asyncTest "A dial that every address backoff skipped does not fail the peer":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialBackoff = Opt.some(
+        DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
+      ),
+    )
+
+    let
+      peerId = PeerId.random(rng()).tryGet()
+      addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
+
+    # tryDial backs the address off without ever failing the peer
+    expect DialFailedError:
+      discard await dialer.tryDial(peerId, addrs)
+    check transport.dialedAddrs.len == 1
+
+    expect DialFailedError:
+      await dialer.connect(peerId, addrs)
+    check transport.dialedAddrs.len == 1
+
+    let fresh = @[MultiAddress.init("/memorytransport/addr-1").tryGet()]
+    expect DialFailedError:
+      await dialer.connect(peerId, fresh)
+    check transport.dialedAddrs.len == 2
+
+  asyncTest "A peer whose addresses all failed is not dialed again while it is on backoff":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+      dialBackoff = Opt.some(
+        DialBackoffConfig(tolerance: 0, base: 1.minutes, factor: 2, maxDelay: 1.minutes)
+      ),
+    )
+
+    let
+      peerId = PeerId.random(rng()).tryGet()
+      addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
+
+    expect DialFailedError:
+      await dialer.connect(peerId, addrs)
+    check transport.dialedAddrs.len == 1
+
+    let fresh = @[MultiAddress.init("/memorytransport/addr-1").tryGet()]
+    expect DialFailedError:
+      await dialer.connect(peerId, fresh)
+    check transport.dialedAddrs.len == 1
+
+    expect DialFailedError:
+      await dialer.connect(peerId, fresh, forceDial = true)
+    check transport.dialedAddrs.len == 2
+
+  asyncTest "A switch that opted into backoffs still dials a reachable peer":
+    let
+      src = makeStandardSwitchBuilder().withDialBackoff().build()
+      dst = makeStandardSwitch()
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    await src.disconnect(dst.peerInfo.peerId)
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+
   asyncTest "Cancelling a dial at any point leaves nothing open":
     let
       src = makeStandardSwitch(TcpAutoAddress)
