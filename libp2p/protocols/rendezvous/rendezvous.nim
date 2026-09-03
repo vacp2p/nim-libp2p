@@ -39,6 +39,7 @@ const
   MinimumNamespaceLen = 1
   MaximumNamespaceLen = 255
   RegistrationLimitPerPeer* = 1000
+  MaximumNamespaces* = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize* = 5
 
@@ -50,14 +51,17 @@ type RendezVousConfig* = object
   maxDuration*: Duration
   minTTL*: uint64
   maxTTL*: uint64
+  maxNamespaces*: int
 
 proc new*(
     T: typedesc[RendezVousConfig],
     minDuration: Duration = MinimumDuration,
     maxDuration: Duration = MaximumDuration,
+    maxNamespaces: int = MaximumNamespaces,
 ): T =
   var minD = minDuration
   var maxD = maxDuration
+  var maxNs = maxNamespaces
   if minD < MinimumAcceptedDuration:
     warn "TTL too short: 1 minute minimum"
     minD = MinimumAcceptedDuration
@@ -68,11 +72,15 @@ proc new*(
     warn "Minimum TTL longer than maximum"
     minD = MinimumAcceptedDuration
     maxD = MaximumDuration
+  if maxNs <= 0:
+    warn "Namespace limit must be positive"
+    maxNs = MaximumNamespaces
   T(
     minDuration: minD,
     maxDuration: maxD,
     minTTL: minD.seconds.uint64,
     maxTTL: maxD.seconds.uint64,
+    maxNamespaces: maxNs,
   )
 
 type
@@ -208,6 +216,9 @@ proc register*[E](
     return stream.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(stream.peerId) >= RegistrationLimitPerPeer:
     return stream.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
+  if rdv.namespaces.len >= rdv.config.maxNamespaces and
+      not rdv.namespaces.hasKey(r.ns & rdv.salt):
+    return stream.sendRegisterResponseError(NotAuthorized, "Namespace limit reached")
 
   rdv.save(r.ns, stream.peerId, r)
   libp2p_rendezvous_registered.inc()
