@@ -34,7 +34,7 @@ suite "Circuit Relay":
   var
     protos {.threadvar.}: seq[string]
     customProto {.threadvar.}: LPProtocol
-    ma {.threadvar.}: MultiAddress
+    maddr {.threadvar.}: MultiAddress
     src {.threadvar.}: Switch
     dst {.threadvar.}: Switch
     srelay {.threadvar.}: Switch
@@ -92,7 +92,7 @@ suite "Circuit Relay":
     customProto.handler = customHandler
     customProto.codec = protos[0]
 
-    ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    maddr = ma("/ip4/0.0.0.0/tcp/0")
     clSrc = RelayClient.new()
     clDst = RelayClient.new()
     r = Relay.new(circuitRelayV1 = true)
@@ -275,7 +275,7 @@ suite "Circuit Relay":
   asyncTest "Dial Peer":
     let maStr =
       $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p-circuit"
-    let maddr = MultiAddress.init(maStr).tryGet()
+    let maddr = ma(maStr)
     await src.connect(srelay.peerInfo.peerId, srelay.peerInfo.addrs)
     await srelay.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
@@ -293,20 +293,20 @@ suite "Circuit Relay":
       let maStr =
         $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId & "/p2p/" &
         $dst.peerInfo.peerId
-      let maddr = MultiAddress.init(maStr).tryGet()
+      let maddr = ma(maStr)
       stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
     expect DialFailedError:
       let maStr = $srelay.peerInfo.addrs[0] & "/p2p/" & $srelay.peerInfo.peerId
-      let maddr = MultiAddress.init(maStr).tryGet()
+      let maddr = ma(maStr)
       stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
     expect DialFailedError:
       let maStr = "/ip4/127.0.0.1"
-      let maddr = MultiAddress.init(maStr).tryGet()
+      let maddr = ma(maStr)
       stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])
 
     expect LPError:
       let maStr = $dst.peerInfo.peerId
-      let maddr = MultiAddress.init(maStr).tryGet()
+      let maddr = ma(maStr)
       stream = await src.dial(dst.peerInfo.peerId, @[maddr], protos[0])

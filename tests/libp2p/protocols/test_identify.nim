@@ -38,7 +38,7 @@ suite "Identify":
 
   suite "handle identify message":
     var
-      ma {.threadvar.}: seq[MultiAddress]
+      maddr {.threadvar.}: seq[MultiAddress]
       remoteSecKey {.threadvar.}: PrivateKey
       remotePeerInfo {.threadvar.}: PeerInfo
       serverFut {.threadvar.}: Future[void]
@@ -52,13 +52,10 @@ suite "Identify":
       conn {.threadvar.}: RawConn
 
     asyncSetup:
-      ma = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-        MultiAddress.init("/ip6/::/tcp/0").get(),
-      ]
+      maddr = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip6/::/tcp/0")]
       remoteSecKey = PrivateKey.random(ECDSA, rng()).get()
       remotePeerInfo =
-        PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
+        PeerInfo.new(remoteSecKey, maddr, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
       transport1 = TcpTransport.new(upgrade = Upgrade())
       transport2 = TcpTransport.new(upgrade = Upgrade())
@@ -69,7 +66,7 @@ suite "Identify":
       msListen = MultistreamSelect.new()
       msDial = MultistreamSelect.new()
 
-      serverFut = transport1.start(ma)
+      serverFut = transport1.start(maddr)
       await remotePeerInfo.update()
 
     asyncTeardown:
@@ -92,7 +89,7 @@ suite "Identify":
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
       check id.pubkey.get() == remoteSecKey.getPublicKey().get()
-      check id.addrs == ma
+      check id.addrs == maddr
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -114,7 +111,7 @@ suite "Identify":
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
       check id.pubkey.get() == remoteSecKey.getPublicKey().get()
-      check id.addrs == ma
+      check id.addrs == maddr
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == customAgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -187,7 +184,7 @@ suite "Identify":
       let id = await identifyProto2.identify(conn, remotePeerInfo.peerId)
 
       check id.pubkey.get() == remoteSecKey.getPublicKey().get()
-      check id.addrs == ma
+      check id.addrs == maddr
       check id.protoVersion.get() == ProtoVersion
       check id.agentVersion.get() == AgentVersion
       check id.protos == @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
@@ -202,12 +199,9 @@ suite "Identify":
       stream {.threadvar.}: Stream
 
     asyncSetup:
-      let ma = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-        MultiAddress.init("/ip6/::/tcp/0").get(),
-      ]
-      switch1 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
-      switch2 = makeStandardSwitchBuilder(ma).withSignedPeerRecord(true).build()
+      let maddr = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip6/::/tcp/0")]
+      switch1 = makeStandardSwitchBuilder(maddr).withSignedPeerRecord(true).build()
+      switch2 = makeStandardSwitchBuilder(maddr).withSignedPeerRecord(true).build()
 
       proc updateStore1(info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -273,7 +267,7 @@ suite "Identify":
 
     asyncTest "simple push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      switch2.peerInfo.addrs.add(ma("/ip4/127.0.0.1/tcp/5555"))
 
       check:
         toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=
@@ -294,7 +288,7 @@ suite "Identify":
 
     asyncTest "wrong peer id push identify":
       switch2.peerInfo.protocols.add("/newprotocol/")
-      switch2.peerInfo.addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/5555").tryGet())
+      switch2.peerInfo.addrs.add(ma("/ip4/127.0.0.1/tcp/5555"))
 
       check:
         toHashSet(switch1.peerStore[AddressBook][switch2.peerInfo.peerId]) !=

@@ -15,7 +15,7 @@ import
   ]
 import ../../../libp2p/utils/future
 import ../../stubs/autonatclientstub
-import ../../tools/[unittest, futures, crypto, reachability]
+import ../../tools/[unittest, futures, crypto, reachability, multiaddress]
 
 proc createSwitch(
     autonatSvc: Opt[AutonatService] = Opt.none(AutonatService),
@@ -27,7 +27,7 @@ proc createSwitch(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
+    .withAddresses(@[ma("/ip4/0.0.0.0/tcp/0")], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)
@@ -367,10 +367,7 @@ suite "Autonat Service":
 
     await switch1.start()
     switch1.peerInfo.addrs.add(
-      [
-        MultiAddress.init("/dns4/localhost/").tryGet() &
-          switch1.peerInfo.addrs[0][1].tryGet()
-      ]
+      [ma("/dns4/localhost/") & switch1.peerInfo.addrs[0][1].tryGet()]
     )
 
     await switch2.start()

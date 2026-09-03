@@ -250,8 +250,7 @@ proc peersWithAddrs*(count: int): seq[PeerInfo] =
   ## `count` fresh peers on distinct ports, so the IP-diversity caps admit them.
   (0 ..< count).mapIt(
     PeerInfo(
-      peerId: randomPeerId(),
-      addrs: @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $(40000 + it)).tryGet()],
+      peerId: randomPeerId(), addrs: @[ma("/ip4/127.0.0.1/tcp/" & $(40000 + it))]
     )
   )
 

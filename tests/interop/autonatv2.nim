@@ -23,7 +23,7 @@ proc autonatInteropTest*(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init(ourAddr).get()])
+    .withAddresses(@[ma(ourAddr)])
     .withAutonatV2Server()
     .withNAT(
       autonatConfig(
@@ -57,7 +57,7 @@ proc autonatInteropTest*(
   await switch.start()
   defer:
     await switch.stop()
-  await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
+  await switch.connect(otherPeerId, @[ma(otherAddr)])
 
   # await for network reachability with some timeout,
   # to prevent waiting indefinitely

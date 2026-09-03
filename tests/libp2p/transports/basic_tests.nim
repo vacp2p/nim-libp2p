@@ -2,11 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 
 {.used.}
-
 import chronos, results
 import
   ../../../libp2p/[stream/connection, transports/transport, multiaddress, multicodec]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 template basicTransportTest*(
@@ -18,22 +17,19 @@ template basicTransportTest*(
 ) =
   block:
     let transportProvider = provider
+    let maddr = @[ma(address)]
 
     asyncTest "can handle local address":
-      let ma = @[MultiAddress.init(address).tryGet()]
-
       let transport = transportProvider()
-      await transport.start(ma)
+      await transport.start(maddr)
       defer:
         await transport.stop()
 
       check transport.handles(transport.addrs[0])
 
     asyncTest "handle dial cancellation":
-      let ma = @[MultiAddress.init(address).tryGet()]
-
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let client = transportProvider()
       defer:
         await allFutures(client.stop(), server.stop())
@@ -44,10 +40,8 @@ template basicTransportTest*(
       check connFut.cancelled
 
     asyncTest "handle accept cancellation":
-      let ma = @[MultiAddress.init(address).tryGet()]
-
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       defer:
         await server.stop()
 
@@ -57,10 +51,8 @@ template basicTransportTest*(
       check acceptFut.cancelled
 
     asyncTest "stopping transport kills connections":
-      let ma = @[MultiAddress.init(address).tryGet()]
-
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let client = transportProvider()
 
       let acceptFut = server.accept()
@@ -75,10 +67,8 @@ template basicTransportTest*(
 
     asyncTest "stopping transport unblocks a pending accept":
       # TODO: nim-libp2p#2713
-      let ma = @[MultiAddress.init(address).tryGet()]
-
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
 
       # park an accept with nothing dialing, then stop the transport under it
       let acceptFut = server.accept()
@@ -88,14 +78,12 @@ template basicTransportTest*(
         discard await acceptFut
 
     asyncTest "accept on a stopped transport reports it closed without waiting":
-      let ma = MultiAddress.init(address).tryGet()
-
       let server = transportProvider()
-      await server.start(@[ma])
+      await server.start(@[maddr])
       await server.stop()
 
       let acceptFut = server.accept()
-      if isWsTransport(ma):
+      if isWsTransport(maddr):
         # TODO: vacp2p/nim-libp2p#2961
         check not (await acceptFut.withTimeout(200.milliseconds))
       else:
@@ -104,19 +92,18 @@ template basicTransportTest*(
           acceptFut.failed()
 
     asyncTest "transport start/stop events":
-      let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()
 
-      await transport.start(ma)
+      await transport.start(maddr)
       check await transport.onRunning.wait().withTimeout(1.seconds)
 
       await transport.stop()
       check await transport.onStop.wait().withTimeout(1.seconds)
 
     asyncTest "start succeeds for valid wire addresses":
-      for ma in validWireAddresses:
+      for maddr in validWireAddresses:
         let transport = transportProvider()
-        await transport.start(@[MultiAddress.init(ma).tryGet()])
+        await transport.start(@[ma(maddr)])
         await transport.stop()
 
     asyncTest "start fails when no address is provided":
@@ -127,42 +114,40 @@ template basicTransportTest*(
     asyncTest "start fails for valid non-wire addresses":
       for addrs in validNonWireAddresses:
         let transport = transportProvider()
-        let ma = MultiAddress.init(addrs).tryGet()
+        let maddr = ma(addrs)
 
         expect TransportStartError:
-          await transport.start(@[ma])
+          await transport.start(@[maddr])
 
     asyncTest "start behaviour for invalid addresses":
       for addrs in invalidAddresses:
         let transport = transportProvider()
-        let ma = MultiAddress.init(addrs).tryGet()
+        let maddr = ma(addrs)
 
         expect TransportStartError:
-          await transport.start(@[ma])
+          await transport.start(@[maddr])
 
     asyncTest "multiaddress validation - accept valid addresses":
       let transport = transportProvider()
 
       for validAddress in validWireAddresses & validNonWireAddresses:
-        check transport.handles(MultiAddress.init(validAddress).tryGet())
+        check transport.handles(ma(validAddress))
 
     asyncTest "multiaddress validation - reject invalid addresses":
       let transport = transportProvider()
 
       for invalidAddress in invalidAddresses:
-        check not transport.handles(MultiAddress.init(invalidAddress).tryGet())
+        check not transport.handles(ma(invalidAddress))
 
     asyncTest "address normalization - port assignment":
       # Start with port 0 and verify it gets assigned a real port
-      let ma = MultiAddress.init(address).tryGet()
-
-      if isTorTransport(ma):
+      if isTorTransport(maddr):
         # The advertised address is the onion3 address with a fixed, pre-configured port
         skip()
         return
 
       let transport = transportProvider()
-      await transport.start(@[ma])
+      await transport.start(@[maddr])
       defer:
         await transport.stop()
 
@@ -171,18 +156,16 @@ template basicTransportTest*(
       check:
         assignedPort > 0
         # Ensure IP address is the same
-        transport.addrs[0][multiCodec("ip4")].get() == ma[multiCodec("ip4")].get()
+        transport.addrs[0][multiCodec("ip4")].get() == maddr[multiCodec("ip4")].get()
 
     asyncTest "cannot bind second listener to same port":
-      let ma = MultiAddress.init(address).tryGet()
-
-      if isTcpTransport(ma):
+      if isTcpTransport(maddr):
         #TODO: Find out why doesn't throw for TCP
         skip()
         return
 
       let server = transportProvider()
-      await server.start(@[ma])
+      await server.start(@[maddr])
       defer:
         await server.stop()
 
@@ -192,30 +175,26 @@ template basicTransportTest*(
         await server2.start(@[server.addrs[0]])
 
     asyncTest "dial with malformed multiaddresses":
-      let ma = MultiAddress.init(address).tryGet()
-
       let client = transportProvider() # not started
       let server = transportProvider()
-      await server.start(@[ma])
+      await server.start(@[maddr])
       defer:
         await server.stop()
 
-      let invalid = MultiAddress.init("/ip4/127.0.0.1").tryGet()
+      let invalid = ma("/ip4/127.0.0.1")
       expect LPError:
         discard await server.dial("", invalid)
       expect LPError:
         discard await client.dial("", invalid)
 
     asyncTest "observedAddr and localAddr are populated on connections":
-      let ma = MultiAddress.init(address).tryGet()
-
-      if isTorTransport(ma):
+      if isTorTransport(maddr):
         # Tor transport doesn't provide observedAddr for privacy reasons
         skip()
         return
 
       let server = transportProvider()
-      await server.start(@[ma])
+      await server.start(@[maddr])
       let client = transportProvider()
 
       let acceptFut = server.accept()

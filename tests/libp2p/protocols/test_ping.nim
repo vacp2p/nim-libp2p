@@ -17,11 +17,11 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 suite "Ping":
   var
-    ma {.threadvar.}: MultiAddress
+    maddr {.threadvar.}: MultiAddress
     serverFut {.threadvar.}: Future[void]
     acceptFut {.threadvar.}: Future[void]
     pingProto1 {.threadvar.}: Ping
@@ -34,7 +34,7 @@ suite "Ping":
     pingReceivedCount {.threadvar.}: int
 
   asyncSetup:
-    ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+    maddr = ma("/ip4/0.0.0.0/tcp/0")
 
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())
@@ -60,7 +60,7 @@ suite "Ping":
 
   asyncTest "simple ping":
     msListen.addHandler(pingProto1)
-    serverFut = transport1.start(@[ma])
+    serverFut = transport1.start(@[maddr])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)
@@ -77,7 +77,7 @@ suite "Ping":
 
   asyncTest "ping callback":
     msDial.addHandler(pingProto2)
-    serverFut = transport1.start(@[ma])
+    serverFut = transport1.start(@[maddr])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       discard await msListen.select(c, PingCodec)
@@ -109,7 +109,7 @@ suite "Ping":
     fakePingProto.handler = fakeHandle
 
     msListen.addHandler(fakePingProto)
-    serverFut = transport1.start(@[ma])
+    serverFut = transport1.start(@[maddr])
     proc acceptHandler(): Future[void] {.async.} =
       let c = await transport1.accept()
       await msListen.handle(c)

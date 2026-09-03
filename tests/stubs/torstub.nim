@@ -15,6 +15,7 @@ import
     multiaddress,
     errors,
   ]
+import ../tools/multiaddress
 
 type TorServerStub* = ref object of RootObj
   tcpTransport: TcpTransport
@@ -87,9 +88,7 @@ proc bridge(
     discard
 
 proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
-  let ma = @[MultiAddress.init(address).tryGet()]
-
-  await self.tcpTransport.start(ma)
+  await self.tcpTransport.start(@[ma($address)])
 
   var msg = newSeq[byte](3)
   while self.tcpTransport.running:
@@ -137,8 +136,7 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
 
     await connSrc.write(@[05'u8, 00, 00, 01, 00, 00, 00, 00, 00, 00])
 
-    let connDst =
-      await self.tcpTransport.dial("", MultiAddress.init(tcpIpAddr).tryGet())
+    let connDst = await self.tcpTransport.dial("", ma(tcpIpAddr))
     defer:
       await noCancel connDst.close()
 

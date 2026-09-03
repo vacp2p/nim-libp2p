@@ -7,7 +7,7 @@ import chronos, results, stew/byteutils
 import
   ../../../libp2p/
     [stream/connection, transports/transport, upgrademngrs/upgrade, multiaddress]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 template connectionTransportTest*(
@@ -19,7 +19,7 @@ template connectionTransportTest*(
       "Transparent, immutable records, as we will see, are critical to good governance"
 
     asyncTest "handle write":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let maddr = @[ma(ma1)]
 
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
@@ -41,7 +41,7 @@ template connectionTransportTest*(
         check string.fromBytes(buffer) == message
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -49,7 +49,7 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "handle read":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let maddr = @[ma(ma1)]
 
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
@@ -71,7 +71,7 @@ template connectionTransportTest*(
         await conn.write(message)
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -79,10 +79,7 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "should allow multiple local addresses":
-      let addrs = @[
-        MultiAddress.init(ma1).tryGet(),
-        MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
-      ]
+      let addrs = @[ma(ma1), ma(if ma2 == "": ma1 else: ma2)]
 
       proc serverHandler(server: Transport) {.async.} =
         while true:
@@ -99,8 +96,8 @@ template connectionTransportTest*(
           server.addrs.len == 2
           server.addrs[0] != server.addrs[1]
 
-        proc dialAndVerify(ma: MultiAddress) {.async.} =
-          let conn = await client.dial(ma)
+        proc dialAndVerify(maddr: MultiAddress) {.async.} =
+          let conn = await client.dial(maddr)
           defer:
             await conn.close()
 
@@ -128,7 +125,7 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "read or write on closed connection":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let maddr = @[ma(ma1)]
 
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
@@ -153,7 +150,7 @@ template connectionTransportTest*(
           await conn.write(buffer)
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -161,10 +158,10 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "write after remote half-close":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let maddr = @[ma(ma1)]
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(maddr)
       let acceptFut = server.accept()
       let client = transportProvider()
       let clientConn = await client.dial(server.addrs[0])
