@@ -29,11 +29,11 @@ const FloodSubCodec* = "/floodsub/1.0.0"
 type FloodSub* = ref object of PubSub
   floodsub*: PeerTable # topic to remote peer map
   seen*: TimedCache[SaltedId]
-    # Early filter for messages recently observed on the network
-    # We use a salted id because the messages in this cache have not yet
-    # been validated meaning that an attacker has greater control over the
-    # hash key and therefore could poison the table
+    # salted: these ids are unvalidated, so a plain key lets an attacker poison the table
   seenSalt: array[32, byte] # random data used as salt
+  # gossipsub rejects these two at init and reads GossipSubParams instead
+  overheadRateLimit*: Opt[RateLimit]
+  disconnectPeerAboveRateLimit*: bool
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
   var hash: sha256
@@ -99,11 +99,18 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
+template chargeOverhead(f: FloodSub, peer: PubSubPeer, overhead: int) =
+  # a template, so that a peer within its budget allocates no future
+  if not peer.tryCharge(overhead):
+    f.punishOverBudget(peer, overhead, f.disconnectPeerAboveRateLimit)
+
 method rpcHandler*(
     f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
+  let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
+    f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
   trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
@@ -121,7 +128,7 @@ method rpcHandler*(
     if msgIdResult.isErr:
       debug "Dropping message due to failed message id generation",
         error = msgIdResult.error
-      # TODO: descore peers due to error during message validation (malicious?)
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     let
@@ -136,11 +143,13 @@ method rpcHandler*(
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
       debug "Dropping message due to failed signature verification", msgId, peer
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
       debug "Dropping message due to invalid seqno length", msgId, peer
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if f.addSeen(saltedId):
@@ -247,8 +256,35 @@ method publish*(
 
   return peers.len
 
+func validateOverheadRateLimit(f: FloodSub): Result[void, cstring] =
+  let limit = f.overheadRateLimit.valueOr:
+    if f.disconnectPeerAboveRateLimit:
+      return err(
+        "floodsub: disconnectPeerAboveRateLimit parameter error, Requires overheadRateLimit"
+      )
+    return ok()
+  if limit.bytes <= 0:
+    return err("floodsub: overheadRateLimit.bytes parameter error, Must be > 0")
+  if limit.interval <= ZeroDuration:
+    return err("floodsub: overheadRateLimit.interval parameter error, Must be > 0")
+  ok()
+
+method getOrCreatePeer*(
+    f: FloodSub, peerId: PeerId, protosToDial: seq[string], protoNegotiated: string = ""
+): PubSubPeer =
+  let peer = procCall PubSub(f).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
+  # a returning peer keeps its bucket, so a new stream is no way to refill it
+  if peer.overheadRateLimitOpt.isNone():
+    peer.overheadRateLimitOpt = newOverheadBucket(f.overheadRateLimit)
+
+  peer
+
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
+
+  f.validateOverheadRateLimit().isOkOr:
+    raise newException(InitializationError, $error)
+
   f.seen = TimedCache[SaltedId].init(2.minutes)
   f.rng.generate(f.seenSalt)
 

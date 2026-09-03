@@ -130,12 +130,6 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
-proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async: (raises: []).} =
-  try:
-    await g.switch.disconnect(peer.peerId)
-  except CatchableError as exc: # Never cancelled
-    trace "Failed to close connection", peer, errName = exc.name, description = exc.msg
-
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
       peer.peerId notin g.parameters.directPeers:
@@ -342,19 +336,11 @@ proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
 
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
-) {.async: (raises: [PeerRateLimitError]).} =
-  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
-    let uselessAppBytesNum = msg.data.len
-    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
-      debug "Peer sent invalid message and it's above rate limit",
-        peer, uselessAppBytesNum
-      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
-        # let's just measure at the beginning for test purposes.
-      if g.parameters.disconnectPeerAboveRateLimit:
-        await g.disconnectPeer(peer)
-        raise newException(
-          PeerRateLimitError, "Peer disconnected because it's above rate limit."
-        )
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+  if not peer.tryCharge(msg.data.len):
+    # counted before the disconnect below, which raises
+    libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
+    g.punishOverBudget(peer, msg.data.len, g.parameters.disconnectPeerAboveRateLimit)
 
   if msg.topic notin g.topics:
     return

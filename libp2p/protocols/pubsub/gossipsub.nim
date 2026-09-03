@@ -685,19 +685,14 @@ proc recordOverheadMetrics(g: GossipSub, peer: PubSubPeer, overhead: int) =
 
 proc rateLimit*(
     g: GossipSub, peer: PubSubPeer, overhead: int
-) {.async: (raises: [PeerRateLimitError]).} =
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   g.recordOverheadMetrics(peer, overhead)
-  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
-    if not overheadRateLimit.tryConsume(overhead):
-      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
-        # let's just measure at the beginning for test purposes.
-      debug "Peer sent too much useless application data and it's above rate limit.",
-        peer, overhead
-      if g.parameters.disconnectPeerAboveRateLimit:
-        await g.disconnectPeer(peer)
-        raise newException(
-          PeerRateLimitError, "Peer disconnected because it's above rate limit."
-        )
+  if peer.tryCharge(overhead):
+    return
+
+  # counted before the disconnect below, which raises
+  libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
+  g.punishOverBudget(peer, overhead, g.parameters.disconnectPeerAboveRateLimit)
 
 method rpcHandler*(
     g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
@@ -1195,6 +1190,12 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
 
+  if g.overheadRateLimit.isSome() or g.disconnectPeerAboveRateLimit:
+    raise newException(
+      InitializationError,
+      "gossipsub: set the overhead rate limit through GossipSubParams, not the inherited FloodSub fields",
+    )
+
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:
     raise newException(InitializationError, $validationRes.error)
@@ -1215,9 +1216,9 @@ method getOrCreatePeer*(
     protoNegotiated: string = "",
 ): PubSubPeer =
   let peer = procCall PubSub(g).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
-  g.parameters.overheadRateLimit.withValue(overheadRateLimit):
-    peer.overheadRateLimitOpt =
-      Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
+  # a returning peer keeps its bucket, so a new stream is no way to refill it
+  if peer.overheadRateLimitOpt.isNone():
+    peer.overheadRateLimitOpt = newOverheadBucket(g.parameters.overheadRateLimit)
   peer.maxHighPriorityQueueLen = g.parameters.maxHighPriorityQueueLen
   peer.maxMediumPriorityQueueLen = g.parameters.maxMediumPriorityQueueLen
   peer.maxLowPriorityQueueLen = g.parameters.maxLowPriorityQueueLen
