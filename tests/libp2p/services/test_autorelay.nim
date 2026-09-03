@@ -14,6 +14,7 @@ import
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/client,
     services/autorelayservice,
+    utils/future,
   ]
 import ../../tools/[unittest, crypto, switch_builder, multiaddress, lifecycle]
 
@@ -169,6 +170,73 @@ suite "Autorelay":
     mappingAvailable = false
     await switchClient.peerInfo.update()
     check relayMAs.allIt(it in switchClient.peerInfo.addrs)
+
+  asyncTest "an in-flight reservation still writes relayAddresses after stop has run":
+    # TODO: vacp2p/nim-libp2p#3018
+    let
+      relay = Relay.new()
+      reservationRequested = newFuture[void]()
+      answerReservation = newAsyncEvent()
+      relayHandler = relay.handler
+
+    # the relay takes the reservation request and holds its response back
+    relay.handler = proc(
+        stream: Stream, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      reservationRequested.completeOnce()
+      await answerReservation.wait()
+      await relayHandler(stream, proto)
+
+    switchRelay = createSwitch(relay)
+    relayClient = RelayClient.new()
+    autorelay = AutoRelayService.new(3, relayClient, nil, rng())
+    switchClient = createSwitch(relayClient, autorelay)
+
+    startAndDeferStop(@[switchClient, switchRelay])
+    await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    let relayMAs = buildRelayMA(switchRelay, switchClient)
+
+    # stop the service while the reservation is still unanswered
+    await reservationRequested.wait(1.seconds)
+    await autorelay.stop(switchClient)
+
+    # from here on, anything reaching relayAddresses was written by a stopped service
+    check autorelay.getAddresses().len == 0
+
+    answerReservation.fire()
+    checkUntilTimeout:
+      autorelay.getAddresses() == relayMAs # bug: written after stop
+
+  asyncTest "start announces the previous cycle's relay address and never withdraws it":
+    # TODO: vacp2p/nim-libp2p#3018
+    switchRelay = createSwitch(Relay.new())
+    relayClient = RelayClient.new()
+    autorelay = AutoRelayService.new(3, relayClient, nil, rng())
+    switchClient = createSwitch(relayClient, autorelay)
+
+    # the relay switch is stopped mid-test, so it is not in the deferred stop
+    startAndDeferStop(@[switchClient])
+    await switchRelay.start()
+    await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+
+    let relayMAs = buildRelayMA(switchRelay, switchClient)
+    checkUntilTimeout:
+      relayMAs.allIt(it in switchClient.peerInfo.addrs)
+
+    await autorelay.stop(switchClient)
+    check:
+      relayMAs.allIt(it notin switchClient.peerInfo.addrs)
+      autorelay.getAddresses() == relayMAs # bug: stop keeps the reservation
+
+    # the relay is gone, so this cycle reserves nothing of its own
+    await switchRelay.stop()
+    await autorelay.start(switchClient)
+    check relayMAs.allIt(it in switchClient.peerInfo.addrs) # bug: announced again
+
+    # innerRun prunes relayAddresses but never calls peerInfo.update()
+    checkUntilTimeout:
+      autorelay.getAddresses().len == 0
+    check relayMAs.allIt(it in switchClient.peerInfo.addrs) # bug: never withdrawn
 
   asyncTest "Three relays connections":
     type RelayReservationState = enum
