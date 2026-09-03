@@ -481,9 +481,6 @@ suite "NATService":
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
 
-proc loopbackAddr(): MultiAddress =
-  ma("/ip4/127.0.0.1/tcp/0")
-
 proc privateAddr(port: int = 9000): MultiAddress =
   ma("/ip4/192.168.1.5/tcp/" & $port)
 
@@ -497,7 +494,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = natPmpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -517,7 +514,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -534,7 +531,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -556,7 +553,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
 
     switch.peerInfo.announcedAddrs = @[userAddr]
 
@@ -575,7 +572,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -602,7 +599,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -627,7 +624,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp, extPorts = @[Port(54321)])
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -644,7 +641,7 @@ suite "NATService (setupMappings)":
     let
       cfg = natPmpConfig()
       mapper = newMock(mapErr = Opt.some("mock no IGD"))
-      switch = makeSwitch(cfg, @[loopbackAddr()], mapperFactory(mapper))
+      switch = makeSwitch(cfg, @[TcpAutoAddress], mapperFactory(mapper))
       svc = findNatService(switch)
 
     await switch.start()
@@ -661,7 +658,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = natPmpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()

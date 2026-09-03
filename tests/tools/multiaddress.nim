@@ -20,6 +20,15 @@ template TcpAutoAddressIP6*(): MultiAddress =
 template TcpAutoAddress*(): MultiAddress =
   TcpAutoAddressIP4()
 
+template TcpWildcardAddressIP4*(): MultiAddress =
+  ma("/ip4/0.0.0.0/tcp/0")
+
+template TcpWildcardAddressIP6*(): MultiAddress =
+  ma("/ip6/::/tcp/0")
+
+template TcpWildcardAddress*(): MultiAddress =
+  TcpWildcardAddressIP4()
+
 template WsAutoAddressIP4*(): MultiAddress =
   ma("/ip4/127.0.0.1/tcp/0/ws")
 

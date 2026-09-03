@@ -38,7 +38,7 @@ method dialMe*(
     self.finished.complete()
   case self.answer
   of NetworkReachability.Reachable:
-    return ma("/ip4/0.0.0.0/tcp/0")
+    return TcpWildcardAddress
   of NetworkReachability.NotReachable:
     raise newException(AutonatUnreachableError, "")
   of NetworkReachability.Unknown:

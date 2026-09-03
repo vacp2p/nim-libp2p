@@ -92,7 +92,7 @@ suite "Circuit Relay":
     customProto.handler = customHandler
     customProto.codec = protos[0]
 
-    maddr = ma("/ip4/0.0.0.0/tcp/0")
+    maddr = TcpWildcardAddress
     clSrc = RelayClient.new()
     clDst = RelayClient.new()
     r = Relay.new(circuitRelayV1 = true)

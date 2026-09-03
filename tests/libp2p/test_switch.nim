@@ -693,7 +693,7 @@ suite "Switch":
 
   asyncTest "e2e closing remote raw connection should not leak":
     let transport = TcpTransport.new(upgrade = Upgrade())
-    await transport.start(@[ma("/ip4/0.0.0.0/tcp/0")])
+    await transport.start(@[TcpWildcardAddress])
 
     proc acceptHandler() {.async.} =
       let rawConn = await transport.accept()
@@ -1183,7 +1183,7 @@ suite "Switch":
 
   asyncTest "switch failing to start stops properly":
     let switch =
-      makeStandardSwitch(@[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip4/1.1.1.1/tcp/0")])
+      makeStandardSwitch(@[TcpWildcardAddress, ma("/ip4/1.1.1.1/tcp/0")])
 
     expect LPError:
       await switch.start()

@@ -34,7 +34,7 @@ suite "Ping":
     pingReceivedCount {.threadvar.}: int
 
   asyncSetup:
-    maddr = ma("/ip4/0.0.0.0/tcp/0")
+    maddr = TcpWildcardAddress
 
     transport1 = TcpTransport.new(upgrade = Upgrade())
     transport2 = TcpTransport.new(upgrade = Upgrade())

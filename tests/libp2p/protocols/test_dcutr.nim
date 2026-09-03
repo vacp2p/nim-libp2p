@@ -42,7 +42,7 @@ suite "Dcutr":
   asyncTest "Connect msg Encode / Decode":
     const pbHexReference = "08641208040000000006000012080400000000060000"
 
-    let addrs = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip4/0.0.0.0/tcp/0")]
+    let addrs = @[TcpWildcardAddress, TcpWildcardAddress]
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
@@ -55,7 +55,7 @@ suite "Dcutr":
   asyncTest "Sync msg Encode / Decode":
     const pbHexReference = "08ac021208040000000006000012080400000000060000"
 
-    let addrs = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip4/0.0.0.0/tcp/0")]
+    let addrs = @[TcpWildcardAddress, TcpWildcardAddress]
     let syncMsg = DcutrMsg(msgType: MsgType.Sync, addrs: addrs)
 
     let pb = syncMsg.encode()

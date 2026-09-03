@@ -223,7 +223,7 @@ suite "WebSocket transport":
     )
     let
       sniSuffix = ma("/tls/sni/" & $expectedPeerId & "/ws")
-      listenAddr = ma("/ip4/127.0.0.1/tcp/0") & sniSuffix
+      listenAddr = TcpAutoAddress & sniSuffix
     await transport1.start(@[listenAddr])
     defer:
       await transport1.stop()

@@ -27,7 +27,7 @@ proc createSwitch(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[ma("/ip4/0.0.0.0/tcp/0")], false)
+    .withAddresses(@[TcpWildcardAddress], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withMaxConnections(maxConns)

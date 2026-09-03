@@ -89,7 +89,7 @@ suite "Noise":
   teardown:
     checkTrackers()
 
-  let maddr = ma("/ip4/0.0.0.0/tcp/0")
+  let maddr = TcpWildcardAddress
 
   asyncTest "e2e: handle write + noise":
     let

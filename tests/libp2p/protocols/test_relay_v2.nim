@@ -21,7 +21,7 @@ proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[ma("/ip4/0.0.0.0/tcp/0")])
+    .withAddresses(@[TcpWildcardAddress])
     .withTcpTransport()
     .withCircuitRelay(r)
     .withNoise()

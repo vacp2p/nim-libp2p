@@ -94,7 +94,7 @@ suite "Autonat":
     dst.mount(autonat)
     await src.start()
     await dst.start()
-    await doesNothingListener.start(@[ma("/ip4/0.0.0.0/tcp/0")])
+    await doesNothingListener.start(@[TcpWildcardAddress])
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
@@ -130,7 +130,7 @@ suite "Autonat":
     dst.mount(autonat)
     await src.start()
     await dst.start()
-    await doesNothingListener.start(@[ma("/ip4/0.0.0.0/tcp/0")])
+    await doesNothingListener.start(@[TcpWildcardAddress])
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])

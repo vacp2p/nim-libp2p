@@ -52,7 +52,7 @@ suite "Identify":
       conn {.threadvar.}: RawConn
 
     asyncSetup:
-      maddr = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip6/::/tcp/0")]
+      maddr = @[TcpWildcardAddress, TcpWildcardAddressIP6]
       remoteSecKey = PrivateKey.random(ECDSA, rng()).get()
       remotePeerInfo =
         PeerInfo.new(remoteSecKey, maddr, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
@@ -199,7 +199,7 @@ suite "Identify":
       stream {.threadvar.}: Stream
 
     asyncSetup:
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0"), ma("/ip6/::/tcp/0")]
+      let maddr = @[TcpWildcardAddress, TcpWildcardAddressIP6]
       switch1 = makeStandardSwitchBuilder(maddr).withSignedPeerRecord(true).build()
       switch2 = makeStandardSwitchBuilder(maddr).withSignedPeerRecord(true).build()
 

@@ -451,7 +451,7 @@ suite "Mplex":
 
   suite "mplex e2e":
     asyncTest "read/write receiver":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(maddr)
@@ -489,7 +489,7 @@ suite "Mplex":
       await mplexDialFut
 
     asyncTest "read/write receiver lazy":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(maddr)
@@ -529,7 +529,7 @@ suite "Mplex":
 
     asyncTest "write fragmented":
       let
-        maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+        maddr = @[TcpWildcardAddress]
         listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
@@ -585,7 +585,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write initiator":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(maddr)
@@ -622,7 +622,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple streams":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(maddr)
@@ -670,7 +670,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple read/write streams":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(maddr)
@@ -721,7 +721,7 @@ suite "Mplex":
       await listenFut
 
     asyncTest "channel closes listener with EOF":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       var listenStreams: seq[MuxedStream]
@@ -768,7 +768,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var count = 0
@@ -824,7 +824,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "Connection.reset aborts the dialer stream":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       proc acceptHandler() {.async.} =
@@ -861,7 +861,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[MuxedStream]
@@ -899,7 +899,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexListen: Mplex
@@ -941,7 +941,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexHandle: Future[void]
@@ -984,7 +984,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "closing dialing connection should close both ends":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[MuxedStream]
@@ -1025,7 +1025,7 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
-      let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+      let maddr = @[TcpWildcardAddress]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenConn: MuxedStream
@@ -1068,7 +1068,7 @@ suite "Mplex":
 
     suite "jitter":
       asyncTest "channel should be able to handle erratic read/writes":
-        let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+        let maddr = @[TcpWildcardAddress]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(maddr)
@@ -1141,7 +1141,7 @@ suite "Mplex":
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
-        let maddr = @[ma("/ip4/0.0.0.0/tcp/0")]
+        let maddr = @[TcpWildcardAddress]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
         let listenFut = transport1.start(maddr)

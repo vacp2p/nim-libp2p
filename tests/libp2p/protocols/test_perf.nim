@@ -23,7 +23,7 @@ proc createSwitch(
     builder =
       builder.withQuicTransport().withAddresses(@[ma("/ip4/127.0.0.1/udp/0/quic-v1")])
   else:
-    builder = builder.withTcpTransport().withAddresses(@[ma("/ip4/0.0.0.0/tcp/0")])
+    builder = builder.withTcpTransport().withAddresses(@[TcpWildcardAddress])
 
     if useMplex:
       builder = builder.withMplex()
