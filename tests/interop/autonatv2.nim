@@ -12,7 +12,7 @@ import
     protocols/connectivity/autonatv2/types,
     services/natservice,
   ]
-import ../tools/crypto
+import ../tools/[crypto, multiaddress]
 
 proc autonatInteropTest*(
     ourAddr: string,

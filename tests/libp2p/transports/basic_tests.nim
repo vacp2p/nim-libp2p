@@ -17,11 +17,11 @@ template basicTransportTest*(
 ) =
   block:
     let transportProvider = provider
-    let maddr = @[ma(address)]
+    let maddr = ma(address)
 
     asyncTest "can handle local address":
       let transport = transportProvider()
-      await transport.start(maddr)
+      await transport.start(@[maddr])
       defer:
         await transport.stop()
 
@@ -29,7 +29,7 @@ template basicTransportTest*(
 
     asyncTest "handle dial cancellation":
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[maddr])
       let client = transportProvider()
       defer:
         await allFutures(client.stop(), server.stop())
@@ -41,7 +41,7 @@ template basicTransportTest*(
 
     asyncTest "handle accept cancellation":
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[maddr])
       defer:
         await server.stop()
 
@@ -52,7 +52,7 @@ template basicTransportTest*(
 
     asyncTest "stopping transport kills connections":
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[maddr])
       let client = transportProvider()
 
       let acceptFut = server.accept()
@@ -68,7 +68,7 @@ template basicTransportTest*(
     asyncTest "stopping transport unblocks a pending accept":
       # TODO: nim-libp2p#2713
       let server = transportProvider()
-      await server.start(maddr)
+      await server.start(@[maddr])
 
       # park an accept with nothing dialing, then stop the transport under it
       let acceptFut = server.accept()
@@ -94,7 +94,7 @@ template basicTransportTest*(
     asyncTest "transport start/stop events":
       let transport = transportProvider()
 
-      await transport.start(maddr)
+      await transport.start(@[maddr])
       check await transport.onRunning.wait().withTimeout(1.seconds)
 
       await transport.stop()

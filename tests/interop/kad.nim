@@ -3,7 +3,7 @@
 
 import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
-import ../tools/crypto
+import ../tools/[crypto, multiaddress]
 
 proc kadInteropTest*(
     ourAddr: string,
