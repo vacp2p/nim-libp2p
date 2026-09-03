@@ -73,7 +73,7 @@ import ../utils/[opt, shortlog, collections]
 import rng
 import results
 export results, opt, shortlog, collections
-export rng except bearSslDrbg, bearSslDrbgRef, bearSslPrng
+export rng except bearSslPrng
 
 # This is workaround for Nim's `import` bug
 export rijndael, twofish, sha2, hash, hmac, ncrutils
