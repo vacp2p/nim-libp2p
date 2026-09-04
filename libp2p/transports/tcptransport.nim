@@ -114,7 +114,7 @@ method start*(
     warn "TCP transport already running"
     return
 
-  trace "Starting TCP transport"
+  info "Starting TCP transport"
 
   self.flags.incl(ServerFlags.ReusePort)
 
@@ -154,7 +154,7 @@ method start*(
   trackCounter(TcpTransportTrackerName)
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
-  trace "Stopping TCP transport"
+  info "Stopping TCP transport"
   self.stopping = true
   defer:
     self.stopping = false
@@ -187,7 +187,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       warn "Couldn't clean up clients",
         len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
-    trace "Transport stopped"
+    info "Transport stopped"
     untrackCounter(TcpTransportTrackerName)
   else:
     # For legacy reasons, `stop` on a transpart that wasn't started is

@@ -68,7 +68,7 @@ proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bo
   if subscribe and not (isNil(f.subscriptionValidator)) and
       not (f.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
-    warn "ignoring invalid topic subscription", topic, peer
+    trace "ignoring invalid topic subscription", topic, peer
     return
 
   if subscribe:
@@ -109,7 +109,7 @@ method rpcHandler*(
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
+    trace "failed to decode msg from peer", peer, err = error
     f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
@@ -126,7 +126,7 @@ method rpcHandler*(
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
-      debug "Dropping message due to failed message id generation",
+      trace "Dropping message due to failed message id generation",
         error = msgIdResult.error
       f.chargeOverhead(peer, msg.byteSize())
       continue
@@ -137,18 +137,18 @@ method rpcHandler*(
       topic = msg.topic
 
     if topic notin f.topics:
-      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
+      trace "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue
 
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification", msgId, peer
+      trace "Dropping message due to failed signature verification", msgId, peer
       f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length", msgId, peer
+      trace "Dropping message due to invalid seqno length", msgId, peer
       f.chargeOverhead(peer, msg.byteSize())
       continue
 
@@ -162,10 +162,10 @@ method rpcHandler*(
     let validation = await f.validate(msg)
     case validation
     of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject", msgId, peer
+      trace "Dropping message after validation, reason: reject", msgId, peer
       continue
     of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore", msgId, peer
+      trace "Dropping message after validation, reason: ignore", msgId, peer
       continue
     of ValidationResult.Accept:
       discard

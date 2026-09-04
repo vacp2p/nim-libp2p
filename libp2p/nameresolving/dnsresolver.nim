@@ -82,7 +82,7 @@ method resolveIp*(
       resolvedAddresses: OrderedSet[string]
       resolveFailed = false
     template handleFail(e): untyped =
-      info "Failed to query DNS", address, error = e.msg
+      trace "Failed to query DNS", address, error = e.msg
       resolveFailed = true
       break
 
@@ -94,7 +94,7 @@ method resolveIp*(
       except CancelledError as e:
         raise e
       except ValueError as e:
-        info "Invalid DNS query", address, error = e.msg
+        trace "Invalid DNS query", address, error = e.msg
         return @[]
       except IOError as e:
         handleFail(e)
@@ -119,7 +119,7 @@ method resolveTxt*(
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
     template handleFail(e): untyped =
-      info "Failed to query DNS", address, error = e.msg
+      trace "Failed to query DNS", address, error = e.msg
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue

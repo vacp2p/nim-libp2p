@@ -330,9 +330,9 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc runHandleLoop*(
     p: PubSubPeer, stream: Stream
 ) {.async: (raises: [CancelledError]).} =
-  debug "starting pubsub read loop", stream, peer = p, closed = stream.closed
+  trace "starting pubsub read loop", stream, peer = p, closed = stream.closed
   defer:
-    debug "exiting pubsub read loop", stream, peer = p, closed = stream.closed
+    trace "exiting pubsub read loop", stream, peer = p, closed = stream.closed
 
   while not stream.atEof:
     trace "waiting for data", stream, peer = p, closed = stream.closed
@@ -343,7 +343,7 @@ proc runHandleLoop*(
       except LPStreamEOFError:
         return
       except LPStreamError as e:
-        debug "Exception occurred reading message PubSubPeer.handle",
+        trace "Exception occurred reading message PubSubPeer.handle",
           stream, peer = p, closed = stream.closed, description = e.msg
         return
 
@@ -351,7 +351,7 @@ proc runHandleLoop*(
       stream, peer = p, closed = stream.closed, data = data.shortLog
 
     if p.handler.isNil:
-      debug "Ignoring pubsub message without handler", stream, peer = p
+      trace "Ignoring pubsub message without handler", stream, peer = p
       continue
 
     try:
@@ -433,9 +433,9 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
         return
       await connectOnce(p)
   except CancelledError as exc:
-    debug "Could not establish send stream", description = exc.msg
+    trace "Could not establish send stream", description = exc.msg
   except GetStreamDialError as exc:
-    debug "Could not establish send stream", description = exc.msg
+    trace "Could not establish send stream", description = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -502,7 +502,7 @@ proc sendMsgSlow(
 
   var stream = p.sendStream
   if stream == nil or stream.closed():
-    debug "No send stream", p, encoded = shortLog(msg)
+    trace "No send stream", p, encoded = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", stream, encoded = shortLog(msg)
@@ -623,7 +623,7 @@ proc sendEncoded*(
     debug "empty message, skipping", p, encoded = shortLog(msg)
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
-    info "trying to send a msg too big for pubsub",
+    warn "trying to send a msg too big for pubsub",
       maxSize = p.maxMessageSize, msgSize = msg.len
     newFutureCompleted[void]()
   else:
@@ -810,7 +810,7 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
     await p.sendMsg(move(msg.data), useCustomStream)
 
 proc startSendNonHighPriorityTask(p: PubSubPeer) =
-  debug "starting sendNonHighPriorityTask", p
+  trace "starting sendNonHighPriorityTask", p
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
@@ -824,7 +824,7 @@ proc stopTasks*(p: PubSubPeer) =
     fut.cancelSoon()
   p.sendFuts = @[]
   if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
-    debug "stopping sendNonHighPriorityTask", p
+    trace "stopping sendNonHighPriorityTask", p
     p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonHighPriorityTask = nil
     for fut in p.rpcmessagequeue.sendPriorityQueue:

@@ -397,7 +397,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     except CancelledError:
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
-      error "failed to send the buffer", description = exc.msg
+      trace "failed to send the buffer", description = exc.msg
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
@@ -628,12 +628,12 @@ method handle*(m: Yamux) {.async: (raises: []).} =
       of Data, WindowUpdate:
         if MsgFlags.Syn in header.flags:
           if header.streamId in m.channels:
-            debug "Trying to create an existing channel, skipping", id = header.streamId
+            trace "Trying to create an existing channel, skipping", id = header.streamId
           else:
             m.forgetFlushed(header.streamId)
 
             if header.streamId mod 2 == m.currentId mod 2:
-              debug "Peer used our reserved stream id, skipping",
+              trace "Peer used our reserved stream id, skipping",
                 id = header.streamId,
                 currentId = m.currentId,
                 peerId = m.connection.peerId
@@ -641,7 +641,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             if m.channels.len > m.maxChannCount:
-              debug "too many channels created by remote peer",
+              trace "too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue
@@ -703,7 +703,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           trace "remote reset channel"
           await channel.reset()
   except CancelledError as exc:
-    debug "Unexpected cancellation in yamux handler", description = exc.msg
+    trace "Unexpected cancellation in yamux handler", description = exc.msg
   except LPStreamEOFError as exc:
     trace "Stream EOF", description = exc.msg
   except LPStreamError as exc:

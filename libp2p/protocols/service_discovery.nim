@@ -29,7 +29,7 @@ proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   let extPeerRecord = disco.record().valueOr:
-    error "Failed to create signed extended peer record", error
+    debug "Failed to create signed extended peer record", error
     return
 
   let encodedSR = extPeerRecord.encode()
@@ -39,7 +39,7 @@ proc refreshSelfSignedPeerRecord(
 
   let putRes = await disco.putValue(key, encodedSR)
   if putRes.isErr:
-    error "Failed to put signed peer record", err = putRes.error
+    debug "Failed to put signed peer record", err = putRes.error
 
 proc maintainSelfSignedPeerRecord(
     disco: ServiceDiscovery
@@ -131,11 +131,11 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling service-discovery RPC",
+          trace "Read error when handling service-discovery RPC",
             stream = stream, err = exc.msg
           return
       let msg = Message.decode(buf).valueOr:
-        debug "Failed to decode message", err = error
+        trace "Failed to decode message", err = error
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)
@@ -156,7 +156,7 @@ proc new*(
         if msgType in @[MessageType.register, MessageType.getAds]:
           await disco.handleMessage(stream, msg)
         else:
-          debug "received invalid message type", msgType = msgType
+          trace "received invalid message type", msgType = msgType
           return
 
   return disco
@@ -173,7 +173,7 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
-      error "cannot advertise configured service", service = serviceInfo.id, error
+      warn "cannot advertise configured service", service = serviceInfo.id, error
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()

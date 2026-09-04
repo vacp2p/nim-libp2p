@@ -24,7 +24,7 @@ template heartbeat*(
         delay = now - nextHeartbeat
         itv = interval
       if delay > itv:
-        info "Missed multiple heartbeats",
+        warn "Missed multiple heartbeats",
           heartbeat = name, delay = delay, hinterval = itv
       else:
         debug "Missed heartbeat", heartbeat = name, delay = delay, hinterval = itv

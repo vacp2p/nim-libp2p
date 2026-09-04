@@ -419,7 +419,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     await mux.connection.join()
     trace "Connection closed, cleaning up", mux
   except CatchableError as exc:
-    debug "Unexpected exception in connection manager's cleanup",
+    trace "Unexpected exception in connection manager's cleanup",
       description = exc.msg, mux
   finally:
     let peerId = mux.connection.peerId
@@ -483,7 +483,7 @@ proc storeMuxer*(
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      trace "Per peer connections limit reached", conns = peerConnsCount, peerId
       raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):

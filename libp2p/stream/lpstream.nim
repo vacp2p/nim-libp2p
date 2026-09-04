@@ -166,7 +166,7 @@ method readExactly*(
     # Re-readOnce to raise a more specific error than EOF
     # Raise EOF if it doesn't raise anything(shouldn't happen)
     discard await s.readOnce(addr pbuffer[read], nbytes - read)
-    warn "Read twice while at EOF"
+    trace "Read twice while at EOF"
     raise newLPStreamEOFError()
 
   if read < nbytes:

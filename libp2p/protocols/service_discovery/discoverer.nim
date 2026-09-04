@@ -24,15 +24,15 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
       continue
 
     let ad = Advertisement.decode(adBuf).valueOr:
-      error "failed to decode advertisement", error
+      trace "failed to decode advertisement", error
       continue
 
     if not ad.advertisesService(serviceId):
-      error "advert service mismatch", serviceId
+      trace "advert service mismatch", serviceId
       continue
 
     if not ad.isValid():
-      error "advertisement violates XPR or ServiceInfo size limits", serviceId
+      trace "advertisement violates XPR or ServiceInfo size limits", serviceId
       continue
 
     validAds.add(ad)

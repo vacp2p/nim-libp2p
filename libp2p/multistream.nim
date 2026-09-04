@@ -54,7 +54,7 @@ proc select*(
   validateSuffix(s)
 
   if s != Codec:
-    notice "handshake failed", stream, codec = s
+    trace "handshake failed", stream, codec = s
     raise (ref MultiStreamError)(msg: "MultistreamSelect handshake failed")
   else:
     trace "multistream handshake success", stream
@@ -135,7 +135,7 @@ proc handle*(
     validateSuffix(ms)
 
     if not handshaked and ms != Codec:
-      debug "expected handshake message", stream, instead = ms
+      trace "expected handshake message", stream, instead = ms
       raise (ref MultiStreamError)(
         msg: "MultistreamSelect handling failed, invalid first message"
       )
@@ -222,7 +222,7 @@ proc handle*(
     finally:
       p.releaseIncoming(stream.peerId)
   else:
-    debug "no handlers", stream, protocol = ms
+    trace "no handlers", stream, protocol = ms
 
 proc addHandler*(m: MultistreamSelect, protocol: LPProtocol, matcher: Matcher = nil) =
   trace "registering protocols", protos = protocol.codecs

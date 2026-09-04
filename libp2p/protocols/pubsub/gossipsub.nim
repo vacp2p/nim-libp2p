@@ -567,12 +567,12 @@ proc validateAndRelay(
 
     case validation
     of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject",
+      trace "Dropping message after validation, reason: reject",
         msgId = shortLog(msgId), peer
       await g.punishInvalidMessage(peer, msg)
       return
     of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore",
+      trace "Dropping message after validation, reason: ignore",
         msgId = shortLog(msgId), peer
       return
     of ValidationResult.Accept:
@@ -628,9 +628,9 @@ proc validateAndRelay(
 
     await handleData(g, topic, msg.data)
   except CancelledError:
-    info "validateAndRelay cancelled"
+    trace "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
-    info "validateAndRelay failed", description = exc.msg
+    debug "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -699,7 +699,7 @@ method rpcHandler*(
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
+    trace "failed to decode msg from peer", peer, err = error
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
     # disconnect the peer!)
@@ -732,7 +732,7 @@ method rpcHandler*(
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
   if rpcMsg.subscriptions.len > g.topicsHigh:
-    debug "received an rpc message with an oversized amount of subscriptions",
+    trace "received an rpc message with an oversized amount of subscriptions",
       peer, size = rpcMsg.subscriptions.len, limit = g.topicsHigh
     peer.behaviourPenalty += SubscriptionFloodPenalty
 
@@ -746,7 +746,7 @@ method rpcHandler*(
     let msgIdResult = g.msgIdProvider(msg)
 
     if msgIdResult.isErr:
-      debug "Dropping message due to failed message id generation",
+      trace "Dropping message due to failed message id generation",
         error = msgIdResult.error
       await g.punishInvalidMessage(peer, msg)
       continue
@@ -757,19 +757,19 @@ method rpcHandler*(
 
     # avoid processing messages we are not interested in
     if topic notin g.topics:
-      debug "Dropping message of topic without subscription",
+      trace "Dropping message of topic without subscription",
         msgId = shortLog(msgId), peer
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      debug "Dropping message due to failed signature verification", msg = msg
+      trace "Dropping message due to failed signature verification", msg = msg
 
       await g.punishInvalidMessage(peer, msg)
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length",
+      trace "Dropping message due to invalid seqno length",
         msgId = shortLog(msgId), peer
       await g.punishInvalidMessage(peer, msg)
       continue
@@ -1046,7 +1046,7 @@ proc maintainDirectPeer(
       trace "Direct peer dial canceled"
       raise exc
     except DialFailedError as exc:
-      debug "Direct peer error dialing", description = exc.msg
+      trace "Direct peer error dialing", description = exc.msg
 
 proc addDirectPeer*(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
@@ -1157,7 +1157,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 method start*(
     g: GossipSub
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  trace "gossipsub start"
+  info "gossipsub start"
 
   if g.started:
     warn "Starting gossipsub twice"
@@ -1170,7 +1170,7 @@ method start*(
   newFutureCompleted[void]()
 
 method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
-  trace "gossipsub stop"
+  info "gossipsub stop"
 
   if not g.started:
     warn "Stopping gossipsub without starting it"

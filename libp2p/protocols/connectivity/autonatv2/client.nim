@@ -31,19 +31,19 @@ type AutonatV2Client* = ref object of LPProtocol
 proc handleDialBack(
     self: AutonatV2Client, stream: Stream, dialBack: DialBack
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
-  debug "Handling DialBack",
+  trace "Handling DialBack",
     stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
   if not self.expectedNonces.hasKey(dialBack.nonce):
-    error "Not expecting this nonce", nonce = dialBack.nonce
+    trace "Not expecting this nonce", nonce = dialBack.nonce
     return
 
   stream.localAddr.withValue(localAddr):
-    debug "Setting expectedNonces",
+    trace "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
     self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
   else:
-    error "Unable to get localAddr from connection"
+    debug "Unable to get localAddr from connection"
     return
 
   trace "Sending DialBackResponse"
@@ -71,9 +71,9 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      debug "Stream closed by peer", description = exc.msg, peer = stream.peerId
+      trace "Stream closed by peer", description = exc.msg, peer = stream.peerId
     except LPStreamError as exc:
-      debug "Stream closed by peer", description = exc.msg, peer = stream.peerId
+      trace "Stream closed by peer", description = exc.msg, peer = stream.peerId
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -87,7 +87,7 @@ proc handleDialDataRequest*(
 ): Future[DialResponse] {.
     async: (raises: [CancelledError, AutonatV2Error, LPStreamError])
 .} =
-  debug "Received DialDataRequest",
+  trace "Received DialDataRequest",
     numBytes = req.numBytes, maxAcceptedNumBytes = MaxAcceptedDialDataRequest
 
   if req.numBytes > MaxAcceptedDialDataRequest:
@@ -106,13 +106,13 @@ proc handleDialDataRequest*(
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
-    debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
+    trace "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
 
   # get DialResponse
   msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
     raise newException(AutonatV2Error, error)
 
-  debug "Received message", kind = msg.oneof.kind
+  trace "Received message", kind = msg.oneof.kind
   if msg.oneof.kind != MsgKind.DialResponse:
     raise
       newException(AutonatV2Error, "Expecting DialResponse, but got " & $msg.oneof.kind)
@@ -122,20 +122,20 @@ proc handleDialDataRequest*(
 proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
 ): bool {.raises: [].} =
-  debug "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
+  trace "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
   let dialBackAddrs = self.expectedNonces.getOrDefault(nonce).valueOr:
-    debug "Not expecting this nonce",
+    trace "Not expecting this nonce",
       nonce = nonce, expectedNonces = self.expectedNonces
     return false
 
   if addrIdx.int >= testAddrs.len:
-    debug "addrIdx outside of testAddrs range",
+    trace "addrIdx outside of testAddrs range",
       addrIdx = addrIdx, testAddrs = testAddrs, testAddrsLen = testAddrs.len
     return false
 
   let dialRespAddrs = testAddrs[addrIdx]
   if not areAddrsConsistent(dialRespAddrs, dialBackAddrs):
-    debug "Invalid addrIdx: got DialBack in another address",
+    trace "Invalid addrIdx: got DialBack in another address",
       addrIdx = addrIdx, dialBackAddrs = dialBackAddrs, dialRespAddrs = dialRespAddrs
     return false
   true
@@ -181,7 +181,7 @@ method sendDialRequest*(
           "Expecting DialResponse or DialDataRequest, but got " & $msg.oneof.kind,
         )
 
-    debug "Received DialResponse", dialResp = dialResp
+    trace "Received DialResponse", dialResp = dialResp
 
     dialResp.dialStatus.withValue(dialStatus):
       if dialStatus == DialStatus.Ok:
@@ -191,7 +191,7 @@ method sendDialRequest*(
             AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
           )
   except LPStreamRemoteClosedError as exc:
-    error "Stream reset by server", description = exc.msg, peer = pid
+    trace "Stream reset by server", description = exc.msg, peer = pid
   finally:
     # rollback any changes
     self.expectedNonces.del(nonce)

@@ -48,7 +48,7 @@ method start*(
   ## start the transport
   ##
 
-  trace "starting transport on addrs", address = $addrs
+  info "starting transport on addrs", address = $addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -58,7 +58,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  trace "stopping transport", address = $self.addrs
+  info "stopping transport", address = $self.addrs
   self.running = false
   self.onStop.fire()
 

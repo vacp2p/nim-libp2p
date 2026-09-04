@@ -233,7 +233,7 @@ proc unionWithSentPartsMetadata(
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
       # union failed, it is safe to use the most recent parts metadata
-      warn "failed to create union from the two parts metadata", msg = unionRes.error
+      debug "failed to create union from the two parts metadata", msg = unionRes.error
       hasChanged = true
       peerState.sentPartsMetadata = Opt.some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
@@ -415,7 +415,7 @@ proc publishPartialToPeer(
           peerState.receivedPartsMetadata.get(), msgPartsMetadata
         )
         if unionRes.isErr:
-          warn "failed to create union from the two parts metadata",
+          debug "failed to create union from the two parts metadata",
             msg = unionRes.error
           # technically should never happen since materializeParts was successful
         else:

@@ -342,7 +342,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
-  trace "Stopping switch"
+  info "Stopping switch"
 
   s.started = false
 
@@ -382,7 +382,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   s.peerStore.close()
 
-  trace "Switch stopped"
+  info "Switch stopped"
 
 proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
@@ -390,7 +390,7 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     warn "Switch has already been started"
     return
 
-  debug "starting switch for peer", peerInfo = s.peerInfo
+  info "starting switch for peer", peerInfo = s.peerInfo
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager
@@ -429,4 +429,4 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   s.peerStore.startAddressPruning()
 
-  debug "Started libp2p node", peer = s.peerInfo
+  info "Started libp2p node", peer = s.peerInfo

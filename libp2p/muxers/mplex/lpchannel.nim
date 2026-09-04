@@ -223,7 +223,7 @@ proc prepareWrite(
     return
 
   if s.writes >= MaxWrites:
-    debug "Closing connection, too many in-flight writes on channel",
+    trace "Closing connection, too many in-flight writes on channel",
       s, conn = s.conn, writes = s.writes
     when defined(libp2p_mplex_metrics):
       libp2p_mplex_qlenclose.inc()

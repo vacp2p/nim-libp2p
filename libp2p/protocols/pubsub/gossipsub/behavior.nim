@@ -144,7 +144,7 @@ proc handleGraft*(
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
       # we are trusting direct peer not to abuse this
-      warn "a direct peer attempted to graft us, peering agreements should be reciprocal",
+      trace "a direct peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(

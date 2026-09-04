@@ -159,10 +159,10 @@ method init*(s: Secure) =
       discard await s.handleConn(stream, false, Opt.none(PeerId))
       trace "connection secured", stream
     except CancelledError as exc:
-      warn "securing connection canceled", stream
+      trace "securing connection canceled", stream
       raise exc
     except LPStreamError as exc:
-      warn "securing connection failed", description = exc.msg, stream
+      trace "securing connection failed", description = exc.msg, stream
     finally:
       await stream.close()
 

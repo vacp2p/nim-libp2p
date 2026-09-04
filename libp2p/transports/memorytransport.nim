@@ -48,7 +48,7 @@ method start*(
   if self.running:
     return
 
-  trace "starting memory transport on addrs", address = $addrs
+  info "starting memory transport on addrs", address = $addrs
 
   self.addrs = addrs.mapIt(self.listenAddress(it))
   self.running = true
@@ -58,7 +58,7 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
   if not self.running:
     return
 
-  trace "stopping memory transport", address = $self.addrs
+  info "stopping memory transport", address = $self.addrs
   self.running = false
   self.onStop.fire()
 
