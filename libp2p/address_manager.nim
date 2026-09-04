@@ -10,7 +10,7 @@
 
 import std/[sequtils, tables]
 import chronos, chronos/transports/[osnet, ipnet]
-import multiaddress, multicodec, peerinfo, wire, utils/heartbeat
+import multiaddress, multicodec, peerid, peerinfo, wire, utils/heartbeat
 import protocols/connectivity/autonat/types
 
 export NetworkReachability
@@ -60,7 +60,7 @@ type
 
   AddressManagerConfig* = object
     maxSize*: int = DefaultObservedAddrMaxSize
-    minCount*: int = DefaultObservedAddrMinCount
+    minCount*: int = DefaultObservedAddrMinCount ## The peers which must agree.
     verifyInterval*: Duration = DefaultVerifyInterval ## The time between two runs.
     verifyTimeout*: Duration = DefaultVerifyTimeout
       ## The time one run gets; it keeps the verdicts it already collected.
@@ -73,8 +73,12 @@ type
     address: MultiAddress
     runsLeft: int
 
+  Observation = object
+    observer: PeerId
+    address: MultiAddress
+
   AddressManager* = ref object of RootObj
-    observations: seq[MultiAddress]
+    observations: seq[Observation]
     candidates: OrderedTable[MultiAddress, AddrCandidate]
     mappers: seq[SourcedMapper]
     chainAddrs: Table[MultiAddress, set[AddrSource]]
@@ -124,10 +128,10 @@ proc isObservableAddr(ma: MultiAddress): bool =
     return false
   ip.isObservableIp()
 
-proc addObservation*(self: AddressManager, observedAddr: MultiAddress): bool =
-  ## Records the address a remote peer reports for us, evicting the oldest one
-  ## past `maxSize`. False when the manager is stopped, or when no peer can have
-  ## observed us on that address.
+proc addObservation*(
+    self: AddressManager, observer: PeerId, observedAddr: MultiAddress
+): bool =
+  ## Records the address `observer` reports for us; it replaces its previous report.
   if not self.started:
     return false
 
@@ -135,10 +139,15 @@ proc addObservation*(self: AddressManager, observedAddr: MultiAddress): bool =
   if not observedAddr.isObservableAddr():
     return false
 
+  self.observations.keepItIf(it.observer != observer)
   if self.observations.len >= self.maxSize:
     self.observations.delete(0)
-  self.observations.add(observedAddr)
+  self.observations.add(Observation(observer: observer, address: observedAddr))
   true
+
+func observedAddrs(self: AddressManager): seq[MultiAddress] =
+  ## One address per peer, so a count over them counts the peers which agree.
+  self.observations.mapIt(it.address)
 
 func firstProtoCode(ma: MultiAddress): MaResult[MultiCodec] =
   ma[0].flatMap(protoCode)
@@ -158,18 +167,18 @@ func mostObserved(
 func mostObservedIp(self: AddressManager, code: MultiCodec): Opt[MultiAddress] =
   var ips: seq[MultiAddress]
   for observation in self.observations:
-    let ip = observation[0].valueOr:
+    let ip = observation.address[0].valueOr:
       continue
     ips.add(ip)
   self.mostObserved(ips, code)
 
 func mostObservedProtosAndPorts*(self: AddressManager): seq[MultiAddress] =
-  ## The most observed IP4/Port and IP6/Port addresses, empty while no address
-  ## reaches `minCount`.
+  ## The most observed IP4/Port and IP6/Port addresses, empty below `minCount` peers.
+  let observed = self.observedAddrs()
   var res: seq[MultiAddress]
-  self.mostObserved(self.observations, multiCodec("ip4")).withValue(ip4):
+  self.mostObserved(observed, multiCodec("ip4")).withValue(ip4):
     res.add(ip4)
-  self.mostObserved(self.observations, multiCodec("ip6")).withValue(ip6):
+  self.mostObserved(observed, multiCodec("ip6")).withValue(ip6):
     res.add(ip6)
   res
 
@@ -646,7 +655,7 @@ proc stop*(self: AddressManager) =
 
 func `$`*(self: AddressManager): string =
   let addresses = toSeq(self.candidates.keys)
-  "observations: " & $self.observations & ", candidates: " & $addresses
+  "observations: " & $self.observedAddrs() & ", candidates: " & $addresses
 
 proc new*(
     T: typedesc[AddressManager], config: AddressManagerConfig = AddressManagerConfig()

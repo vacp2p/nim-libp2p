@@ -18,6 +18,9 @@ import ../../tools/[unittest, futures, crypto, multiaddress]
 
 const VerifyInterval = 50.milliseconds
 
+proc randomPeerId(): PeerId =
+  PeerId.random(rng()).expect("the rng produces a valid peer id")
+
 proc createSwitch(
     service: AutonatV2Service = nil, minCount = DefaultObservedAddrMinCount
 ): Switch =
@@ -194,7 +197,7 @@ suite "AutonatV2 Service":
 
     let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
-      check switch.addressManager.addObservation(observedAddr)
+      check switch.addressManager.addObservation(randomPeerId(), observedAddr)
 
     await notified.wait(5.seconds)
 
@@ -215,7 +218,7 @@ suite "AutonatV2 Service":
 
     let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
-      check switch.addressManager.addObservation(observedAddr)
+      check switch.addressManager.addObservation(randomPeerId(), observedAddr)
 
     await notified.wait(5.seconds)
     await sleepAsync(VerifyInterval * 4)

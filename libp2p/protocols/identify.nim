@@ -184,7 +184,7 @@ proc identify*(
     peer = remotePeerId
 
   identifyMsg.observedAddr.withValue(observed):
-    if not self.addressManager.addObservation(observed):
+    if not self.addressManager.addObservation(peer, observed):
       trace "Observed address is not valid.", observedAddr = observed
 
   return makeIdentifyInfo(peer, identifyMsg)
