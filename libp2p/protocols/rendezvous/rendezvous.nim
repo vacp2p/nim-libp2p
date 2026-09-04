@@ -39,6 +39,7 @@ const
   MinimumNamespaceLen = 1
   MaximumNamespaceLen = 255
   RegistrationLimitPerPeer* = 1000
+  MaximumNamespaces* = 1000
   DiscoverLimit = 1000'u64
   SemaphoreDefaultSize* = 5
 
@@ -50,14 +51,17 @@ type RendezVousConfig* = object
   maxDuration*: Duration
   minTTL*: uint64
   maxTTL*: uint64
+  maxNamespaces*: int
 
 proc new*(
     T: typedesc[RendezVousConfig],
     minDuration: Duration = MinimumDuration,
     maxDuration: Duration = MaximumDuration,
+    maxNamespaces: int = MaximumNamespaces,
 ): T =
   var minD = minDuration
   var maxD = maxDuration
+  var maxNs = maxNamespaces
   if minD < MinimumAcceptedDuration:
     warn "TTL too short: 1 minute minimum"
     minD = MinimumAcceptedDuration
@@ -68,11 +72,15 @@ proc new*(
     warn "Minimum TTL longer than maximum"
     minD = MinimumAcceptedDuration
     maxD = MaximumDuration
+  if maxNs <= 0:
+    warn "Namespace limit must be positive"
+    maxNs = MaximumNamespaces
   T(
     minDuration: minD,
     maxDuration: maxD,
     minTTL: minD.seconds.uint64,
     maxTTL: maxD.seconds.uint64,
+    maxNamespaces: maxNs,
   )
 
 type
@@ -172,14 +180,18 @@ proc save*[E](
     peerId: PeerId,
     r: Register,
     update: bool = true,
-) =
+): Result[void, string] =
   let nsSalted = ns & rdv.salt
+  if not rdv.namespaces.hasKey(nsSalted) and
+      rdv.namespaces.len >= rdv.config.maxNamespaces:
+    return err("Namespace limit reached")
+
   discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == peerId:
         if update == false:
-          return
+          return ok()
         rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
@@ -192,6 +204,7 @@ proc save*[E](
   #    rdv.registerEvent.fire()
   except exceptions.KeyError as e:
     raiseAssert "Should have key: " & e.msg
+  ok()
 
 proc register*[E](
     rdv: GenericRendezVous[E], stream: Stream, r: Register, peerRecord: E
@@ -209,7 +222,8 @@ proc register*[E](
   if rdv.countRegister(stream.peerId) >= RegistrationLimitPerPeer:
     return stream.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
 
-  rdv.save(r.ns, stream.peerId, r)
+  rdv.save(r.ns, stream.peerId, r).isOkOr:
+    return stream.sendRegisterResponseError(NotAuthorized, error)
   libp2p_rendezvous_registered.inc()
   libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   stream.sendRegisterResponse(ttl)
@@ -347,7 +361,8 @@ proc advertise*[E](
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
     msg = encode(Message(msgType: MessageType.Register, register: Opt.some(r)))
 
-  rdv.save(ns, rdv.switch.peerInfo.peerId, r)
+  rdv.save(ns, rdv.switch.peerInfo.peerId, r).isOkOr:
+    raise newException(AdvertiseError, error)
 
   let futs = collect(newSeq()):
     for peer in peers:
@@ -473,7 +488,8 @@ proc request*[E](
         limit.dec()
       if ns.isSome():
         for (_, r) in s.values():
-          rdv.save(ns.get(), peer, r, false)
+          rdv.save(ns.get(), peer, r, false).isOkOr:
+            trace "Cannot save registration", ns, description = error
     except CancelledError as e:
       raise e
     except DialFailedError as e:
