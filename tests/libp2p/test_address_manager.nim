@@ -13,6 +13,9 @@ import ../tools/[unittest, crypto, switch_builder, multiaddress, lifecycle]
 
 const VerifyInterval = 10.milliseconds
 
+proc randomPeerId(): PeerId =
+  PeerId.random(rng()).expect("the rng produces a valid peer id")
+
 proc makeManager(
     maxSize = DefaultObservedAddrMaxSize,
     minCount = DefaultObservedAddrMinCount,
@@ -116,18 +119,18 @@ suite "AddressManager observations":
     let maIP4 = ma("/ip4/0.0.0.0/tcp/80")
 
     check:
-      manager.addObservation(mostObservedIP4AndPort)
-      manager.addObservation(mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
 
       manager.externalAddrFor(maIP4) == maIP4
 
-      manager.addObservation(ma("/ip4/1.2.3.0/tcp/2"))
-      manager.addObservation(ma("/ip4/1.2.3.1/tcp/1"))
+      manager.addObservation(randomPeerId(), ma("/ip4/1.2.3.0/tcp/2"))
+      manager.addObservation(randomPeerId(), ma("/ip4/1.2.3.1/tcp/1"))
 
       manager.externalAddrFor(maIP4) == ma("/ip4/1.2.3.0/tcp/80")
       manager.mostObservedProtosAndPorts().len == 0
 
-      manager.addObservation(mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
 
       manager.mostObservedProtosAndPorts() == @[mostObservedIP4AndPort]
 
@@ -135,18 +138,18 @@ suite "AddressManager observations":
     let maIP6 = ma("/ip6/::1/tcp/80")
 
     check:
-      manager.addObservation(mostObservedIP6AndPort)
-      manager.addObservation(mostObservedIP6AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP6AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP6AndPort)
 
       manager.externalAddrFor(maIP6) == maIP6
 
-      manager.addObservation(ma("/ip6/::2/tcp/2"))
-      manager.addObservation(ma("/ip6/::3/tcp/1"))
+      manager.addObservation(randomPeerId(), ma("/ip6/::2/tcp/2"))
+      manager.addObservation(randomPeerId(), ma("/ip6/::3/tcp/1"))
 
       manager.externalAddrFor(maIP6) == ma("/ip6/::2/tcp/80")
       manager.mostObservedProtosAndPorts().len == 1
 
-      manager.addObservation(mostObservedIP6AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP6AndPort)
 
       manager.mostObservedProtosAndPorts() ==
         @[mostObservedIP4AndPort, mostObservedIP6AndPort]
@@ -157,11 +160,60 @@ suite "AddressManager observations":
     let mostObservedIP4AndPort = ma("/ip4/1.2.3.4/tcp/1")
 
     check:
-      manager.addObservation(mostObservedIP4AndPort)
-      manager.addObservation(mostObservedIP4AndPort)
-      manager.addObservation(mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
+      manager.addObservation(randomPeerId(), mostObservedIP4AndPort)
 
       manager.externalAddrFor(ma("/ip4/0.0.0.0")) == ma("/ip4/1.2.3.4")
+
+  asyncTest "one peer counts once, however often it reports":
+    let
+      manager = makeManager(minCount = 3)
+      observer = randomPeerId()
+      observed = ma("/ip4/1.2.3.4/tcp/1")
+
+    startAndDeferStop(manager)
+    for _ in 0 ..< 5:
+      check manager.addObservation(observer, observed)
+
+    check manager.mostObservedProtosAndPorts().len == 0
+
+    for _ in 0 ..< 2:
+      check manager.addObservation(randomPeerId(), observed)
+
+    check manager.mostObservedProtosAndPorts() == @[observed]
+
+  asyncTest "the last report of a peer replaces its previous one":
+    let
+      manager = makeManager(minCount = 2)
+      observer = randomPeerId()
+      first = ma("/ip4/1.2.3.4/tcp/1")
+      last = ma("/ip4/5.6.7.8/tcp/1")
+
+    startAndDeferStop(manager)
+    check:
+      manager.addObservation(randomPeerId(), first)
+      manager.addObservation(observer, first)
+      manager.mostObservedProtosAndPorts() == @[first]
+
+      manager.addObservation(observer, last)
+      manager.mostObservedProtosAndPorts().len == 0
+
+  asyncTest "a peer holds one slot of the window, whatever it reports":
+    let
+      manager = makeManager(maxSize = 3, minCount = 2)
+      noisy = randomPeerId()
+      observed = ma("/ip4/1.2.3.4/tcp/1")
+
+    startAndDeferStop(manager)
+    check manager.addObservation(randomPeerId(), observed)
+
+    for i in 0 ..< 4:
+      check manager.addObservation(noisy, ma("/ip4/9.9.9." & $i & "/tcp/1"))
+
+    check:
+      manager.addObservation(randomPeerId(), observed)
+      manager.mostObservedProtosAndPorts() == @[observed]
 
   asyncTest "an address which is not a direct IP address with a transport is rejected":
     let
@@ -169,14 +221,14 @@ suite "AddressManager observations":
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     startAndDeferStop(manager)
-    check manager.addObservation(observed)
+    check manager.addObservation(randomPeerId(), observed)
 
     # the window is small: junk must neither be counted nor evict the good entry
     for _ in 0 ..< 4:
       check:
-        not manager.addObservation(ma("/dns4/example.com/tcp/1"))
-        not manager.addObservation(ma("/ip4/1.2.3.4"))
-        not manager.addObservation(ma("/ip4/1.2.3.4/tcp/1/p2p-circuit"))
+        not manager.addObservation(randomPeerId(), ma("/dns4/example.com/tcp/1"))
+        not manager.addObservation(randomPeerId(), ma("/ip4/1.2.3.4"))
+        not manager.addObservation(randomPeerId(), ma("/ip4/1.2.3.4/tcp/1/p2p-circuit"))
 
     check manager.mostObservedProtosAndPorts() == @[observed]
 
@@ -188,8 +240,8 @@ suite "AddressManager observations":
 
     startAndDeferStop(manager)
     check:
-      manager.addObservation(firstObserved)
-      manager.addObservation(lastObserved)
+      manager.addObservation(randomPeerId(), firstObserved)
+      manager.addObservation(randomPeerId(), lastObserved)
       manager.mostObservedProtosAndPorts() == @[lastObserved]
 
   asyncTest "a stopped manager rejects observations until it starts again":
@@ -198,16 +250,16 @@ suite "AddressManager observations":
       observed = ma("/ip4/1.2.3.4/tcp/1")
 
     manager.start()
-    check manager.addObservation(observed)
+    check manager.addObservation(randomPeerId(), observed)
 
     manager.stop()
     check:
-      not manager.addObservation(observed)
+      not manager.addObservation(randomPeerId(), observed)
       manager.mostObservedProtosAndPorts().len == 0
 
     manager.start()
     check:
-      manager.addObservation(observed)
+      manager.addObservation(randomPeerId(), observed)
       manager.mostObservedProtosAndPorts() == @[observed]
 
     manager.stop()
@@ -225,7 +277,7 @@ suite "AddressManager observations":
 
     check:
       manager.isStarted()
-      manager.addObservation(observed)
+      manager.addObservation(randomPeerId(), observed)
       manager.mostObservedProtosAndPorts() == @[observed]
 
     manager.stop()
@@ -242,11 +294,11 @@ suite "AddressManager observations":
 
     check:
       not manager.isStarted()
-      not manager.addObservation(observed)
+      not manager.addObservation(randomPeerId(), observed)
       manager.mostObservedProtosAndPorts().len == 0
 
     manager.start()
-    check manager.addObservation(observed)
+    check manager.addObservation(randomPeerId(), observed)
     manager.stop()
 
 suite "AddressManager wildcard expansion":
@@ -574,7 +626,7 @@ suite "AddressManager verification":
     manager.deriveIdentifyCandidates = true
     startAndDeferStop(manager, peerInfo)
     manager.add(directAddr, AddrSource.Listen)
-    check manager.addObservation(observed)
+    check manager.addObservation(randomPeerId(), observed)
 
     checkUntilTimeout:
       verifier.timesAsked(directAddr) >= 3
@@ -594,7 +646,7 @@ suite "AddressManager verification":
     # with no listen address the guess is the only candidate a dial-back reaches
     manager.deriveIdentifyCandidates = true
     startAndDeferStop(manager, peerInfo)
-    check manager.addObservation(observed)
+    check manager.addObservation(randomPeerId(), observed)
 
     checkUntilTimeout:
       manager.reachability() == NetworkReachability.NotReachable
@@ -619,19 +671,19 @@ suite "AddressManager verification":
     manager.deriveIdentifyCandidates = true
     startAndDeferStop(manager, peerInfo)
 
-    check manager.addObservation(firstIp4)
+    check manager.addObservation(randomPeerId(), firstIp4)
     checkUntilTimeout:
       verifier.timesAsked(firstIp4) == 1
 
     # two newer refutations fill the ring of two and evict the first guess
-    check manager.addObservation(secondIp4)
-    check manager.addObservation(ip6)
+    check manager.addObservation(randomPeerId(), secondIp4)
+    check manager.addObservation(randomPeerId(), ip6)
     checkUntilTimeout:
       secondIp4 in verifier.asked
       ip6 in verifier.asked
 
     # the evicted guess becomes a candidate again on a new observation
-    check manager.addObservation(firstIp4)
+    check manager.addObservation(randomPeerId(), firstIp4)
     checkUntilTimeout:
       verifier.timesAsked(firstIp4) >= 2
 
@@ -649,7 +701,7 @@ suite "AddressManager verification":
     startAndDeferStop(manager, peerInfo)
 
     for _ in 0 ..< 3:
-      check manager.addObservation(observed)
+      check manager.addObservation(randomPeerId(), observed)
 
     checkUntilTimeout:
       manager.candidates().anyIt(
@@ -886,9 +938,9 @@ suite "AddressManager verify and announce":
     manager.addMapper(addingMapper(@[upnpAddr]), AddrSource.Upnp)
     manager.addMapper(addingMapper(@[relayAddr]), AddrSource.Circuit)
 
-    # identify reports: same address three times reaches the quorum
+    # identify reports: three peers on the same address reach the quorum
     for _ in 0 ..< 3:
-      check manager.addObservation(observed)
+      check manager.addObservation(randomPeerId(), observed)
 
     await peerInfo.update()
 
@@ -963,13 +1015,13 @@ suite "Switch-owned AddressManager":
 
     # minCount is 1, so a single observation is enough
     check:
-      switch.addressManager.addObservation(firstObserved)
+      switch.addressManager.addObservation(randomPeerId(), firstObserved)
       switch.addressManager.mostObservedProtosAndPorts() == @[firstObserved]
 
     # maxSize is 2, so the third observation drops the first one
     check:
-      switch.addressManager.addObservation(lastObserved)
-      switch.addressManager.addObservation(lastObserved)
+      switch.addressManager.addObservation(randomPeerId(), lastObserved)
+      switch.addressManager.addObservation(randomPeerId(), lastObserved)
       switch.addressManager.mostObservedProtosAndPorts() == @[lastObserved]
 
   asyncTest "the switch starts and stops the manager":
@@ -992,7 +1044,7 @@ suite "Switch-owned AddressManager":
     await switch.start()
 
     for _ in 0 ..< 3:
-      check switch.addressManager.addObservation(observed)
+      check switch.addressManager.addObservation(randomPeerId(), observed)
 
     check:
       switch.addressManager.mostObservedProtosAndPorts() == @[observed]
