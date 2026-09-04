@@ -696,6 +696,35 @@ suite "RendezVous":
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
 
+  asyncTest "Registration count follows the registrations held for a peer":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
+    startAndDeferStop(rendezvousNode & peerNodes)
+
+    await connect(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let peerId = peerNodes[0].switch.peerInfo.peerId
+
+    await peerNodes[0].advertise(namespace)
+    await peerNodes[0].advertise(namespace)
+    check:
+      rendezvousNode.registered.s.len == 2
+      rendezvousNode.countRegister(peerId) == 2
+
+    # Unregistering expires the entries, it does not delete them
+    await peerNodes[0].unsubscribe(namespace)
+    checkUntilTimeout:
+      rendezvousNode.registered.s.allIt(it.expiration < Moment.now())
+    check rendezvousNode.countRegister(peerId) == 2
+
+    let deletionLoop = rendezvousNode.deletesRegister(1.seconds)
+    defer:
+      await deletionLoop.cancelAndWait()
+
+    checkUntilTimeout:
+      rendezvousNode.registered.s.len == 0
+      rendezvousNode.countRegister(peerId) == 0
+
   asyncTest "Peer can register to and unsubscribe multiple namespaces":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startAndDeferStop(rendezvousNode & peerNodes)
