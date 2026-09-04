@@ -33,6 +33,16 @@ proc newBearSslRng*(drbg: ref HmacDrbgContext): Rng =
     return nil
   Rng(drbg: drbg)
 
+template bearSslDrbg*(
+    rng: Rng
+): untyped {.deprecated: "BearSSL is being replaced; use Rng.generate".} =
+  rng.drbg[]
+
+template bearSslDrbgRef*(
+    rng: Rng
+): untyped {.deprecated: "BearSSL is being replaced; use Rng.generate".} =
+  rng.drbg
+
 template bearSslPrng*(rng: Rng): untyped =
   PrngClassPointerConst(addr rng.drbg[].vtable)
 
