@@ -14,7 +14,7 @@ import
     protocols/connectivity/autonatv2/mockclient,
     utils/future,
   ]
-import ../../tools/[unittest, futures, crypto]
+import ../../tools/[unittest, futures, crypto, multiaddress]
 
 const VerifyInterval = 50.milliseconds
 
@@ -24,7 +24,7 @@ proc createSwitch(
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
+    .withAddresses(@[TcpWildcardAddress], false)
     .withTcpTransport()
     .withYamux()
     .withNoise()
@@ -120,7 +120,7 @@ suite "AutonatV2 Service":
       switch = createSwitch(service)
       peer = createSwitch()
       notified = service.awaitReachability(NotReachable)
-      publicAddr = MultiAddress.init("/ip4/1.2.3.4/tcp/4040").tryGet()
+      publicAddr = ma("/ip4/1.2.3.4/tcp/4040")
 
     await allFuturesRaising(switch.start(), peer.start())
     defer:
@@ -192,7 +192,7 @@ suite "AutonatV2 Service":
       await allFuturesRaising(switch.stop(), peer.stop())
     await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
 
-    let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
+    let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
       check switch.addressManager.addObservation(observedAddr)
 
@@ -213,7 +213,7 @@ suite "AutonatV2 Service":
       await allFuturesRaising(switch.stop(), peer.stop())
     await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
 
-    let observedAddr = MultiAddress.init("/ip4/8.8.8.8/tcp/4040").tryGet()
+    let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
       check switch.addressManager.addObservation(observedAddr)
 

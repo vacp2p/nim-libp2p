@@ -3,7 +3,7 @@
 
 import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
-import ../tools/crypto
+import ../tools/[crypto, multiaddress]
 
 proc kadInteropTest*(
     ourAddr: string,
@@ -17,7 +17,7 @@ proc kadInteropTest*(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init(ourAddr).tryGet()])
+    .withAddresses(@[ma(ourAddr)])
     .withTcpTransport()
     .withMplex()
     .withNoise()
@@ -25,7 +25,7 @@ proc kadInteropTest*(
 
   let kad = KadDHT.new(
     switch,
-    bootstrapNodes = @[(otherPeerId, @[MultiAddress.init(otherAddr).get()])],
+    bootstrapNodes = @[(otherPeerId, @[ma(otherAddr)])],
     config = KadDHTConfig.new(quorum = 2),
     rng = rng(),
   )

@@ -26,7 +26,7 @@ import
   ../../utils/future
 
 export tables, sets, results, chronicles
-export PubSubPeer, PubSubObserver, protocol, pubsub_errors
+export PubSubPeer, PubSubObserver, RateLimit, protocol, pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -451,6 +451,23 @@ method getOrCreatePeer*(
     p.unsubscribePeer(peerId)
 
   return pubSubPeer
+
+proc disconnectPeer*(
+    p: PubSub, peer: PubSubPeer
+) {.async: (raises: [CancelledError]).} =
+  await p.switch.disconnect(peer.peerId)
+
+template punishOverBudget*(
+    p: PubSub, punished: PubSubPeer, invalidBytesSent: int, disconnectAboveLimit: bool
+) =
+  # a template, so that only the disconnect path allocates a future
+  debug "Peer sent too much useless application data and it's above rate limit.",
+    peer = punished, overhead = invalidBytesSent
+  if disconnectAboveLimit:
+    await p.disconnectPeer(punished)
+    raise newException(
+      PeerRateLimitError, "Peer disconnected because it's above rate limit."
+    )
 
 proc handleData*(
     p: PubSub, topic: string, data: seq[byte]
