@@ -301,7 +301,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         if acquired:
           self.releaseAcceptSlot()
         if self.running:
-          error "Unexpected error in websocket accept dispatcher", description = e.msg
+          debug "Unexpected error in websocket accept dispatcher", description = e.msg
         else:
           break
   finally:
@@ -332,12 +332,11 @@ method start*(
     self: WsTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
-  ##
-  info "Starting WS transport"
-
   if self.running:
     warn "WS transport already running"
     return
+
+  info "Starting WS transport"
 
   let addrsTa = self.toTransportAddress(addrs).valueOr:
     raise newException(TransportStartError, $error)

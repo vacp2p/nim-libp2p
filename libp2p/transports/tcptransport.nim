@@ -154,12 +154,12 @@ method start*(
   trackCounter(TcpTransportTrackerName)
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
-  info "Stopping TCP transport"
   self.stopping = true
   defer:
     self.stopping = false
 
   if self.running:
+    info "Stopping TCP transport"
     # Reset the running flag
     await noCancel procCall Transport(self).stop()
     # Stop each server by closing the socket - this will cause all accept loops

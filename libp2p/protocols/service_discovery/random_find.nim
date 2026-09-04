@@ -50,7 +50,7 @@ proc randomRecords(
         raise e
 
     let reply = res.valueOr:
-      debug "kad getValue failed", error = error
+      trace "kad getValue failed", error = error
       continue
 
     let record = reply.record.valueOr:

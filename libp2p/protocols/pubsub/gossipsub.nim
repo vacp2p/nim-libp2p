@@ -630,7 +630,7 @@ proc validateAndRelay(
   except CancelledError:
     trace "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
-    debug "validateAndRelay failed", description = exc.msg
+    trace "validateAndRelay failed", description = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -1157,11 +1157,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 method start*(
     g: GossipSub
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  info "gossipsub start"
-
   if g.started:
     warn "Starting gossipsub twice"
     return newFutureCompleted[void]()
+
+  info "gossipsub start"
 
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
