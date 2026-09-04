@@ -84,10 +84,8 @@ suite "Dialer":
     switches.add(src)
     await src.start()
 
-    # lsquic can hide dst's close from the dialer (vacp2p/nim-lsquic#162)
-    let dial = src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    if await dial.withTimeout(1000.millis):
-      check dial.failed()
+    expect DialFailedError:
+      await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     check src.peerInfo.peerId notin dst.connManager.connectedPeers()
 
     await allFuturesRaising(switches.mapIt(it.stop()))
