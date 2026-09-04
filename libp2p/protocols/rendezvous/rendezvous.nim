@@ -180,14 +180,18 @@ proc save*[E](
     peerId: PeerId,
     r: Register,
     update: bool = true,
-) =
+): Result[void, string] =
   let nsSalted = ns & rdv.salt
+  if not rdv.namespaces.hasKey(nsSalted) and
+      rdv.namespaces.len >= rdv.config.maxNamespaces:
+    return err("Namespace limit reached")
+
   discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
   try:
     for index in rdv.namespaces[nsSalted]:
       if rdv.registered[index].peerId == peerId:
         if update == false:
-          return
+          return ok()
         rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
@@ -200,6 +204,7 @@ proc save*[E](
   #    rdv.registerEvent.fire()
   except exceptions.KeyError as e:
     raiseAssert "Should have key: " & e.msg
+  ok()
 
 proc register*[E](
     rdv: GenericRendezVous[E], stream: Stream, r: Register, peerRecord: E
@@ -216,11 +221,9 @@ proc register*[E](
     return stream.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(stream.peerId) >= RegistrationLimitPerPeer:
     return stream.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
-  if rdv.namespaces.len >= rdv.config.maxNamespaces and
-      not rdv.namespaces.hasKey(r.ns & rdv.salt):
-    return stream.sendRegisterResponseError(NotAuthorized, "Namespace limit reached")
 
-  rdv.save(r.ns, stream.peerId, r)
+  rdv.save(r.ns, stream.peerId, r).isOkOr:
+    return stream.sendRegisterResponseError(NotAuthorized, error)
   libp2p_rendezvous_registered.inc()
   libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
   stream.sendRegisterResponse(ttl)
@@ -358,7 +361,8 @@ proc advertise*[E](
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
     msg = encode(Message(msgType: MessageType.Register, register: Opt.some(r)))
 
-  rdv.save(ns, rdv.switch.peerInfo.peerId, r)
+  rdv.save(ns, rdv.switch.peerInfo.peerId, r).isOkOr:
+    raise newException(AdvertiseError, error)
 
   let futs = collect(newSeq()):
     for peer in peers:
@@ -484,7 +488,8 @@ proc request*[E](
         limit.dec()
       if ns.isSome():
         for (_, r) in s.values():
-          rdv.save(ns.get(), peer, r, false)
+          rdv.save(ns.get(), peer, r, false).isOkOr:
+            trace "Cannot save registration", ns, description = error
     except CancelledError as e:
       raise e
     except DialFailedError as e:

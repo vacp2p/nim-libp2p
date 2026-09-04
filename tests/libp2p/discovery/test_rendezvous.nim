@@ -747,6 +747,28 @@ suite "RendezVous":
       rendezvousNode.namespaces.len == 1
       rendezvousNode.registered.s.len == 1
 
+  asyncTest "Namespace expired behind a live registration is deleted":
+    let
+      rendezvousNode = createSwitch(RendezVousConfig.new())
+      peerNode = createSwitch(RendezVousConfig.new())
+    startAndDeferStop(@[rendezvousNode, peerNode])
+
+    await connect(peerNode, rendezvousNode)
+
+    await peerNode.advertise("foo0")
+    await peerNode.advertise("foo1")
+    check rendezvousNode.namespaces.len == 2
+
+    # Overwrite register timeout loop interval
+    discard rendezvousNode.deletesRegister(100.milliseconds)
+
+    # Only the second entry expires, so the leading flush cannot reach it
+    rendezvousNode.registered[1].expiration = Moment.now()
+
+    checkUntilTimeout:
+      rendezvousNode.namespaces.len == 1
+    check rendezvousNode.registered.s.len == 2
+
   asyncTest "Peer can register to and unsubscribe multiple namespaces":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startAndDeferStop(rendezvousNode & peerNodes)
