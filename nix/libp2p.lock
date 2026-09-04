@@ -256,8 +256,8 @@
       }
     },
     "websock": {
-      "version": "0.4.0",
-      "vcsRevision": "387a8eb7e961e8fdd3b1a717d36bc53b55e4dc5d",
+      "version": "0.4.1",
+      "vcsRevision": "0432dc445c500b20963ef4b76e585c1a3943c254",
       "url": "https://github.com/status-im/nim-websock",
       "downloadMethod": "git",
       "dependencies": [
@@ -272,7 +272,7 @@
         "zlib"
       ],
       "checksums": {
-        "sha1": "fd17a854686d9a19af40aba51f05d06b82fc30ec"
+        "sha1": "7c240c080f618855411bb0ee3984f6062123bcd4"
       }
     },
     "secp256k1": {

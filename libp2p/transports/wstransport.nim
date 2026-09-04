@@ -164,6 +164,12 @@ proc hostHeaderHook(host: string): Hook =
     ok()
   hook
 
+func websockRng(rng: Rng): RandomBytesRng =
+  doAssert not rng.isNil(), "Rng is nil"
+  proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+    rng.generate(dst)
+    true
+
 proc getSni(address: MultiAddress): string =
   let value = address.getProtocolArgument(multiCodec("sni")).valueOr:
     return ""
@@ -359,8 +365,7 @@ method start*(
       except TLSStreamProtocolError as e:
         raise newException(LPError, e.msg, e)
 
-  self.wsserver =
-    WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
+  self.wsserver = WSServer.new(factories = self.factories, rng = websockRng(self.rng))
 
   var resolvedAddrs = addrs
   for i, ma in addrs:
@@ -554,7 +559,7 @@ method dial*(
       hostName = serverName,
       hooks = hooks,
       flags = self.tlsFlags,
-      rng = bearSslDrbgRef(self.rng),
+      rng = websockRng(self.rng),
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
