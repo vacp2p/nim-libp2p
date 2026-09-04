@@ -5,7 +5,7 @@
 
 import chronos, net
 import ../../../libp2p/[multiaddress, utils/ipaddr]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 
 suite "IpAddr Utils":
   teardown:
@@ -13,43 +13,28 @@ suite "IpAddr Utils":
 
   test "ipAddrMatches":
     # same ip address
-    check ipAddrMatches(
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
-    )
+    check ipAddrMatches(ma("/ip4/127.0.0.1/tcp/4041"), @[ma("/ip4/127.0.0.1/tcp/4040")])
     # different ip address
     check not ipAddrMatches(
-      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
+      ma("/ip4/127.0.0.2/tcp/4041"), @[ma("/ip4/127.0.0.1/tcp/4040")]
     )
     # same ipv6 address
     check ipAddrMatches(
-      MultiAddress.init("/ip6/2001:db8::1/tcp/4041").get(),
-      @[MultiAddress.init("/ip6/2001:db8::1/tcp/4040").get()],
+      ma("/ip6/2001:db8::1/tcp/4041"), @[ma("/ip6/2001:db8::1/tcp/4040")]
     )
     # different ipv6 address
     check not ipAddrMatches(
-      MultiAddress.init("/ip6/2001:db8::2/tcp/4041").get(),
-      @[MultiAddress.init("/ip6/2001:db8::1/tcp/4040").get()],
+      ma("/ip6/2001:db8::2/tcp/4041"), @[ma("/ip6/2001:db8::1/tcp/4040")]
     )
     # different family
-    check not ipAddrMatches(
-      MultiAddress.init("/ip6/::1/tcp/4041").get(),
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()],
-    )
+    check not ipAddrMatches(ma("/ip6/::1/tcp/4041"), @[ma("/ip4/127.0.0.1/tcp/4040")])
 
   test "ipSupport":
-    check ipSupport(@[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]) ==
-      (true, false)
-    check ipSupport(@[MultiAddress.init("/ip6/::1/tcp/4040").get()]) == (false, true)
-    check ipSupport(
-      @[
-        MultiAddress.init("/ip6/::1/tcp/4040").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-      ]
-    ) == (true, true)
-    check ipSupport(@[MultiAddress.init("/dns4/example.com/tcp/4040").get()]) ==
-      (false, false)
+    check ipSupport(@[ma("/ip4/127.0.0.1/tcp/4040")]) == (true, false)
+    check ipSupport(@[ma("/ip6/::1/tcp/4040")]) == (false, true)
+    check ipSupport(@[ma("/ip6/::1/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")]) ==
+      (true, true)
+    check ipSupport(@[ma("/dns4/example.com/tcp/4040")]) == (false, false)
 
   test "isPrivate, isPublic":
     check isPrivate("192.168.1.100")

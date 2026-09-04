@@ -20,7 +20,7 @@ import
     stream/connection,
   ]
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
-import ../../tools/[crypto, unittest]
+import ../../tools/[crypto, unittest, multiaddress]
 import ./utils
 
 func initMoment(secs: int64): Moment =
@@ -671,7 +671,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     let ad = makeAdvertisement(addrs = @[ipv6Addr])
     let now = Moment.now()
 
@@ -686,7 +686,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let now = Moment.now()
     let filler = makeServiceId(99)
 
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     registrar.seedAd(filler, makeAdvertisement(addrs = @[ipv6Addr]), now)
 
     let ad = makeAdvertisement(addrs = @[ipv6Addr])
@@ -706,7 +706,7 @@ suite "Service Discovery Registrar - Edge Cases":
     )
 
     let ipv4Addr = makeMultiAddress("192.168.1.50")
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     let ad = makeAdvertisement(addrs = @[ipv4Addr, ipv6Addr])
 
     let w = registrar.waitingTime(discoConfig, serviceId, ad.ipsFromAd(), now)
@@ -1489,11 +1489,11 @@ suite "Service Discovery Registrar - registration response":
     let serviceId = serviceName.hashServiceId()
     let advertiserKey = PrivateKey.random(rng()).get()
     let advertiserId = PeerId.init(advertiserKey).get()
-    let ma = makeMultiAddress("10.0.0.1")
+    let maddr = makeMultiAddress("10.0.0.1")
     let adBytes =
-      makeAdvertisement(serviceName, advertiserKey, addrs = @[ma]).encode().get()
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[maddr]).encode().get()
     # Peerstore IP so scoring is not max-penalized for a missing address set.
-    disco.switch.peerStore[AddressBook][advertiserId] = @[ma]
+    disco.switch.peerStore[AddressBook][advertiserId] = @[maddr]
 
     let pastNow = Moment.now() - 5.secs
     var ticket = Ticket(
@@ -1527,8 +1527,8 @@ suite "Service Discovery Registrar - registration response":
 suite "Service Discovery Registrar - connection IPs":
   asyncTest "observedIps extracts IP from stream.observedAddr":
     let peerId = randomPeerId()
-    let ma = makeMultiAddress("203.0.113.10")
-    let stream = Connection.new(peerId, Direction.In, observedAddr = Opt.some(ma))
+    let maddr = makeMultiAddress("203.0.113.10")
+    let stream = Connection.new(peerId, Direction.In, observedAddr = Opt.some(maddr))
     defer:
       await stream.close()
     check stream.observedIps() == @[parseIpAddress("203.0.113.10")]

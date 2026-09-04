@@ -6,7 +6,7 @@
 import chronos, results, sets, sequtils, tables, stew/byteutils
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, topology, unittest, multiaddress]
 import ./[mock_kademlia, utils]
 
 proc isAtMaxCapacity(providerRecords: ProviderRecords): bool =
@@ -410,10 +410,8 @@ suite "KadDHT - Add Provider":
     let key = kads[0].rtable.selfId
 
     # Inject additional multiaddresses to verify all are included
-    kads[1].switch.peerInfo.addrs.add(
-      MultiAddress.init("/ip4/192.168.1.100/tcp/4001").get()
-    )
-    kads[1].switch.peerInfo.addrs.add(MultiAddress.init("/ip6/::1/tcp/4001").get())
+    kads[1].switch.peerInfo.addrs.add(ma("/ip4/192.168.1.100/tcp/4001"))
+    kads[1].switch.peerInfo.addrs.add(ma("/ip6/::1/tcp/4001"))
 
     check kads[0].providerManager.providerRecords.len == 0
 

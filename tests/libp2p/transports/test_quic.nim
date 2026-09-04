@@ -55,10 +55,7 @@ suite "Quic transport":
     invalidAddresses,
   )
   streamTransportTest(
-    quicTransProvider,
-    MultiAddress.init(addressIP4).get(),
-    Opt.some(MultiAddress.init(addressIP6).get()),
-    streamProvider,
+    quicTransProvider, ma(addressIP4), Opt.some(ma(addressIP6)), streamProvider
   )
   cancellationTransportTest(quicTransProvider, addressIP4)
 

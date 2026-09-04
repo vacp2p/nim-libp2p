@@ -73,7 +73,7 @@ proc signedTicket*(privateKey: PrivateKey): Ticket =
   t
 
 proc makeMultiAddress*(ip: string): MultiAddress =
-  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
+  ma("/ip4/" & ip & "/tcp/9000")
 
 proc makeAdvertisement*(
     serviceId: string = $1,

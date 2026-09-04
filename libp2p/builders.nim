@@ -87,6 +87,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     dialRanking: bool
+    dialBackoff: Opt[DialBackoffConfig]
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
@@ -352,6 +353,11 @@ proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.dialRanking = enabled
   b
 
+proc withDialBackoff*(b: SwitchBuilder, config = DefaultDialBackoff): SwitchBuilder =
+  ## Hold off dialing an address, and a peer, that keeps failing.
+  b.dialBackoff = Opt.some(config)
+  b
+
 proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.autonatEnabled = enabled
   b
@@ -528,6 +534,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     ms,
     b.nameResolver,
     dialRanking = b.dialRanking,
+    dialBackoff = b.dialBackoff,
   )
 
   let switch = Switch(

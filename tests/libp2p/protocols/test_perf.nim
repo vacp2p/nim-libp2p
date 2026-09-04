@@ -8,7 +8,7 @@ import
   ../../../libp2p/[
     builders, switch, protocols/perf/client, protocols/perf/server, protocols/perf/core
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 proc createSwitch(
     isServer: bool = false,
@@ -20,13 +20,10 @@ proc createSwitch(
   builder = builder.withRng(rng()).withNoise()
 
   if useQuic:
-    builder = builder.withQuicTransport().withAddresses(
-        @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
-      )
+    builder =
+      builder.withQuicTransport().withAddresses(@[ma("/ip4/127.0.0.1/udp/0/quic-v1")])
   else:
-    builder = builder.withTcpTransport().withAddresses(
-        @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      )
+    builder = builder.withTcpTransport().withAddresses(@[TcpWildcardAddress])
 
     if useMplex:
       builder = builder.withMplex()
