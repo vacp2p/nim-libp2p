@@ -251,6 +251,36 @@ suite "Dialer":
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
     check resolver.cancelled
 
+  asyncTest "Ranked dialing does not wait for a stalled sibling resolution":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = StallingResolver.new()
+    resolver.txtResponses["_dnsaddr.mixed.example"] =
+      @["dnsaddr=" & $dst.peerInfo.addrs[0], "dnsaddr=/dns4/stalls.example/tcp/1234"]
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      resolver,
+      dialTimeout = 1.seconds,
+      dialRanking = true,
+    )
+
+    let mixed = MultiAddress.init("/dnsaddr/mixed.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[mixed]).wait(5.seconds)
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+    check resolver.cancelled
+
   asyncTest "Ranked dialing dials a name that answers while another one stalls":
     let
       src = makeStandardSwitch(TcpAutoAddress)

@@ -350,14 +350,6 @@ proc resolveCandidate(
 
   candidates
 
-proc resolveName(
-    self: Dialer, candidate: DialCandidate, budget: DialBudget, deadline: Moment
-): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
-  ## Every wire address one advertised name stands for, dnsaddr chain included.
-
-  let expanded = budget.take(await self.expandCandidate(candidate, deadline))
-  concat(await collectCompleted(expanded.mapIt(self.resolveCandidate(it, deadline))))
-
 proc directCandidates(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress]
 ): seq[DialCandidate] =
@@ -476,6 +468,27 @@ proc dialResolved(
     budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial, reach
   )
 
+proc dialName(
+    self: Dialer,
+    candidate: DialCandidate,
+    expandedBudget: DialBudget,
+    dialBudget: DialBudget,
+    dir: Direction,
+    deadline: Moment,
+    forceDial: bool,
+    reach: DialReach,
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Dial each address from one advertised name as soon as it resolves.
+
+  let expanded = expandedBudget.take(
+    await dialBudget.awaitLookup(self.expandCandidate(candidate, deadline))
+  )
+  let lookups = expanded.mapIt(self.resolveCandidate(it, deadline))
+
+  await firstConnected(
+    lookups.mapIt(self.dialResolved(it, dialBudget, dir, deadline, forceDial, reach))
+  )
+
 proc dialRanked(
     self: Dialer,
     peerId: Opt[PeerId],
@@ -492,13 +505,12 @@ proc dialRanked(
     names = newBudget(MaxDialCandidates)
     unresolved = newBudget(MaxExpandedAddresses)
     direct = dialable.take(self.directCandidates(peerId, addrs))
-    lookups = names.take(dnsCandidates(peerId, addrs)).mapIt(
-        self.resolveName(it, unresolved, deadline)
+    nameDials = names.take(dnsCandidates(peerId, addrs)).mapIt(
+        self.dialName(it, unresolved, dialable, dir, deadline, forceDial, reach)
       )
 
   await firstConnected(
-    @[self.dialAll(direct, dir, deadline, forceDial, reach)] &
-      lookups.mapIt(self.dialResolved(it, dialable, dir, deadline, forceDial, reach))
+    @[self.dialAll(direct, dir, deadline, forceDial, reach)] & nameDials
   )
 
 proc dialAndUpgrade*(
