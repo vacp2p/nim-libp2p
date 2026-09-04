@@ -225,6 +225,14 @@ proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
   except exceptions.KeyError:
     return
 
+iterator discoverIndexes(nsIndexes: Opt[seq[int]], first, last: int): int =
+  if nsIndexes.isSome():
+    for index in nsIndexes.get():
+      yield index
+  else:
+    for index in first .. last:
+      yield index
+
 proc discover*[E](
     rdv: GenericRendezVous[E], stream: Stream, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -253,31 +261,40 @@ proc discover*[E](
   elif cookie.offset > (rdv.registered.high() + 1).uint64:
     # Cookie ahead of available range: reset to one past current high (empty page)
     cookie.offset = (rdv.registered.high() + 1).uint64
-  let namespaces =
+  let nsIndexes =
     if d.ns.isSome():
       try:
-        rdv.namespaces[d.ns.get() & rdv.salt]
+        Opt.some(rdv.namespaces[d.ns.get() & rdv.salt])
       except exceptions.KeyError:
         await stream.sendDiscoverResponse(@[], Cookie())
         return
     else:
-      toSeq(max(cookie.offset.int, rdv.registered.offset) .. rdv.registered.high())
-  if namespaces.len() == 0:
-    await stream.sendDiscoverResponse(@[], Cookie())
-    return
-  var nextOffset = cookie.offset
-  let n = Moment.now()
-  var s: seq[Register] = @[]
-  for index in namespaces:
-    var reg = rdv.registered[index]
+      Opt.none(seq[int])
+  let
+    first = max(cookie.offset.int, rdv.registered.offset)
+    last = rdv.registered.high()
+    n = Moment.now()
+  var
+    nextOffset = cookie.offset
+    s: seq[Register] = @[]
+    hasCandidates = false
+  for index in discoverIndexes(nsIndexes, first, last):
+    hasCandidates = true
     if limit == 0:
       break
-    if reg.expiration < n or index.uint64 < cookie.offset:
+    let expiration = rdv.registered[index].expiration
+    if expiration < n or index.uint64 < cookie.offset:
       continue
     limit.dec()
     nextOffset = index.uint64 + 1
-    reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
-    s.add(reg.data)
+    var data = rdv.registered[index].data
+    data.ttl = Opt.some((expiration - n).seconds.uint64)
+    s.add(data)
+
+  if not hasCandidates:
+    await stream.sendDiscoverResponse(@[], Cookie())
+    return
+
   rdv.rng.shuffle(s)
   await stream.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
