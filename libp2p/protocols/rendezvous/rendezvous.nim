@@ -266,7 +266,7 @@ proc discover*[E](
       try:
         Opt.some(rdv.namespaces[d.ns.get() & rdv.salt])
       except exceptions.KeyError:
-        await stream.sendDiscoverResponseError(InvalidNamespace)
+        await stream.sendDiscoverResponse(@[], Cookie())
         return
     else:
       Opt.none(seq[int])
@@ -615,17 +615,43 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
+func isLive(reg: RegisteredData, n: Moment): bool =
+  reg.expiration >= n
+
+proc clearExpiredRegistrations[E](rdv: GenericRendezVous[E], n: Moment) =
+  rdv.registered.flushIfIt(it.expiration < n)
+
+  # An entry behind a live one keeps its index so the cookies stay valid.
+  for reg in rdv.registered.mitems():
+    if not reg.isLive(n):
+      reg = RegisteredData(expiration: rdv.expiredDT)
+
+proc dropExpiredNamespaces[E](rdv: GenericRendezVous[E], n: Moment) =
+  var emptied: seq[string] = @[]
+
+  for ns, indexes in rdv.namespaces.mpairs():
+    indexes =
+      indexes.filterIt(it >= rdv.registered.offset and rdv.registered[it].isLive(n))
+    if indexes.len == 0:
+      emptied.add(ns)
+
+  for ns in emptied:
+    rdv.namespaces.del(ns)
+
+func liveRegistrations[E](rdv: GenericRendezVous[E]): int =
+  var total = 0
+  for indexes in rdv.namespaces.values():
+    total += indexes.len
+  total
+
 proc deletesRegister*[E](
     rdv: GenericRendezVous[E], interval = 1.minutes
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", interval:
     let n = Moment.now()
-    var total = 0
-    rdv.registered.flushIfIt(it.expiration < n)
-    for data in rdv.namespaces.mvalues():
-      data.keepItIf(it >= rdv.registered.offset)
-      total += data.len
-    libp2p_rendezvous_registered.set(int64(total))
+    rdv.clearExpiredRegistrations(n)
+    rdv.dropExpiredNamespaces(n)
+    libp2p_rendezvous_registered.set(int64(rdv.liveRegistrations()))
     libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
 method start*[E](
