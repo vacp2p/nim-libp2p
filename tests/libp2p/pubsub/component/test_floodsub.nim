@@ -12,6 +12,7 @@ import
     stream/connection,
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
+    protocols/pubsub/timedcache,
     protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
@@ -422,3 +423,7 @@ suite "FloodSub Component":
     check:
       peer.overheadRateLimitOpt.isNone()
       peer.tryCharge(1024)
+
+  asyncTest "FloodSub caps the entry count of the seen cache":
+    let node = generateNodes(1).toFloodSub()[0]
+    check node.seen.maxSize == FloodSubSeenMaxSize

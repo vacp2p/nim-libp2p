@@ -24,7 +24,9 @@ import
 logScope:
   topics = "libp2p floodsub"
 
-const FloodSubCodec* = "/floodsub/1.0.0"
+const
+  FloodSubCodec* = "/floodsub/1.0.0"
+  FloodSubSeenMaxSize* = 1_000_000 # ~112 bytes per entry, so a ~120 MB ceiling
 
 type FloodSub* = ref object of PubSub
   floodsub*: PeerTable # topic to remote peer map
@@ -285,7 +287,7 @@ method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   f.validateOverheadRateLimit().isOkOr:
     raise newException(InitializationError, $error)
 
-  f.seen = TimedCache[SaltedId].init(2.minutes)
+  f.seen = TimedCache[SaltedId].init(2.minutes, maxSize = FloodSubSeenMaxSize)
   f.rng.generate(f.seenSalt)
 
   f.init()
