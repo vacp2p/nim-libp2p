@@ -37,7 +37,7 @@ method start*(
     await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
-  trace "Starting Relay transport"
+  info "Starting Relay transport"
 
 method stop*(self: RelayTransport) {.async: (raises: []).} =
   self.running = false

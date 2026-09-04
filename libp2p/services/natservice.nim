@@ -468,7 +468,7 @@ proc setupReachability(
       self.setupAutonatV2(switch, r)
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  debug "Setting up NATService",
+  info "Setting up NATService",
     portMapping = self.config.portMapping.isSome(),
     reachability = self.config.reachability.isSome(),
     holePunching = self.config.holePunching.isSome()
@@ -503,7 +503,7 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
   let mapper = PlumMapper.new(
     mode.toProtocolFilter(), pm.discoveryTimeout, pm.mappingTimeout
   ).valueOr:
-    error "Failed to construct libplum port mapper", mode, err = error
+    warn "Failed to construct libplum port mapper", mode, err = error
     return Opt.none(PortMapper)
   Opt.some(PortMapper(mapper))
 
@@ -537,7 +537,7 @@ proc startReachability(
     await self.reachability.start(switch)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Starting NATService"
+  info "Starting NATService"
   self.startPortMapping(switch)
   await self.startReachability(switch)
 
@@ -569,6 +569,6 @@ proc stopReachability(
     await self.reachability.stop(switch)
 
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Stopping NATService"
+  info "Stopping NATService"
   await self.stopPortMapping(switch)
   await self.stopReachability(switch)

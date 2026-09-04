@@ -45,7 +45,7 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
     return Opt.some(explicit.get())
 
   let extRecord = disco.record().valueOr:
-    error "failed to create extended peer record", error
+    debug "failed to create extended peer record", error
     return Opt.none(seq[byte])
   Opt.some(extRecord.encode())
 
@@ -268,7 +268,7 @@ proc advertiseToRegistrar*(
     let response = (
       await disco.sendRegister(registrar, serviceId, advert, currentTicket)
     ).valueOr:
-      error "failed to register ad", serviceId, registrar, error
+      debug "failed to register ad", serviceId, registrar, error
       return
 
     disco.admitPeers(response.closerPeers)
@@ -296,7 +296,7 @@ proc advertiseToRegistrar*(
         return
     of kademlia_protobuf.RegistrationStatus.Wait:
       let newTicket = response.ticket.valueOr:
-        error "no ticket to retry with", serviceId, registrar
+        trace "no ticket to retry with", serviceId, registrar
         return
 
       currentTicket = Opt.some(newTicket)
@@ -350,7 +350,7 @@ proc scheduleRegistrations(
 
     for peer in peers:
       let registrar = peer.toPeerId().valueOr:
-        error "cannot convert key to peer id", error
+        trace "cannot convert key to peer id", error
         continue
 
       disco.trackAdvertiseTask(serviceId, registrar, bucketIdx, advertBytes)

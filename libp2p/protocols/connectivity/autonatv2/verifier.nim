@@ -54,10 +54,10 @@ proc askPeer(
     except CancelledError as e:
       raise e
     except AsyncTimeoutError:
-      debug "DialRequest timed out", peerId, address
+      trace "DialRequest timed out", peerId, address
       return Opt.none(AddrState)
     except LPError as e:
-      debug "DialRequest failed", peerId, address, description = e.msg
+      trace "DialRequest failed", peerId, address, description = e.msg
       return Opt.none(AddrState)
 
   case reachability
@@ -73,11 +73,11 @@ method verify*(
 ): Future[Opt[AddrState]] {.async: (raises: [CancelledError]).} =
   ## One request carrying that one address, to a random peer.
   if not self.switch.hasEnoughIncomingSlots():
-    debug "No incoming slots left, skipping verification", address
+    trace "No incoming slots left, skipping verification", address
     return Opt.none(AddrState)
 
   let peerId = self.selectPeer().valueOr:
-    debug "No peer to ask", address
+    trace "No peer to ask", address
     return Opt.none(AddrState)
 
   await self.askPeer(peerId, address)

@@ -111,7 +111,7 @@ proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey, PeerRecord.init(p.peerId, p.addrs)
   ).valueOr:
-    info "Can't update the signed peer record"
+    debug "Can't update the signed peer record"
     return
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =

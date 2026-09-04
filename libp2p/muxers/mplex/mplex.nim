@@ -76,7 +76,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
         labelValues = [$chann.initiator, $m.connection.peerId],
       )
   except CancelledError as exc:
-    warn "Error cleaning up mplex channel", m, chann, description = exc.msg
+    trace "Error cleaning up mplex channel", m, chann, description = exc.msg
 
 proc newStreamInternal*(
     m: Mplex,
@@ -154,7 +154,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           tmp
         else:
           if m.channels[false].len > m.maxChannCount - 1:
-            debug "too many channels created by remote peer",
+            trace "too many channels created by remote peer",
               allowedMax = m.maxChannCount, m
             raise newTooManyChannels()
 
@@ -173,7 +173,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
-          warn "attempting to send a packet larger than allowed",
+          trace "attempting to send a packet larger than allowed",
             allowed = MaxMsgSize, channel
           raise newLPStreamLimitError()
 
@@ -191,7 +191,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
       of MessageType.ResetIn, MessageType.ResetOut:
         await channel.resetChannel(isLocal = false)
   except CancelledError:
-    debug "Unexpected cancellation in mplex handler", m
+    trace "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, description = exc.msg
   except LPStreamError as exc:

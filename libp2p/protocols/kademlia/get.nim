@@ -49,7 +49,7 @@ proc getValue*(
       received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
     else:
       kad.dataTable.del(key)
-      debug "Local record expired on read", key = key
+      trace "Local record expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
@@ -58,36 +58,36 @@ proc getValue*(
       peer: PeerId, msgOpt: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     if not received.hasKey(peer) and received.len >= kad.config.limits.maxReceivedSize:
-      debug "GetValue: ReceivedTable cap reached, dropping reply",
+      trace "GetValue: ReceivedTable cap reached, dropping reply",
         peer = peer, cap = kad.config.limits.maxReceivedSize
       return
 
     received[peer] = Opt.none(EntryRecord)
 
     let reply = msgOpt.valueOr:
-      debug "Empty reply"
+      trace "Empty reply"
       return
 
     let record = reply.record.valueOr:
-      debug "GetValue returned empty record", reply = reply
+      trace "GetValue returned empty record", reply = reply
       return
 
     if record.key.isNone or record.key.get() != key:
-      debug "GetValue returned record with mismatched key",
+      trace "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
 
     let value = record.value.valueOr:
-      debug "GetValue returned record with no value", reply = reply
+      trace "GetValue returned record with no value", reply = reply
       return
 
     if value.len > kad.config.limits.maxValueSize:
-      debug "GetValue dropped: value exceeds maxValueSize",
+      trace "GetValue dropped: value exceeds maxValueSize",
         peer = peer, size = value.len, cap = kad.config.limits.maxValueSize
       return
 
     let time = record.timeReceived.valueOr:
-      debug "GetValue returned record with no timeReceived, using current time instead",
+      trace "GetValue returned record with no timeReceived, using current time instead",
         reply = reply
       Timestamp.now()
 
@@ -128,7 +128,7 @@ method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key.valueOr:
-    error "Key not set: handleGetValue", msg = msg, stream = stream
+    trace "Key not set: handleGetValue", msg = msg, stream = stream
     return
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
@@ -136,7 +136,7 @@ method handleGetValue*(
   var entryRecordOpt = kad.dataTable.get(key)
   entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
-      debug "record expired, dropping", key = key
+      trace "record expired, dropping", key = key
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
@@ -171,5 +171,5 @@ method handleGetValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return

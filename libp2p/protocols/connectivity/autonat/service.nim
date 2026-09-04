@@ -215,7 +215,7 @@ method setup*(self: AutonatService, switch: Switch) {.raises: [].} =
 method start*(
     self: AutonatService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Running AutonatService"
+  info "Running AutonatService"
 
   switch.connManager.addPeerEventHandler(
     self.newConnectedPeerHandler, PeerEventKind.Joined

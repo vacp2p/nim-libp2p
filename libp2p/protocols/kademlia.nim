@@ -65,7 +65,7 @@ proc checkAndEvictPeer(
   if kad.stopping:
     return
   if not kad.livenessSem.tryAcquire():
-    debug "Liveness probe skipped: no free slot", peer = peerId.shortLog()
+    trace "Liveness probe skipped: no free slot", peer = peerId.shortLog()
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
   defer:
@@ -84,7 +84,7 @@ proc checkAndEvictPeer(
     if rtable.isReplaceable(peerId, grace, Moment.now()):
       dueTables.add(rtable)
   if dueTables.len == 0:
-    debug "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
+    trace "Liveness probe skipped: peer no longer replaceable", peer = peerId.shortLog()
     return
 
   let addrs = kad.dialAddrs(peerId)
@@ -97,17 +97,17 @@ proc checkAndEvictPeer(
       discard rtable.removePeer(peerId, reason = "liveness")
       inc evicted
     if evicted > 0:
-      debug "Evicting peer with no known addresses",
+      trace "Evicting peer with no known addresses",
         peer = peerId.shortLog(), tables = evicted
       kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
     else:
-      debug "Liveness probe skipped: peer no longer replaceable",
+      trace "Liveness probe skipped: peer no longer replaceable",
         peer = peerId.shortLog()
     return
 
-  debug "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
+  trace "Probing peer for liveness", peer = peerId.shortLog(), tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
-    debug "Liveness probe succeeded", peer = peerId.shortLog()
+    trace "Liveness probe succeeded", peer = peerId.shortLog()
     # Peer is reachable: one registry write refreshes usefulness for every index.
     kad.rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
@@ -121,22 +121,22 @@ proc checkAndEvictPeer(
     discard rtable.removePeer(peerId, reason = "liveness")
     inc evicted
   if evicted == 0:
-    debug "Liveness probe failed but peer refreshed mid-flight",
+    trace "Liveness probe failed but peer refreshed mid-flight",
       peer = peerId.shortLog()
     return
 
-  debug "Evicting unresponsive peer after liveness probe",
+  trace "Evicting unresponsive peer after liveness probe",
     peer = peerId.shortLog(), tables = evicted
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
 proc launchLivenessProbe(kad: KadDHT, peerId: PeerId) {.raises: [].} =
   ## Starts a liveness probe unless one is already in flight for this peer.
   if kad.livenessProbes.hasKey(peerId):
-    debug "Liveness probe already in flight", peer = peerId.shortLog()
+    trace "Liveness probe already in flight", peer = peerId.shortLog()
     return
   if kad.stopping:
     return
-  debug "Launching liveness probe", peer = peerId.shortLog()
+  trace "Launching liveness probe", peer = peerId.shortLog()
   kad.trackLivenessProbe(peerId, kad.checkAndEvictPeer(peerId))
 
 proc probeAndEvictPeers*(
@@ -158,7 +158,7 @@ proc probeAndEvictPeers*(
   var futs = newSeqOfCap[Future[void]](peers.len)
   for peerId in peers:
     kad.livenessProbes.withValue(peerId, existing):
-      debug "Liveness batch reusing in-flight probe", peer = peerId.shortLog()
+      trace "Liveness batch reusing in-flight probe", peer = peerId.shortLog()
       futs.add(existing[])
       continue
     let fut = kad.checkAndEvictPeer(peerId)
@@ -373,11 +373,11 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling kademlia RPC", stream = stream, err = exc.msg
+          trace "Read error when handling kademlia RPC", stream = stream, err = exc.msg
           return
       let bufLen = buf.len
       let msg = Message.decode(move(buf)).valueOr:
-        debug "Failed to decode message", err = error
+        trace "Failed to decode message", err = error
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)
@@ -411,7 +411,7 @@ proc resetServerStreams(kad: KadDHT) {.async: (raises: []).} =
   let streams = kad.serverStreams
   kad.serverStreams.clear()
   await noCancel allFutures(streams.mapIt(it.reset()))
-  debug "Reset inbound Kad DHT streams", streams = streams.len
+  trace "Reset inbound Kad DHT streams", streams = streams.len
 
 proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []).} =
   ## Start or stop serving inbound queries, and report whether the mode changed.
@@ -450,7 +450,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   kad.started = true
 
-  trace "Kad DHT started"
+  info "Kad DHT started"
 
 method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:

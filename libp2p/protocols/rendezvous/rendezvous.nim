@@ -293,7 +293,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          debug "failed to decode Message", error = error
+          trace "failed to decode Message", error = error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -404,13 +404,13 @@ proc requestPeer[E](
   let
     buf = await stream.readLp(MaximumMessageLen)
     msgRcv = Message.decode(buf).valueOr:
-      debug "Message undecodable", error = error
+      trace "Message undecodable", error = error
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
-    debug "Unexpected discover response", msgType = msgRcv.msgType
+    trace "Unexpected discover response", msgType = msgRcv.msgType
     return @[]
   let resp = msgRcv.discoverResponse.valueOr:
-    debug "Discover response is empty"
+    trace "Discover response is empty"
     return @[]
   if resp.status != ResponseStatus.Ok:
     trace "Cannot discover", ns, status = resp.status, text = resp.text
@@ -560,7 +560,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          debug "failed to decode Message", error = error
+          trace "failed to decode Message", error = error
           return
       case msg.msgType
       of MessageType.Register:

@@ -276,7 +276,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
           elif exc of TransportOsError:
             debug "OS Error", description = exc.msg
           else:
-            info "Unexpected error accepting websocket stream", description = exc.msg
+            debug "Unexpected error accepting websocket stream", description = exc.msg
 
           if acquired:
             self.releaseAcceptSlot()
@@ -301,7 +301,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         if acquired:
           self.releaseAcceptSlot()
         if self.running:
-          info "Unexpected error in websocket accept dispatcher", description = e.msg
+          debug "Unexpected error in websocket accept dispatcher", description = e.msg
         else:
           break
   finally:
@@ -332,12 +332,11 @@ method start*(
     self: WsTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
-  ##
-  trace "Starting WS transport"
-
   if self.running:
     warn "WS transport already running"
     return
+
+  info "Starting WS transport"
 
   let addrsTa = self.toTransportAddress(addrs).valueOr:
     raise newException(TransportStartError, $error)
@@ -419,7 +418,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
   self.running = false # mark stopped as soon as possible
 
   try:
-    trace "Stopping WS transport"
+    info "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
     var toWait: seq[Future[void]]
@@ -447,7 +446,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     self.handshakeFuts = @[]
     self.connectionCleanupFuts = @[]
     self.acceptLoop = nil
-    trace "Transport stopped"
+    info "Transport stopped"
   except CatchableError as e:
     trace "Error shutting down ws transport", description = e.msg
   finally:

@@ -153,7 +153,7 @@ proc dialAndUpgrade*(
       return nil
 
   doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
-  debug "Dial successful", peerId = mux.connection.peerId
+  trace "Dial successful", peerId = mux.connection.peerId
   libp2p_dial_duration_ms.observe(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
@@ -175,7 +175,7 @@ proc expandDnsAddr(
   if not DNS.matchPartial(address):
     return @[(address, peerId)]
   if isNil(self.nameResolver):
-    info "Can't resolve DNSADDR without NameResolver", ma = address
+    warn "Can't resolve DNSADDR without NameResolver", ma = address
     return @[]
 
   trace "Start trying to resolve addresses"
@@ -193,10 +193,10 @@ proc expandDnsAddr(
     try:
       self.nameResolver.resolveDnsAddr(toResolve).awaitWithDeadline(deadline)
     except AsyncTimeoutError:
-      debug "Out of time resolving dnsaddr", ma = toResolve
+      trace "Out of time resolving dnsaddr", ma = toResolve
       return @[]
 
-  debug "resolved addresses",
+  trace "resolved addresses",
     originalAddresses = toResolve, resolvedAddresses = resolved
 
   var addrs: seq[(MultiAddress, Opt[PeerId])]
@@ -226,7 +226,7 @@ proc resolveWithDeadline(
   try:
     self.nameResolver.resolveMAddress(address).awaitWithDeadline(deadline)
   except AsyncTimeoutError:
-    debug "Out of time resolving address", ma = address
+    trace "Out of time resolving address", ma = address
     @[]
 
 proc tryExpandDnsAddr(
@@ -238,7 +238,7 @@ proc tryExpandDnsAddr(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    debug "Skipping the address, dnsaddr expansion failed",
+    trace "Skipping the address, dnsaddr expansion failed",
       peerId, ma = address, description = e.msg
     @[]
 
@@ -251,7 +251,7 @@ proc tryResolve(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    debug "Skipping the address, name resolution failed",
+    trace "Skipping the address, name resolution failed",
       ma = address, description = e.msg
     @[]
 
@@ -330,7 +330,7 @@ proc resolveCandidate(
 
   let resolved = await self.tryResolve(candidate.address, deadline)
 
-  debug "Resolved address",
+  trace "Resolved address",
     expandedAddress = candidate.address,
     hostname = candidate.hostname,
     resolvedAddresses = resolved
@@ -338,7 +338,7 @@ proc resolveCandidate(
   var candidates: seq[DialCandidate]
   for address in resolved:
     if self.transportFor(address).isNone():
-      debug "Skipping the address, no transport handles it",
+      trace "Skipping the address, no transport handles it",
         peerId = candidate.peerId, ma = address
       continue
 
@@ -368,7 +368,7 @@ proc directCandidates(
     if DNS.matchPartial(address):
       continue
     if self.transportFor(address).isNone():
-      debug "Skipping the address, no transport handles it", peerId, ma = address
+      trace "Skipping the address, no transport handles it", peerId, ma = address
       continue
 
     # `wstransport` sends this as the Host header, so a wire address needs it too.

@@ -143,7 +143,7 @@ method init*(p: Identify) =
     let msg = makeIdentifyMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
     try:
       await stream.writeLp(msg.encode())
-      debug "identify: info sent", stream, info = p.peerInfo
+      trace "identify: info sent", stream, info = p.peerInfo
     except LPError as e:
       trace "identify handler failed to write message", description = e.msg, stream
     finally:
@@ -171,7 +171,7 @@ proc identify*(
   var identifyMsg = IdentifyMsg.decode(move message).valueOr:
     raise newException(IdentityInvalidMsgError, error)
 
-  debug "identify: info received", stream, identifyMsg
+  trace "identify: info received", stream, identifyMsg
 
   var peer: PeerId
   identifyMsg.publicKey.withValue(pubkey):
@@ -206,22 +206,22 @@ proc init*(p: IdentifyPush) =
       try:
         await stream.readLp(maxMsgSize)
       except LPError as e:
-        info "failed to read message from stream", description = e.msg, stream
+        trace "failed to read message from stream", description = e.msg, stream
         return
 
     let identifyMsg = IdentifyMsg.decode(move message).valueOr:
-      info "failed to decode identify message", error, stream
+      trace "failed to decode identify message", error, stream
       return
 
-    debug "identify push: info received", stream, identifyMsg
+    trace "identify push: info received", stream, identifyMsg
 
     var peerId: PeerId
     identifyMsg.publicKey.withValue(pubkey):
       let receivedPeerId = PeerId.init(pubkey).valueOr:
-        debug "could not create PeerId from pubkey", stream
+        trace "could not create PeerId from pubkey", stream
         return
       if receivedPeerId != stream.peerId:
-        info "Peer ids don't match", stream
+        trace "Peer ids don't match", stream
         return
       peerId = receivedPeerId
     else:
@@ -235,7 +235,7 @@ proc init*(p: IdentifyPush) =
       except CancelledError as e:
         raise e
       except CatchableError as e:
-        warn "got unexpected error", description = e.msg, stream
+        trace "got unexpected error", description = e.msg, stream
         # compiler reports strange CatchableError error that should never really happen
         discard
 

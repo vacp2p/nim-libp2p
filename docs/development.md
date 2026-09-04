@@ -101,6 +101,10 @@ Do `nimble install nph@v0.7.0` once to install nph, then `nimble format` (or `np
 
 nim-libp2p uses [chronicles](https://github.com/status-im/nim-chronicles) library for structured logging.
 
+Use the [logging policy](logging.md) when adding or reviewing log calls. It
+defines severity by operational impact and user action; this section only
+describes configuring Chronicles.
+
 chronicles is configured at compile time. You can adjust the log detail level using compile time flags like this:
 
 ```bash

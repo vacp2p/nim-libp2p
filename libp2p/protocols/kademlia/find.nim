@@ -438,7 +438,7 @@ proc dispatchPeer(
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
-    debug "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+    trace "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -479,7 +479,7 @@ proc fillSlots(
     if peerId in active:
       continue
     state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-    debug "Lookup query", peer = peerId.shortLog()
+    trace "Lookup query", peer = peerId.shortLog()
     pending.add(
       Attempt(
         peer: peerId,
@@ -740,7 +740,7 @@ method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
-    error "Key not set: handleFindNode", msg = msg, stream = stream
+    trace "Key not set: handleFindNode", msg = msg, stream = stream
     return
 
   let response = Message(
@@ -752,7 +752,7 @@ method handleFindNode*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Write error when writing kad find-node RPC reply",
+    trace "Write error when writing kad find-node RPC reply",
       stream = stream, err = exc.msg
     return
 

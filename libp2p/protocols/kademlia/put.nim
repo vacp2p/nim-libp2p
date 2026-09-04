@@ -28,7 +28,7 @@ proc isExpired*(
   ## Returns true when the record's stored timestamp is older than `interval`.
   ## Records whose timestamp cannot be parsed are treated as expired.
   let storedUnix = record.time.toUnixSeconds().valueOr:
-    warn "Failed to parse record timestamp, treating as expired", time = record.time
+    trace "Failed to parse record timestamp, treating as expired", time = record.time
     return true
 
   (currentUnixSeconds - storedUnix).seconds > interval
@@ -45,7 +45,7 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)
-      debug "Expired record removed", key = key
+      trace "Expired record removed", key = key
 
 proc dispatchPutVal*(
     kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
@@ -57,10 +57,10 @@ proc dispatchPutVal*(
   )
   let reply = ?await kad.dispatchRpc(peer, msg)
 
-  debug "Got PutValue reply", msg = msg, reply = reply, peer = peer
+  trace "Got PutValue reply", msg = msg, reply = reply, peer = peer
 
   if reply != msg:
-    error "Unexpected change between msg and reply: ",
+    trace "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, peer = peer
 
   ok()
@@ -106,23 +106,23 @@ proc handlePutValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let record = msg.record.valueOr:
-    error "No record in message buffer", msg = msg, stream = stream
+    trace "No record in message buffer", msg = msg, stream = stream
     return
 
   let msgKey = msg.key.valueOr:
-    error "Key not set: handlePutValue", msg = msg, stream = stream
+    trace "Key not set: handlePutValue", msg = msg, stream = stream
     return
 
   if record.key.isNone or record.key.get() != msgKey:
-    error "Record key is different than Message key", msg = msg, stream = stream
+    trace "Record key is different than Message key", msg = msg, stream = stream
     return
 
   let value = record.value.valueOr:
-    error "No value in record", msg = msg, stream = stream
+    trace "No value in record", msg = msg, stream = stream
     return
 
   if value.len > kad.config.limits.maxValueSize:
-    debug "PUT_VALUE dropped: value exceeds maxValueSize",
+    trace "PUT_VALUE dropped: value exceeds maxValueSize",
       stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
     await stream.reset()
     return
@@ -131,11 +131,11 @@ proc handlePutValue*(
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msgKey, entryRecord):
-    debug "Record is not valid", msg = msg, entryRecord = entryRecord
+    trace "Record is not valid", msg = msg, entryRecord = entryRecord
     return
 
   if not kad.isBestValue(msgKey, entryRecord):
-    error "Dropping received value, we have a better one"
+    trace "Dropping received value, we have a better one"
     await stream.reset()
     return
 
@@ -153,5 +153,5 @@ proc handlePutValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send find-node RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send find-node RPC reply", stream = stream, err = exc.msg
     return
