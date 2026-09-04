@@ -4,7 +4,6 @@
 {.push raises: [].}
 
 import sequtils
-import bearssl/pem
 import chronos, chronicles, net, results, uri
 import chronos/streams/tlsstream
 from times import DateTime, now, toTime, toUnix
