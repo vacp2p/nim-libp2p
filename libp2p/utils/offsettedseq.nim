@@ -51,6 +51,10 @@ iterator items*[T](o: OffsettedSeq[T]): T =
   for e in o.s:
     yield e
 
+iterator mitems*[T](o: var OffsettedSeq[T]): var T =
+  for e in o.s.mitems():
+    yield e
+
 proc high*[T](o: OffsettedSeq[T]): int =
   o.s.high + o.offset
 
