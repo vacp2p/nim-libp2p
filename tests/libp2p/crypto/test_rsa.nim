@@ -638,7 +638,9 @@ suite "RSA 2048/3072/4096 test suite":
     b.finish()
     b.buffer
 
-  proc spkiPublicKeyDer(modulus: openArray[byte]): seq[byte] =
+  proc spkiPublicKeyDer(
+      modulus: openArray[byte], exponent = uint64(DefaultPublicExponent)
+  ): seq[byte] =
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
     var c0 = Asn1Composite.init(Asn1Tag.Sequence)
@@ -648,7 +650,7 @@ suite "RSA 2048/3072/4096 test suite":
     c0.write(Asn1Tag.Null)
     c0.finish()
     c10.write(Asn1Tag.Integer, modulus)
-    c10.write(uint64(DefaultPublicExponent))
+    c10.write(exponent)
     c10.finish()
     c1.write(c10)
     c1.finish()
@@ -674,6 +676,14 @@ suite "RSA 2048/3072/4096 test suite":
       key2.isErr() == true
       key1.error == RsaKeyIncorrectError
       key2.error == RsaKeyIncorrectError
+
+  test "Invalid public exponents are rejected":
+    var modulus = rsa2047BitModulus()
+    modulus[0] = 0x80
+    check:
+      RsaPublicKey.init(spkiPublicKeyDer(modulus, 1)).isErr()
+      RsaPublicKey.init(spkiPublicKeyDer(modulus, 2)).isErr()
+      RsaPublicKey.init(spkiPublicKeyDer(modulus, 3)).isOk()
 
   test "[rsa4097] not allowed test":
     let modulus = rsaOversizedModulus()

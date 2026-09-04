@@ -110,6 +110,23 @@ proc bitLength(field: Asn1Field): int =
 func validKeySize(bits: int): bool =
   bits >= MinKeySize and bits <= MaxKeySize
 
+func validPublicExponent(field: Asn1Field): bool =
+  const IntegerSignBit = 0x80'u8
+
+  if len(field) == 0:
+    return false
+
+  let
+    first = field.buffer[field.offset]
+    last = field.buffer[field.offset + len(field) - 1]
+    hadLeadingZero = field.offset > 0 and field.buffer[field.offset - 1] == 0
+
+  if (first and IntegerSignBit) != 0 and not hadLeadingZero:
+    return false
+  if (last and 1) == 0:
+    return false
+  len(field) > 1 or first >= 3
+
 proc random*[T: RsaKP](
     t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
 ): RsaResult[T] =
@@ -552,7 +569,7 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if rawe.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if validKeySize(bitLength(rawn)) and len(rawe) > 0:
+  if validKeySize(bitLength(rawn)) and validPublicExponent(rawe):
     key = new RsaPublicKey
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]

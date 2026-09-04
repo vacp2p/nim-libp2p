@@ -2322,13 +2322,40 @@ proc init*(key: var EdPrivateKey, data: openArray[byte]): bool =
     return true
   false
 
+proc validPublicKey(data: openArray[byte]): bool =
+  const GroupOrder = [
+    byte 0xED, 0xD3, 0xF5, 0x5C, 0x1A, 0x63, 0x12, 0x58, 0xD6, 0x9C, 0xF7, 0xA2, 0xDE,
+    0xF9, 0xDE, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x10,
+  ]
+  var point: GeP3
+  if geFromBytesNegateVartime(point, data.toOpenArray(0, 31)) != 0:
+    return false
+
+  var encoded: array[EdPublicKeySize, byte]
+  geP3ToBytes(encoded, point)
+  if feIsNonZero(point.x) != 0:
+    encoded[^1] = encoded[^1] xor 0x80
+  if verify32(encoded, data.toOpenArray(0, 31)) != 0:
+    return false
+
+  var identity, zero: array[EdPublicKeySize, byte]
+  identity[0] = 1
+  if verify32(data.toOpenArray(0, 31), identity) == 0:
+    return false
+
+  var multiplied: GeP2
+  geDoubleScalarMultVartime(multiplied, GroupOrder, point, zero)
+  geToBytes(encoded, multiplied)
+  verify32(encoded, identity) == 0
+
 proc init*(key: var EdPublicKey, data: openArray[byte]): bool =
   ## Initialize ED25519 `public key` ``key`` from raw binary
   ## representation ``data``.
   ##
   ## Procedure returns ``true`` on success.
   let length = EdPublicKeySize
-  if len(data) >= length:
+  if len(data) >= length and validPublicKey(data):
     copyMem(addr key.data[0], addr data[0], length)
     return true
   false
