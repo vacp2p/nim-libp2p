@@ -8,7 +8,7 @@ when defined(libp2p_protobuf_metrics):
   import
     ../../../libp2p/
       [routing_record, utils/protobuf, utils/protobuf_metrics, crypto/crypto]
-  import ../../tools/[unittest, crypto]
+  import ../../tools/[unittest, crypto, multiaddress]
 
   # A type that explicitly opts into metrics tracking.
   type MetricsTestMsg* {.proto2.} = object
@@ -23,9 +23,7 @@ when defined(libp2p_protobuf_metrics):
       0.0
 
   proc makePeerRecord(): PeerRecord =
-    PeerRecord.init(
-      PeerId.random(rng()).get(), @[MultiAddress.init("/ip4/127.0.0.1/tcp/1234").get()]
-    )
+    PeerRecord.init(PeerId.random(rng()).get(), @[ma("/ip4/127.0.0.1/tcp/1234")])
 
   suite "protobuf_metrics":
     test "PeerRecord encode does not increment sent counter (withMetrics = false)":
