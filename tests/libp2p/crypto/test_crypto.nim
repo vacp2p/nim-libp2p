@@ -4,7 +4,7 @@
 
 from std/strutils import toUpper
 import std/[sequtils, algorithm]
-import nimcrypto/utils
+import bearssl/[hash, rand], nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
 
