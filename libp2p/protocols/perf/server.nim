@@ -45,7 +45,7 @@ proc new*(T: typedesc[Perf]): T =
       trace "cancelled perf handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in perf handler", description = exc.msg, stream
+      trace "exception in perf handler", err = exc.msg, stream
     finally:
       await stream.close()
 

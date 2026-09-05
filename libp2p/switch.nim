@@ -272,7 +272,7 @@ proc upgradeMonitor(
     trace "Connection upgrade timeout", conn
     libp2p_failed_upgrades_incoming.inc()
   except UpgradeError as e:
-    trace "Connection upgrade failed", description = e.msg, conn
+    trace "Connection upgrade failed", err = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
     deadlineFut.cancelSoon()
@@ -329,7 +329,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
     except CancelledError:
       return
     except CatchableError as exc:
-      error "Exception in accept loop, exiting", description = exc.msg
+      error "Accept loop stopped", err = exc.msg, errType = exc.name
       if not isNil(conn):
         await conn.close()
       return
@@ -352,7 +352,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Cannot cancel accepts", description = exc.msg
+    debug "Cannot cancel accepts", err = exc.msg
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]
@@ -372,7 +372,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", description = exc.msg
+      warn "error cleaning up transports", err = exc.msg
 
   await s.ms.stop()
 
@@ -429,4 +429,4 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   s.peerStore.startAddressPruning()
 
-  info "Started libp2p node", peer = s.peerInfo
+  info "Started libp2p node", peerId = s.peerInfo

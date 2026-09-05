@@ -330,12 +330,12 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc runHandleLoop*(
     p: PubSubPeer, stream: Stream
 ) {.async: (raises: [CancelledError]).} =
-  trace "starting pubsub read loop", stream, peer = p, closed = stream.closed
+  trace "starting pubsub read loop", stream, peerId = p, closed = stream.closed
   defer:
-    trace "exiting pubsub read loop", stream, peer = p, closed = stream.closed
+    trace "exiting pubsub read loop", stream, peerId = p, closed = stream.closed
 
   while not stream.atEof:
-    trace "waiting for data", stream, peer = p, closed = stream.closed
+    trace "waiting for data", stream, peerId = p, closed = stream.closed
 
     var data =
       try:
@@ -344,21 +344,20 @@ proc runHandleLoop*(
         return
       except LPStreamError as e:
         trace "Exception occurred reading message PubSubPeer.handle",
-          stream, peer = p, closed = stream.closed, description = e.msg
+          stream, peer = p, closed = stream.closed, err = e.msg
         return
 
     trace "read data from peer",
       stream, peer = p, closed = stream.closed, data = data.shortLog
 
     if p.handler.isNil:
-      trace "Ignoring pubsub message without handler", stream, peer = p
+      trace "Ignoring pubsub message without handler", stream, peerId = p
       continue
 
     try:
       await p.handler(p, move(data))
     except PeerRateLimitError as e:
-      trace "peer rate limit exceeded in peerHandler",
-        description = e.msg, stream, peer = p
+      trace "peer rate limit exceeded in peerHandler", err = e.msg, stream, peer = p
       await stream.closeWithEOF()
       return
 
@@ -433,9 +432,9 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
         return
       await connectOnce(p)
   except CancelledError as exc:
-    trace "Could not establish send stream", description = exc.msg
+    trace "Could not establish send stream", err = exc.msg
   except GetStreamDialError as exc:
-    trace "Could not establish send stream", description = exc.msg
+    trace "Could not establish send stream", err = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.connected:
@@ -483,10 +482,10 @@ proc sendMsgContinue(
     await msgFut
     trace "sent pubsub message to remote", stream
   except CancelledError as exc:
-    trace "sendMsgContinue cancelled", stream, description = exc.msg
+    trace "sendMsgContinue cancelled", stream, err = exc.msg
     raise exc
   except LPStreamError as exc:
-    trace "Unexpected exception in sendMsgContinue", stream, description = exc.msg
+    trace "Unexpected exception in sendMsgContinue", stream, err = exc.msg
     # Next time sendStream is used, it will be have its close flag set and thus
     # will be recycled
     await stream.close() # This will clean up the send stream
@@ -684,7 +683,8 @@ proc send*(
     warn "message exceeds maximum message size; message will not be sent",
       encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
 
-  trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+  trace "Sending PubSub RPC",
+    peerId = p.peerId, messageType = "rpc", messageSize = encoded.len
   p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
 proc sendResponse*(
@@ -706,7 +706,8 @@ proc sendResponse*(
 
   proc send(toSendMsg: RPCMsg) =
     var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
-    trace "sending response msg to peer", peer = p, rpcMsg = shortLog(toSendMsg)
+    trace "Sending PubSub RPC response",
+      peerId = p.peerId, messageType = "rpc", messageSize = encoded.len
     p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
 
   template wireSize(toSizeMsg: RPCMsg): int =

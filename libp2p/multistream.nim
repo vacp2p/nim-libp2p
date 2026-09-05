@@ -47,7 +47,7 @@ proc select*(
   ## select a remote protocol
   await stream.writeLp(Codec & "\n") # write handshake
   if proto.len() > 0:
-    trace "selecting proto", stream, proto = proto[0]
+    trace "selecting proto", stream, protocol = proto[0]
     await stream.writeLp((proto[0] & "\n")) # select proto
 
   var s = string.fromBytes((await stream.readLp(MsgSize))) # read ms header
@@ -66,15 +66,15 @@ proc select*(
     validateSuffix(s)
     trace "reading first requested proto", stream, s, proto
     if s == proto[0]:
-      trace "successfully selected ", stream, proto = proto[0]
+      trace "successfully selected ", stream, protocol = proto[0]
       stream.protocol = proto[0]
       return proto[0]
     elif proto.len > 1:
       # Try to negotiate alternatives
       let protos = proto[1 ..< proto.len()]
-      trace "selecting one of several protos", stream, protos = protos
+      trace "selecting one of several protos", stream, protocols = protos
       for p in protos:
-        trace "selecting proto", stream, proto = p
+        trace "selecting proto", stream, protocol = p
         await stream.writeLp((p & "\n")) # select proto
         s = string.fromBytes(await stream.readLp(MsgSize)) # read the first proto
         validateSuffix(s)
@@ -202,10 +202,10 @@ proc handle*(
       let (protos, matchers) = m.allProtosAndMatchers()
       await MultistreamSelect.handle(stream, protos, matchers, active)
     except LPStreamError as e:
-      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
+      trace "Exception in MultistreamSelect.handle", stream, err = e.msg
       return
     except MultiStreamError as e:
-      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
+      trace "Exception in MultistreamSelect.handle", stream, err = e.msg
       return
 
   m.lookupProtocol(ms).withValue(p):
@@ -225,7 +225,7 @@ proc handle*(
     trace "no handlers", stream, protocol = ms
 
 proc addHandler*(m: MultistreamSelect, protocol: LPProtocol, matcher: Matcher = nil) =
-  trace "registering protocols", protos = protocol.codecs
+  trace "registering protocols", protocols = protocol.codecs
   m.handlers.add(
     HandlerHolder(protos: protocol.codecs, protocol: protocol, match: matcher)
   )

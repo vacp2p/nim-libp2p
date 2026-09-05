@@ -145,7 +145,7 @@ method init*(p: Identify) =
       await stream.writeLp(msg.encode())
       trace "identify: info sent", stream, info = p.peerInfo
     except LPError as e:
-      trace "identify handler failed to write message", description = e.msg, stream
+      trace "identify handler failed to write message", err = e.msg, stream
     finally:
       trace "exiting identify handler", stream
       await stream.closeWithEOF()
@@ -206,7 +206,7 @@ proc init*(p: IdentifyPush) =
       try:
         await stream.readLp(maxMsgSize)
       except LPError as e:
-        trace "failed to read message from stream", description = e.msg, stream
+        trace "failed to read message from stream", err = e.msg, stream
         return
 
     let identifyMsg = IdentifyMsg.decode(move message).valueOr:
@@ -235,7 +235,7 @@ proc init*(p: IdentifyPush) =
       except CancelledError as e:
         raise e
       except CatchableError as e:
-        trace "got unexpected error", description = e.msg, stream
+        trace "got unexpected error", err = e.msg, stream
         # compiler reports strange CatchableError error that should never really happen
         discard
 

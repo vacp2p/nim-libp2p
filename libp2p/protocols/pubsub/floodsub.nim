@@ -109,11 +109,13 @@ method rpcHandler*(
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
-    trace "failed to decode msg from peer", peer, err = error
+    trace "PubSub RPC decode failed",
+      peerId = peer.peerId, err = error, messageType = "rpc", messageSize = msgSize
     f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
-  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
+  trace "PubSub RPC decoded",
+    peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
   # trigger hooks
   peer.recvObservers(rpcMsg)
 
@@ -126,8 +128,7 @@ method rpcHandler*(
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
-      trace "Dropping message due to failed message id generation",
-        error = msgIdResult.error
+      trace "Message dropped after ID generation failed", err = msgIdResult.error
       f.chargeOverhead(peer, msg.byteSize())
       continue
 
@@ -205,7 +206,7 @@ method publish*(
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
-  trace "Publishing message on topic", data = data.shortLog, topic
+  trace "Publishing message", messageSize = data.len, topic
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish", topic
@@ -236,10 +237,15 @@ method publish*(
     return 0
 
   let msgId = f.msgIdProvider(msg).valueOr:
-    trace "Error generating message id, skipping publish", error = error
+    trace "Publish skipped after message ID generation failed", err = error
     return 0
 
-  trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
+  trace "Message created",
+    messageType = "publish",
+    messageSize = messageSize,
+    peerCount = peers.len,
+    topic,
+    msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this

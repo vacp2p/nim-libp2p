@@ -594,7 +594,7 @@ method handshake*(
     finally:
       burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerId)
+  trace "Noise handshake completed!", initiator, peerId = shortLog(secure.peerId)
 
   conn.timeout = timeout
 

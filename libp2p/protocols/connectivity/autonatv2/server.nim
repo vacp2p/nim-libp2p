@@ -97,11 +97,11 @@ proc dialBack(
 
     # receive DialBackResponse
     discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-      trace "DialBack failed, could not decode DialBackResponse", error = error
+      trace "DialBack failed, could not decode DialBackResponse", err = error
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
-    trace "DialBack failed, remote closed the connection", description = exc.msg
+    trace "DialBack failed, remote closed the connection", err = exc.msg
     return DialStatus.EDialBackError
 
   # TODO: failed because of client or server resources: EDialError
@@ -147,7 +147,7 @@ proc amplificationAttackPrevention(
   try:
     await self.handleDialDataResponses(stream)
   except AutonatV2Error as exc:
-    debug "Amplification attack prevention failed", description = exc.msg
+    debug "Amplification attack prevention failed", err = exc.msg
     return false
 
   return true
@@ -163,7 +163,7 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
       if not self.config.allowPrivateAddresses and isPrivate($addrIp):
         return false
     except ValueError:
-      trace "Unable to parse IP address, skipping", addrs = $addrIp
+      trace "Unable to parse IP address, skipping", addresses = $addrIp
       return false
   for t in self.switch.transports:
     if t.handles(addrs):
@@ -261,7 +261,7 @@ proc handleDialRequest(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )
   except DialFailedError as exc:
-    trace "DialBack failed", description = exc.msg
+    trace "DialBack failed", err = exc.msg
     await stream.sendDialResponse(
       ResponseStatus.Ok,
       addrIdx = Opt.some(addrIdx),
@@ -291,10 +291,10 @@ proc new*(
     let msg =
       try:
         AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-          trace "Unable to decode AutonatV2Msg", error = error
+          trace "Unable to decode AutonatV2Msg", err = error
           return
       except LPStreamError as exc:
-        trace "Could not receive AutonatV2Msg", description = exc.msg
+        trace "Could not receive AutonatV2Msg", err = exc.msg
         return
 
     trace "Received message", kind = $msg.oneof.kind
@@ -307,9 +307,9 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      trace "Stream closed by peer", description = exc.msg, peer = stream.peerId
+      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
     except LPStreamError as exc:
-      trace "Stream Error", description = exc.msg
+      trace "Stream Error", err = exc.msg
 
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest

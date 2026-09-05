@@ -150,7 +150,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     if isNil(peer) or not (peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
-        trace "evicted peer from memory", peer = peerId
+        trace "evicted peer from memory", peerId = peerId
       continue
 
     trace "updating peer score", peer
