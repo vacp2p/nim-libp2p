@@ -8,11 +8,25 @@ for the wire format.
 ## Usage
 
 ```bash
-nim c -r interop_listen.nim [port]   # accepts one connection, then exits
-nim c -r interop_dial.nim [port]     # dials 127.0.0.1:port
+nim c -r interop_listen.nim [port]           # accepts one connection, then exits
+nim c -r interop_dial.nim [port] [--chat]    # dials 127.0.0.1:port
 ```
 
 Both print `HANDSHAKE_OK remotePeer=<peer id>` on success.
+
+With `--chat` the dialer also reads one post-handshake message and replies with
+`hello from Nim`. That matters because completing the handshake only proves the
+two sides agreed on the handshake hash and the KEM shared secret - it says
+nothing about whether the transport cipher states came out of `split()` with the
+same orientation. A swapped `cs1`/`cs2` still prints `HANDSHAKE_OK` and only
+fails on the first real data frame.
+
+`interop_all.sh` runs every pairing below against local checkouts of the other
+implementations:
+
+```bash
+JS_NOISE_DIR=../../../js-libp2p-noise RUST_LIBP2P_DIR=../../../rust-libp2p   bash interop_all.sh
+```
 
 ## Verified interop
 
@@ -48,10 +62,61 @@ identity key fails at the peer-identity-verification step with an unrelated
 succeeded. That's a py-libp2p key-type support gap, not a NoiseHFS wire
 compatibility issue.
 
-## Not yet run
+**nim-libp2p <-> js-libp2p-noise, 2026-09-05**
 
-- **Rust** (royzah/rust-libp2p PR #1): not attempted here - would require a
-  from-scratch rust-libp2p workspace build, which is out of scope for this
-  session. The crate should be a straightforward target for the same
-  dial/listen pattern once built.
-- **JavaScript** (ChainSafe/js-libp2p-noise PR #665): not attempted here.
+Both roles, against ChainSafe/js-libp2p-noise PR #665 (branch
+`feat/pqc-xxhfs-noise`) on Node.js v22.17.1.
+
+nim-libp2p listening, `scripts/noise-hfs-dial.mjs` dialling:
+
+```
+# nim-libp2p side                      # js-libp2p-noise side
+READY 9101                             PEER 12D3KooWJdMEZoTchgFtZDD1FYUEqRHtpas54b4fBShsrqPidVyb
+HANDSHAKE_OK remotePeer=12D3KooWN1LK85XfPFGzKq3gjTnm12e4tZn84GeSkNpQf6Fve4hS
+```
+
+js-libp2p-noise listening, `interop_dial --chat` dialling, with a message
+exchanged in each direction after the handshake:
+
+```
+# js-libp2p-noise side                        # nim-libp2p side
+Listener peer ID: 12D3KooWEBXx...uTxUxX2x     DIALING port 8000
+Handshake complete! Remote peer: 12D3KooW...  HANDSHAKE_OK remotePeer=12D3KooWEBXx...uTxUxX2x
+Sent: "hello from JS"                         RECV hello from JS
+Received: "hello from Nim"                    SENT hello from Nim
+INTEROP SUCCESS
+```
+
+Note that the peer id nim-libp2p reports here is exactly the id the JS listener
+printed for itself, so the Ed25519 identity signature over the handshake hash
+verified - both sides computed the same `h`. The message exchange covers both
+transport keys: nim decrypting the JS frame exercises one `split()` output, JS
+decrypting the nim frame exercises the other.
+
+**nim-libp2p <-> rust-libp2p, 2026-09-05**
+
+Against royzah/rust-libp2p PR #1 (branch `feat/noise-mlkem-hfs`), built with
+`cargo build -p libp2p-noise --example noise_hfs_listener --features mlkem-hfs`:
+
+```
+# rust-libp2p side                     # nim-libp2p side
+READY 9103                             DIALING port 9103
+connection from 127.0.0.1:62444        HANDSHAKE_OK remotePeer=12D3KooWFXYW...Dd8atwd
+PEER 12D3KooWHQEvXV28iyrSzHzwbYmLcRpk2zBHyk22ayGLxe91BdB9
+```
+
+Only this direction is covered: rust-libp2p ships a listener example but no
+dialer, so nim-libp2p is always the initiator in this pair.
+
+## Coverage
+
+With the two runs above, all six pairings across the four implementations of
+this profile - TypeScript, Python, Rust and Nim - have now completed a live
+handshake:
+
+| | TypeScript | Python | Rust | Nim |
+|---|---|---|---|---|
+| **TypeScript** | - | 2026-06-24 | 2026-06-24 | 2026-09-05 |
+| **Python** | 2026-06-24 | - | 2026-06-24 | 2026-07-11 |
+| **Rust** | 2026-06-24 | 2026-06-24 | - | 2026-09-05 |
+| **Nim** | 2026-09-05 | 2026-07-11 | 2026-09-05 | - |
