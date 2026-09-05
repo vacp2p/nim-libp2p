@@ -286,10 +286,11 @@ proc lookupCheck*(
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
-    trace "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
+    trace "Kad probe timed out",
+      peerId = peerId.shortLog(), timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kad probe failed", peer = peerId.shortLog(), description = error
+    trace "Kademlia probe failed", peerId = peerId.shortLog(), err = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
@@ -306,7 +307,7 @@ proc admitPeer(
     except CancelledError:
       return
   if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    trace "Kad admission probe failed, not inserting peer", peerId = peerId.shortLog()
     kad.probeRecordFailure(peerId, addrs)
     return
   kad.probeClearFailures(peerId)
@@ -315,7 +316,7 @@ proc admitPeer(
 
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
-    trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
+    trace "Kad admission probe abandoned: table detached", peerId = peerId.shortLog()
     return
   if rtable.insert(peerId) and not onAdmit.isNil():
     onAdmit(peerId)
@@ -351,12 +352,12 @@ proc scheduleAdmissionProbe(
     return false
 
   if kad.probeBackedOff(peerId, addrs):
-    trace "Kad admission probe backed off", peer = peerId.shortLog()
+    trace "Kad admission probe backed off", peerId = peerId.shortLog()
     kad_admission_probes_backed_off.inc()
     return false
 
   if not kad.admissionSem.tryAcquire():
-    trace "Kad admission probe dropped: no free slot", peer = peerId.shortLog()
+    trace "Kad admission probe dropped: no free slot", peerId = peerId.shortLog()
     kad_admission_probes_dropped.inc()
     return false
 
@@ -438,7 +439,7 @@ proc dispatchPeer(
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
-    trace "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+    trace "Kademlia lookup RPC failed", peerId = peerId.shortLog(), err = res.error()
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -479,7 +480,7 @@ proc fillSlots(
     if peerId in active:
       continue
     state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-    trace "Lookup query", peer = peerId.shortLog()
+    trace "Lookup query", peerId = peerId.shortLog()
     pending.add(
       Attempt(
         peer: peerId,
@@ -740,7 +741,8 @@ method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
-    trace "Key not set: handleFindNode", msg = msg, stream = stream
+    trace "Find-node request rejected",
+      reason = "missingKey", messageType = "findNode", stream = stream
     return
 
   let response = Message(

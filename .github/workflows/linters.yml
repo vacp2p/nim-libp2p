@@ -45,6 +45,9 @@ jobs:
       - name: Check Nimble lock versions
         run: python3 tools/check-nimble-lock.py
 
+      - name: Audit Chronicle log fields
+        run: python3 tools/audit_log_fields.py
+
       - name: Check License Header
         uses: apache/skywalking-eyes/header@v0.8.0
         with:

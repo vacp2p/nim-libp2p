@@ -185,13 +185,13 @@ proc releaseAcceptSlot(self: WsTransport) {.raises: [].} =
   try:
     self.acceptSem.release()
   except AsyncSemaphoreError as e:
-    trace "Error releasing WS accept semaphore", description = e.msg
+    trace "Error releasing WS accept semaphore", err = e.msg
 
 proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
   try:
     await noCancel stream.closeWait()
   except CatchableError as e:
-    trace "Error closing HTTP stream", description = e.msg
+    trace "Error closing HTTP stream", err = e.msg
 
 proc connHandler(
   self: WsTransport, stream: WSSession, secure: bool, dir: Direction
@@ -216,19 +216,19 @@ proc wsHandshakeWorker(
     await self.acceptResults.addLast(conn)
     accepted = true
   except WebSocketError as e:
-    debug "Websocket Error", description = e.msg
+    debug "Websocket Error", err = e.msg
   except HttpError as e:
-    debug "Http Error", description = e.msg
+    debug "Http Error", err = e.msg
   except AsyncStreamError as e:
-    debug "AsyncStream Error", description = e.msg
+    debug "AsyncStream Error", err = e.msg
   except AsyncTimeoutError as e:
-    debug "Timed out", description = e.msg
+    debug "Timed out", err = e.msg
   except CancelledError as e:
     if not accepted:
       await noCancel closeHttpStream(stream)
     raise e
   except CatchableError as e:
-    debug "Unexpected error accepting websocket connection", description = e.msg
+    debug "Unexpected error accepting websocket connection", err = e.msg
 
   if not accepted:
     await closeHttpStream(stream)
@@ -268,15 +268,15 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         elif finished.failed():
           let exc = finished.error()
           if exc of TransportUseClosedError:
-            debug "Server was closed", description = exc.msg
+            debug "Server was closed", err = exc.msg
           elif exc of TransportTooManyError:
-            debug "Too many files opened", description = exc.msg
+            debug "Too many files opened", err = exc.msg
           elif exc of TransportAbortedError:
-            debug "Connection aborted", description = exc.msg
+            debug "Connection aborted", err = exc.msg
           elif exc of TransportOsError:
-            debug "OS Error", description = exc.msg
+            debug "OS Error", err = exc.msg
           else:
-            debug "Unexpected error accepting websocket stream", description = exc.msg
+            debug "Unexpected error accepting websocket stream", err = exc.msg
 
           if acquired:
             self.releaseAcceptSlot()
@@ -301,7 +301,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         if acquired:
           self.releaseAcceptSlot()
         if self.running:
-          debug "Unexpected error in websocket accept dispatcher", description = e.msg
+          debug "Unexpected error in websocket accept dispatcher", err = e.msg
         else:
           break
   finally:
@@ -312,7 +312,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await closeHttpStream(fut.read())
         except CatchableError as e:
-          trace "Error reading completed WS accept stream", description = e.msg
+          trace "Error reading completed WS accept stream", err = e.msg
 
     if notifyOnClose:
       var toWait: seq[Future[void]]
@@ -324,7 +324,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await noCancel allFutures(toWait)
         except CatchableError as e:
-          trace "Error stopping WS handshake workers", description = e.msg
+          trace "Error stopping WS handshake workers", err = e.msg
 
       self.notifyAcceptClosed()
 
@@ -448,7 +448,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     self.acceptLoop = nil
     info "Transport stopped"
   except CatchableError as e:
-    trace "Error shutting down ws transport", description = e.msg
+    trace "Error shutting down ws transport", err = e.msg
   finally:
     self.notifyAcceptClosed()
 
@@ -473,7 +473,7 @@ proc connHandler(
         MultiAddress.init(localAddr).tryGet() & codec.tryGet(),
       )
     except CatchableError as e:
-      trace "Failed to create observedAddr or listenAddr", description = e.msg
+      trace "Failed to create observedAddr or listenAddr", err = e.msg
       if not (isNil(stream) and stream.stream.reader.closed):
         safeClose(stream)
       raise e

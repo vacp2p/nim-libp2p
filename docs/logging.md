@@ -25,6 +25,29 @@ user. It does not follow the wording of a message, whether code is in an
 | `debug` | Developers troubleshooting one operation | A bounded result or fallback summary. |
 | `trace` | Developers diagnosing traffic; potentially high frequency | Per-peer, per-message, per-stream, packet, retry, cancellation, and expected network detail. |
 
+## Structured fields
+
+Chronicle messages are stable, concise event descriptions. Put variable data in
+structured fields rather than interpolating it into a message string.
+
+| Field | Use |
+| --- | --- |
+| `err` | Human-readable exception or error-result text, normally `exc.msg`. |
+| `errType` | Exception class, normally `exc.name`, only when it changes the diagnostic or operator response. |
+| `peerId` | A local or remote peer identifier; add a separate direction or role field when needed. |
+| `address` / `addresses` | One network or multiaddress value / a collection of them. |
+| `protocol` | A negotiated or requested protocol identifier. |
+| `operation` | A stable operation name when the event otherwise lacks context. |
+| `attempt` / `maxAttempts` | Current and maximum retry counts. |
+| `messageType` | Protocol message kind; never exception text. |
+| `messageSize` | Encoded or payload size in bytes. |
+| `reason` | A bounded validation, rejection, or decision reason when no exception or error result exists. |
+
+Do not use `description`, `error`, `message`, or `msg` for exception text. Do
+not log complete peer-controlled messages, buffers, records, advertisements,
+keys, certificates, or tickets; log bounded metadata such as `messageType`,
+`messageSize`, `peerId`, and `reason` instead.
+
 ## Network, exceptions, cancellation, and retries
 
 Remote-controlled events must not produce `warn` or `error` merely because the

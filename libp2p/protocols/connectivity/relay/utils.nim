@@ -22,7 +22,7 @@ proc sendStatus*(stream: Stream, code: StatusV1) {.async: (raises: [CancelledErr
   except CancelledError as e:
     raise e
   except LPStreamError as e:
-    trace "error sending relay status", description = e.msg
+    trace "error sending relay status", err = e.msg
 
 proc sendHopStatus*(
     stream: Stream, code: StatusV2
@@ -87,7 +87,7 @@ proc bridge*(
       trace "relay src closed connection", src = srcStream.peerId
     if dstStream.closed() or dstStream.atEof():
       trace "relay dst closed connection", dst = dstStream.peerId
-    trace "relay error", description = exc.msg
+    trace "relay error", err = exc.msg
   trace "end relaying", bytesSentFromSrcToDst, bytesSentFromDstToSrc
   libp2p_relay_bytes.inc(bytesSentFromSrcToDst.int64, labelValues = ["in"])
   libp2p_relay_bytes.inc(bytesSentFromDstToSrc.int64, labelValues = ["out"])

@@ -311,9 +311,9 @@ proc triggerConnEvent*(
     c: ConnManager, peerId: PeerId, event: ConnEvent
 ) {.async: (raises: [CancelledError]).} =
   try:
-    trace "About to trigger connection events", peer = peerId
+    trace "About to trigger connection events", peerId = peerId
     if c.connEvents[event.kind].len > 0:
-      trace "triggering connection events", peer = peerId, event = $event.kind
+      trace "triggering connection events", peerId = peerId, event = $event.kind
       var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
       for h in c.connEvents[event.kind]:
         connEvents.add(h(peerId, event))
@@ -322,8 +322,8 @@ proc triggerConnEvent*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvent",
-      description = exc.msg, peer = peerId, event = $event
+    warn "Connection event callback failed",
+      err = exc.msg, errType = exc.name, peer = peerId, event = $event
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -341,12 +341,12 @@ proc removePeerEventHandler*(
 proc triggerPeerEvents*(
     c: ConnManager, peerId: PeerId, event: PeerEvent
 ) {.async: (raises: [CancelledError]).} =
-  trace "About to trigger peer events", peer = peerId
+  trace "About to trigger peer events", peerId = peerId
   if c.peerEvents[event.kind].len == 0:
     return
 
   try:
-    trace "triggering peer events", peer = peerId, event = $event
+    trace "triggering peer events", peerId = peerId, event = $event
 
     var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
@@ -356,7 +356,7 @@ proc triggerPeerEvents*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Exception in triggerPeerEvents", description = exc.msg, peer = peerId
+    warn "Peer event callback failed", err = exc.msg, errType = exc.name, peer = peerId
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction
@@ -393,7 +393,7 @@ proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
     try:
       await muxer.handler
     except CatchableError as exc:
-      trace "Exception in close muxer handler", description = exc.msg
+      trace "Exception in close muxer handler", err = exc.msg
   trace "Cleaned up muxer", m = muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
@@ -419,8 +419,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     await mux.connection.join()
     trace "Connection closed, cleaning up", mux
   except CatchableError as exc:
-    trace "Unexpected exception in connection manager's cleanup",
-      description = exc.msg, mux
+    trace "Unexpected exception in connection manager's cleanup", err = exc.msg, mux
   finally:
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
@@ -578,7 +577,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     try:
       await conn.join()
     except CatchableError as exc:
-      trace "Exception in semaphore monitor, ignoring", description = exc.msg
+      trace "Exception in semaphore monitor, ignoring", err = exc.msg
     finally:
       cs.release()
 

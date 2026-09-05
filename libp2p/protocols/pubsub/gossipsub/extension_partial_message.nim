@@ -233,7 +233,7 @@ proc unionWithSentPartsMetadata(
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
       # union failed, it is safe to use the most recent parts metadata
-      debug "failed to create union from the two parts metadata", msg = unionRes.error
+      debug "Parts metadata union failed", reason = unionRes.error
       hasChanged = true
       peerState.sentPartsMetadata = Opt.some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
@@ -363,7 +363,7 @@ proc handlePartialRPC(
 
   let validateRes = ext.config.validateRPC(rpc)
   if validateRes.isErr():
-    debug "RPC did not pass application validation", msg = validateRes.error
+    debug "RPC rejected by application validation", reason = validateRes.error
     return
 
   ext.recordReceivedMetadata(peerId, rpc)

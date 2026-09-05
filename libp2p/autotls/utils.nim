@@ -70,7 +70,7 @@ proc checkDNSRecords*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "Failed to resolve IP", description = exc.msg # retry
+      debug "Failed to resolve IP", err = exc.msg # retry
 
     if txt.len > 0 and txt[0] == keyAuth and resolvedIps.len > 0:
       return true

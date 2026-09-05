@@ -275,7 +275,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     except ConnectionError as e:
       # keep handling, until connection is closed. 
       # this stream failed but we need to keep handling for other streams.
-      trace "QuicMuxer.handler got error while opening stream", msg = e.msg
+      trace "QuicMuxer.handler got error while opening stream", err = e.msg
 
   if not m.session.isClosed:
     await m.session.close()
@@ -332,7 +332,7 @@ proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
     try:
       parse(certificatesDer[0])
     except CertificateParsingError as e:
-      trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+      trace "CertificateVerifier: failed to parse certificate", err = e.msg
       return Opt.none(P2pCertificate)
 
   Opt.some(cert)
@@ -572,13 +572,13 @@ method accept*(
     let conn = await finished
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
-    debug "Quic Error", description = exc.msg
+    debug "Quic Error", err = exc.msg
     raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
-    debug "Transport Error", description = exc.msg
+    debug "Transport Error", err = exc.msg
     raise newTransportClosedError(exc)
   except TransportOsError as exc:
-    debug "OS Error", description = exc.msg
+    debug "OS Error", err = exc.msg
     raise
       (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
@@ -694,7 +694,7 @@ method upgrade*(
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", stream, msg = exc.msg
+      trace "exception in stream handler", stream, err = exc.msg
     finally:
       await stream.closeWithEOF()
       trace "Stream handler done", stream

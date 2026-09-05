@@ -63,7 +63,7 @@ proc connHandler*(
   proc onClose() {.async: (raises: []).} =
     await noCancel client.join()
 
-    trace "Cleaning up client", addrs = $client.remoteAddress, conn
+    trace "Cleaning up client", addresses = $client.remoteAddress, conn
 
     self.clients[dir].keepItIf(it != client)
 
@@ -76,7 +76,7 @@ proc connHandler*(
 
     await conn.close()
 
-    trace "Cleaned up client", addrs = $client.remoteAddress, conn
+    trace "Cleaned up client", addresses = $client.remoteAddress, conn
 
   self.clients[dir].add(client)
 
@@ -241,10 +241,10 @@ method accept*(
     try:
       await finished
     except TransportTooManyError as exc:
-      debug "Too many files opened", description = exc.msg
+      debug "Too many files opened", err = exc.msg
       return nil
     except TransportAbortedError as exc:
-      debug "Connection aborted", description = exc.msg
+      debug "Connection aborted", err = exc.msg
       return nil
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
@@ -277,7 +277,7 @@ method accept*(
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
       safeCloseWait(transp)
-      debug "Cannot read address", description = exc.msg
+      debug "Cannot read address", err = exc.msg
       return nil
   self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 

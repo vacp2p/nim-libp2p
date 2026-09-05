@@ -226,7 +226,7 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "Failed to issue certificate", err = exc.msg
+      debug "Certificate issuance failed", err = exc.msg, errType = exc.name
   error "Failed to issue certificate"
 
 method start*(

@@ -128,7 +128,8 @@ method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key.valueOr:
-    trace "Key not set: handleGetValue", msg = msg, stream = stream
+    trace "Get-value request rejected",
+      reason = "missingKey", messageType = "getValue", stream = stream
     return
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it

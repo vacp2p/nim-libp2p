@@ -46,9 +46,9 @@ method init*(p: Ping) =
         if not isNil(p.pingHandler):
           await p.pingHandler(stream.peerId)
     except LPStreamEOFError as exc:
-      trace "ping stream closed", description = exc.msg, stream
+      trace "ping stream closed", err = exc.msg, stream
     except LPStreamError as exc:
-      trace "exception in ping handler", description = exc.msg, stream
+      trace "exception in ping handler", err = exc.msg, stream
 
   p.handler = handle
   p.codec = PingCodec

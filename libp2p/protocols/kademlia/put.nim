@@ -45,7 +45,7 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)
-      trace "Expired record removed", key = key
+      trace "Expired record removed", keySize = key.len
 
 proc dispatchPutVal*(
     kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
@@ -57,11 +57,12 @@ proc dispatchPutVal*(
   )
   let reply = ?await kad.dispatchRpc(peer, msg)
 
-  trace "Got PutValue reply", msg = msg, reply = reply, peer = peer
+  trace "Put-value reply received",
+    peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
   if reply != msg:
-    trace "Unexpected change between msg and reply: ",
-      msg = msg, reply = reply, peer = peer
+    trace "Put-value reply differed from request",
+      peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
   ok()
 
@@ -106,19 +107,23 @@ proc handlePutValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let record = msg.record.valueOr:
-    trace "No record in message buffer", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingRecord", messageType = "putValue", stream = stream
     return
 
   let msgKey = msg.key.valueOr:
-    trace "Key not set: handlePutValue", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingKey", messageType = "putValue", stream = stream
     return
 
   if record.key.isNone or record.key.get() != msgKey:
-    trace "Record key is different than Message key", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "keyMismatch", messageType = "putValue", stream = stream
     return
 
   let value = record.value.valueOr:
-    trace "No value in record", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingValue", messageType = "putValue", stream = stream
     return
 
   if value.len > kad.config.limits.maxValueSize:
@@ -131,7 +136,8 @@ proc handlePutValue*(
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msgKey, entryRecord):
-    trace "Record is not valid", msg = msg, entryRecord = entryRecord
+    trace "Put-value request rejected",
+      reason = "invalidRecord", messageType = "putValue", stream = stream
     return
 
   if not kad.isBestValue(msgKey, entryRecord):
