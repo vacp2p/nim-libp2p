@@ -424,20 +424,23 @@ proc sendAddProviderResponse(
   try:
     await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
-    trace "Failed to send add-provider response",
-      stream = stream, err = exc.msg, status = status
+    trace "Failed to send add-provider response", stream, err = exc.msg, status = status
 
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
     trace "Add-provider request rejected",
-      reason = "missingKey", messageType = "addProvider", stream = stream
+      reason = "missingKey", messageType = "addProvider", stream
     return
 
   if msgKey.len == 0 or msgKey.len > MaxProviderKeyLen:
-    trace "ADD_PROVIDER key length out of bounds",
-      msg = msg, stream = stream, keyLen = msgKey.len, maxLen = MaxProviderKeyLen
+    trace "Add-provider request rejected",
+      reason = "invalidKeyLength",
+      stream,
+      messageType = "addProvider",
+      keySize = msgKey.len,
+      maxKeySize = MaxProviderKeyLen
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
@@ -537,7 +540,7 @@ proc handleGetProviders*(
 ) {.async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
     trace "Get-providers request rejected",
-      reason = "missingKey", messageType = "getProviders", stream = stream
+      reason = "missingKey", messageType = "getProviders", stream
     return
 
   var providers =
@@ -560,4 +563,4 @@ proc handleGetProviders*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send get-providers RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send get-providers RPC reply", stream, err = exc.msg

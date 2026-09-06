@@ -108,27 +108,27 @@ proc handlePutValue*(
 ) {.async: (raises: [CancelledError]).} =
   let record = msg.record.valueOr:
     trace "Put-value request rejected",
-      reason = "missingRecord", messageType = "putValue", stream = stream
+      reason = "missingRecord", messageType = "putValue", stream
     return
 
   let msgKey = msg.key.valueOr:
     trace "Put-value request rejected",
-      reason = "missingKey", messageType = "putValue", stream = stream
+      reason = "missingKey", messageType = "putValue", stream
     return
 
   if record.key.isNone or record.key.get() != msgKey:
     trace "Put-value request rejected",
-      reason = "keyMismatch", messageType = "putValue", stream = stream
+      reason = "keyMismatch", messageType = "putValue", stream
     return
 
   let value = record.value.valueOr:
     trace "Put-value request rejected",
-      reason = "missingValue", messageType = "putValue", stream = stream
+      reason = "missingValue", messageType = "putValue", stream
     return
 
   if value.len > kad.config.limits.maxValueSize:
     trace "PUT_VALUE dropped: value exceeds maxValueSize",
-      stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
+      stream, size = value.len, cap = kad.config.limits.maxValueSize
     await stream.reset()
     return
 
@@ -137,7 +137,7 @@ proc handlePutValue*(
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msgKey, entryRecord):
     trace "Put-value request rejected",
-      reason = "invalidRecord", messageType = "putValue", stream = stream
+      reason = "invalidRecord", messageType = "putValue", stream
     return
 
   if not kad.isBestValue(msgKey, entryRecord):
@@ -146,8 +146,7 @@ proc handlePutValue*(
     return
 
   if not kad.canStoreLocalRecord(msgKey):
-    debug "PutValue: local record limit reached",
-      stream = stream, current = kad.dataTable.len
+    debug "PutValue: local record limit reached", stream, current = kad.dataTable.len
     await stream.reset()
     return
 
@@ -159,5 +158,5 @@ proc handlePutValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send find-node RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send find-node RPC reply", stream, err = exc.msg
     return

@@ -59,7 +59,7 @@ proc new*(
           raise newException(DcutrError, error)
         trace "Dcutr receiver has received a Sync message.", syncMsg
         trace "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
-          addrs = connectMsg.addrs
+          addresses = connectMsg.addrs
         return
 
       # Expected DCUtR connections bypass ConnManager limits.

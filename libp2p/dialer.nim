@@ -236,8 +236,7 @@ proc tryExpandDnsAddr(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, dnsaddr expansion failed",
-      peerId, ma = address, err = e.msg
+    trace "Skipping the address, dnsaddr expansion failed", peerId, address, err = e.msg
     @[]
 
 proc tryResolve(
@@ -249,7 +248,7 @@ proc tryResolve(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, name resolution failed", ma = address, err = e.msg
+    trace "Skipping the address, name resolution failed", address, err = e.msg
     @[]
 
 proc normalizedDialAddrs(
@@ -336,7 +335,7 @@ proc resolveCandidate(
   for address in resolved:
     if self.transportFor(address).isNone():
       trace "Skipping the address, no transport handles it",
-        peerId = candidate.peerId, ma = address
+        peerId = candidate.peerId, address
       continue
 
     candidates.add(
@@ -821,7 +820,7 @@ method dial*(
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, peerId, protos, addrs = dialAddrs, err = exc.msg
+    debug "Error dialing", conn, peerId, protos, addresses = dialAddrs, err = exc.msg
     await cleanup()
     raise newException(
       DialFailedError,

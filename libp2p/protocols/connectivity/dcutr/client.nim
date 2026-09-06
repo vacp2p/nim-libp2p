@@ -52,7 +52,7 @@ proc startSync*(
     peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
       trace "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
-        addrs = connectAnswer.addrs
+        addresses = connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()

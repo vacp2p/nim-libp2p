@@ -32,7 +32,6 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
         if res.failed:
           let exc = res.error
           # We still don't abort but warn
-          debug "Future failed", err = exc.msg, errType = exc.name
           trace "Future failed",
             err = exc.msg, errType = exc.name, stack = getStackTrace()
   else:
@@ -46,5 +45,4 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
                 trace "Future failed", err = exc.msg, errType = exc.name
                 break check
             # We still don't abort but warn
-            debug "Future failed", err = exc.msg, errType = exc.name
             trace "Future failed", err = exc.msg, errType = exc.name

@@ -32,7 +32,7 @@ proc handleDialBack(
     self: AutonatV2Client, stream: Stream, dialBack: DialBack
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   trace "Handling DialBack",
-    stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
+    stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
   if not self.expectedNonces.hasKey(dialBack.nonce):
     trace "Not expecting this nonce", nonce = dialBack.nonce

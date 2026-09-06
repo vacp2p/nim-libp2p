@@ -742,7 +742,7 @@ method handleFindNode*(
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
     trace "Find-node request rejected",
-      reason = "missingKey", messageType = "findNode", stream = stream
+      reason = "missingKey", messageType = "findNode", stream
     return
 
   let response = Message(
@@ -754,8 +754,7 @@ method handleFindNode*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Write error when writing kad find-node RPC reply",
-      stream = stream, err = exc.msg
+    trace "Write error when writing kad find-node RPC reply", stream, err = exc.msg
     return
 
   # Only admit senders with known dialable addresses; an inbound connection

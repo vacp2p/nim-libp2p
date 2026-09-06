@@ -533,7 +533,7 @@ proc sendMsg(
 
   if not slowPath:
     trace "sending encoded msg to peer",
-      streamType = $streamType, stream = stream, encoded = shortLog(msg)
+      streamType = $streamType, stream, encoded = shortLog(msg)
     let f = stream.writeLp(msg)
     await sendMsgContinue(stream, f)
   else:
