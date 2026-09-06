@@ -48,6 +48,10 @@ not log complete peer-controlled messages, buffers, records, advertisements,
 keys, certificates, or tickets; log bounded metadata such as `messageType`,
 `messageSize`, `peerId`, and `reason` instead.
 
+Use field names of at least three characters. `id` and `ip` are the only
+accepted abbreviations; never use a one-character field name in logs. Log
+fields are operator-facing data, not local code variables.
+
 ## Network, exceptions, cancellation, and retries
 
 Remote-controlled events must not produce `warn` or `error` merely because the
