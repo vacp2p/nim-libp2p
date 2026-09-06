@@ -60,7 +60,7 @@ def main() -> int:
             for field_name in FIELD_ASSIGNMENT.findall(block):
                 if len(field_name) < 3 and field_name not in SHORT_FIELD_EXCEPTIONS:
                     violations.append(
-                        f"{path.relative_to(ROOT)}:{line}: field '{field_name}' is too short"
+                        f"{path.relative_to(ROOT)}:{line}: field '{field_name}' is too short (needs to be at least 3 characters long)"
                     )
     if violations:
         print("\n".join(violations), file=sys.stderr)
