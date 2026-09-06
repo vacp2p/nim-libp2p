@@ -57,7 +57,8 @@ proc checkDNSRecords*(
 ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
   let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
   let ipDomain = api.Domain(ipAddress.dnsLabel() & "." & baseDomain)
-  debug "Waiting for DNS record to be set", ip = ipDomain, acme = acmeChalDomain
+  debug "Waiting for DNS record to be set",
+    ip = ipDomain, acmeDomain = acmeChalDomain
 
   for attempt in 0 .. retries:
     if attempt > 0:

@@ -204,7 +204,7 @@ proc save*[E](
 proc register*[E](
     rdv: GenericRendezVous[E], stream: Stream, r: Register, peerRecord: E
 ): Future[void] =
-  trace "Received Register", peerId = stream.peerId, ns = r.ns
+  trace "Register received", peerId = stream.peerId, namespace = r.ns
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return stream.sendRegisterResponseError(InvalidNamespace)
@@ -223,7 +223,7 @@ proc register*[E](
   stream.sendRegisterResponse(ttl)
 
 proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
-  trace "Received Unregister", peerId = stream.peerId, ns = u.ns
+  trace "Unregister received", peerId = stream.peerId, namespace = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
     for index in rdv.namespaces[nsSalted]:
@@ -236,7 +236,7 @@ proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
 proc discover*[E](
     rdv: GenericRendezVous[E], stream: Stream, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "Received Discover", peerId = stream.peerId, ns = d.ns
+  trace "Discover received", peerId = stream.peerId, namespace = d.ns
   libp2p_rendezvous_discover.inc()
   if d.ns.isSome() and d.ns.get().len > MaximumNamespaceLen:
     await stream.sendDiscoverResponseError(InvalidNamespace)

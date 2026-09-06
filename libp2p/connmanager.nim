@@ -386,7 +386,7 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   return c.muxerStore.contains(muxer)
 
 proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
-  trace "Cleaning up muxer", m = muxer
+  trace "Cleaning up muxer", muxer = muxer
 
   await muxer.close()
   if not muxer.handler.isNil:
@@ -394,7 +394,7 @@ proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
       await muxer.handler
     except CatchableError as exc:
       trace "Exception in close muxer handler", err = exc.msg
-  trace "Cleaned up muxer", m = muxer
+  trace "Cleaned up muxer", muxer = muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
   if c.muxerStore.count(peerId) > 0:

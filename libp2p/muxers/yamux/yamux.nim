@@ -98,7 +98,7 @@ proc encode(header: YamuxHeader): array[12, byte] =
 proc write(
     conn: LPStream, header: YamuxHeader
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  trace "write directly on stream", h = $header
+  trace "Writing directly on stream", header = $header
   var buffer = header.encode()
   conn.write(@buffer)
 
@@ -390,7 +390,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
 
       inBuffer.inc(bufferToSend)
 
-    trace "try to send the buffer", h = $header
+    trace "Trying to send buffer", header = $header
     try:
       await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
@@ -607,12 +607,12 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   doAssert(channel.isClosed, "connection not closed by handler!")
 
 method handle*(m: Yamux) {.async: (raises: []).} =
-  trace "Starting yamux handler", pid = m.connection.peerId
+  trace "Starting yamux handler", peerId = m.connection.peerId
   try:
     while not m.connection.atEof:
       trace "waiting for header"
       let header = await m.connection.readHeader()
-      trace "got message", h = $header
+      trace "Message received", header = $header
 
       case header.msgType
       of Ping:
