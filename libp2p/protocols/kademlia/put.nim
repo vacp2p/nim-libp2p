@@ -45,7 +45,7 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)
-      trace "Expired record removed", keySize = key.len
+      trace "Expired record removed", key
 
 proc dispatchPutVal*(
     kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
