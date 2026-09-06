@@ -329,6 +329,6 @@ proc init*(
       else:
         $chann.oid
 
-  trace "Created new lpchannel", s = chann, id, initiator
+  trace "LP channel created", channel = chann, id, initiator
 
   return chann

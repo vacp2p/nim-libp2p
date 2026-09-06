@@ -106,7 +106,7 @@ proc handleDialDataRequest*(
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
-    trace "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
+    trace "Sending DialDataResponse", index = i, messagesToSend = messagesToSend
 
   # get DialResponse
   msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:

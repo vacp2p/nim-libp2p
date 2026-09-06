@@ -15,6 +15,12 @@ PAYLOAD_FIELD = re.compile(
     r"\b(?:msg|message|buffer|record|reply|response|rpcMsg|data|encoded|"
     r"certificate|ticket|key)\s*="
 )
+FIELD_ASSIGNMENT = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=")
+
+# These established identifiers are clearer than a longer expansion in their
+# logging contexts. Every other structured field name must be at least three
+# characters long.
+SHORT_FIELD_EXCEPTIONS = {"id", "ip"}
 
 
 def log_blocks(path: Path):
@@ -51,6 +57,11 @@ def main() -> int:
                 violations.append(
                     f"{path.relative_to(ROOT)}:{line}: elevated log contains payload field"
                 )
+            for field_name in FIELD_ASSIGNMENT.findall(block):
+                if len(field_name) < 3 and field_name not in SHORT_FIELD_EXCEPTIONS:
+                    violations.append(
+                        f"{path.relative_to(ROOT)}:{line}: field '{field_name}' is too short"
+                    )
     if violations:
         print("\n".join(violations), file=sys.stderr)
         return 1
