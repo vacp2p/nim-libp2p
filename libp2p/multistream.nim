@@ -202,10 +202,10 @@ proc handle*(
       let (protos, matchers) = m.allProtosAndMatchers()
       await MultistreamSelect.handle(stream, protos, matchers, active)
     except LPStreamError as e:
-      trace "Exception in MultistreamSelect.handle", stream, err = e.msg
+      trace "Exception in MultistreamSelect.handle", err = e.msg, stream
       return
     except MultiStreamError as e:
-      trace "Exception in MultistreamSelect.handle", stream, err = e.msg
+      trace "Exception in MultistreamSelect.handle", err = e.msg, stream
       return
 
   m.lookupProtocol(ms).withValue(p):

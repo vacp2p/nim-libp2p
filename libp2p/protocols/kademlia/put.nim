@@ -158,5 +158,5 @@ proc handlePutValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send find-node RPC reply", stream, err = exc.msg
+    trace "Failed to send find-node RPC reply", err = exc.msg, stream
     return

@@ -173,7 +173,7 @@ proc handleConnect(
       raise exc
     except DialFailedError as exc:
       libp2p_relay_connections.inc(labelValues = ["dial_failed"])
-      trace "error opening relay stream", dst, err = exc.msg
+      trace "error opening relay stream", err = exc.msg, dst
       await sendHopStatus(srcStream, ConnectionFailed)
       return
   defer:
@@ -293,7 +293,7 @@ proc handleHop*(
     except CancelledError as exc:
       raise exc
     except DialFailedError as exc:
-      trace "error opening relay stream", dst, err = exc.msg
+      trace "error opening relay stream", err = exc.msg, dst
       await sendStatus(srcStream, StatusV1.HopCantDialDst)
       return
   defer:

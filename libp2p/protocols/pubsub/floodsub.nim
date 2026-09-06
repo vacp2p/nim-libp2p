@@ -110,7 +110,7 @@ method rpcHandler*(
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
-      peerId = peer.peerId, err = error, messageType = "rpc", messageSize = msgSize
+      err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
     f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 

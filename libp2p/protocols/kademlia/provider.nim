@@ -424,7 +424,7 @@ proc sendAddProviderResponse(
   try:
     await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
-    trace "Failed to send add-provider response", stream, err = exc.msg, status = status
+    trace "Failed to send add-provider response", err = exc.msg, stream, status = status
 
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
@@ -563,4 +563,4 @@ proc handleGetProviders*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send get-providers RPC reply", stream, err = exc.msg
+    trace "Failed to send get-providers RPC reply", err = exc.msg, stream

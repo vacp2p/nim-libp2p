@@ -754,7 +754,7 @@ method handleFindNode*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Write error when writing kad find-node RPC reply", stream, err = exc.msg
+    trace "Write error when writing kad find-node RPC reply", err = exc.msg, stream
     return
 
   # Only admit senders with known dialable addresses; an inbound connection

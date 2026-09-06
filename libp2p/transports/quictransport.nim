@@ -694,7 +694,7 @@ method upgrade*(
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", stream, err = exc.msg
+      trace "exception in stream handler", err = exc.msg, stream
     finally:
       await stream.closeWithEOF()
       trace "Stream handler done", stream

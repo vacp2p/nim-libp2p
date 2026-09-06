@@ -236,7 +236,7 @@ proc tryExpandDnsAddr(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, dnsaddr expansion failed", peerId, address, err = e.msg
+    trace "Skipping the address, dnsaddr expansion failed", peerId, err = e.msg, address
     @[]
 
 proc tryResolve(
@@ -248,7 +248,7 @@ proc tryResolve(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, name resolution failed", address, err = e.msg
+    trace "Skipping the address, name resolution failed", err = e.msg, address
     @[]
 
 proc normalizedDialAddrs(
@@ -816,7 +816,7 @@ method dial*(
 
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
-    trace "Dial canceled", conn, err = exc.msg
+    trace "Dial canceled", err = exc.msg, conn
     await cleanup()
     raise exc
   except CatchableError as exc:

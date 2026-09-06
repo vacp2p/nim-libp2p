@@ -193,11 +193,11 @@ method handle*(m: Mplex) {.async: (raises: []).} =
   except CancelledError:
     trace "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:
-    trace "Stream EOF", m, err = exc.msg
+    trace "Stream EOF", err = exc.msg, m
   except LPStreamError as exc:
-    trace "Unexpected stream exception in mplex read loop", m, err = exc.msg
+    trace "Unexpected stream exception in mplex read loop", err = exc.msg, m
   except MuxerError as exc:
-    debug "Unexpected muxer exception in mplex read loop", m, err = exc.msg
+    debug "Unexpected muxer exception in mplex read loop", err = exc.msg, m
   finally:
     await m.close()
   trace "Stopped mplex handler", m

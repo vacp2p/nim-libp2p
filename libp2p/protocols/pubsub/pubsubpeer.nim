@@ -482,10 +482,10 @@ proc sendMsgContinue(
     await msgFut
     trace "sent pubsub message to remote", stream
   except CancelledError as exc:
-    trace "sendMsgContinue cancelled", stream, err = exc.msg
+    trace "sendMsgContinue cancelled", err = exc.msg, stream
     raise exc
   except LPStreamError as exc:
-    trace "Unexpected exception in sendMsgContinue", stream, err = exc.msg
+    trace "Unexpected exception in sendMsgContinue", err = exc.msg, stream
     # Next time sendStream is used, it will be have its close flag set and thus
     # will be recycled
     await stream.close() # This will clean up the send stream

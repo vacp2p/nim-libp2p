@@ -700,7 +700,7 @@ method rpcHandler*(
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
-      peerId = peer.peerId, err = error, messageType = "rpc", messageSize = msgSize
+      err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
     # disconnect the peer!)

@@ -57,7 +57,7 @@ proc askPeer(
       trace "DialRequest timed out", peerId, address
       return Opt.none(AddrState)
     except LPError as e:
-      trace "DialRequest failed", peerId, address, err = e.msg
+      trace "DialRequest failed", peerId, err = e.msg, address
       return Opt.none(AddrState)
 
   case reachability

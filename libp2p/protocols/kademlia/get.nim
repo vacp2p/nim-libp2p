@@ -152,7 +152,7 @@ method handleGetValue*(
     try:
       await stream.writeLp(encoded)
     except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", stream, err = exc.msg
+      debug "Failed to send get-value RPC reply", err = exc.msg, stream
     return
 
   let response = Message(
@@ -172,5 +172,5 @@ method handleGetValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send get-value RPC reply", stream, err = exc.msg
+    trace "Failed to send get-value RPC reply", err = exc.msg, stream
     return

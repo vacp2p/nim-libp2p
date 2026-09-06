@@ -41,5 +41,5 @@ proc handlePing*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send ping reply", stream, err = exc.msg
+    debug "Failed to send ping reply", err = exc.msg, stream
     return

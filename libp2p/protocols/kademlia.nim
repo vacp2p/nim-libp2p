@@ -374,7 +374,7 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          trace "Read error when handling kademlia RPC", stream, err = exc.msg
+          trace "Read error when handling kademlia RPC", err = exc.msg, stream
           return
       let bufLen = buf.len
       let msg = Message.decode(move(buf)).valueOr:
