@@ -67,6 +67,8 @@ Normal cancellation is control flow: omit it or use `trace`. A real violation of
 
 ## Log reporting ownership
 
+It is easy to add either too many logs or too few. To find the right balance, identify which operation owns each event and consider all the events that the operation can emit. The following examples illustrate this mental model.
+
 - If a transport address fails and the dialer succeeds with the next address, keep the address failure at trace and do not emit a peer-dial failure. If every candidate fails, the dialer may emit one bounded final summary.
 - If a Kademlia RPC fails during fan-out but the lookup converges, retain the peer RPC detail at trace and report the lookup as successful. Retry exhaustion is owned by the operation that can no longer satisfy its request.
 - Do not report normal cancellation during shutdown. Report a cleanup failure only when it leaves the component impaired.
