@@ -603,7 +603,7 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   ## Call the muxer stream handler for this channel
   ##
   await m.streamHandler(channel)
-  trace "Yamux stream handler completed", channel
+  trace "Yamux stream handler completed", channel = $channel
   doAssert(channel.isClosed, "connection not closed by handler!")
 
 method handle*(m: Yamux) {.async: (raises: []).} =
