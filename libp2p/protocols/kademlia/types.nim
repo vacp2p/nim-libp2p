@@ -156,9 +156,6 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
 
   return peerIds
 
-proc shortLog*(k: Key): string =
-  toHex(k)
-
 chronicles.formatIt(Key):
   shortLog(it)
 
