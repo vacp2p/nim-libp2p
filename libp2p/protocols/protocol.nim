@@ -86,6 +86,29 @@ template `handler`*(p: LPProtocol, stream: Stream, proto: string): Future[void] 
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
+func setStreamLimits*(
+    p: LPProtocol,
+    maxIncomingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsPerPeer: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
+) =
+  ## Sets the stream budgets of a protocol built without `LPProtocol.new`.
+  doAssert(not p.started, "stream limits must be set before the protocol starts")
+
+  p.maxIncomingStreamsTotal = toOpt(maxIncomingStreamsTotal)
+  p.maxIncomingStreamsPerPeer = toOpt(maxIncomingStreamsPerPeer)
+  p.maxOutgoingStreamsTotal = toOpt(maxOutgoingStreamsTotal)
+  p.maxOutgoingStreamsPerPeer = toOpt(maxOutgoingStreamsPerPeer)
+
+  # keeping streamBudget uninitialized makes `reserve` and `release` return early (fast path).
+  p.streamBudget =
+    if p.maxIncomingStreamsTotal.isSome or p.maxIncomingStreamsPerPeer.isSome or
+        p.maxOutgoingStreamsTotal.isSome or p.maxOutgoingStreamsPerPeer.isSome:
+      StreamBudgetState()
+    else:
+      nil
+
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
@@ -98,20 +121,11 @@ proc new*(
   doAssert(codecs.len > 0, "codecs sequence must not be empty")
   doAssert(not handler.isNil, "handler must be set")
 
-  var proto = T(
-    codecs: codecs,
-    handlerImpl: handler,
-    maxIncomingStreamsTotal: toOpt(maxIncomingStreamsTotal),
-    maxIncomingStreamsPerPeer: toOpt(maxIncomingStreamsPerPeer),
-    maxOutgoingStreamsTotal: toOpt(maxOutgoingStreamsTotal),
-    maxOutgoingStreamsPerPeer: toOpt(maxOutgoingStreamsPerPeer),
+  let proto = T(codecs: codecs, handlerImpl: handler)
+  proto.setStreamLimits(
+    maxIncomingStreamsTotal, maxIncomingStreamsPerPeer, maxOutgoingStreamsTotal,
+    maxOutgoingStreamsPerPeer,
   )
-
-  # initialize streamBudget only when there is some limit used.
-  # keeping streamBudget uninitialized makes `reserve` and `release` return early (fast path).
-  if proto.maxIncomingStreamsTotal.isSome or proto.maxIncomingStreamsPerPeer.isSome or
-      proto.maxOutgoingStreamsTotal.isSome or proto.maxOutgoingStreamsPerPeer.isSome:
-    proto.streamBudget = StreamBudgetState()
 
   proto
 
