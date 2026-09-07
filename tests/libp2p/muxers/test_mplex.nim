@@ -26,6 +26,12 @@ proc noopWriteHandler(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
 
+proc encodeMessage(id: uint64, msgType: MessageType, data: seq[byte]): seq[byte] =
+  var buf = initVBuffer()
+  buf.writePBVarint(id shl 3 or ord(msgType).uint64)
+  buf.writeSeq(data)
+  buf.buffer
+
 suite "Mplex":
   teardown:
     checkTrackers()
@@ -448,6 +454,73 @@ suite "Mplex":
 
       check await chann.join().withTimeout(1.minutes)
       await conn.close()
+
+  suite "mplex limits":
+    asyncTest "does not retain remote stream names":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn)
+        handleFut = mplex.handle()
+        remoteName = "attacker-controlled-name"
+
+      await conn.pushData(encodeMessage(0, MessageType.New, remoteName.toBytes()))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+
+      check LPChannel(mplex.getStreams()[0]).name != remoteName
+
+      await mplex.close()
+      await handleFut
+
+    asyncTest "resets a stream that exceeds the connection buffer limit":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn, maxBufferedBytes = 4)
+
+      mplex.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+        await noCancel stream.join()
+
+      let handleFut = mplex.handle()
+      await conn.pushData(
+        encodeMessage(0, MessageType.New, @[]) &
+          encodeMessage(0, MessageType.MsgOut, @[0'u8, 1, 2, 3]) &
+          encodeMessage(1, MessageType.New, @[]) &
+          encodeMessage(1, MessageType.MsgOut, @[4'u8])
+      )
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+        LPChannel(mplex.getStreams()[0]).len == 4
+
+      await mplex.close()
+      await handleFut
+
+    asyncTest "does not limit negotiated stream buffers":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn, maxBufferedBytes = 4)
+
+      mplex.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+        await noCancel stream.join()
+
+      let handleFut = mplex.handle()
+      await conn.pushData(encodeMessage(0, MessageType.New, @[]))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+
+      let stream = LPChannel(mplex.getStreams()[0])
+      stream.protocol = "/test/1.0.0"
+      await conn.pushData(encodeMessage(0, MessageType.MsgOut, @[0'u8, 1, 2, 3, 4]))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        stream.len == 5
+
+      check not stream.localReset
+
+      await mplex.close()
+      await handleFut
 
   suite "mplex e2e":
     asyncTest "read/write receiver":
