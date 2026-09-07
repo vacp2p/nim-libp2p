@@ -170,8 +170,8 @@ method readExactly*(
     raise newLPStreamEOFError()
 
 if read < nbytes:
-    trace "Couldn't read all bytes, incomplete data", stream = s, nbytes, read
-    raise newLPStreamIncompleteError()
+  trace "Couldn't read all bytes, incomplete data", stream = s, nbytes, read
+  raise newLPStreamIncompleteError()
 
 method readLine*(
     s: LPStream, limit = 0, sep = "\r\n"
