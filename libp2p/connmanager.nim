@@ -312,9 +312,9 @@ proc triggerConnEvent*(
 ) {.async: (raises: [CancelledError]).} =
   if c.connEvents[event.kind].len > 0:
     return
-  
-  trace "triggering connection events", peerId = peerId, event = $event.kind 
-  
+
+  trace "triggering connection events", peerId = peerId, event = $event.kind
+
   try:
     var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
     for h in c.connEvents[event.kind]:
