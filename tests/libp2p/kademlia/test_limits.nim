@@ -130,8 +130,9 @@ suite "KadDHT - Limits":
     # Insert a far peer first
     var farDigest: Key = newSeq[byte](32)
     farDigest[0] = 0xFF
-    let farMsg =
-      Message(msgType: MessageType.findNode, closerPeers: @[closerPeer(peerKey(farDigest))])
+    let farMsg = Message(
+      msgType: MessageType.findNode, closerPeers: @[closerPeer(peerKey(farDigest))]
+    )
     discard state.updateShortlist(farMsg)
 
     # Now insert 5 close peers — they should evict the far one
