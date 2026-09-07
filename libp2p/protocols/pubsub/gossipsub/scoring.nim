@@ -179,7 +179,7 @@ proc updateScores*(g: GossipSub) = # avoid async
           var p1 = info.meshTime / topicParams.timeInMeshQuantum
           if p1 > topicParams.timeInMeshCap:
             p1 = topicParams.timeInMeshCap
-          trace "p1", peer, p1, topic, topicScore
+          trace "p1", peer, timeInMeshCapped = p1, topic, topicScore
           topicScore += p1 * topicParams.timeInMeshWeight
         else:
           info.meshMessageDeliveriesActive = false
@@ -194,7 +194,7 @@ proc updateScores*(g: GossipSub) = # avoid async
             let deficit =
               topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
             let p3 = deficit * deficit
-            trace "p3", peer, p3, topic, topicScore
+            trace "p3", peer, deficitSquared = p3, topic, topicScore
             topicScore += p3 * topicParams.meshMessageDeliveriesWeight
 
         topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight

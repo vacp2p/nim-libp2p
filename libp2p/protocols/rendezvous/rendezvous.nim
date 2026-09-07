@@ -376,7 +376,7 @@ proc advertise*[E](
 
   let futs = collect(newSeq()):
     for peer in peers:
-      trace "Send Advertise", peerId = peer, ns
+      trace "Send Advertise", peerId = peer, namespace = ns
       rdv.advertisePeer(peer, msg).withTimeout(5.seconds)
 
   await allFutures(futs)
@@ -438,7 +438,7 @@ proc requestPeer[E](
     trace "Discover response is empty"
     return @[]
   if resp.status != ResponseStatus.Ok:
-    trace "Cannot discover", ns, status = resp.status, text = resp.text
+    trace "Cannot discover", namespace = ns, status = resp.status, text = resp.text
     return @[]
   resp.cookie.withValue(cookie):
     if ns.isSome:
@@ -472,7 +472,7 @@ proc request*[E](
     if rdv.codec notin rdv.switch.peerStore[ProtoBook][peer]:
       continue
     try:
-      trace "Send Request", peerId = peer, ns
+      trace "Send Request", peerId = peer, namespace = ns
       let registrations = await rdv.requestPeer(limit, ns, peer)
       for r in registrations:
         if limit == 0:
