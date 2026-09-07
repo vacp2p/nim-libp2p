@@ -489,7 +489,6 @@ proc connHandler(
   proc onClose() {.async: (raises: []).} =
     await noCancel conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
-    trace "Cleaned up client"
 
   self.connectionCleanupFuts.keepItIf(not it.finished)
   self.connectionCleanupFuts.add(onClose())
@@ -499,8 +498,6 @@ proc connHandler(
 method accept*(
     self: WsTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  trace "WsTransport accept"
-
   # wstransport can only start accepting connections after autotls is done
   # if autotls is not present, self.running is true after listener setup completes
   var retries = 0

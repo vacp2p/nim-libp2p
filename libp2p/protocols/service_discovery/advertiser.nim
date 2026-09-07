@@ -50,7 +50,7 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
   Opt.some(extRecord.encode())
 
 proc advertFor(disco: ServiceDiscovery, serviceId: ServiceId): seq[byte] =
-  ## The caller's own bytes when it supplied them, this node's record otherwise.
+  ## The bytes stored when the service was added, a fresh record only after a clear().
   disco.advertiser.providedAdverts.withValue(serviceId, stored):
     return stored[]
 
@@ -392,14 +392,12 @@ proc addProvidedService*(
     disco.undoProvidedService(service, serviceId)
     return err("routing table missing for service '" & service.id & "'")
 
-  # When a caller supplied an explicit advert we store it so that future
-  # rotations / replacements (maintenance) reuse exactly the same bytes.
-  if advert.isSome():
-    disco.advertiser.providedAdverts[serviceId] = advert.get()
-
   let advertBytes = disco.getAdvertBytes(advert).valueOr:
     disco.undoProvidedService(service, serviceId)
     return err("cannot build the extended peer record to advertise")
+
+  # Rotations reuse these bytes; a later seqNo would duplicate this node in a lookup.
+  disco.advertiser.providedAdverts[serviceId] = advertBytes
 
   debug "added provided service", service = service.id, serviceId
   cd_advertiser_services_added.inc()

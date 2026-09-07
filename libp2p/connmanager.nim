@@ -310,15 +310,17 @@ proc removeConnEventHandler*(
 proc triggerConnEvent*(
     c: ConnManager, peerId: PeerId, event: ConnEvent
 ) {.async: (raises: [CancelledError]).} =
-  try:
-    trace "About to trigger connection events", peerId = peerId
-    if c.connEvents[event.kind].len > 0:
-      trace "triggering connection events", peerId = peerId, event = $event.kind
-      var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
-      for h in c.connEvents[event.kind]:
-        connEvents.add(h(peerId, event))
+  if c.connEvents[event.kind].len == 0:
+    return
 
-      checkFutures(await allFinished(connEvents))
+  trace "triggering connection events", peerId = peerId, event = $event.kind
+
+  try:
+    var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
+    for h in c.connEvents[event.kind]:
+      connEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -341,7 +343,6 @@ proc removePeerEventHandler*(
 proc triggerPeerEvents*(
     c: ConnManager, peerId: PeerId, event: PeerEvent
 ) {.async: (raises: [CancelledError]).} =
-  trace "About to trigger peer events", peerId = peerId
   if c.peerEvents[event.kind].len == 0:
     return
 

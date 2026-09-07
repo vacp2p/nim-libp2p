@@ -335,8 +335,6 @@ proc runHandleLoop*(
     trace "exiting pubsub read loop", stream, peerId = p, closed = stream.closed
 
   while not stream.atEof:
-    trace "waiting for data", stream, peerId = p, closed = stream.closed
-
     var data =
       try:
         await stream.readLp(p.maxMessageSize)
