@@ -18,9 +18,6 @@ import ../../tools/[unittest, futures, crypto, multiaddress]
 
 const VerifyInterval = 50.milliseconds
 
-proc randomPeerId(): PeerId =
-  PeerId.random(rng()).expect("the rng produces a valid peer id")
-
 proc createSwitch(
     service: AutonatV2Service = nil, minCount = DefaultObservedAddrMinCount
 ): Switch =
