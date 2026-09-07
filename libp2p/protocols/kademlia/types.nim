@@ -4,7 +4,8 @@
 import std/[tables, sequtils, sets, heapqueue, hashes]
 from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
-import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy, utils/shortlog]
+import
+  ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy, utils/shortlog]
 import ../protocol
 import ./[protobuf, message_sender]
 
