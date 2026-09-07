@@ -449,6 +449,13 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.expiredLoop = kad.manageExpiredProviders()
   kad.recordExpirationLoop = kad.manageExpiredRecords()
 
+  reportBackgroundFailure(kad.maintenanceLoop, "kademlia bucket maintenance")
+  reportBackgroundFailure(kad.livenessLoop, "kademlia peer liveness")
+  reportBackgroundFailure(kad.fixLowPeersLoop, "kademlia minimum peer maintenance")
+  reportBackgroundFailure(kad.republishLoop, "kademlia provider republishing")
+  reportBackgroundFailure(kad.expiredLoop, "kademlia provider expiration")
+  reportBackgroundFailure(kad.recordExpirationLoop, "kademlia record expiration")
+
   kad.started = true
 
   info "Kad DHT started"
