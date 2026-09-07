@@ -127,7 +127,6 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
       handles = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
   except CatchableError:
     handles = false
-  trace "Handles return", ma, handles
   handles
 
 proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =

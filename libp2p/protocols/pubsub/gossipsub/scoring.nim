@@ -328,11 +328,9 @@ proc updateScores*(g: GossipSub) = # avoid async
 
 proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "Gossipsub scoring", g.parameters.decayInterval:
-    trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
     for trigger in g.scoringHeartbeatEvents:
-      trace "firing scoring heartbeat event", instance = cast[int](g)
       trigger.fire()
 
 proc punishInvalidMessage*(
