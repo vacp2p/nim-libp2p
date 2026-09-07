@@ -214,3 +214,20 @@ suite "AutoTLS peer ID label":
         # RFC 1035 caps a DNS label at 63 octets.
         label.len <= 63
         label.allIt(it in {'0' .. '9', 'a' .. 'z'})
+
+suite "AutoTLS PEM":
+  test "the body wraps at 64 columns between the banners":
+    check pemEncode(toSeq(0 .. 48).mapIt(byte(it)), "PRIVATE KEY") ==
+      "-----BEGIN PRIVATE KEY-----\n" &
+      "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v\n" & "MA==\n" &
+      "-----END PRIVATE KEY-----\n"
+
+  test "a body that fills the last column adds no blank line":
+    check pemEncode(toSeq(0 .. 47).mapIt(byte(it)), "PRIVATE KEY") ==
+      "-----BEGIN PRIVATE KEY-----\n" &
+      "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v\n" &
+      "-----END PRIVATE KEY-----\n"
+
+  test "an empty key gives an empty body":
+    check pemEncode(newSeq[byte](), "PRIVATE KEY") ==
+      "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----\n"
