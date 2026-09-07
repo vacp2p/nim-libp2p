@@ -105,16 +105,16 @@ proc dialAndUpgrade*(
   reach.dialed = true
 
   let dialStarted = Moment.now()
-  trace "Dialing address", addrs, peerId, hostname
+  trace "Address dial started", peerId, address = addrs, hostname
   let dialed =
     try:
       libp2p_total_dial_attempts.inc()
       transport.dial(hostname, addrs, peerId, dir).awaitWithDeadline(deadline)
     except CancelledError as e:
-      trace "Dialing canceled", err = e.msg, peerId
+      trace "Address dial canceled", err = e.msg, peerId, address = addrs
       raise e
     except CatchableError as e:
-      debug "Dialing failed", err = e.msg, peerId = peerId, address = addrs, hostname
+      debug "Address dial failed", err = e.msg, peerId, address = addrs, hostname
       libp2p_failed_dials.inc()
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
@@ -151,7 +151,7 @@ proc dialAndUpgrade*(
       return nil
 
   doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
-  trace "Dial successful", peerId = mux.connection.peerId
+  trace "Peer connection established", peerId = mux.connection.peerId, address = addrs
   libp2p_dial_duration_ms.observe(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
@@ -176,7 +176,7 @@ proc expandDnsAddr(
     warn "Can't resolve DNSADDR without NameResolver", address = address
     return @[]
 
-  trace "Start trying to resolve addresses"
+  trace "Address resolution started"
   let toResolve =
     if peerId.isSome:
       try:
@@ -191,10 +191,10 @@ proc expandDnsAddr(
     try:
       self.nameResolver.resolveDnsAddr(toResolve).awaitWithDeadline(deadline)
     except AsyncTimeoutError:
-      trace "Out of time resolving dnsaddr", address = toResolve
+      trace "DNSADDR resolution timed out", address = toResolve
       return @[]
 
-  trace "resolved addresses",
+  trace "Address resolution completed",
     originalAddresses = toResolve, resolvedAddresses = resolved
 
   var addrs: seq[(MultiAddress, Opt[PeerId])]
@@ -224,7 +224,7 @@ proc resolveWithDeadline(
   try:
     self.nameResolver.resolveMAddress(address).awaitWithDeadline(deadline)
   except AsyncTimeoutError:
-    trace "Out of time resolving address", address = address
+    trace "Address resolution timed out", address
     @[]
 
 proc tryExpandDnsAddr(
@@ -236,7 +236,7 @@ proc tryExpandDnsAddr(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, dnsaddr expansion failed", peerId, err = e.msg, address
+    trace "Address skipped after DNSADDR expansion failed", err = e.msg, peerId, address
     @[]
 
 proc tryResolve(
@@ -248,7 +248,7 @@ proc tryResolve(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Skipping the address, name resolution failed", err = e.msg, address
+    trace "Address skipped after name resolution failed", err = e.msg, address
     @[]
 
 proc normalizedDialAddrs(
@@ -278,7 +278,7 @@ proc take(budget: DialBudget, candidates: seq[DialCandidate]): seq[DialCandidate
       fresh.add(candidate)
 
   if fresh.len > budget.left:
-    debug "Dropping the addresses over the candidate limit", limit = budget.left
+    debug "Dial candidates truncated", limit = budget.left
 
   let taken = fresh.take(budget.left)
   budget.left -= taken.len
@@ -299,7 +299,7 @@ proc awaitLookup(
   if lookup.completed():
     return lookup.value()
 
-  debug "Giving up the lookup, the dial candidate limit is reached"
+  debug "Address lookup stopped at candidate limit", limit = MaxCandidates
   @[]
 
 proc expandCandidate(
@@ -334,7 +334,7 @@ proc resolveCandidate(
   var candidates: seq[DialCandidate]
   for address in resolved:
     if self.transportFor(address).isNone():
-      trace "Skipping the address, no transport handles it",
+      trace "Address skipped because no transport supports it",
         peerId = candidate.peerId, address
       continue
 
@@ -356,7 +356,7 @@ proc directCandidates(
     if DNS.matchPartial(address):
       continue
     if self.transportFor(address).isNone():
-      trace "Skipping the address, no transport handles it", peerId, address = address
+      trace "Address skipped because no transport supports it", peerId, address
       continue
 
     # `wstransport` sends this as the Host header, so a wire address needs it too.
@@ -384,7 +384,7 @@ proc dialInOrder(
 
   for rawAddress in addrs:
     if deadline.timeLeft().isZero():
-      debug "Out of time for the remaining addresses", peerId, addrs
+      debug "Peer dial timed out", peerId, addresses = addrs
       return nil
 
     let advertised = DialCandidate(address: rawAddress, peerId: peerId)
@@ -521,7 +521,7 @@ proc dialAndUpgrade*(
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Dialing peer", peerId = peerId, addresses = dialAddrs
+  debug "Peer dial started", peerId, addresses = dialAddrs
 
   if self.dialRanking:
     await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
@@ -582,7 +582,7 @@ proc finishUpgrade(
     await muxed.close()
     raise e
   except CatchableError as e:
-    trace "Failed to finish outgoing upgrade", err = e.msg
+    trace "Outgoing connection upgrade failed", err = e.msg, peerId
     await muxed.close()
     raise newException(
       DialFailedError, "failed finishUpgrade in establishConnection: " & e.msg, e
@@ -718,7 +718,7 @@ proc negotiateStream*(
   ## Raises DialFailedError when negotiation selects no supported protocol or
   ## the selected protocol's outgoing stream budget is exhausted.
 
-  trace "Negotiating stream", stream, protos
+  trace "Protocol negotiation started", stream, protocols = protos
   let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
     await stream.reset()
@@ -756,7 +756,7 @@ proc tryDial*(
   ## Returns the observed address when the probe succeeds.
   ##
 
-  trace "Check if it can dial", peerId, addrs
+  trace "Peer reachability probe started", peerId, address = addrs
   try:
     let mux = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if mux.isNil():
@@ -775,7 +775,7 @@ method dial*(
   ## existing connection
   ##
 
-  trace "Dialing (existing)", peerId, protos
+  trace "Protocol stream establishment started", peerId, protocols = protos
 
   try:
     let stream = await self.connManager.getStream(peerId)
@@ -786,10 +786,12 @@ method dial*(
       )
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
-    trace "Dial canceled", err = exc.msg
+    trace "Protocol stream establishment canceled",
+      err = exc.msg, peerId, protocols = protos
     raise exc
   except CatchableError as exc:
-    trace "Error dialing", err = exc.msg
+    trace "Protocol stream establishment failed",
+      err = exc.msg, peerId, protocols = protos
     raise newException(DialFailedError, "failed dial existing: " & exc.msg)
 
 method dial*(
@@ -815,9 +817,9 @@ method dial*(
       await stream.reset()
 
   try:
-    trace "Dialing (new)", peerId, protos
+    trace "Peer dial started", peerId, addresses = dialAddrs
     conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
-    trace "Opening stream", conn
+    trace "Protocol stream opening started", peerId, protocols = protos, conn
     stream = await self.connManager.getStream(conn)
 
     if isNil(stream):
@@ -828,11 +830,13 @@ method dial*(
 
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
-    trace "Dial canceled", err = exc.msg, conn
+    trace "Protocol stream establishment canceled",
+      err = exc.msg, peerId, protocols = protos, conn
     await cleanup()
     raise exc
   except CatchableError as exc:
-    debug "Error dialing", conn, peerId, protos, addresses = dialAddrs, err = exc.msg
+    debug "Protocol stream establishment failed",
+      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs, conn
     await cleanup()
     raise newException(
       DialFailedError,

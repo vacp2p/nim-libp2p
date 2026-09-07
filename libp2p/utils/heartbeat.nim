@@ -7,6 +7,9 @@ import chronos, chronicles
 
 export chronicles
 
+logScope:
+  topics = "libp2p heartbeat"
+
 template heartbeat*(
     name: string, interval: Duration, sleepFirst: bool, body: untyped
 ): untyped =

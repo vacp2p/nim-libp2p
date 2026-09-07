@@ -277,7 +277,7 @@ proc updateRecvWindow(
   let delta = channel.maxRecvWindow - inWindow
   channel.recvWindow.inc(delta.int)
   await channel.conn.write(YamuxHeader.windowUpdate(channel.id, delta.uint32))
-  trace "increasing the recvWindow", delta
+  trace "Increasing the recvWindow", delta
 
 method readOnce*(
     channel: YamuxChannel, pbytes: pointer, nbytes: int
@@ -287,13 +287,13 @@ method readOnce*(
   if channel.isReset:
     raise
       if channel.remoteReset:
-        trace "stream is remote reset when readOnce", channel = $channel
+        trace "Stream is remote reset when readOnce", channel = $channel
         newLPStreamResetError()
       elif channel.closedLocally:
-        trace "stream is closed locally when readOnce", channel = $channel
+        trace "Stream is closed locally when readOnce", channel = $channel
         newLPStreamClosedError()
       else:
-        trace "stream is down when readOnce", channel = $channel
+        trace "Stream is down when readOnce", channel = $channel
         newLPStreamConnDownError()
   if channel.isEof:
     channel.clearQueues()
@@ -348,9 +348,9 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     channel.sendQueue.keepItIf(not it.fut.finished())
 
     if channel.sendWindow <= 0:
-      trace "trying to send while the sendWindow is empty"
+      trace "Trying to send while the sendWindow is empty"
       if channel.lengthSendQueueWithLimit() > channel.maxSendQueueSize:
-        trace "channel send queue too big, resetting",
+        trace "Channel send queue too big, resetting",
           maxSendQueueSize = channel.maxSendQueueSize,
           currentQueueSize = channel.lengthSendQueueWithLimit()
         await channel.reset(isLocal = true)
@@ -365,7 +365,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       inBuffer = 0
 
     if numBytesToSend >= bytesAvailable and channel.closedLocally:
-      trace "last buffer we will send on this channel", numBytesToSend, bytesAvailable
+      trace "Last buffer we will send on this channel", numBytesToSend, bytesAvailable
       header.flags.incl({Fin})
 
     sendBuffer[0 ..< NumBytesHeader] = header.encode()
@@ -397,7 +397,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     except CancelledError:
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
-      trace "failed to send the buffer", err = exc.msg
+      trace "Yamux frame write failed", err = exc.msg, channel
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
@@ -417,7 +417,7 @@ method write*(
   var resFut = newFuture[void]("Yamux Send")
 
   if channel.remoteReset:
-    trace "stream is reset when write", channel = $channel
+    trace "Stream is reset when write", channel = $channel
     resFut.fail(newLPStreamResetError())
     return resFut
 
@@ -544,7 +544,7 @@ proc createStream(
     stream.shortAgent = m.connection.shortAgent
   m.channels[id] = stream
   stream.cleanupFut = m.cleanupChannel(stream)
-  trace "created channel", id, pid = m.connection.peerId
+  trace "Created channel", id, pid = m.connection.peerId
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_channels.set(m.lenBySrc(isSrc).int64, [$isSrc, $stream.peerId])
   return stream
@@ -589,9 +589,9 @@ method close*(m: Yamux) {.async: (raises: []).} =
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
-    trace "cancelled sending goAway", err = exc.msg
+    trace "Yamux shutdown frame canceled", err = exc.msg
   except LPStreamError as exc:
-    trace "failed to send goAway", err = exc.msg
+    trace "Yamux shutdown frame write failed", err = exc.msg
   await m.connection.close()
 
   await drainChannelTasks(channels)
@@ -603,14 +603,14 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   ## Call the muxer stream handler for this channel
   ##
   await m.streamHandler(channel)
-  trace "finished handling stream"
+  trace "Yamux stream handler completed", channel
   doAssert(channel.isClosed, "connection not closed by handler!")
 
 method handle*(m: Yamux) {.async: (raises: []).} =
-  trace "Starting yamux handler", peerId = m.connection.peerId
+  trace "Yamux handler started", peerId = m.connection.peerId
   try:
     while not m.connection.atEof:
-      trace "waiting for header"
+      trace "Waiting for header"
       let header = await m.connection.readHeader()
       trace "Message received", header = $header
 
@@ -623,7 +623,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
         if status.checkedEnumAssign(header.length):
           trace "Received go away", status
         else:
-          trace "Received unexpected error go away"
+          trace "Yamux shutdown status rejected", status = header.length
         break
       of Data, WindowUpdate:
         if MsgFlags.Syn in header.flags:
@@ -641,7 +641,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             if m.channels.len > m.maxChannCount:
-              trace "too many channels created by remote peer",
+              trace "Too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue
@@ -665,7 +665,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             m.forgetFlushed(header.streamId)
 
           # If we do not have a stream, likely we sent a RST and/or closed the stream
-          trace "unknown stream id", id = header.streamId
+          trace "Unknown stream id", id = header.streamId
 
           continue
 
@@ -693,17 +693,18 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           if header.length > 0:
             var buffer = newSeqUninit[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            trace "Msg Rcv", description = shortLog(buffer)
+            trace "Yamux data frame received",
+              messageSize = buffer.len, payloadPreview = shortLog(buffer)
             await channel.gotDataFromRemote(move(buffer))
 
         if MsgFlags.Fin in header.flags:
-          trace "remote closed channel"
+          trace "Remote closed channel"
           await channel.remoteClosed()
         if MsgFlags.Rst in header.flags:
-          trace "remote reset channel"
+          trace "Remote reset channel"
           await channel.reset()
   except CancelledError as exc:
-    trace "Unexpected cancellation in yamux handler", err = exc.msg
+    trace "Yamux handler canceled", err = exc.msg
   except LPStreamEOFError as exc:
     trace "Stream EOF", err = exc.msg
   except LPStreamError as exc:
@@ -722,7 +723,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
       discard
   finally:
     await m.close()
-  trace "Stopped yamux handler"
+  trace "Yamux handler stopped"
 
 method getStreams*(m: Yamux): seq[MuxedStream] {.gcsafe.} =
   var streams: seq[MuxedStream]

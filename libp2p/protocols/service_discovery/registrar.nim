@@ -59,7 +59,7 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
   # Expire IP-level bounds
   pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
 
-  debug "pruned expired adverts", count = expiredCount
+  debug "Pruned expired adverts", count = expiredCount
 
 proc advertiserIps*(
     disco: ServiceDiscovery, advertiser: PeerId, connectionIps: seq[IpAddress] = @[]
@@ -229,7 +229,7 @@ proc sendRegisterResponse*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    trace "failed to send register response", err = writeRes.error.msg
+    trace "Failed to send register response", err = writeRes.error.msg
 
 proc acceptAdvertisement*(
     disco: ServiceDiscovery,
@@ -292,7 +292,7 @@ proc registration*(
   )
 
   let regMsg = inMsg.register.valueOr:
-    trace "no register message"
+    trace "No register message"
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -301,7 +301,7 @@ proc registration*(
     return msg
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
-    trace "invalid advertisement", error
+    trace "Invalid advertisement", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -313,7 +313,7 @@ proc registration*(
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
   let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
-    trace "invalid ticket", error
+    trace "Invalid ticket", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -356,7 +356,7 @@ proc registration*(
       ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
-    error "failed to sign ticket"
+    error "Failed to sign ticket"
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]

@@ -6,6 +6,9 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, kademlia_metrics]
 
+logScope:
+  topics = "kad-dht ping"
+
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[bool] {.
@@ -41,5 +44,6 @@ proc handlePing*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send ping reply", err = exc.msg, stream
+    debug "Kademlia ping RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.ping
     return
