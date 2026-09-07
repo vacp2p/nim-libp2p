@@ -98,7 +98,7 @@ proc toCid*(k: Key): Cid =
   if cidRes.isOk:
     cidRes.get()
   else:
-    debug "Kademlia key wrapped as CID", keySize = k.len
+    debug "Kademlia key wrapped as CID", key = k
     Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
 
 proc toKey*(mh: MultiHash): Key =
@@ -156,7 +156,7 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
   return peerIds
 
 proc shortLog*(k: Key): string =
-  "key:" & toHex(k)
+  toHex(k)
 
 chronicles.formatIt(Key):
   shortLog(it)
@@ -387,7 +387,7 @@ type
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
-  debug "Local Kademlia record stored", keySize = key.len, valueSize = value.len
+  debug "Local Kademlia record stored", key, value = $shortLog(value)
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
