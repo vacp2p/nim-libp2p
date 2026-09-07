@@ -70,6 +70,11 @@ declarePublicCounter(
   "The number of times peers were above their rate limit",
   labels = ["agent"],
 )
+declarePublicCounter(
+  libp2p_gossipsub_graylisted_rpcs,
+  "The number of RPCs ignored because the sender is graylisted",
+  labels = ["agent"],
+)
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -130,9 +135,11 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
+func isGraylisted*(g: GossipSub, peer: PubSubPeer, score: float64): bool =
+  score < g.parameters.graylistThreshold and peer.peerId notin g.parameters.directPeers
+
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
-  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
-      peer.peerId notin g.parameters.directPeers:
+  if g.parameters.disconnectBadPeers and g.isGraylisted(peer, score):
     debug "disconnecting bad score peer", peer, score = peer.score
     g.pendingTasks.trackFut(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
