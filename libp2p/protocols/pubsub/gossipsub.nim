@@ -717,6 +717,12 @@ method rpcHandler*(
     peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
+  if g.isGraylisted(peer, peer.score):
+    trace "PubSub RPC ignored",
+      peerId = peer.peerId, reason = "graylisted", score = peer.score
+    libp2p_gossipsub_graylisted_rpcs.inc(labelValues = [peer.getAgent()])
+    return
+
   # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
 

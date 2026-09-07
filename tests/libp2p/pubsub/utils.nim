@@ -563,6 +563,14 @@ proc currentRateLimitHits*(label: string = "nim-libp2p"): float64 =
   except KeyError:
     0
 
+proc currentGraylistedRpcs*(label: string = "nim-libp2p"): float64 =
+  try:
+    libp2p_gossipsub_graylisted_rpcs.valueByName(
+      "libp2p_gossipsub_graylisted_rpcs_total", @[label]
+    )
+  except KeyError:
+    0
+
 proc addDirectPeer*[T: PubSub](node: T, target: T) {.async.} =
   doAssert node.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not add same peer"
