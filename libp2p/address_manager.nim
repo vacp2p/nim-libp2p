@@ -131,7 +131,7 @@ proc isObservableAddr(ma: MultiAddress): bool =
 proc addObservation*(
     self: AddressManager, observer: PeerId, observedAddr: MultiAddress
 ): bool =
-  ## Records the address `observer` reports for us; it replaces its previous report.
+  ## Records the address `observer` reports for us, replacing its previous report and evicting the oldest peer observation past `maxSize`.
   if not self.started:
     return false
 

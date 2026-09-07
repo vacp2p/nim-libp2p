@@ -13,9 +13,6 @@ import ../tools/[unittest, crypto, switch_builder, multiaddress, lifecycle]
 
 const VerifyInterval = 10.milliseconds
 
-proc randomPeerId(): PeerId =
-  PeerId.random(rng()).expect("the rng produces a valid peer id")
-
 proc makeManager(
     maxSize = DefaultObservedAddrMaxSize,
     minCount = DefaultObservedAddrMinCount,
