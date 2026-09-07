@@ -244,7 +244,7 @@ method accept*(
       debug "Too many files opened", err = exc.msg
       return nil
     except TransportAbortedError as exc:
-      debug "Connection aborted", err = exc.msg
+      debug "Transport connection aborted", err = exc.msg
       return nil
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
@@ -310,7 +310,7 @@ method dial*(
     else:
       Opt.none(TransportAddress)
 
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
   let transp =
     try:
       await(

@@ -318,7 +318,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          trace "failed to decode Message", err = error
+          trace "Failed to decode Message", err = error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -329,7 +329,7 @@ proc advertisePeer[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in the advertise", err = exc.msg
+      trace "Exception in the advertise", err = exc.msg
     finally:
       try:
         rdv.sema.release()
@@ -502,9 +502,9 @@ proc request*[E](
     except CancelledError as e:
       raise e
     except DialFailedError as e:
-      trace "failed to dial a peer", err = e.msg
+      trace "Failed to dial a peer", err = e.msg
     except LPStreamError as e:
-      trace "failed to communicate with a peer", err = e.msg
+      trace "Failed to communicate with a peer", err = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc unsubscribeLocally*[E](rdv: GenericRendezVous[E], ns: string) =
@@ -535,7 +535,7 @@ proc unsubscribe*[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception while unsubscribing", err = exc.msg
+      trace "Exception while unsubscribing", err = exc.msg
 
   let futs = collect(newSeq()):
     for peer in peerIds:
@@ -585,7 +585,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          trace "failed to decode Message", err = error
+          trace "Failed to decode Message", err = error
           return
       case msg.msgType
       of MessageType.Register:
@@ -601,10 +601,10 @@ proc new*(
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
-      trace "cancelled rendezvous handler"
+      trace "Cancelled rendezvous handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in rendezvous handler", err = exc.msg
+      trace "Exception in rendezvous handler", err = exc.msg
     finally:
       await stream.close()
 

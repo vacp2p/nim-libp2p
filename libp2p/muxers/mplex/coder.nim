@@ -33,10 +33,10 @@ proc readMsg*(
     conn: RawConn
 ): Future[Msg] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let header = await conn.readVarint()
-  trace "read header varint", varint = header, conn
+  trace "Read header varint", varint = header, conn
 
   let data = await conn.readLp(MaxMsgSize)
-  trace "read data", dataLen = data.len, data = shortLog(data), conn
+  trace "Read data", dataLen = data.len, data = shortLog(data), conn
 
   let msgType = header and 0x7
   if msgType.int > ord(MessageType.ResetOut):
@@ -68,7 +68,7 @@ proc writeMsg*(
     if data.len == 0:
       break
 
-  trace "writing mplex message",
+  trace "Writing mplex message",
     conn, id, msgType, data = data.len, encoded = buf.buffer.len
 
   # Write all chunks in a single write to avoid async races where a close
