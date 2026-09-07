@@ -23,9 +23,9 @@ proc new*(T: typedesc[Perf]): T =
     try:
       trace "Received benchmark performance check", stream
 
-      var uploadSizeBuffer: array[8, byte]
-      await stream.readExactly(addr uploadSizeBuffer[0], 8)
-      var uploadSize = uint64.fromBytesBE(uploadSizeBuffer)
+      var sizeBuffer: array[8, byte]
+      await stream.readExactly(addr sizeBuffer[0], 8)
+      var responseSize = uint64.fromBytesBE(sizeBuffer)
 
       var readBuffer: array[PerfSize, byte]
       while not stream.atEof:
@@ -37,10 +37,10 @@ proc new*(T: typedesc[Perf]): T =
           break
 
       var writeBuffer: array[PerfSize, byte]
-      while uploadSize > 0:
-        let toWrite = min(uploadSize, PerfSize)
+      while responseSize > 0:
+        let toWrite = min(responseSize, PerfSize)
         await stream.write(writeBuffer[0 ..< toWrite])
-        uploadSize -= toWrite
+        responseSize -= toWrite
     except CancelledError as exc:
       trace "cancelled perf handler"
       raise exc

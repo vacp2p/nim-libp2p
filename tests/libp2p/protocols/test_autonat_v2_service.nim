@@ -194,7 +194,7 @@ suite "AutonatV2 Service":
 
     let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
-      check switch.addressManager.addObservation(observedAddr)
+      check switch.addressManager.addObservation(randomPeerId(), observedAddr)
 
     await notified.wait(5.seconds)
 
@@ -215,7 +215,7 @@ suite "AutonatV2 Service":
 
     let observedAddr = ma("/ip4/8.8.8.8/tcp/4040")
     for _ in 0 ..< 3:
-      check switch.addressManager.addObservation(observedAddr)
+      check switch.addressManager.addObservation(randomPeerId(), observedAddr)
 
     await notified.wait(5.seconds)
     await sleepAsync(VerifyInterval * 4)
