@@ -299,7 +299,7 @@ proc awaitLookup(
   if lookup.completed():
     return lookup.value()
 
-  debug "Address lookup stopped at candidate limit", limit = MaxCandidates
+  debug "Address lookup stopped at candidate limit"
   @[]
 
 proc expandCandidate(
