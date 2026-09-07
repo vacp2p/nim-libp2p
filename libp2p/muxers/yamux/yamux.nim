@@ -397,7 +397,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     except CancelledError:
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
-      trace "Yamux frame write failed", err = exc.msg, channel
+      trace "Yamux frame write failed", err = exc.msg, channel = $channel
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
