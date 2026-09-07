@@ -259,6 +259,65 @@ suite "GossipSub Component - Scoring":
     checkUntilTimeout:
       handlerFut.finished() == true
 
+  asyncTest "Graylisted peers: RPC is ignored":
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+
+    let (handlerFut, handler) = createCompleteHandler()
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, handler)
+    waitSubscribeStar(nodes, topic)
+
+    let node0Id = nodes[0].peerInfo.peerId
+    checkUntilTimeout:
+      nodes[1].mesh.hasPeerId(topic, node0Id)
+
+    # raise the threshold instead of lowering the score, which would also prune the mesh
+    nodes[1].parameters.graylistThreshold = 100000.0
+    check nodes[1].getPeerScore(node0Id) < nodes[1].parameters.graylistThreshold
+
+    var ignored = currentGraylistedRpcs()
+    let peer = nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId)
+    peer.send(
+      RPCMsg(control: Opt.some(ControlMessage(prune: @[ControlPrune(topicID: topic)]))),
+      false,
+      MessagePriority.High,
+    )
+
+    checkUntilTimeout:
+      currentGraylistedRpcs() > ignored
+    check nodes[1].mesh.hasPeerId(topic, node0Id)
+
+    ignored = currentGraylistedRpcs()
+    tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
+
+    checkUntilTimeout:
+      currentGraylistedRpcs() > ignored
+    check not handlerFut.finished()
+
+  asyncTest "Graylisted peers: RPC of a direct peer is processed":
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+
+    startAndDeferStop(nodes)
+    await nodes.addDirectPeerStar()
+
+    let (handlerFut, handler) = createCompleteHandler()
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
+
+    nodes[1].parameters.graylistThreshold = 100000.0
+    check nodes[1].getPeerScore(nodes[0].peerInfo.peerId) <
+      nodes[1].parameters.graylistThreshold
+
+    tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
+
+    # without directPeers, the graylist gate would drop this
+    checkUntilTimeout:
+      handlerFut.finished() == true
+
   asyncTest "Slow peer penalty can prune a peer on heartbeat":
     let nodes = generateNodes(
         2,
