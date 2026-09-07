@@ -198,7 +198,7 @@ proc dialPeerV2*(
 ): Future[RawConn] {.async: (raises: [RelayV2DialError, CancelledError]).} =
   let p = Peer(peerId: Opt.some(dstPeerId), addrs: dstAddrs)
 
-  trace "Dial peer", p
+  trace "Dial peer", peer = p
 
   let msgRcvFromRelay =
     try:

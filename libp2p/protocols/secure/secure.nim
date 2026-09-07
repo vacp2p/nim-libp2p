@@ -68,7 +68,7 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method closeImpl*(s: SecureConn) {.async: (raises: []).} =
-  trace "Closing secure conn", s, dir = s.dir
+  trace "Closing secure conn", conn = s, dir = s.dir
   if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
@@ -77,7 +77,7 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   await procCall Connection(s).closeImpl()
 
 method resetImpl*(s: SecureConn) {.async: (raises: []).} =
-  trace "Resetting secure conn", s, dir = s.dir
+  trace "Resetting secure conn", conn = s, dir = s.dir
   if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
