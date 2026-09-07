@@ -135,7 +135,7 @@ proc readName(r: var DnsReader): string {.raises: [ValueError].} =
     pos = r.pos
     resume = -1
     jumps = 0
-    consumed = 0
+    consumed = 1 # the root label terminator
 
   while true:
     if pos >= r.data.len:
@@ -360,16 +360,21 @@ proc encodeQuery*(
 
   return query
 
+func sectionCount(n: int, section: string): uint16 {.raises: [ValueError].} =
+  if n > int(uint16.high):
+    raiseErr("Too many " & section & " in DNS message")
+  return n.uint16
+
 proc encodeMessage*(msg: DnsMessage): seq[byte] {.raises: [ValueError].} =
   ## A response is marked authoritative, which is what a responder sends.
   var buf = newSeqOfCap[byte](HeaderSize + 128)
 
   buf.add(toBytesBE(msg.id))
   buf.add(toBytesBE(if msg.response: ResponseFlags else: 0x0000'u16))
-  buf.add(toBytesBE(msg.questions.len.uint16))
-  buf.add(toBytesBE(msg.answers.len.uint16))
+  buf.add(toBytesBE(sectionCount(msg.questions.len, "questions")))
+  buf.add(toBytesBE(sectionCount(msg.answers.len, "answers")))
   buf.add(toBytesBE(0x0000'u16)) # nscount
-  buf.add(toBytesBE(msg.additionals.len.uint16))
+  buf.add(toBytesBE(sectionCount(msg.additionals.len, "additional records")))
 
   for question in msg.questions:
     buf.writeQuestion(question)

@@ -409,3 +409,22 @@ suite "DNS message codec: whole messages":
     )
     expect ValueError:
       discard encodeMessage(big)
+
+  test "parseMessage enforces the 255-byte name limit":
+    let header =
+      @[0x00'u8, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    let tail = @[0x00'u8, 0x01, 0x00, 0x01] # qtype = A, qclass = IN
+
+    var legal: seq[byte] # 127 one-char labels plus the terminator = 255 bytes
+    for _ in 0 ..< 127:
+      legal.add([0x01'u8, byte('a')])
+    legal.add(0x00'u8)
+
+    var illegal: seq[byte] # one label carries a second char, making it 256
+    for _ in 0 ..< 126:
+      illegal.add([0x01'u8, byte('a')])
+    illegal.add([0x02'u8, byte('a'), byte('a'), 0x00'u8])
+
+    check parseMessage(header & legal & tail).questions.len == 1
+    expect ValueError:
+      discard parseMessage(header & illegal & tail)
