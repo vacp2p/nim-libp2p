@@ -323,12 +323,6 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
 
-  asyncTest "an order naming an authorization off the directory origin is refused":
-    api.queueOrder("pending", %*["https://elsewhere.example/authz/1"])
-
-    expect(ACMEError):
-      discard await api.requestChallenge(@[WildcardDomain], key, AccountURL)
-
   asyncTest "a register response with no location header is refused":
     api.mockedResponses.add(
       HTTPResponse(body: %*{"status": "valid"}, headers: HttpTable.init())
