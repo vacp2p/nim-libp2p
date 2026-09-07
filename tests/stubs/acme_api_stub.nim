@@ -142,6 +142,8 @@ proc scriptCertificate*(self: ACMEApiStub, certificateURL: string, expires: stri
 proc respond(
     self: ACMEApiStub, uri: Uri
 ): Future[HTTPResponse] {.async: (raises: [ACMEError, CancelledError]).} =
+  # the real transport refuses an off-origin URL before it sends anything
+  self.checkOrigin(uri)
   self.requestedUris.add(uri)
   if self.stalls:
     await Future[void].Raising([CancelledError]).init("ACMEApiStub.stall")

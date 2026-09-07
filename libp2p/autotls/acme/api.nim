@@ -186,6 +186,25 @@ template handleError*(msg: string, body: untyped): untyped =
   except CatchableError as exc:
     raise newException(ACMEError, msg & ": Unexpected error", exc)
 
+func origin(uri: Uri): string =
+  let scheme = uri.scheme.toLowerAscii()
+  let port =
+    if uri.port.len > 0:
+      uri.port
+    elif scheme == "http":
+      "80"
+    else:
+      "443"
+  scheme & "://" & uri.hostname.toLowerAscii() & ":" & port
+
+proc checkOrigin*(self: ACMEApi, uri: Uri) {.raises: [ACMEError].} =
+  ## The directory is the only URL the caller chooses; the rest come from the server.
+  if uri.origin != self.directoryURL.origin:
+    raise newException(
+      ACMEError,
+      "ACME URL " & $uri & " is not on the directory origin " & self.directoryURL.origin,
+    )
+
 proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
   let respType =
     try:
@@ -273,16 +292,24 @@ proc acmeHeader(
       kid: kid.get(),
     )
 
+proc sendPost(
+    self: ACMEApi, uri: Uri, payload: string
+): Future[HttpClientResponseRef] {.
+    async: (raises: [ACMEError, HttpError, CancelledError])
+.} =
+  self.checkOrigin(uri)
+  let request = HttpClientRequestRef.post(
+    self.session, $uri, body = payload, headers = ACMEHttpHeaders
+  ).valueOr:
+    raiseHttpAddressError(error)
+  await request.send()
+
 method post*(
     self: ACMEApi, uri: Uri, payload: string
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let request = HttpClientRequestRef.post(
-    self.session, $uri, body = payload, headers = ACMEHttpHeaders
-  ).valueOr:
-    raiseHttpAddressError(error)
-  let rawResponse = await request.send()
+  let rawResponse = await self.sendPost(uri, payload)
   let body = await rawResponse.getResponseBody()
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
@@ -293,6 +320,7 @@ method get*(
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
+  self.checkOrigin(uri)
   let request = HttpClientRequestRef.get(self.session, $uri).valueOr:
     raiseHttpAddressError(error)
   let rawResponse = await request.send()
@@ -555,11 +583,7 @@ proc downloadCertificate*(
 
   handleError("downloadCertificate"):
     # not `self.post` as it reads the response as JSON, and a certificate is PEM
-    let request = HttpClientRequestRef.post(
-      self.session, orderResponse.certificate, body = payload, headers = ACMEHttpHeaders
-    ).valueOr:
-      raiseHttpAddressError(error)
-    let rawResponse = await request.send()
+    let rawResponse = await self.sendPost(certificateURL, payload)
     ACMECertificateResponse(
       rawCertificate: bytesToString(await rawResponse.getBodyBytes()),
       certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
