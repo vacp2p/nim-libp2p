@@ -420,7 +420,7 @@ method getOrCreatePeer*(
     try:
       await p.rpcHandler(peer, move(data))
     except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler", description = e.msg, peer = peer
+      trace "failed to decode message in peerHandler", err = e.msg, peerId = peer
       # loop continues and invalid messages are swallowed
 
   # create new pubsub peer
@@ -496,7 +496,7 @@ proc handleData*(
         for fut in futs:
           if fut.failed:
             let err = fut.error()
-            warn "Error in topic handler", description = err.msg
+            warn "Error in topic handler", err = err.msg
 
       return waiter()
 

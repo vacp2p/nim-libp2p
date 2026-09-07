@@ -32,7 +32,7 @@ proc handleDialBack(
     self: AutonatV2Client, stream: Stream, dialBack: DialBack
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   trace "Handling DialBack",
-    stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
+    stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
   if not self.expectedNonces.hasKey(dialBack.nonce):
     trace "Not expecting this nonce", nonce = dialBack.nonce
@@ -62,7 +62,7 @@ proc new*(
   ) {.async: (raises: [CancelledError]).} =
     try:
       let dialBack = DialBack.decode(await stream.readLp(DialBackLpSize)).valueOr:
-        trace "Unable to decode DialBack", error = error
+        trace "Unable to decode DialBack", err = error
         return
       if not await client.handleDialBack(stream, dialBack).withTimeout(
         client.dialBackTimeout
@@ -71,9 +71,9 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      trace "Stream closed by peer", description = exc.msg, peer = stream.peerId
+      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
     except LPStreamError as exc:
-      trace "Stream closed by peer", description = exc.msg, peer = stream.peerId
+      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -106,7 +106,7 @@ proc handleDialDataRequest*(
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
     await stream.writeLp(msg.encode())
-    trace "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
+    trace "Sending DialDataResponse", index = i, messagesToSend = messagesToSend
 
   # get DialResponse
   msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
@@ -191,7 +191,7 @@ method sendDialRequest*(
             AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
           )
   except LPStreamRemoteClosedError as exc:
-    trace "Stream reset by server", description = exc.msg, peer = pid
+    trace "Stream reset by server", err = exc.msg, peerId = pid
   finally:
     # rollback any changes
     self.expectedNonces.del(nonce)

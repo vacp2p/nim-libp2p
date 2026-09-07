@@ -98,7 +98,7 @@ proc encode(header: YamuxHeader): array[12, byte] =
 proc write(
     conn: LPStream, header: YamuxHeader
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  trace "write directly on stream", h = $header
+  trace "Writing directly on stream", header = $header
   var buffer = header.encode()
   conn.write(@buffer)
 
@@ -390,14 +390,14 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
 
       inBuffer.inc(bufferToSend)
 
-    trace "try to send the buffer", h = $header
+    trace "Trying to send buffer", header = $header
     try:
       await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
     except CancelledError:
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
-      trace "failed to send the buffer", description = exc.msg
+      trace "failed to send the buffer", err = exc.msg
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
@@ -589,9 +589,9 @@ method close*(m: Yamux) {.async: (raises: []).} =
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
-    trace "cancelled sending goAway", description = exc.msg
+    trace "cancelled sending goAway", err = exc.msg
   except LPStreamError as exc:
-    trace "failed to send goAway", description = exc.msg
+    trace "failed to send goAway", err = exc.msg
   await m.connection.close()
 
   await drainChannelTasks(channels)
@@ -607,12 +607,12 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   doAssert(channel.isClosed, "connection not closed by handler!")
 
 method handle*(m: Yamux) {.async: (raises: []).} =
-  trace "Starting yamux handler", pid = m.connection.peerId
+  trace "Starting yamux handler", peerId = m.connection.peerId
   try:
     while not m.connection.atEof:
       trace "waiting for header"
       let header = await m.connection.readHeader()
-      trace "got message", h = $header
+      trace "Message received", header = $header
 
       case header.msgType
       of Ping:
@@ -703,19 +703,19 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           trace "remote reset channel"
           await channel.reset()
   except CancelledError as exc:
-    trace "Unexpected cancellation in yamux handler", description = exc.msg
+    trace "Unexpected cancellation in yamux handler", err = exc.msg
   except LPStreamEOFError as exc:
-    trace "Stream EOF", description = exc.msg
+    trace "Stream EOF", err = exc.msg
   except LPStreamError as exc:
-    trace "Unexpected stream exception in yamux read loop", description = exc.msg
+    trace "Unexpected stream exception in yamux read loop", err = exc.msg
   except YamuxError as exc:
-    trace "Closing yamux connection", description = exc.msg
+    trace "Closing yamux connection", err = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:
       discard
   except MuxerError as exc:
-    debug "Unexpected muxer exception in yamux read loop", description = exc.msg
+    debug "Unexpected muxer exception in yamux read loop", err = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:

@@ -52,7 +52,7 @@ proc startSync*(
     peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
       trace "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
-        addrs = connectAnswer.addrs
+        addresses = connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()
@@ -104,7 +104,7 @@ proc startSync*(
     raise err
   except AllFuturesFailedError as err:
     trace "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
-      peerDialableAddrs, description = err.msg
+      peerDialableAddrs, err = err.msg
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
@@ -112,7 +112,7 @@ proc startSync*(
     )
   except AsyncTimeoutError as err:
     trace "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
-      peerDialableAddrs, description = err.msg
+      peerDialableAddrs, err = err.msg
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
@@ -120,7 +120,7 @@ proc startSync*(
     )
   except CatchableError as err:
     trace "Unexpected error when Dcutr initiator tried to connect to the remote peer",
-      description = err.msg
+      err = err.msg
     raise newException(
       DcutrError,
       "Unexpected error when Dcutr initiator tried to connect to the remote peer: " &

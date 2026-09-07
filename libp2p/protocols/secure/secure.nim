@@ -162,7 +162,7 @@ method init*(s: Secure) =
       trace "securing connection canceled", stream
       raise exc
     except LPStreamError as exc:
-      trace "securing connection failed", description = exc.msg, stream
+      trace "securing connection failed", err = exc.msg, stream
     finally:
       await stream.close()
 
@@ -195,8 +195,8 @@ method readOnce*(
     except CancelledError as exc:
       raise exc
     except LPStreamError as err:
-      debug "Error while reading message from secure connection, closing.",
-        error = err.name, message = err.msg, connection = s
+      debug "Secure connection message read failed",
+        err = err.msg, errType = err.name, connection = s
       await s.close()
       raise newException(LPStreamError, "Secure connection read error: " & err.msg, err)
 
