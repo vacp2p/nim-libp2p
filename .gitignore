@@ -9,6 +9,9 @@
 *.exe
 *.dll
 
+# AI working files
+TODO.md
+
 # Executables shall be put in an ignored build/ directory
 build/
 
@@ -45,3 +48,5 @@ tests/**/test*[^.]*
 
 # nix builds
 result
+
+/interop/autonatv2/go-peer/testautonatv2

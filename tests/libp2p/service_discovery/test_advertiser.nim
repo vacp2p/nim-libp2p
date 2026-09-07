@@ -28,6 +28,24 @@ suite "Advertiser - addProvidedService":
 
     check disco.rtManager.hasService(serviceId)
 
+  test "caches this node's record when the caller supplies no advertisement":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    disco.populateRoutingTable(1)
+    check disco.addProvidedService(service).isOk()
+
+    let cached = disco.advertiser.providedAdverts[serviceId]
+    let ad = Advertisement.decode(cached).get()
+    check:
+      ad.data.peerId == disco.switch.peerInfo.peerId
+      ad.advertisesService(serviceId)
+
+    disco.switch.peerInfo.addrs = @[makeMultiAddress("10.0.0.2")]
+    check disco.record().get().encode() != cached
+    check disco.advertiser.providedAdverts[serviceId] == cached
+
   test "with empty routing table: creates table but schedules no actions":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()

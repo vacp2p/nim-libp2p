@@ -4,14 +4,9 @@
 {.used.}
 
 import sequtils, stew/byteutils
-import
-  ../../../libp2p/
-    [peerid, crypto/crypto, protocols/pubsub/mcache, protocols/pubsub/rpc/message]
+import ../../../libp2p/[peerid, protocols/pubsub/mcache, protocols/pubsub/rpc/message]
 import ../../tools/[unittest, crypto]
 import converters
-
-proc randomPeerId(): PeerId =
-  PeerId.init(PrivateKey.random(ECDSA, rng()).get()).get()
 
 const MsgIdGenSuccess = "msg id generation success"
 

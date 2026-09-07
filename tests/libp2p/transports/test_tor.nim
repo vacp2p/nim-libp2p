@@ -17,7 +17,7 @@ import
     muxers/mplex/mplex,
     builders,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 import ../../stubs/torstub
 import ./basic_tests
 import ./connection_tests
@@ -87,20 +87,17 @@ suite "Tor transport":
   )
   connectionTransportTest(torTransProvider, address, address2)
   streamTransportTest(
-    torTransProvider,
-    MultiAddress.init(address).get(),
-    Opt.none(MultiAddress),
-    streamProvider,
+    torTransProvider, ma(address), Opt.none(MultiAddress), streamProvider
   )
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())
-    let ma2 = @[MultiAddress.init(lintesAddr).tryGet()]
+    let ma2 = @[ma(lintesAddr)]
     await server.start(ma2)
 
     proc runClient() {.async.} =
       let client = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
-      let conn = await client.dial("", MultiAddress.init(dialAddr).tryGet())
+      let conn = await client.dial("", ma(dialAddr))
 
       await conn.write("client")
       var resp: array[6, byte]
@@ -152,13 +149,13 @@ suite "Tor transport":
 
       return T.new(codecs = @[TestCodec], handler = handle)
 
-    let ma = MultiAddress
+    let maddr = MultiAddress
       .init(
         "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
       )
       .tryGet()
 
-    let serverSwitch = TorSwitch.new(torServer, rng(), @[ma], {ReuseAddr})
+    let serverSwitch = TorSwitch.new(torServer, rng(), @[maddr], {ReuseAddr})
 
     # setup the custom proto
     let testProto = TestProto.new()

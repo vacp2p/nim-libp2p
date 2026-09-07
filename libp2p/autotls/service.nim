@@ -4,7 +4,6 @@
 {.push raises: [].}
 
 import sequtils
-import bearssl/pem
 import chronos, chronicles, net, results, uri
 import chronos/streams/tlsstream
 from times import DateTime, now, toTime, toUnix
@@ -139,7 +138,7 @@ proc new*(
   )
 
 method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
-  trace "Setting up AutotlsService"
+  info "Setting up AutotlsService"
   if self.config.ipAddress.isSome():
     return
   let ip = getPublicIPAddress().valueOr:
@@ -211,7 +210,7 @@ method issueCertificate(
       )
   self.cert = Opt.some(newCert)
   self.certReady.fire()
-  notice "AutoTLS successfully renewed certificate"
+  info "AutoTLS successfully renewed certificate"
 
 proc hasTcpStarted(switch: Switch): bool =
   switch.transports.filterIt(it of TcpTransport and it.running).len == 0
@@ -226,13 +225,13 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      error "Failed to issue certificate", err = exc.msg
+      debug "Certificate issuance failed", err = exc.msg, errType = exc.name
   error "Failed to issue certificate"
 
 method start*(
     self: AutotlsService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Starting Autotls management"
+  info "Starting Autotls management"
   self.running.fire()
   self.peerInfo = switch.peerInfo
 

@@ -26,7 +26,7 @@ import
   ../../utils/future
 
 export tables, sets, results, chronicles
-export PubSubPeer, PubSubObserver, protocol, pubsub_errors
+export PubSubPeer, PubSubObserver, RateLimit, protocol, pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -420,7 +420,7 @@ method getOrCreatePeer*(
     try:
       await p.rpcHandler(peer, move(data))
     except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler", description = e.msg, peer = peer
+      trace "failed to decode message in peerHandler", err = e.msg, peerId = peer
       # loop continues and invalid messages are swallowed
 
   # create new pubsub peer
@@ -452,6 +452,23 @@ method getOrCreatePeer*(
 
   return pubSubPeer
 
+proc disconnectPeer*(
+    p: PubSub, peer: PubSubPeer
+) {.async: (raises: [CancelledError]).} =
+  await p.switch.disconnect(peer.peerId)
+
+template punishOverBudget*(
+    p: PubSub, punished: PubSubPeer, invalidBytesSent: int, disconnectAboveLimit: bool
+) =
+  # a template, so that only the disconnect path allocates a future
+  debug "Peer sent too much useless application data and it's above rate limit.",
+    peer = punished, overhead = invalidBytesSent
+  if disconnectAboveLimit:
+    await p.disconnectPeer(punished)
+    raise newException(
+      PeerRateLimitError, "Peer disconnected because it's above rate limit."
+    )
+
 proc handleData*(
     p: PubSub, topic: string, data: seq[byte]
 ): Future[void] {.async: (raises: [], raw: true).} =
@@ -479,7 +496,7 @@ proc handleData*(
         for fut in futs:
           if fut.failed:
             let err = fut.error()
-            warn "Error in topic handler", description = err.msg
+            warn "Error in topic handler", err = err.msg
 
       return waiter()
 
@@ -676,11 +693,8 @@ method validate*(
     p: PubSub, message: Message
 ): Future[ValidationResult] {.async: (raises: [CancelledError]), base.} =
   var pending: seq[Future[ValidationResult]]
-  trace "about to validate message"
   let topic = message.topic
 
-  trace "looking for validators on topic",
-    topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
     trace "running validators for topic", topic = topic
     p.validators.withValue(topic, validators):

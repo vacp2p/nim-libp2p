@@ -42,11 +42,11 @@ proc extractPublicKey(m: Message): Opt[PublicKey] =
     return Opt.none(PublicKey)
 
   let derivedPeerId = PeerId.init(pubkey).valueOr:
-    warn "could not derive peerId from message public key"
+    trace "could not derive peerId from message public key"
     return Opt.none(PublicKey)
 
   if derivedPeerId != m.fromPeer:
-    warn "peerId derived from message public key is not the same as msg.fromPeer",
+    trace "peerId derived from message public key is not the same as msg.fromPeer",
       derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
     return Opt.none(PublicKey)
   Opt.some(pubkey)
@@ -60,7 +60,7 @@ proc verify*(m: Message): bool =
 
     var remote: Signature
     let key = m.extractPublicKey().valueOr:
-      warn "could not extract public key", msg = m
+      trace "could not extract public key", msg = m
       return false
 
     if remote.init(m.signature):

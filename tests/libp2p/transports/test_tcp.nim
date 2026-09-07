@@ -13,7 +13,7 @@ import
     muxers/mplex/mplex,
     muxers/yamux/yamux,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 import ./basic_tests
 import ./cancellation_tests
 import ./connection_tests
@@ -80,10 +80,7 @@ suite "TCP transport: mplex":
     checkTrackers()
 
   streamTransportTest(
-    tcpTransProvider,
-    MultiAddress.init(addressIP4).get(),
-    Opt.some(MultiAddress.init(addressIP6).get()),
-    mplexStreamProvider,
+    tcpTransProvider, ma(addressIP4), Opt.some(ma(addressIP6)), mplexStreamProvider
   )
 
 suite "TCP transport: yamux":
@@ -91,8 +88,5 @@ suite "TCP transport: yamux":
     checkTrackers()
 
   streamTransportTest(
-    tcpTransProvider,
-    MultiAddress.init(addressIP4).get(),
-    Opt.some(MultiAddress.init(addressIP6).get()),
-    yamuxStreamProvider,
+    tcpTransProvider, ma(addressIP4), Opt.some(ma(addressIP6)), yamuxStreamProvider
   )

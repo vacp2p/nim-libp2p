@@ -87,6 +87,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     dialRanking: bool
+    dialBackoff: Opt[DialBackoffConfig]
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
@@ -182,12 +183,16 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b
 
 proc withMplex*(
-    b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
+    b: SwitchBuilder,
+    inTimeout = 5.minutes,
+    outTimeout = 5.minutes,
+    maxChannCount = 200,
+    maxBufferedBytes = MaxBufferedBytes,
 ): SwitchBuilder =
   ## Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
   ## `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: RawConn): Muxer =
-    Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
+    Mplex.new(conn, inTimeout, outTimeout, maxChannCount, maxBufferedBytes)
 
   doAssert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
@@ -350,6 +355,11 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
 
 proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.dialRanking = enabled
+  b
+
+proc withDialBackoff*(b: SwitchBuilder, config = DefaultDialBackoff): SwitchBuilder =
+  ## Hold off dialing an address, and a peer, that keeps failing.
+  b.dialBackoff = Opt.some(config)
   b
 
 proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -528,6 +538,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     ms,
     b.nameResolver,
     dialRanking = b.dialRanking,
+    dialBackoff = b.dialBackoff,
   )
 
   let switch = Switch(

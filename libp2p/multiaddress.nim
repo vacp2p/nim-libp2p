@@ -1225,7 +1225,7 @@ proc getRepeatedField*(
   else:
     for item in items:
       let ma = MultiAddress.init(item).valueOr:
-        debug "Unsupported MultiAddress in blob", ma = item
+        debug "Unsupported MultiAddress in blob", address = item
         continue
 
       value.add(ma)

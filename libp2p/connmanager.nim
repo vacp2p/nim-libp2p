@@ -310,20 +310,22 @@ proc removeConnEventHandler*(
 proc triggerConnEvent*(
     c: ConnManager, peerId: PeerId, event: ConnEvent
 ) {.async: (raises: [CancelledError]).} =
-  try:
-    trace "About to trigger connection events", peer = peerId
-    if c.connEvents[event.kind].len > 0:
-      trace "triggering connection events", peer = peerId, event = $event.kind
-      var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
-      for h in c.connEvents[event.kind]:
-        connEvents.add(h(peerId, event))
+  if c.connEvents[event.kind].len == 0:
+    return
 
-      checkFutures(await allFinished(connEvents))
+  trace "triggering connection events", peerId = peerId, event = $event.kind
+
+  try:
+    var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
+    for h in c.connEvents[event.kind]:
+      connEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvent",
-      description = exc.msg, peer = peerId, event = $event
+    warn "Connection event callback failed",
+      err = exc.msg, errType = exc.name, peer = peerId, event = $event
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -341,12 +343,11 @@ proc removePeerEventHandler*(
 proc triggerPeerEvents*(
     c: ConnManager, peerId: PeerId, event: PeerEvent
 ) {.async: (raises: [CancelledError]).} =
-  trace "About to trigger peer events", peer = peerId
   if c.peerEvents[event.kind].len == 0:
     return
 
   try:
-    trace "triggering peer events", peer = peerId, event = $event
+    trace "triggering peer events", peerId = peerId, event = $event
 
     var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
@@ -356,7 +357,7 @@ proc triggerPeerEvents*(
   except CancelledError as exc:
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Exception in triggerPeerEvents", description = exc.msg, peer = peerId
+    warn "Peer event callback failed", err = exc.msg, errType = exc.name, peer = peerId
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction
@@ -386,15 +387,15 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   return c.muxerStore.contains(muxer)
 
 proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
-  trace "Cleaning up muxer", m = muxer
+  trace "Cleaning up muxer", muxer = muxer
 
   await muxer.close()
   if not muxer.handler.isNil:
     try:
       await muxer.handler
     except CatchableError as exc:
-      trace "Exception in close muxer handler", description = exc.msg
-  trace "Cleaned up muxer", m = muxer
+      trace "Exception in close muxer handler", err = exc.msg
+  trace "Cleaned up muxer", muxer = muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
   if c.muxerStore.count(peerId) > 0:
@@ -419,8 +420,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     await mux.connection.join()
     trace "Connection closed, cleaning up", mux
   except CatchableError as exc:
-    debug "Unexpected exception in connection manager's cleanup",
-      description = exc.msg, mux
+    trace "Unexpected exception in connection manager's cleanup", err = exc.msg, mux
   finally:
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
@@ -483,7 +483,7 @@ proc storeMuxer*(
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      trace "Per peer connections limit reached", conns = peerConnsCount, peerId
       raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):
@@ -578,7 +578,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     try:
       await conn.join()
     except CatchableError as exc:
-      trace "Exception in semaphore monitor, ignoring", description = exc.msg
+      trace "Exception in semaphore monitor, ignoring", err = exc.msg
     finally:
       cs.release()
 

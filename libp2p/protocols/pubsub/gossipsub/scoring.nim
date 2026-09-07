@@ -130,12 +130,6 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
-proc disconnectPeer*(g: GossipSub, peer: PubSubPeer) {.async: (raises: []).} =
-  try:
-    await g.switch.disconnect(peer.peerId)
-  except CatchableError as exc: # Never cancelled
-    trace "Failed to close connection", peer, errName = exc.name, description = exc.msg
-
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
   if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
       peer.peerId notin g.parameters.directPeers:
@@ -156,7 +150,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     if isNil(peer) or not (peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
-        trace "evicted peer from memory", peer = peerId
+        trace "evicted peer from memory", peerId = peerId
       continue
 
     trace "updating peer score", peer
@@ -192,7 +186,8 @@ proc updateScores*(g: GossipSub) = # avoid async
 
         topicScore +=
           info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
-        trace "p2", peer, p2 = info.firstMessageDeliveries, topic, topicScore
+        trace "Score component two",
+          peer, scoreComponent = info.firstMessageDeliveries, topic, topicScore
 
         if info.meshMessageDeliveriesActive:
           if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
@@ -208,9 +203,9 @@ proc updateScores*(g: GossipSub) = # avoid async
         topicScore +=
           info.invalidMessageDeliveries * info.invalidMessageDeliveries *
           topicParams.invalidMessageDeliveriesWeight
-        trace "p4",
+        trace "Score component four",
           peer,
-          p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries,
+          scoreComponent = info.invalidMessageDeliveries * info.invalidMessageDeliveries,
           topic,
           topicScore
 
@@ -333,28 +328,18 @@ proc updateScores*(g: GossipSub) = # avoid async
 
 proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "Gossipsub scoring", g.parameters.decayInterval:
-    trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
     for trigger in g.scoringHeartbeatEvents:
-      trace "firing scoring heartbeat event", instance = cast[int](g)
       trigger.fire()
 
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
-) {.async: (raises: [PeerRateLimitError]).} =
-  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
-    let uselessAppBytesNum = msg.data.len
-    if not overheadRateLimit.tryConsume(uselessAppBytesNum):
-      debug "Peer sent invalid message and it's above rate limit",
-        peer, uselessAppBytesNum
-      libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
-        # let's just measure at the beginning for test purposes.
-      if g.parameters.disconnectPeerAboveRateLimit:
-        await g.disconnectPeer(peer)
-        raise newException(
-          PeerRateLimitError, "Peer disconnected because it's above rate limit."
-        )
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+  if not peer.tryCharge(msg.data.len):
+    # counted before the disconnect below, which raises
+    libp2p_gossipsub_peers_rate_limit_hits.inc(labelValues = [peer.getAgent()])
+    g.punishOverBudget(peer, msg.data.len, g.parameters.disconnectPeerAboveRateLimit)
 
   if msg.topic notin g.topics:
     return

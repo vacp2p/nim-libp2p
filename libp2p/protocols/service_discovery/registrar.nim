@@ -229,7 +229,7 @@ proc sendRegisterResponse*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    error "failed to send register response", err = writeRes.error.msg
+    trace "failed to send register response", err = writeRes.error.msg
 
 proc acceptAdvertisement*(
     disco: ServiceDiscovery,
@@ -269,7 +269,7 @@ proc registration*(
     connectionIps: seq[IpAddress] = @[],
 ): Message =
   let serviceId = inMsg.key.valueOr:
-    error "Key not set: registration", msg = inMsg
+    trace "Key not set: registration", msg = inMsg
     return
 
   discard disco.rtable.insert(peerId)
@@ -292,7 +292,7 @@ proc registration*(
   )
 
   let regMsg = inMsg.register.valueOr:
-    error "no register message"
+    trace "no register message"
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -301,7 +301,7 @@ proc registration*(
     return msg
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
-    error "invalid advertisement", error
+    trace "invalid advertisement", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -313,7 +313,7 @@ proc registration*(
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
   let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
-    error "invalid ticket", error
+    trace "invalid ticket", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -375,7 +375,7 @@ proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
   let serviceId = msg.key.valueOr:
-    error "Key not set: getAdvertisements", msg = msg
+    trace "Key not set: getAdvertisements", msg = msg
     return
 
   discard disco.rtable.insert(peerId)

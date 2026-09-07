@@ -15,7 +15,7 @@ import
     nameresolving/dnsresolver,
     nameresolving/mockresolver,
   ]
-import ../tools/[unittest]
+import ../tools/[unittest, multiaddress]
 
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
@@ -60,14 +60,14 @@ suite "Name resolving":
     var resolver {.threadvar.}: MockResolver
 
     proc testOne(input: string, output: seq[MultiAddress]) {.async.} =
-      let resolved = await resolver.resolveMAddress(MultiAddress.init(input).tryGet())
+      let resolved = await resolver.resolveMAddress(ma(input))
       check resolved == output
 
     proc testOne(input: string, output: seq[string]) {.async.} =
-      await testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
+      await testOne(input, output.mapIt(ma(it)))
 
     proc testOne(input, output: string) {.async.} =
-      await testOne(input, @[MultiAddress.init(output).tryGet()])
+      await testOne(input, @[ma(output)])
 
     asyncSetup:
       resolver = MockResolver.new()
@@ -155,8 +155,7 @@ suite "Name resolving":
 
     test "getHostname":
       check:
-        MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname ==
-          "bootstrap.libp2p.io"
+        ma("/dnsaddr/bootstrap.libp2p.io/").getHostname == "bootstrap.libp2p.io"
 
         MultiAddress
           .init(
@@ -169,10 +168,10 @@ suite "Name resolving":
             "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
           )
           .tryGet().getHostname == "2604:1380:1000:6000::1"
-        MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
-        MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
-        MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"
-        MultiAddress.init("/wss/").tryGet().getHostname == ""
+        ma("/dns/localhost/udp/0").getHostname == "localhost"
+        ma("/dns4/hello.com/udp/0").getHostname == "hello.com"
+        ma("/dns6/hello.com/udp/0").getHostname == "hello.com"
+        ma("/wss/").getHostname == ""
 
   suite "DNS Resolving":
     teardown:

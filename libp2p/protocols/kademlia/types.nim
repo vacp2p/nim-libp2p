@@ -343,7 +343,7 @@ proc toPeerIds*(keys: seq[Key]): seq[PeerId] =
   var peerIds = newSeqOfCap[PeerId](keys.len)
   for k in keys:
     let peerId = k.toPeerId().valueOr:
-      error "cannot convert key to peer id", error
+      trace "cannot convert key to peer id", error
       continue
     peerIds.add(peerId)
   return peerIds

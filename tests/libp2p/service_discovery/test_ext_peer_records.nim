@@ -7,17 +7,14 @@ import stew/byteutils
 import
   ../../../libp2p/
     [crypto/crypto, peerid, multiaddress, routing_record, extended_peer_record]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 suite "Extended peer record":
   test "Encoding roundtrip test":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       services = @[ServiceInfo(id: "test_service", data: Opt.none(seq[byte]))]
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
@@ -47,10 +44,7 @@ suite "Signed Extended Peer Record":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       services = @[ServiceInfo(id: "test_service", data: Opt.none(seq[byte]))]
 
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
@@ -71,10 +65,7 @@ suite "Signed Extended Peer Record":
       privKey = PrivateKey.random(rng()).tryGet()
       privKey2 = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       services = @[ServiceInfo(id: "test_service", data: Opt.none(seq[byte]))]
       signedExtPR = SignedExtendedPeerRecord.init(
         privKey2, ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
@@ -92,8 +83,7 @@ suite "Signed Extended Peer Record":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      multiAddresses = @[MultiAddress(), ma("/ip4/0.0.0.0/tcp/25")]
       services = @[ServiceInfo(id: "test_service", data: Opt.none(seq[byte]))]
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
@@ -132,7 +122,7 @@ suite "Signed Extended Peer Record":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/25")]
       services: seq[ServiceInfo] = @[]
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 

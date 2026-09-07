@@ -79,7 +79,7 @@ proc resolveDnsAddr*(
 
   trace "Resolving dnsaddr", ma
   if depth > 6:
-    info "Stopping DNSADDR recursion, probably malicious", ma
+    trace "Stopping DNSADDR recursion, probably malicious", ma
     return @[]
 
   let

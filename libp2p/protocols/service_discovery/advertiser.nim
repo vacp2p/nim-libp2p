@@ -45,12 +45,12 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
     return Opt.some(explicit.get())
 
   let extRecord = disco.record().valueOr:
-    error "failed to create extended peer record", error
+    debug "failed to create extended peer record", error
     return Opt.none(seq[byte])
   Opt.some(extRecord.encode())
 
 proc advertFor(disco: ServiceDiscovery, serviceId: ServiceId): seq[byte] =
-  ## The caller's own bytes when it supplied them, this node's record otherwise.
+  ## The bytes stored when the service was added, a fresh record only after a clear().
   disco.advertiser.providedAdverts.withValue(serviceId, stored):
     return stored[]
 
@@ -268,7 +268,7 @@ proc advertiseToRegistrar*(
     let response = (
       await disco.sendRegister(registrar, serviceId, advert, currentTicket)
     ).valueOr:
-      error "failed to register ad", serviceId, registrar, error
+      debug "failed to register ad", serviceId, registrar, error
       return
 
     disco.admitPeers(response.closerPeers)
@@ -296,7 +296,7 @@ proc advertiseToRegistrar*(
         return
     of kademlia_protobuf.RegistrationStatus.Wait:
       let newTicket = response.ticket.valueOr:
-        error "no ticket to retry with", serviceId, registrar
+        trace "no ticket to retry with", serviceId, registrar
         return
 
       currentTicket = Opt.some(newTicket)
@@ -350,7 +350,7 @@ proc scheduleRegistrations(
 
     for peer in peers:
       let registrar = peer.toPeerId().valueOr:
-        error "cannot convert key to peer id", error
+        trace "cannot convert key to peer id", error
         continue
 
       disco.trackAdvertiseTask(serviceId, registrar, bucketIdx, advertBytes)
@@ -392,14 +392,12 @@ proc addProvidedService*(
     disco.undoProvidedService(service, serviceId)
     return err("routing table missing for service '" & service.id & "'")
 
-  # When a caller supplied an explicit advert we store it so that future
-  # rotations / replacements (maintenance) reuse exactly the same bytes.
-  if advert.isSome():
-    disco.advertiser.providedAdverts[serviceId] = advert.get()
-
   let advertBytes = disco.getAdvertBytes(advert).valueOr:
     disco.undoProvidedService(service, serviceId)
     return err("cannot build the extended peer record to advertise")
+
+  # Rotations reuse these bytes; a later seqNo would duplicate this node in a lookup.
+  disco.advertiser.providedAdverts[serviceId] = advertBytes
 
   debug "added provided service", service = service.id, serviceId
   cd_advertiser_services_added.inc()

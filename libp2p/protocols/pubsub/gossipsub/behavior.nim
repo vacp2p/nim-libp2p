@@ -73,7 +73,7 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
 
     stats.topicInfos[topic] = info
 
-    trace "grafted", peer = p, topic
+    trace "grafted", peerId = p, topic
 
 proc pruned*(
     g: GossipSub,
@@ -101,7 +101,7 @@ proc pruned*(
 
       info.inMesh = false
 
-      trace "pruned", peer = p, topic
+      trace "pruned", peerId = p, topic
 
 proc handleBackingOff*(t: var BackoffTable, topic: string) =
   let now = Moment.now()
@@ -144,7 +144,7 @@ proc handleGraft*(
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
       # we are trusting direct peer not to abuse this
-      warn "a direct peer attempted to graft us, peering agreements should be reciprocal",
+      trace "a direct peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
@@ -377,8 +377,6 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     mesh = g.mesh.peers(topic)
     gossipsub = g.gossipsub.peers(topic)
 
-  trace "rebalancing mesh"
-
   # create a mesh topic that we're subscribing to
 
   var
@@ -599,8 +597,6 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       metrics[].otherPeersPerTopicFanout += g.fanout.peers(topic).int64
       metrics[].otherPeersPerTopicMesh += g.mesh.peers(topic).int64
 
-  trace "mesh balanced"
-
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
     let graft = RPCMsg.withControl(ControlMessage.withGraft(topic))
@@ -630,7 +626,6 @@ proc replenishFanout*(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
   logScope:
     topic
-  trace "about to replenish fanout"
 
   if g.fanout.peers(topic) < g.parameters.dLow:
     let currentMesh = g.mesh.getOrDefault(topic)
@@ -775,9 +770,7 @@ proc onHeartbeat(g: GossipSub) =
 
 proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:
-    trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()
 
     for trigger in g.heartbeatEvents:
-      trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()

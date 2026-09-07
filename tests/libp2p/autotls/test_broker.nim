@@ -15,7 +15,7 @@ import
     peeridauth/client,
     peerinfo,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 import ../../stubs/peer_id_auth_client_stub
 
 suite "AutoTLS broker":
@@ -37,7 +37,7 @@ suite "AutoTLS broker":
     client = PeerIDAuthClientStub.new()
     broker = AutotlsBroker.new(rng(), parseUri(RegistrationURL), client)
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.Ed25519, rng()).get())
-    addrs = Addresses.mapIt(MultiAddress.init(it).get())
+    addrs = Addresses.mapIt(ma(it))
 
   asyncTest "an empty address set is refused before the broker is contacted":
     expect(AutoTLSError):

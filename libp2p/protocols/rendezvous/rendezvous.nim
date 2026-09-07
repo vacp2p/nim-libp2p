@@ -92,6 +92,8 @@ type
     # the value is the index sequence corresponding to this
     # namespace in the offsettedqueue.
     namespaces*: Table[string, seq[int]]
+    # Number of entries of `registered` per peer.
+    registeredCount*: Table[PeerId, int]
     rng*: Rng
     config*: RendezVousConfig
     salt*: string
@@ -163,8 +165,13 @@ proc sendDiscoverResponseError*(
   )
   await stream.writeLp(msg)
 
-proc countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
-  rdv.registered.countIt(it.peerId == peerId)
+func countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
+  rdv.registeredCount.getOrDefault(peerId)
+
+proc recountRegistered[E](rdv: GenericRendezVous[E]) =
+  rdv.registeredCount.clear()
+  for reg in rdv.registered.s:
+    rdv.registeredCount.mgetOrPut(reg.peerId, 0).inc()
 
 proc save*[E](
     rdv: GenericRendezVous[E],
@@ -188,6 +195,7 @@ proc save*[E](
         data: r,
       )
     )
+    rdv.registeredCount.mgetOrPut(peerId, 0).inc()
     rdv.namespaces[nsSalted].add(rdv.registered.high)
   #    rdv.registerEvent.fire()
   except exceptions.KeyError as e:
@@ -196,7 +204,7 @@ proc save*[E](
 proc register*[E](
     rdv: GenericRendezVous[E], stream: Stream, r: Register, peerRecord: E
 ): Future[void] =
-  trace "Received Register", peerId = stream.peerId, ns = r.ns
+  trace "Register received", peerId = stream.peerId, namespace = r.ns
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return stream.sendRegisterResponseError(InvalidNamespace)
@@ -215,7 +223,7 @@ proc register*[E](
   stream.sendRegisterResponse(ttl)
 
 proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
-  trace "Received Unregister", peerId = stream.peerId, ns = u.ns
+  trace "Unregister received", peerId = stream.peerId, namespace = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
     for index in rdv.namespaces[nsSalted]:
@@ -225,10 +233,18 @@ proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
   except exceptions.KeyError:
     return
 
+iterator discoverIndexes(nsIndexes: Opt[seq[int]], first, last: int): int =
+  if nsIndexes.isSome():
+    for index in nsIndexes.get():
+      yield index
+  else:
+    for index in first .. last:
+      yield index
+
 proc discover*[E](
     rdv: GenericRendezVous[E], stream: Stream, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "Received Discover", peerId = stream.peerId, ns = d.ns
+  trace "Discover received", peerId = stream.peerId, namespace = d.ns
   libp2p_rendezvous_discover.inc()
   if d.ns.isSome() and d.ns.get().len > MaximumNamespaceLen:
     await stream.sendDiscoverResponseError(InvalidNamespace)
@@ -253,31 +269,40 @@ proc discover*[E](
   elif cookie.offset > (rdv.registered.high() + 1).uint64:
     # Cookie ahead of available range: reset to one past current high (empty page)
     cookie.offset = (rdv.registered.high() + 1).uint64
-  let namespaces =
+  let nsIndexes =
     if d.ns.isSome():
       try:
-        rdv.namespaces[d.ns.get() & rdv.salt]
+        Opt.some(rdv.namespaces[d.ns.get() & rdv.salt])
       except exceptions.KeyError:
-        await stream.sendDiscoverResponseError(InvalidNamespace)
+        await stream.sendDiscoverResponse(@[], Cookie())
         return
     else:
-      toSeq(max(cookie.offset.int, rdv.registered.offset) .. rdv.registered.high())
-  if namespaces.len() == 0:
-    await stream.sendDiscoverResponse(@[], Cookie())
-    return
-  var nextOffset = cookie.offset
-  let n = Moment.now()
-  var s: seq[Register] = @[]
-  for index in namespaces:
-    var reg = rdv.registered[index]
+      Opt.none(seq[int])
+  let
+    first = max(cookie.offset.int, rdv.registered.offset)
+    last = rdv.registered.high()
+    n = Moment.now()
+  var
+    nextOffset = cookie.offset
+    s: seq[Register] = @[]
+    hasCandidates = false
+  for index in discoverIndexes(nsIndexes, first, last):
+    hasCandidates = true
     if limit == 0:
       break
-    if reg.expiration < n or index.uint64 < cookie.offset:
+    let expiration = rdv.registered[index].expiration
+    if expiration < n or index.uint64 < cookie.offset:
       continue
     limit.dec()
     nextOffset = index.uint64 + 1
-    reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
-    s.add(reg.data)
+    var data = rdv.registered[index].data
+    data.ttl = Opt.some((expiration - n).seconds.uint64)
+    s.add(data)
+
+  if not hasCandidates:
+    await stream.sendDiscoverResponse(@[], Cookie())
+    return
+
   rdv.rng.shuffle(s)
   await stream.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
@@ -293,7 +318,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          debug "failed to decode Message", error = error
+          trace "failed to decode Message", err = error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -304,7 +329,7 @@ proc advertisePeer[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in the advertise", description = exc.msg
+      trace "exception in the advertise", err = exc.msg
     finally:
       try:
         rdv.sema.release()
@@ -324,7 +349,7 @@ proc advertise*[E](
   let signedPeerRecord = SignedPayload[E].init(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
-    info "Can't create the signed peer record", error = error
+    info "Can't create the signed peer record", err = error
     return
 
   let pBuff = signedPeerRecord.encode()
@@ -404,13 +429,13 @@ proc requestPeer[E](
   let
     buf = await stream.readLp(MaximumMessageLen)
     msgRcv = Message.decode(buf).valueOr:
-      debug "Message undecodable", error = error
+      trace "Message undecodable", err = error
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
-    debug "Unexpected discover response", msgType = msgRcv.msgType
+    trace "Unexpected discover response", msgType = msgRcv.msgType
     return @[]
   let resp = msgRcv.discoverResponse.valueOr:
-    debug "Discover response is empty"
+    trace "Discover response is empty"
     return @[]
   if resp.status != ResponseStatus.Ok:
     trace "Cannot discover", ns, status = resp.status, text = resp.text
@@ -477,9 +502,9 @@ proc request*[E](
     except CancelledError as e:
       raise e
     except DialFailedError as e:
-      trace "failed to dial a peer", description = e.msg
+      trace "failed to dial a peer", err = e.msg
     except LPStreamError as e:
-      trace "failed to communicate with a peer", description = e.msg
+      trace "failed to communicate with a peer", err = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc unsubscribeLocally*[E](rdv: GenericRendezVous[E], ns: string) =
@@ -510,7 +535,7 @@ proc unsubscribe*[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception while unsubscribing", description = exc.msg
+      trace "exception while unsubscribing", err = exc.msg
 
   let futs = collect(newSeq()):
     for peer in peerIds:
@@ -560,7 +585,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          debug "failed to decode Message", error = error
+          trace "failed to decode Message", err = error
           return
       case msg.msgType
       of MessageType.Register:
@@ -579,7 +604,7 @@ proc new*(
       trace "cancelled rendezvous handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in rendezvous handler", description = exc.msg
+      trace "exception in rendezvous handler", err = exc.msg
     finally:
       await stream.close()
 
@@ -598,17 +623,44 @@ proc new*(
   rdv.setup(switch)
   return rdv
 
+func isLive(reg: RegisteredData, n: Moment): bool =
+  reg.expiration >= n
+
+proc clearExpiredRegistrations[E](rdv: GenericRendezVous[E], n: Moment) =
+  rdv.registered.flushIfIt(it.expiration < n)
+
+  # An entry behind a live one keeps its index so the cookies stay valid.
+  for reg in rdv.registered.mitems():
+    if not reg.isLive(n):
+      reg = RegisteredData(expiration: rdv.expiredDT)
+
+proc dropExpiredNamespaces[E](rdv: GenericRendezVous[E], n: Moment) =
+  var emptied: seq[string] = @[]
+
+  for ns, indexes in rdv.namespaces.mpairs():
+    indexes =
+      indexes.filterIt(it >= rdv.registered.offset and rdv.registered[it].isLive(n))
+    if indexes.len == 0:
+      emptied.add(ns)
+
+  for ns in emptied:
+    rdv.namespaces.del(ns)
+
+func liveRegistrations[E](rdv: GenericRendezVous[E]): int =
+  var total = 0
+  for indexes in rdv.namespaces.values():
+    total += indexes.len
+  total
+
 proc deletesRegister*[E](
     rdv: GenericRendezVous[E], interval = 1.minutes
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Register timeout", interval:
     let n = Moment.now()
-    var total = 0
-    rdv.registered.flushIfIt(it.expiration < n)
-    for data in rdv.namespaces.mvalues():
-      data.keepItIf(it >= rdv.registered.offset)
-      total += data.len
-    libp2p_rendezvous_registered.set(int64(total))
+    rdv.clearExpiredRegistrations(n)
+    rdv.dropExpiredNamespaces(n)
+    rdv.recountRegistered()
+    libp2p_rendezvous_registered.set(int64(rdv.liveRegistrations()))
     libp2p_rendezvous_namespaces.set(int64(rdv.namespaces.len))
 
 method start*[E](

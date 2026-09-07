@@ -8,6 +8,7 @@ import ../../libp2p/[builders, peerid, wire]
 import ../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
 import ../tools/crypto
 import ../libp2p/pubsub/extensions/my_partial_message
+import ../tools/multiaddress
 
 const partialTopic* = "logos-partial"
 
@@ -42,7 +43,7 @@ proc partialMessageInteropTest*(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init(ourAddr).tryGet()])
+    .withAddresses(@[ma(ourAddr)])
     .withPrivateKey(key)
     .withTcpTransport()
     .withMplex()
@@ -110,7 +111,7 @@ proc partialMessageInteropTest*(
 
   # other peer was started before nim peer. it is safe to connect to them
   # right away and subscribe to partial messages topic.
-  await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
+  await switch.connect(otherPeerId, @[ma(otherAddr)])
   gossipsub.subscribe(partialTopic, nil, requestsPartial = true)
 
   # wait on request to be fulfilled
