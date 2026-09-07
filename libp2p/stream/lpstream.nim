@@ -169,9 +169,9 @@ method readExactly*(
     trace "Read twice while at EOF"
     raise newLPStreamEOFError()
 
-if read < nbytes:
-  trace "Couldn't read all bytes, incomplete data", stream = s, nbytes, read
-  raise newLPStreamIncompleteError()
+  if read < nbytes:
+    trace "Couldn't read all bytes, incomplete data", stream = s, nbytes, read
+    raise newLPStreamIncompleteError()
 
 method readLine*(
     s: LPStream, limit = 0, sep = "\r\n"
