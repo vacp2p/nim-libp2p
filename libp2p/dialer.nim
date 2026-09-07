@@ -582,7 +582,8 @@ proc finishUpgrade(
     await muxed.close()
     raise e
   except CatchableError as e:
-    trace "Outgoing connection upgrade failed", err = e.msg, peerId
+    trace "Outgoing connection upgrade failed",
+      err = e.msg, peerId = muxed.connection.peerId
     await muxed.close()
     raise newException(
       DialFailedError, "failed finishUpgrade in establishConnection: " & e.msg, e
