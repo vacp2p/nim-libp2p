@@ -310,7 +310,7 @@ proc removeConnEventHandler*(
 proc triggerConnEvent*(
     c: ConnManager, peerId: PeerId, event: ConnEvent
 ) {.async: (raises: [CancelledError]).} =
-  if c.connEvents[event.kind].len > 0:
+  if c.connEvents[event.kind].len == 0:
     return
 
   trace "triggering connection events", peerId = peerId, event = $event.kind
