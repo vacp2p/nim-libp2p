@@ -168,7 +168,6 @@ proc decryptWithAd(
     buf = data[0 .. (data.high - ChaChaPolyTag.len)]
   nonce[4 ..< 12] = toBytesLE(state.n)
   ChaChaPoly.decrypt(state.k, nonce, tagOut, buf, ad)
-  trace "Noise frame decrypted", messageSize = data.len, nonce = state.n
   if tagIn != tagOut:
     debug "Noise frame authentication failed",
       messageSize = data.len, message = shortLog(data)
@@ -176,6 +175,7 @@ proc decryptWithAd(
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  trace "Noise frame decrypted", messageSize = data.len, nonce = state.n
   buf
 
 # Symmetricstate
