@@ -57,11 +57,11 @@ proc dispatchPutVal*(
   )
   let reply = ?await kad.dispatchRpc(peer, msg)
 
-  trace "Put-value reply received",
+  trace "Kademlia put-value RPC completed",
     peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
   if reply != msg:
-    trace "Put-value reply differed from request",
+    trace "Kademlia put-value RPC reply rejected",
       peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
   ok()
@@ -158,5 +158,6 @@ proc handlePutValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send find-node RPC reply", err = exc.msg, stream
+    trace "Kademlia put-value RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.putValue
     return

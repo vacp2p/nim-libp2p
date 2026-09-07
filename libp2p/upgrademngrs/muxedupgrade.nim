@@ -34,9 +34,9 @@ proc mux(
     async: (raises: [CancelledError, LPStreamError, MultiStreamError])
 .} =
   ## mux secure connection
-  trace "Muxing connection", secureConn
+  trace "Mux negotiation started", secureConn
   if self.muxers.len == 0:
-    warn "no muxers registered, skipping upgrade flow", secureConn
+    warn "Mux negotiation skipped", secureConn, reason = "no registered muxers"
     return Opt.none(Muxer)
 
   let
@@ -47,10 +47,10 @@ proc mux(
       of Direction.In:
         await MultistreamSelect.handle(secureConn, self.muxers.mapIt(it.codec))
     muxerProvider = self.getMuxerByCodec(muxerName).valueOr:
-      debug "no muxer available, early exit", secureConn, muxerName
+      debug "Mux negotiation failed", secureConn, protocol = muxerName
       return Opt.none(Muxer)
 
-  trace "Found a muxer", secureConn, muxerName
+  trace "Mux negotiation completed", secureConn, protocol = muxerName
 
   # create new muxer for connection
   let muxer = muxerProvider.newMuxer(secureConn)
@@ -63,7 +63,7 @@ proc mux(
 method upgrade*(
     self: MuxedUpgrade, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
-  trace "Upgrading connection", conn, direction = conn.dir
+  trace "Connection upgrade started", conn, direction = conn.dir
 
   let sconn = await self.secure(conn, peerId) # secure the connection
   if sconn == nil:
@@ -81,7 +81,7 @@ method upgrade*(
       msg: "Connection closed or missing peer info, stopping upgrade"
     )
 
-  trace "Upgraded connection", conn, sconn, direction = conn.dir
+  trace "Connection upgrade completed", conn, secureConn = sconn, direction = conn.dir
   muxer
 
 proc new*(
@@ -95,7 +95,7 @@ proc new*(
     T(muxers: muxers, secureManagers: @secureManagers, ms: ms, connManager: connManager)
 
   upgrader.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
-    trace "Starting stream handler", stream
+    trace "Protocol stream handler started", stream
     try:
       upgrader.connManager.withValue(connManager):
         let ready = await connManager.waitForPeerReady(stream.peerId)
@@ -107,7 +107,7 @@ proc new*(
       return
     finally:
       await stream.closeWithEOF()
-    trace "Stream handler done", stream
+    trace "Protocol stream handler completed", stream
 
   return upgrader
 

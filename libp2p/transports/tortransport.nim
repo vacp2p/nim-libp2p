@@ -17,6 +17,9 @@ import
   ../multiaddress,
   ../upgrademngrs/upgrade
 
+logScope:
+  topics = "libp2p tortransport"
+
 const
   IPTcp = mapAnd(IP, mapEq("tcp"))
   IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
@@ -227,7 +230,7 @@ method dial*(
   ##
   if not handlesDial(address):
     raise newException(TransportDialError, "Address not supported")
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
 
   var transp: StreamTransport
 

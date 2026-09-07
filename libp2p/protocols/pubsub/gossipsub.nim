@@ -1169,6 +1169,9 @@ method start*(
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  reportBackgroundFailure(g.heartbeatFut, "gossipsub heartbeat")
+  reportBackgroundFailure(g.scoringHeartbeatFut, "gossipsub scoring")
+  reportBackgroundFailure(g.directPeersLoop, "gossipsub direct peer maintenance")
   g.started = true
   newFutureCompleted[void]()
 

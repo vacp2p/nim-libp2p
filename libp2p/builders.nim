@@ -43,6 +43,9 @@ export
   natservice.holePunchingConfig, natservice.AutonatV2ServiceConfig,
   natservice.AutonatV2Service, natservice.natService
 
+logScope:
+  topics = "libp2p builders"
+
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
@@ -471,7 +474,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     PrivateKey.random(b.rng).expect("Expected default Private Key")
 
   if b.secureManagers.len == 0:
-    debug "no secure managers defined. Adding noise by default"
+    debug "No secure managers configured; using Noise by default"
     b.secureManagers.add(SecureProtocol.Noise)
 
   var secureManagerInstances: seq[Secure]

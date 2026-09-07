@@ -162,7 +162,7 @@ method readExactly*(
 
   if read == 0:
     doAssert s.atEof()
-    trace "couldn't read all bytes, stream EOF", s, nbytes, read
+    trace "Couldn't read all bytes, stream EOF", s, nbytes, read
     # Re-readOnce to raise a more specific error than EOF
     # Raise EOF if it doesn't raise anything(shouldn't happen)
     discard await s.readOnce(addr pbuffer[read], nbytes - read)
@@ -170,7 +170,7 @@ method readExactly*(
     raise newLPStreamEOFError()
 
   if read < nbytes:
-    trace "couldn't read all bytes, incomplete data", s, nbytes, read
+    trace "Couldn't read all bytes, incomplete data", s, nbytes, read
     raise newLPStreamIncompleteError()
 
 method readLine*(

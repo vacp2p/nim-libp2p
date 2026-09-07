@@ -4,7 +4,7 @@
 {.used.}
 
 import nimcrypto/utils, stew/base58
-import ../../libp2p/[cid, crypto/crypto, multicodec, peerid]
+import ../../libp2p/[cid, crypto/crypto, multicodec, multihash, peerid]
 import ../tools/[unittest, crypto]
 
 ## Test vectors was made using Go implementation
@@ -265,6 +265,15 @@ suite "Peer testing suite":
       PeerId.init(wrongCodecCid).isErr()
       PeerId.init("z" & legacyPeerId).isErr()
       PeerId.init(malformedCid).isErr()
+
+  test "Reject PeerId with trailing bytes":
+    let
+      valid = PeerId.init(PeerIds[3]).tryGet()
+      padded = valid.getBytes() & @[0'u8]
+
+    check:
+      not MultiHash.validate(padded)
+      PeerId.init(padded).isErr()
 
   test "Test PeerId.random() proc":
     var randomPeer1 = PeerId.random(rng())

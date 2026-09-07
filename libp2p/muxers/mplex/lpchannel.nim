@@ -110,7 +110,7 @@ proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
     # If the connection is still active, notify the other end
     proc resetMessage() {.async: (raises: []).} =
       try:
-        trace "sending reset message", s, conn = s.conn
+        trace "Sending reset message", s, conn = s.conn
         await noCancel s.conn.writeMsg(s.id, s.resetCode) # write reset
       except LPStreamError as exc:
         trace "Can't send reset message", err = exc.msg, s, conn = s.conn
@@ -173,7 +173,7 @@ method readOnce*(
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
   if s.remoteReset:
-    trace "reset stream in readOnce", s
+    trace "Reset stream in readOnce", s
     raise newLPStreamResetError()
   if s.localReset:
     raise newLPStreamClosedError()
@@ -212,7 +212,7 @@ proc prepareWrite(
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
-    trace "stream is reset when prepareWrite", s
+    trace "Stream is reset when prepareWrite", s
     raise newLPStreamResetError()
   if s.closedLocal:
     raise newLPStreamClosedError()
@@ -268,7 +268,7 @@ proc completeWrite(
   except LPStreamEOFError as exc:
     raise exc
   except LPStreamError as exc:
-    trace "exception in lpchannel write handler", err = exc.msg, s
+    trace "Exception in lpchannel write handler", err = exc.msg, s
     await s.reset()
     await s.conn.close()
     raise newLPStreamConnDownError(exc)

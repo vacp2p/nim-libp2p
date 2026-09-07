@@ -89,4 +89,4 @@ proc handleMessage*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    trace "failed to send message response", err = writeRes.error.msg
+    trace "Failed to send message response", err = writeRes.error.msg

@@ -139,3 +139,12 @@ proc waitForTCPServer*(
       discard
     await sleepAsync(delay)
   return false
+
+proc reportBackgroundFailure*(
+    fut: FutureBase, operation: string
+) {.gcsafe, raises: [].} =
+  ## Cancellation is normal shutdown and deliberately produces no event.
+  fut.addCallback proc(udata: pointer) {.gcsafe, raises: [].} =
+    if fut.failed():
+      let exc = fut.error()
+      error "Background operation stopped", err = exc.msg, errType = exc.name, operation

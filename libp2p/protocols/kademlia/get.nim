@@ -137,7 +137,7 @@ method handleGetValue*(
   var entryRecordOpt = kad.dataTable.get(key)
   entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
-      trace "record expired, dropping", key = key
+      trace "Record expired, dropping", key = key
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
