@@ -66,7 +66,6 @@ suite "Dialer":
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Max connections reached":
-    # TODO: vacp2p/nim-lsquic#162
     var switches: seq[Switch]
 
     let dst = makeStandardSwitchBuilder()
@@ -84,9 +83,10 @@ suite "Dialer":
     let src = makeStandardSwitch()
     switches.add(src)
     await src.start()
-    check not await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs).withTimeout(
-      1000.millis
-    )
+
+    expect DialFailedError:
+      await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    check src.peerInfo.peerId notin dst.connManager.connectedPeers()
 
     await allFuturesRaising(switches.mapIt(it.stop()))
 
