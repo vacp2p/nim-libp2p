@@ -1,21 +1,14 @@
 # Logging policy
 
-This is the authoritative guide for Chronicles log levels in nim-libp2p.
-Severity represents operational impact and the action required from the library
-user. It does not follow the wording of a message, whether code is in an
-`except` branch, or whether an operation returned an error.
+This is the authoritative guide for Chronicles log levels in nim-libp2p. Severity represents operational impact and the action required from the library user. It does not follow the wording of a message, whether code is in an `except` branch, or whether an operation returned an error.
 
 ## Choose a level
 
-1. Did an enabled component or background operation become unusable? Use
-   `error`.
-2. Is the library still operating, but the user should correct configuration,
-   API use, a callback, or a resource constraint? Use `warn`.
+1. Did an enabled component or background operation become unusable? Use `error`.
+2. Is the library still operating, but the user should correct configuration, API use, a callback, or a resource constraint? Use `warn`.
 3. Is this a low-frequency normal lifecycle milestone? Use `info`.
-4. Is it a bounded summary of why an operation failed, was skipped, or selected
-   a fallback? Use `debug`.
-5. Is it an individual peer, message, stream, packet, retry, cancellation, or
-   expected network event? Use `trace` or omit the log.
+4. Is it a bounded summary of why an operation failed, was skipped, or selected a fallback? Use `debug`.
+5. Is it an individual peer, message, stream, packet, retry, cancellation, or expected network event? Use `trace` or omit the log.
 
 | Level | Audience and frequency | Meaning |
 | --- | --- | --- |
@@ -27,8 +20,7 @@ user. It does not follow the wording of a message, whether code is in an
 
 ## Structured fields
 
-Chronicle messages are stable, concise event descriptions. Put variable data in
-structured fields rather than interpolating it into a message string.
+Chronicle messages are stable, concise event descriptions. Put variable data in structured fields rather than interpolating it into a message string.
 
 | Field | Use |
 | --- | --- |
@@ -43,33 +35,17 @@ structured fields rather than interpolating it into a message string.
 | `messageSize` | Encoded or payload size in bytes. |
 | `reason` | A bounded validation, rejection, or decision reason when no exception or error result exists. |
 
-Do not use `description`, `error`, `message`, or `msg` for exception text. Do
-not log complete peer-controlled messages, buffers, records, advertisements,
-keys, certificates, or tickets; log bounded metadata such as `messageType`,
-`messageSize`, `peerId`, and `reason` instead.
+Do not use `description`, `error`, `message`, or `msg` for exception text. Do not log complete peer-controlled messages, buffers, records, advertisements, keys, certificates, or tickets; log bounded metadata such as `messageType`, `messageSize`, `peerId`, and `reason` instead.
 
-Use field names of at least three characters. `id` and `ip` are the only
-accepted abbreviations; never use a one-character field name in logs. Log
-fields are operator-facing data, not local code variables.
+Use field names of at least three characters. `id` and `ip` are the only accepted abbreviations; never use a one-character field name in logs. Log fields are operator-facing data, not local code variables.
 
 ## Network, exceptions, cancellation, and retries
 
-Remote-controlled events must not produce `warn` or `error` merely because the
-input is invalid. Malformed, incompatible, rejected, and adversarial peer input
-is expected on a public P2P network; elevated logs would let peers create
-production log noise. Log it at `trace`, or at `debug` only when a bounded
-operation-level summary is useful.
+Remote-controlled events must not produce `info` or `warn` or `error`  merely because the input is invalid. Malformed, incompatible, rejected, and adversarial peer input is expected on a public P2P network; elevated logs would let peers create production log noise. Log it at `trace`, or at `debug` only when a bounded operation-level summary is useful.
 
-An `except` block does not determine severity. Expected handled exceptions are
-`trace` or unlogged. A recovered operation summary is `debug`; actionable
-degradation is `warn`; and terminal component failure is `error`. When a failure
-is returned or re-raised, reporting normally belongs to the caller, so do not
-log it again at a higher level.
+An `except` block does not determine severity. Expected handled exceptions are`trace` or unlogged. A recovered operation summary is `debug`; actionable degradation is `warn`; and terminal component failure is `error`. When a failure is returned or re-raised, reporting normally belongs to the caller, so do not log it again at a higher level.
 
-Normal cancellation is control flow: omit it or use `trace`. A real violation
-of a cancellation contract can be `warn`. Individual retry failures are
-`debug` or `trace`; emit one final `error` only when retry exhaustion leaves a
-requested feature unavailable.
+Normal cancellation is control flow: omit it or use `trace`. A real violation of a cancellation contract can be `warn`. Individual retry failures are `debug` or `trace`; emit one final `error` only when retry exhaustion leaves a requested feature unavailable.
 
 ## Common cases
 
@@ -88,3 +64,11 @@ requested feature unavailable.
 | Fallback selection | `debug` | A bounded explanation of the selected path. |
 | Background-loop termination | `error` | The enabled operation is no longer working. |
 | Internal invariant violation | `error` | It indicates a library defect requiring investigation; use `debug` if recovered locally. |
+
+## Log reporting ownership
+
+- If a transport address fails and the dialer succeeds with the next address, keep the address failure at trace and do not emit a peer-dial failure. If every candidate fails, the dialer may emit one bounded final summary.
+- If a Kademlia RPC fails during fan-out but the lookup converges, retain the peer RPC detail at trace and report the lookup as successful. Retry exhaustion is owned by the operation that can no longer satisfy its request.
+- Do not report normal cancellation during shutdown. Report a cleanup failure only when it leaves the component impaired.
+- Report fallback selection once with the chosen path, not once per rejected candidate.
+- A background loop that terminates unexpectedly needs an event owned by the component. A later recovery event is appropriate only if the impairment was previously reported; ordinary successful ticks are silent.
