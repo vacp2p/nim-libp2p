@@ -22,9 +22,10 @@ import
     routing_record,
     switch,
   ]
-import ../../tools/[crypto, switch_builder, multiaddress]
+import ../../tools/[switch_builder, multiaddress]
+import ../../tools/crypto as testcrypto
 
-export protobuf, registrar, routing_table_manager, types
+export protobuf, registrar, routing_table_manager, types, testcrypto
 
 converter toOptMoment*(a: Moment): Opt[Moment] =
   Opt.some(a)
@@ -40,9 +41,6 @@ converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
 
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
-
-proc randomPeerId*(): PeerId =
-  PeerId.init(randomKey()).get()
 
 proc makePeerInfo*(
     peerId: PeerId = randomPeerId(), addrs: seq[MultiAddress] = @[]
