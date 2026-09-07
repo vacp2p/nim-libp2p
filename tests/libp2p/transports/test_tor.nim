@@ -148,9 +148,7 @@ suite "Tor transport":
     await server.stop()
 
     expect TransportDialError:
-      discard await client.dial(
-        "", ma("/dns/" & oversizedDnsAddress & "/tcp/8080")
-      )
+      discard await client.dial("", ma("/dns/" & oversizedDnsAddress & "/tcp/8080"))
     await client.stop()
 
   asyncTest "test start and dial usion onion3 and builder":
