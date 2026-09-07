@@ -212,3 +212,200 @@ suite "DNS message codec":
     ]
     expect ValueError:
       discard parseAnswers(reserved, 0x0001'u16)
+
+suite "DNS message codec: whole messages":
+  test "encodeMessage and parseMessage round-trip a query":
+    let query =
+      DnsMessage(questions: @[DnsQuestion(name: "_p2p._udp.local", kind: PTR)])
+    let decoded = parseMessage(encodeMessage(query))
+    check:
+      not decoded.response
+      decoded.questions == query.questions
+      decoded.answers.len == 0
+
+  test "encodeMessage and parseMessage round-trip a DNS-SD response":
+    let response = DnsMessage(
+      response: true,
+      answers: @[
+        DnsRecord(
+          name: "_p2p._udp.local", kind: PTR, ttl: 120, value: "abc._p2p._udp.local"
+        )
+      ],
+      additionals: @[
+        DnsRecord(
+          name: "abc._p2p._udp.local",
+          kind: TXT,
+          ttl: 120,
+          strings: @["dnsaddr=/ip4/1.2.3.4/tcp/1", "dnsaddr=/ip6/::1/tcp/2"],
+        ),
+        DnsRecord(
+          name: "abc._p2p._udp.local",
+          kind: SRV,
+          ttl: 120,
+          port: 4001,
+          value: "abc.local",
+        ),
+        DnsRecord(name: "abc.local", kind: A, ttl: 120, value: "1.2.3.4"),
+        DnsRecord(name: "abc.local", kind: AAAA, ttl: 120, value: "::1"),
+      ],
+    )
+    let decoded = parseMessage(encodeMessage(response))
+    check:
+      decoded.response
+      decoded.answers == response.answers
+      decoded.additionals == response.additionals
+
+  test "parseMessage keeps the cursor after a compressed name":
+    # PTR answer whose name is the 0xc00c pointer and whose target is
+    # "x" + a pointer back to the question name.
+    let message = @[
+      0x00'u8,
+      0x00,
+      0x84,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x01,
+      ord('a').uint8,
+      0x00,
+      0x00,
+      0x0c,
+      0x00,
+      0x01, # question: "a", PTR, IN
+      0xc0,
+      0x0c,
+      0x00,
+      0x0c,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x0a,
+      0x00,
+      0x04,
+      0x01,
+      ord('x').uint8,
+      0xc0,
+      0x0c, # answer: PTR ttl=10 -> "x.a"
+      0x01,
+      ord('x').uint8,
+      0xc0,
+      0x0c,
+      0x00,
+      0x10,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x0a,
+      0x00,
+      0x03,
+      0x02,
+      ord('h').uint8,
+      ord('i').uint8, # additional: "x.a" TXT "hi"
+    ]
+    let decoded = parseMessage(message)
+    check:
+      decoded.answers.len == 1
+      decoded.answers[0].name == "a"
+      decoded.answers[0].kind == PTR
+      decoded.answers[0].ttl == 10
+      decoded.answers[0].value == "x.a"
+      decoded.additionals.len == 1
+      decoded.additionals[0].name == "x.a"
+      decoded.additionals[0].strings == @["hi"]
+
+  test "parseMessage skips an unknown record type":
+    # an=2: a CNAME answer for "a", then a PTR answer for "a" -> "b"
+    let withCname = @[
+      0x00'u8,
+      0x00,
+      0x84,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x02,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      ord('a').uint8,
+      0x00,
+      0x00,
+      0x05,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x03,
+      0x01,
+      ord('b').uint8,
+      0x00,
+      0x01,
+      ord('a').uint8,
+      0x00,
+      0x00,
+      0x0c,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x03,
+      0x01,
+      ord('b').uint8,
+      0x00,
+    ]
+    let decoded = parseMessage(withCname)
+    check:
+      decoded.answers.len == 1
+      decoded.answers[0].kind == PTR
+      decoded.answers[0].name == "a"
+      decoded.answers[0].value == "b"
+
+  test "parseMessage rejects a compression loop":
+    let loop = @[
+      0x00'u8,
+      0x00,
+      0x84,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0xc0,
+      0x0c, # answer name points at itself
+    ]
+    expect ValueError:
+      discard parseMessage(loop)
+
+  test "encodeMessage rejects a TXT string above 255 bytes":
+    let big = DnsMessage(
+      response: true,
+      answers: @[
+        DnsRecord(
+          name: "a.local", kind: TXT, ttl: 1, strings: @[strutils.repeat("x", 256)]
+        )
+      ],
+    )
+    expect ValueError:
+      discard encodeMessage(big)
