@@ -427,6 +427,31 @@ suite "GossipSub":
 
     check gossipSub.mcache.msgs.len == 0
 
+  asyncTest "rpcHandler - an outstanding IWANT is forgotten when the message arrives":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      sender = peers[0]
+      announcer = peers[1]
+      msg = Message.init(conns[0].peerId, "bar".toBytes(), topic, Opt.some(1'u64))
+      msgId = gossipSub.msgIdProvider(msg).get()
+      ihave = ControlIHave(topicID: topic, messageIDs: @[msgId])
+
+    # Given the announcer was asked for the message
+    check:
+      gossipSub.handleIHave(announcer, @[ihave]).messageIDs == @[msgId]
+      gossipSub.requestedIWants[msgId] == 1
+
+    # When the message arrives from another peer
+    await gossipSub.rpcHandler(sender, RPCMsg.withMessages(msg).encode(false))
+
+    # Then the request is forgotten and a new IHAVE is ignored
+    check:
+      msgId notin gossipSub.requestedIWants
+      gossipSub.handleIHave(announcer, @[ihave]).messageIDs.len == 0
+
   test "seen cache uses configured maximum size":
     let
       params = GossipSubParams.init(seenMaxSize = 3)

@@ -53,6 +53,9 @@ const
   IDontWantMaxCount* = 1000
     # maximum number of IDontWant messages in one slot of the history
   MaxOpportunisticGraftPeers* = 2
+  IWantHistoryLen* = 3
+    # number of heartbeats an outstanding IWANT request is remembered for
+  DefaultMaxIWantsPerMessage* = 1
 
 type
   TopicInfo* = object # gossip 1.1 related
@@ -166,6 +169,9 @@ type
     # Max number of enqueued low-priority messages. Excess messages are dropped.
     maxLowPriorityQueueLen*: int
 
+    # Max number of peers we send an IWANT to for the same message at the same time.
+    maxIWantsPerMessage*: int
+
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
     sendIDontWantOnPublish*: bool
 
@@ -196,6 +202,8 @@ type
     lastFanoutPubSub*: Table[string, Moment] # last publish time for fanout topics
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
+    requestedIWants*: Table[MessageId, int]
+      # number of peers we have an outstanding IWANT request with, per message
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
