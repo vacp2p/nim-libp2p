@@ -566,7 +566,7 @@ proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =
     return false
   if (hash.size != 0) and (hash.size != int(size)):
     return false
-  if offset + int(size) > len(data):
+  if offset + int(size) != len(data):
     return false
   true
 

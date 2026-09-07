@@ -36,21 +36,20 @@ proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
 
 proc extractPublicKey(m: Message): Opt[PublicKey] =
   var pubkey: PublicKey
-  if m.fromPeer.hasPublicKey() and m.fromPeer.extractPublicKey(pubkey):
-    Opt.some(pubkey)
-  elif m.key.len > 0 and pubkey.init(m.key):
-    # check if peerId extracted from m.key is the same as m.fromPeer
-    let derivedPeerId = PeerId.init(pubkey).valueOr:
-      warn "could not derive peerId from key field"
-      return Opt.none(PublicKey)
+  if m.fromPeer.extractPublicKey(pubkey):
+    discard
+  elif not (m.key.len > 0 and pubkey.init(m.key)):
+    return Opt.none(PublicKey)
 
-    if derivedPeerId != m.fromPeer:
-      warn "peerId derived from msg.key is not the same as msg.fromPeer",
-        derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
-      return Opt.none(PublicKey)
-    Opt.some(pubkey)
-  else:
-    Opt.none(PublicKey)
+  let derivedPeerId = PeerId.init(pubkey).valueOr:
+    warn "could not derive peerId from message public key"
+    return Opt.none(PublicKey)
+
+  if derivedPeerId != m.fromPeer:
+    warn "peerId derived from message public key is not the same as msg.fromPeer",
+      derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
+    return Opt.none(PublicKey)
+  Opt.some(pubkey)
 
 proc verify*(m: Message): bool =
   var verified = false
