@@ -5,6 +5,7 @@
 {.push raises: [].}
 
 import tables, chronos, stew/[byteutils]
+import std/strutils except fromHex
 import
   ../../../libp2p/[
     stream/connection,
@@ -128,6 +129,29 @@ suite "Tor transport":
 
   asyncTest "test start and dial using dns":
     await test("/ip4/127.0.0.1/tcp/8080", "/dns/libp2p.nim/tcp/8080")
+
+  asyncTest "SOCKS5 DNS address length boundary":
+    let
+      maxDnsAddress = repeat('a', 255)
+      oversizedDnsAddress = repeat('a', 256)
+      client = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
+    stub.registerAddr(maxDnsAddress & ":8080", "/ip4/127.0.0.1/tcp/8080")
+
+    let server = TcpTransport.new({ReuseAddr}, Upgrade())
+    await server.start(@[ma("/ip4/127.0.0.1/tcp/8080")])
+    let acceptFut = server.accept()
+
+    let conn = await client.dial("", ma("/dns/" & maxDnsAddress & "/tcp/8080"))
+    let serverConn = await acceptFut
+    await conn.close()
+    await serverConn.close()
+    await server.stop()
+
+    expect TransportDialError:
+      discard await client.dial(
+        "", ma("/dns/" & oversizedDnsAddress & "/tcp/8080")
+      )
+    await client.stop()
 
   asyncTest "test start and dial usion onion3 and builder":
     const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier

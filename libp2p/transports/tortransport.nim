@@ -25,6 +25,7 @@ const
 
   Socks5ProtocolVersion = byte(5)
   NMethods = byte(1)
+  MaxSocks5DomainLength = high(uint8).int
 
 type
   TorTransport* = ref object of Transport
@@ -183,8 +184,10 @@ proc parseIpTcp(
 proc parseDnsTcp(
     address: MultiAddress
 ): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
+  let dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
+  if dnsAddress.len > MaxSocks5DomainLength:
+    raise newException(LPError, "DNS address exceeds SOCKS5 domain length limit")
   let
-    dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
