@@ -698,6 +698,14 @@ method rpcHandler*(
     g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
+
+  if g.isGraylisted(peer, peer.score):
+    await rateLimit(g, peer, msgSize)
+    trace "PubSub RPC ignored",
+      peerId = peer.peerId, reason = "graylisted", score = peer.score
+    libp2p_gossipsub_graylisted_rpcs.inc(labelValues = [peer.getAgent()])
+    return
+
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
       err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
@@ -716,12 +724,6 @@ method rpcHandler*(
   trace "PubSub RPC decoded",
     peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
-
-  if g.isGraylisted(peer, peer.score):
-    trace "PubSub RPC ignored",
-      peerId = peer.peerId, reason = "graylisted", score = peer.score
-    libp2p_gossipsub_graylisted_rpcs.inc(labelValues = [peer.getAgent()])
-    return
 
   # trigger hooks - these may modify the message
   peer.recvObservers(rpcMsg)
