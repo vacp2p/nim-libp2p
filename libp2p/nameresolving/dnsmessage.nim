@@ -24,6 +24,9 @@ const
   QrMask = 0x8000'u16 # header flags: QR bit (1 = response)
   ResponseFlags = 0x8400'u16 # QR + AA
   ClassIn = 0x0001'u16
+  ClassAny = 0x00FF'u16 # QCLASS ANY, which an mDNS query may carry
+  ClassTopBit = 0x8000'u16 # cache-flush in a record, unicast-reply in a question
+  ClassMask = 0x7FFF'u16
 
 template raiseErr(msg: string) =
   raise newException(ValueError, msg)
@@ -36,19 +39,27 @@ type
     AAAA = 28
     SRV = 33
 
+  DnsName* = seq[string]
+    ## Labels, root excluded. A label can hold a `.`, so `.` never separates.
+
   DnsAnswer* = object
     kind*: DnsRecordKind
     value*: string ## IPv4/IPv6 textual form, or concatenated TXT strings
 
   DnsQuestion* = object
-    name*: string
+    name*: DnsName
     kind*: DnsRecordKind
+    unicastResponse*: bool ## mDNS QU bit, the top bit of the question class
 
   DnsRecord* = object
-    name*: string
+    name*: DnsName
     kind*: DnsRecordKind
     ttl*: uint32
-    value*: string ## IPv4/IPv6 textual form (A/AAAA), or target name (PTR/SRV)
+    cacheFlush*: bool ## mDNS cache-flush bit, the top bit of the record class
+    address*: string ## A/AAAA textual form
+    target*: DnsName ## PTR/SRV
+    priority*: uint16 ## SRV only
+    weight*: uint16 ## SRV only
     port*: uint16 ## SRV only
     strings*: seq[string] ## TXT only, one entry per character-string
 
@@ -128,7 +139,7 @@ proc pointerAt(data: seq[byte], pos: int, first: uint8): int {.raises: [ValueErr
     raiseErr("DNS name pointer out of range")
   return offset
 
-proc readName(r: var DnsReader): string {.raises: [ValueError].} =
+proc readName(r: var DnsReader): DnsName {.raises: [ValueError].} =
   ## The cursor lands after the name in this record, not after a pointer target.
   var
     labels: seq[string]
@@ -169,7 +180,7 @@ proc readName(r: var DnsReader): string {.raises: [ValueError].} =
     inc pos, first.int
 
   r.pos = if resume >= 0: resume else: pos
-  return labels.join(".")
+  return labels
 
 proc readTxt(r: var DnsReader, rdlength: int): seq[string] {.raises: [ValueError].} =
   ## TXT rdata is a sequence of length-prefixed character-strings.
@@ -219,12 +230,11 @@ proc toRecordKind(rrType: uint16): Opt[DnsRecordKind] =
     Opt.none(DnsRecordKind)
 
 proc readRecord(r: var DnsReader): Opt[DnsRecord] {.raises: [ValueError].} =
-  ## Returns `none` for an unmodelled type; the cursor moves past the record.
+  ## Returns `none` for an unmodelled type or class; the cursor moves past it.
   let
     name = r.readName()
     rrType = r.readShort()
-  discard r.readShort() # class
-  let
+    class = r.readShort()
     ttl = r.readLong()
     rdlength = r.readShort().int
     rdataEnd = r.pos + rdlength
@@ -232,62 +242,93 @@ proc readRecord(r: var DnsReader): Opt[DnsRecord] {.raises: [ValueError].} =
   if rdataEnd > r.data.len:
     raiseErr("Truncated resource record")
 
+  if (class and ClassMask) != ClassIn:
+    r.pos = rdataEnd
+    return Opt.none(DnsRecord)
+
   let kind = toRecordKind(rrType).valueOr:
     r.pos = rdataEnd
     return Opt.none(DnsRecord)
 
-  var record = DnsRecord(name: name, kind: kind, ttl: ttl)
+  var record = DnsRecord(
+    name: name, kind: kind, ttl: ttl, cacheFlush: (class and ClassTopBit) != 0
+  )
   case kind
   of A:
-    record.value = ipv4ToString(r.readAddress(rdlength, 4))
+    record.address = ipv4ToString(r.readAddress(rdlength, 4))
   of AAAA:
-    record.value = ipv6ToString(r.readAddress(rdlength, 16))
+    record.address = ipv6ToString(r.readAddress(rdlength, 16))
   of PTR:
-    record.value = r.readName()
+    record.target = r.readName()
   of TXT:
     record.strings = r.readTxt(rdlength)
   of SRV:
-    discard r.readShort() # priority
-    discard r.readShort() # weight
+    record.priority = r.readShort()
+    record.weight = r.readShort()
     record.port = r.readShort()
-    record.value = r.readName()
+    record.target = r.readName()
 
   r.pos = rdataEnd
   return Opt.some(record)
 
 proc readQuestion(r: var DnsReader): Opt[DnsQuestion] {.raises: [ValueError].} =
-  ## Returns `none` for an unmodelled type; the cursor moves past the question.
+  ## Returns `none` for an unmodelled type or class; the cursor moves past it.
   let
     name = r.readName()
     rrType = r.readShort()
-  discard r.readShort() # class, whose top bit is the mDNS unicast-reply flag
+    class = r.readShort()
+    qclass = class and ClassMask
+
+  if qclass != ClassIn and qclass != ClassAny:
+    return Opt.none(DnsQuestion)
 
   let kind = toRecordKind(rrType).valueOr:
     return Opt.none(DnsQuestion)
-  return Opt.some(DnsQuestion(name: name, kind: kind))
+  return Opt.some(
+    DnsQuestion(name: name, kind: kind, unicastResponse: (class and ClassTopBit) != 0)
+  )
 
 proc addString(buf: var seq[byte], text: string) =
   for c in text:
     buf.add(c.byte)
 
-proc writeName(buf: var seq[byte], name: string) {.raises: [ValueError].} =
+func toDnsName*(name: string): DnsName =
+  ## Splits a presentation-format name, where `.` does separate the labels.
+  name.split('.')
+
+proc writeName(buf: var seq[byte], name: DnsName) {.raises: [ValueError].} =
+  if name.len < 1:
+    raiseErr("A DNS name needs at least one label")
+
   var encoded = 1 # the root label terminator
-  for label in name.split('.'):
+  for label in name:
     if label.len < 1:
-      raiseErr(name & " is not a legal name (empty label)")
+      raiseErr("Empty DNS label")
     if label.len > MaxLabelLength:
-      raiseErr(name & " is not a legal name (label too long)")
+      raiseErr("DNS label longer than 63 bytes: " & label)
     encoded += label.len + 1 # label bytes plus the length octet
     if encoded > MaxNameLength:
-      raiseErr(name & " is not a legal name (encoded name too long)")
+      raiseErr("Encoded DNS name longer than 255 bytes")
     buf.add(label.len.uint8)
     buf.addString(label)
   buf.add(0x00'u8) # root label terminator
 
+func questionClass(q: DnsQuestion): uint16 =
+  if q.unicastResponse:
+    ClassIn or ClassTopBit
+  else:
+    ClassIn
+
+func recordClass(rec: DnsRecord): uint16 =
+  if rec.cacheFlush:
+    ClassIn or ClassTopBit
+  else:
+    ClassIn
+
 proc writeQuestion(buf: var seq[byte], q: DnsQuestion) {.raises: [ValueError].} =
   buf.writeName(q.name)
   buf.add(toBytesBE(q.kind.uint16))
-  buf.add(toBytesBE(ClassIn))
+  buf.add(toBytesBE(q.questionClass()))
 
 proc writeIp(
     buf: var seq[byte], text: string, family: IpAddressFamily
@@ -312,23 +353,23 @@ proc writeCharStrings(
 proc writeRdata(buf: var seq[byte], rec: DnsRecord) {.raises: [ValueError].} =
   case rec.kind
   of A:
-    buf.writeIp(rec.value, IpAddressFamily.IPv4)
+    buf.writeIp(rec.address, IpAddressFamily.IPv4)
   of AAAA:
-    buf.writeIp(rec.value, IpAddressFamily.IPv6)
+    buf.writeIp(rec.address, IpAddressFamily.IPv6)
   of PTR:
-    buf.writeName(rec.value)
+    buf.writeName(rec.target)
   of TXT:
     buf.writeCharStrings(rec.strings)
   of SRV:
-    buf.add(toBytesBE(0x0000'u16)) # priority
-    buf.add(toBytesBE(0x0000'u16)) # weight
+    buf.add(toBytesBE(rec.priority))
+    buf.add(toBytesBE(rec.weight))
     buf.add(toBytesBE(rec.port))
-    buf.writeName(rec.value)
+    buf.writeName(rec.target)
 
 proc writeRecord(buf: var seq[byte], rec: DnsRecord) {.raises: [ValueError].} =
   buf.writeName(rec.name)
   buf.add(toBytesBE(rec.kind.uint16))
-  buf.add(toBytesBE(ClassIn))
+  buf.add(toBytesBE(rec.recordClass()))
   buf.add(toBytesBE(rec.ttl))
 
   let lengthPos = buf.len
@@ -356,7 +397,7 @@ proc encodeQuery*(
   query.add([0x00'u8, 0x00'u8]) # nscount = 0
   query.add([0x00'u8, 0x00'u8]) # arcount = 0
 
-  query.writeQuestion(DnsQuestion(name: name, kind: kind))
+  query.writeQuestion(DnsQuestion(name: name.toDnsName(), kind: kind))
 
   return query
 
@@ -440,7 +481,7 @@ proc parseAnswers*(
       continue
     case record.kind
     of A, AAAA:
-      answers.add(DnsAnswer(kind: record.kind, value: record.value))
+      answers.add(DnsAnswer(kind: record.kind, value: record.address))
     of TXT:
       answers.add(DnsAnswer(kind: TXT, value: record.strings.join()))
     else:

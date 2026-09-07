@@ -215,8 +215,12 @@ suite "DNS message codec":
 
 suite "DNS message codec: whole messages":
   test "encodeMessage and parseMessage round-trip a query":
-    let query =
-      DnsMessage(questions: @[DnsQuestion(name: "_p2p._udp.local", kind: PTR)])
+    let query = DnsMessage(
+      questions: @[
+        DnsQuestion(name: @["_p2p", "_udp", "local"], kind: PTR),
+        DnsQuestion(name: @["a", "local"], kind: A, unicastResponse: true),
+      ]
+    )
     let decoded = parseMessage(encodeMessage(query))
     check:
       not decoded.response
@@ -224,29 +228,31 @@ suite "DNS message codec: whole messages":
       decoded.answers.len == 0
 
   test "encodeMessage and parseMessage round-trip a DNS-SD response":
+    let
+      service = @["_p2p", "_udp", "local"]
+      instance = @["abc"] & service
+      host = @["abc", "local"]
     let response = DnsMessage(
       response: true,
-      answers: @[
-        DnsRecord(
-          name: "_p2p._udp.local", kind: PTR, ttl: 120, value: "abc._p2p._udp.local"
-        )
-      ],
+      answers: @[DnsRecord(name: service, kind: PTR, ttl: 120, target: instance)],
       additionals: @[
         DnsRecord(
-          name: "abc._p2p._udp.local",
+          name: instance,
           kind: TXT,
           ttl: 120,
           strings: @["dnsaddr=/ip4/1.2.3.4/tcp/1", "dnsaddr=/ip6/::1/tcp/2"],
         ),
         DnsRecord(
-          name: "abc._p2p._udp.local",
+          name: instance,
           kind: SRV,
           ttl: 120,
+          priority: 3,
+          weight: 7,
           port: 4001,
-          value: "abc.local",
+          target: host,
         ),
-        DnsRecord(name: "abc.local", kind: A, ttl: 120, value: "1.2.3.4"),
-        DnsRecord(name: "abc.local", kind: AAAA, ttl: 120, value: "::1"),
+        DnsRecord(name: host, kind: A, ttl: 120, cacheFlush: true, address: "1.2.3.4"),
+        DnsRecord(name: host, kind: AAAA, ttl: 120, address: "::1"),
       ],
     )
     let decoded = parseMessage(encodeMessage(response))
@@ -254,6 +260,61 @@ suite "DNS message codec: whole messages":
       decoded.response
       decoded.answers == response.answers
       decoded.additionals == response.additionals
+
+  test "a label may contain a dot":
+    let name = @["my.computer", "local"]
+    let query = DnsMessage(questions: @[DnsQuestion(name: name, kind: A)])
+    let encoded = encodeMessage(query)
+    check:
+      encoded[12] == 11'u8 # the length octet of "my.computer", right after the header
+      parseMessage(encoded).questions[0].name == name
+
+  test "parseMessage skips a record whose class is not IN":
+    # an=2: a CH-class A answer for "a", then an IN-class A answer for "a"
+    let message =
+      @[0x00'u8, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00] &
+      @[
+        0x01'u8,
+        byte('a'),
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x03,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x04,
+        0x01,
+        0x02,
+        0x03,
+        0x04,
+      ] &
+      @[
+        0x01'u8,
+        byte('a'),
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x04,
+        0x05,
+        0x06,
+        0x07,
+        0x08,
+      ]
+    let decoded = parseMessage(message)
+    check:
+      decoded.answers.len == 1
+      decoded.answers[0].address == "5.6.7.8"
 
   test "parseMessage keeps the cursor after a compressed name":
     # PTR answer whose name is the 0xc00c pointer and whose target is
@@ -315,12 +376,12 @@ suite "DNS message codec: whole messages":
     let decoded = parseMessage(message)
     check:
       decoded.answers.len == 1
-      decoded.answers[0].name == "a"
+      decoded.answers[0].name == @["a"]
       decoded.answers[0].kind == PTR
       decoded.answers[0].ttl == 10
-      decoded.answers[0].value == "x.a"
+      decoded.answers[0].target == @["x", "a"]
       decoded.additionals.len == 1
-      decoded.additionals[0].name == "x.a"
+      decoded.additionals[0].name == @["x", "a"]
       decoded.additionals[0].strings == @["hi"]
 
   test "parseMessage skips an unknown record type":
@@ -375,8 +436,8 @@ suite "DNS message codec: whole messages":
     check:
       decoded.answers.len == 1
       decoded.answers[0].kind == PTR
-      decoded.answers[0].name == "a"
-      decoded.answers[0].value == "b"
+      decoded.answers[0].name == @["a"]
+      decoded.answers[0].target == @["b"]
 
   test "parseMessage rejects a compression loop":
     let loop = @[
@@ -403,7 +464,10 @@ suite "DNS message codec: whole messages":
       response: true,
       answers: @[
         DnsRecord(
-          name: "a.local", kind: TXT, ttl: 1, strings: @[strutils.repeat("x", 256)]
+          name: @["a", "local"],
+          kind: TXT,
+          ttl: 1,
+          strings: @[strutils.repeat("x", 256)],
         )
       ],
     )
