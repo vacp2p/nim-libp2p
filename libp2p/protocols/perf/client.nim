@@ -33,16 +33,14 @@ proc perf*(
   p.stats = Stats()
 
   try:
-    var
-      size = sizeToWrite
-      buf: array[PerfSize, byte]
+    var size = sizeToWrite
 
     let start = Moment.now()
 
     await stream.write(toSeq(toBytesBE(sizeToRead)))
     while size > 0:
       let toWrite = min(size, PerfSize)
-      await stream.write(buf[0 ..< toWrite])
+      await stream.write(newSeq[byte](toWrite))
       size -= toWrite.uint
 
       # set stats using copy value to avoid race condition
@@ -55,6 +53,7 @@ proc perf*(
     await stream.closeWrite()
 
     size = sizeToRead
+    var buf: array[PerfSize, byte]
 
     while size > 0:
       let toRead = min(size, PerfSize)
