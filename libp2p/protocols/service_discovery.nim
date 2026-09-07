@@ -131,8 +131,7 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          trace "Read error when handling service-discovery RPC",
-            stream = stream, err = exc.msg
+          trace "Read error when handling service-discovery RPC", err = exc.msg, stream
           return
       let msg = Message.decode(buf).valueOr:
         trace "Failed to decode message", err = error

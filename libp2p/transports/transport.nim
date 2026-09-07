@@ -112,14 +112,14 @@ template safeCloseWait*(stream: untyped) =
     try:
       await noCancel stream.closeWait()
     except CatchableError as e:
-      trace "Error closing", description = e.msg
+      trace "Error closing", err = e.msg
 
 template safeClose*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.close()
     except CatchableError as e:
-      trace "Error closing", description = e.msg
+      trace "Error closing", err = e.msg
 
 proc toTransportAddress*(
     self: Transport, addrsMa: seq[MultiAddress]

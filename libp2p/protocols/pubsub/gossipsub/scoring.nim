@@ -150,7 +150,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     if isNil(peer) or not (peer.connected):
       if now > stats.expire:
         evicting.add(peerId)
-        trace "evicted peer from memory", peer = peerId
+        trace "evicted peer from memory", peerId = peerId
       continue
 
     trace "updating peer score", peer
@@ -186,7 +186,8 @@ proc updateScores*(g: GossipSub) = # avoid async
 
         topicScore +=
           info.firstMessageDeliveries * topicParams.firstMessageDeliveriesWeight
-        trace "p2", peer, p2 = info.firstMessageDeliveries, topic, topicScore
+        trace "Score component two",
+          peer, scoreComponent = info.firstMessageDeliveries, topic, topicScore
 
         if info.meshMessageDeliveriesActive:
           if info.meshMessageDeliveries < topicParams.meshMessageDeliveriesThreshold:
@@ -202,9 +203,9 @@ proc updateScores*(g: GossipSub) = # avoid async
         topicScore +=
           info.invalidMessageDeliveries * info.invalidMessageDeliveries *
           topicParams.invalidMessageDeliveriesWeight
-        trace "p4",
+        trace "Score component four",
           peer,
-          p4 = info.invalidMessageDeliveries * info.invalidMessageDeliveries,
+          scoreComponent = info.invalidMessageDeliveries * info.invalidMessageDeliveries,
           topic,
           topicScore
 

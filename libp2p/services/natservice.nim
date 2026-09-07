@@ -315,7 +315,7 @@ proc mapOnePort(
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
-    warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
+    warn "NAT port mapping failed", port = lp.port, protocol = lp.proto, err = error
     return Opt.none(MappedEntry)
 
   Opt.some(

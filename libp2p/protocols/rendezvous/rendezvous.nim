@@ -204,7 +204,7 @@ proc save*[E](
 proc register*[E](
     rdv: GenericRendezVous[E], stream: Stream, r: Register, peerRecord: E
 ): Future[void] =
-  trace "Received Register", peerId = stream.peerId, ns = r.ns
+  trace "Register received", peerId = stream.peerId, namespace = r.ns
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return stream.sendRegisterResponseError(InvalidNamespace)
@@ -223,7 +223,7 @@ proc register*[E](
   stream.sendRegisterResponse(ttl)
 
 proc unregister*[E](rdv: GenericRendezVous[E], stream: Stream, u: Unregister) =
-  trace "Received Unregister", peerId = stream.peerId, ns = u.ns
+  trace "Unregister received", peerId = stream.peerId, namespace = u.ns
   let nsSalted = u.ns & rdv.salt
   try:
     for index in rdv.namespaces[nsSalted]:
@@ -244,7 +244,7 @@ iterator discoverIndexes(nsIndexes: Opt[seq[int]], first, last: int): int =
 proc discover*[E](
     rdv: GenericRendezVous[E], stream: Stream, d: Discover
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "Received Discover", peerId = stream.peerId, ns = d.ns
+  trace "Discover received", peerId = stream.peerId, namespace = d.ns
   libp2p_rendezvous_discover.inc()
   if d.ns.isSome() and d.ns.get().len > MaximumNamespaceLen:
     await stream.sendDiscoverResponseError(InvalidNamespace)
@@ -318,7 +318,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          trace "failed to decode Message", error = error
+          trace "failed to decode Message", err = error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -329,7 +329,7 @@ proc advertisePeer[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception in the advertise", description = exc.msg
+      trace "exception in the advertise", err = exc.msg
     finally:
       try:
         rdv.sema.release()
@@ -349,7 +349,7 @@ proc advertise*[E](
   let signedPeerRecord = SignedPayload[E].init(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
-    info "Can't create the signed peer record", error = error
+    info "Can't create the signed peer record", err = error
     return
 
   let pBuff = signedPeerRecord.encode()
@@ -429,7 +429,7 @@ proc requestPeer[E](
   let
     buf = await stream.readLp(MaximumMessageLen)
     msgRcv = Message.decode(buf).valueOr:
-      trace "Message undecodable", error = error
+      trace "Message undecodable", err = error
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
     trace "Unexpected discover response", msgType = msgRcv.msgType
@@ -502,9 +502,9 @@ proc request*[E](
     except CancelledError as e:
       raise e
     except DialFailedError as e:
-      trace "failed to dial a peer", description = e.msg
+      trace "failed to dial a peer", err = e.msg
     except LPStreamError as e:
-      trace "failed to communicate with a peer", description = e.msg
+      trace "failed to communicate with a peer", err = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc unsubscribeLocally*[E](rdv: GenericRendezVous[E], ns: string) =
@@ -535,7 +535,7 @@ proc unsubscribe*[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "exception while unsubscribing", description = exc.msg
+      trace "exception while unsubscribing", err = exc.msg
 
   let futs = collect(newSeq()):
     for peer in peerIds:
@@ -585,7 +585,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          trace "failed to decode Message", error = error
+          trace "failed to decode Message", err = error
           return
       case msg.msgType
       of MessageType.Register:
@@ -604,7 +604,7 @@ proc new*(
       trace "cancelled rendezvous handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in rendezvous handler", description = exc.msg
+      trace "exception in rendezvous handler", err = exc.msg
     finally:
       await stream.close()
 

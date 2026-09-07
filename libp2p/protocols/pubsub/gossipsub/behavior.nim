@@ -73,7 +73,7 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
 
     stats.topicInfos[topic] = info
 
-    trace "grafted", peer = p, topic
+    trace "grafted", peerId = p, topic
 
 proc pruned*(
     g: GossipSub,
@@ -101,7 +101,7 @@ proc pruned*(
 
       info.inMesh = false
 
-      trace "pruned", peer = p, topic
+      trace "pruned", peerId = p, topic
 
 proc handleBackingOff*(t: var BackoffTable, topic: string) =
   let now = Moment.now()

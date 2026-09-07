@@ -59,7 +59,7 @@ proc new*(
           raise newException(DcutrError, error)
         trace "Dcutr receiver has received a Sync message.", syncMsg
         trace "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
-          addrs = connectMsg.addrs
+          addresses = connectMsg.addrs
         return
 
       # Expected DCUtR connections bypass ConnManager limits.
@@ -115,13 +115,13 @@ proc new*(
       raise err
     except AllFuturesFailedError as err:
       trace "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts failed", peerDialableAddrs, description = err.msg
+        "all connect attempts failed", peerDialableAddrs, err = err.msg
     except AsyncTimeoutError as err:
       trace "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts timed out", peerDialableAddrs, description = err.msg
+        "all connect attempts timed out", peerDialableAddrs, err = err.msg
     except CatchableError as err:
       trace "Unexpected error when Dcutr receiver tried to connect " &
-        "to the remote peer", description = err.msg
+        "to the remote peer", err = err.msg
 
   let self = T()
   self.handler = handleStream

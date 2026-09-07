@@ -69,7 +69,7 @@ proc getValue*(
       return
 
     let record = reply.record.valueOr:
-      trace "GetValue returned empty record", reply = reply
+      trace "Get-value reply has no record", messageType = "getValue"
       return
 
     if record.key.isNone or record.key.get() != key:
@@ -78,7 +78,7 @@ proc getValue*(
       return
 
     let value = record.value.valueOr:
-      trace "GetValue returned record with no value", reply = reply
+      trace "Get-value reply has no value", messageType = "getValue"
       return
 
     if value.len > kad.config.limits.maxValueSize:
@@ -128,7 +128,8 @@ method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key.valueOr:
-    trace "Key not set: handleGetValue", msg = msg, stream = stream
+    trace "Get-value request rejected",
+      reason = "missingKey", messageType = "getValue", stream
     return
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
@@ -151,7 +152,7 @@ method handleGetValue*(
     try:
       await stream.writeLp(encoded)
     except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
+      debug "Failed to send get-value RPC reply", err = exc.msg, stream
     return
 
   let response = Message(
@@ -171,5 +172,5 @@ method handleGetValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Failed to send get-value RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send get-value RPC reply", err = exc.msg, stream
     return
