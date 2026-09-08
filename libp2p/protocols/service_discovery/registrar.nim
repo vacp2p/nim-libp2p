@@ -181,14 +181,17 @@ proc isValidAdvertisement*(
   return ok(ad)
 
 proc updateWaitAfterRetry*(
-    disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: int64, wait: var Duration
+    disco: ServiceDiscovery,
+    ticketOpt: Opt[Ticket],
+    now: UnixTimestamp,
+    wait: var Duration,
 ) =
   ticketOpt.withValue(ticket):
     let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar.seconds
 
 proc isValidTicket(
-    disco: ServiceDiscovery, regMsg: RegisterMessage, now: int64
+    disco: ServiceDiscovery, regMsg: RegisterMessage, now: UnixTimestamp
 ): Result[Opt[Ticket], string] {.raises: [].} =
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
