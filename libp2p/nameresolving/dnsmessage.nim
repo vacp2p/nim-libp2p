@@ -263,12 +263,16 @@ proc readRecord(r: var DnsReader): Opt[DnsRecord] {.raises: [ValueError].} =
   of TXT:
     record.strings = r.readTxt(rdlength)
   of SRV:
+    if rdlength < 7: # six fixed bytes plus at least the root label
+      raiseErr("Invalid SRV record")
     record.priority = r.readShort()
     record.weight = r.readShort()
     record.port = r.readShort()
     record.target = r.readName()
 
-  r.pos = rdataEnd
+  if r.pos != rdataEnd:
+    raiseErr("Resource record data does not match its declared length")
+
   return Opt.some(record)
 
 proc readQuestion(r: var DnsReader): Opt[DnsQuestion] {.raises: [ValueError].} =
