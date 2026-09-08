@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm, sets]
+import std/[tables, sequtils, algorithm, sets, strutils]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
@@ -439,7 +439,14 @@ proc dispatchPeer(
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
-    trace "Kademlia lookup RPC failed", peerId = peerId.shortLog(), err = res.error()
+    let err = res.error()
+    if err.startsWith($dialStage):
+      trace "Kademlia RPC stream establishment failed",
+        err, peerId, protocol = kad.codec
+    elif err.startsWith($writeStage):
+      trace "Kademlia RPC write failed", err, peerId, protocol = kad.codec
+    else:
+      trace "Kademlia RPC read failed", err, peerId, protocol = kad.codec
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -480,7 +487,7 @@ proc fillSlots(
     if peerId in active:
       continue
     state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-    trace "Lookup query", peerId = peerId.shortLog()
+    trace "Kademlia lookup query started", peerId
     pending.add(
       Attempt(
         peer: peerId,
@@ -754,7 +761,8 @@ method handleFindNode*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    trace "Write error when writing kad find-node RPC reply", err = exc.msg, stream
+    trace "Kademlia find-node RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.findNode
     return
 
   # Only admit senders with known dialable addresses; an inbound connection

@@ -554,14 +554,14 @@ proc verifyEach(
   for address in addresses:
     let left = deadline - Moment.now()
     if left <= ZeroDuration:
-      debug "Verification run out of time", timeout = self.verifyTimeout
+      debug "Address verification timed out", timeout = self.verifyTimeout
       break
 
     let state =
       try:
         await self.verifier.verify(address).wait(left)
       except AsyncTimeoutError:
-        debug "Verifier ran out of time", address, timeout = self.verifyTimeout
+        debug "Address verification timed out", address, timeout = self.verifyTimeout
         break
 
     state.withValue(verdict):

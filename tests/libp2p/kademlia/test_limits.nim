@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, results, sequtils, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
 import ../../../libp2p/utils/future
 import ../../tools/[lifecycle, multiaddress, stall_server, topology, unittest]
 import ./utils.nim
@@ -118,24 +118,29 @@ suite "KadDHT - Limits":
     # Use the no-op hasher so XOR distance is a function of the key bytes
     # directly, making "close" peers easy to construct.
     kad.rtable.config.hasher = Opt.some(noOpHasher)
-    var target: Key = newSeq[byte](32)
+    proc peerKey(digest: Key): Key =
+      MultiHash.init("sha2-256", digest).expect("valid SHA-256 digest").data.buffer
+
+    var targetDigest: Key = newSeq[byte](32)
+    let target = peerKey(targetDigest)
     var state = LookupState.init(kad, target)
     # Drop any peers pre-seeded from the routing table.
     state.shortlist.clear()
 
     # Insert a far peer first
-    var farId: Key = newSeq[byte](32)
-    farId[0] = 0xFF
-    let farMsg =
-      Message(msgType: MessageType.findNode, closerPeers: @[closerPeer(farId)])
+    var farDigest: Key = newSeq[byte](32)
+    farDigest[0] = 0xFF
+    let farMsg = Message(
+      msgType: MessageType.findNode, closerPeers: @[closerPeer(peerKey(farDigest))]
+    )
     discard state.updateShortlist(farMsg)
 
     # Now insert 5 close peers — they should evict the far one
     var closePeers: seq[Peer]
     for i in 1 .. 5:
-      var id: Key = newSeq[byte](32)
-      id[31] = byte(i)
-      closePeers.add(closerPeer(id))
+      var digest: Key = newSeq[byte](32)
+      digest[31] = byte(i)
+      closePeers.add(closerPeer(peerKey(digest)))
     let closeMsg = Message(msgType: MessageType.findNode, closerPeers: closePeers)
     discard state.updateShortlist(closeMsg)
 

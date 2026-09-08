@@ -374,11 +374,13 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          trace "Read error when handling kademlia RPC", err = exc.msg, stream
+          trace "Kademlia RPC request read failed",
+            err = exc.msg, stream, peerId = stream.peerId, protocol = proto
           return
       let bufLen = buf.len
       let msg = Message.decode(move(buf)).valueOr:
-        trace "Failed to decode message", err = error
+        trace "Kademlia RPC request decode failed",
+          err = error, peerId = stream.peerId, protocol = proto
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)
@@ -400,10 +402,12 @@ proc new*(
       of MessageType.ping:
         await kad.handlePing(stream, msg)
       of MessageType.register:
-        trace "Unsupported message REGISTER"
+        trace "Kademlia RPC request rejected",
+          messageType = $MessageType.register, reason = "unsupported message type"
         continue
       of MessageType.getAds:
-        trace "Unsupported message GET_ADS"
+        trace "Kademlia RPC request rejected",
+          messageType = $MessageType.getAds, reason = "unsupported message type"
         continue
 
   return kad
@@ -429,7 +433,7 @@ proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   if kad.started:
-    warn "Starting kad-dht twice"
+    warn "Kademlia DHT already started"
     return
 
   kad.stopping = false
@@ -449,9 +453,16 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.expiredLoop = kad.manageExpiredProviders()
   kad.recordExpirationLoop = kad.manageExpiredRecords()
 
+  reportBackgroundFailure(kad.maintenanceLoop, "kademlia bucket maintenance")
+  reportBackgroundFailure(kad.livenessLoop, "kademlia peer liveness")
+  reportBackgroundFailure(kad.fixLowPeersLoop, "kademlia minimum peer maintenance")
+  reportBackgroundFailure(kad.republishLoop, "kademlia provider republishing")
+  reportBackgroundFailure(kad.expiredLoop, "kademlia provider expiration")
+  reportBackgroundFailure(kad.recordExpirationLoop, "kademlia record expiration")
+
   kad.started = true
 
-  info "Kad DHT started"
+  info "Kademlia DHT started"
 
 method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:

@@ -7,6 +7,19 @@ import stew/byteutils
 
 const ShortDumpMax = 12
 
+func shortLog*(item: seq[byte]): string =
+  if item.len <= ShortDumpMax:
+    item.toHex()
+  else:
+    const
+      split = ShortDumpMax div 2
+      dumpLen = (ShortDumpMax * 2) + 3
+    var s = newStringOfCap(dumpLen)
+    s &= item.toOpenArray(0, split - 1).toHex()
+    s &= "..."
+    s &= item.toOpenArray(item.len - split, item.high).toHex()
+    s
+
 func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
     item.toHex()

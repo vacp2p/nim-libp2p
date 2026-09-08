@@ -68,7 +68,7 @@ method initStream*(s: SecureConn) =
   procCall Connection(s).initStream()
 
 method closeImpl*(s: SecureConn) {.async: (raises: []).} =
-  trace "Closing secure conn", s, dir = s.dir
+  trace "Closing secure conn", conn = s, dir = s.dir
   if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
@@ -77,7 +77,7 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
   await procCall Connection(s).closeImpl()
 
 method resetImpl*(s: SecureConn) {.async: (raises: []).} =
-  trace "Resetting secure conn", s, dir = s.dir
+  trace "Resetting secure conn", conn = s, dir = s.dir
   if not s.cleanupFut.isNil():
     s.cleanupFut.cancelSoon()
   if s.stream != nil:
@@ -152,17 +152,17 @@ method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
   proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
-    trace "handling connection upgrade", proto, stream
+    trace "Secure upgrade started", protocol = proto, stream
     try:
       # We don't need the result but we
       # definitely need to await the handshake
       discard await s.handleConn(stream, false, Opt.none(PeerId))
-      trace "connection secured", stream
+      trace "Secure upgrade completed", protocol = proto, stream
     except CancelledError as exc:
-      trace "securing connection canceled", stream
+      trace "Secure upgrade canceled", protocol = proto, stream
       raise exc
     except LPStreamError as exc:
-      trace "securing connection failed", err = exc.msg, stream
+      trace "Secure upgrade failed", err = exc.msg, protocol = proto, stream
     finally:
       await stream.close()
 

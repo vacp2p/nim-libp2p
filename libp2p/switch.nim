@@ -264,15 +264,15 @@ proc upgradeMonitor(
     await upgrades.acquire().wait(deadlineFut)
     semAcquired = true
     await switch.upgrader(trans, conn).wait(deadlineFut)
-    trace "Connection upgrade succeeded"
+    trace "Incoming connection upgrade completed", conn
     upgradeSuccessful = true
   except CancelledError:
-    trace "Connection upgrade cancelled", conn
+    trace "Incoming connection upgrade canceled", conn
   except AsyncTimeoutError:
-    trace "Connection upgrade timeout", conn
+    trace "Incoming connection upgrade timed out", conn
     libp2p_failed_upgrades_incoming.inc()
   except UpgradeError as e:
-    trace "Connection upgrade failed", err = e.msg, conn
+    trace "Incoming connection upgrade failed", err = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
     deadlineFut.cancelSoon()
@@ -292,7 +292,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   while transport.running:
     var conn: RawConn
     try:
-      debug "About to accept incoming connection"
+      debug "Transport connection acceptance started"
       conn =
         try:
           await transport.accept()
@@ -305,7 +305,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
-        debug "Unable to get a connection"
+        debug "Transport connection acceptance returned no connection"
         await sleepAsync(AcceptRetryDelay)
         continue
 
@@ -324,7 +324,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       # gossipsub gives priority to connections we make
       conn.transportDir = Direction.In
 
-      debug "Accepted an incoming connection", conn
+      debug "Transport connection accepted", conn
       s.upgradeFuts.trackFut(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
@@ -372,7 +372,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", err = exc.msg
+      warn "Transport cleanup failed", err = exc.msg
 
   await s.ms.stop()
 
@@ -390,7 +390,7 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     warn "Switch has already been started"
     return
 
-  info "starting switch for peer", peerInfo = s.peerInfo
+  info "Starting switch for peer", peerInfo = s.peerInfo
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager
