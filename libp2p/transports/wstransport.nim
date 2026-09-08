@@ -31,7 +31,6 @@ const
   DefaultConcurrentAccepts = 200
   DefaultAcceptFailureBackoff = 100.millis
   DefaultAutotlsWaitTimeout = 3.seconds
-  DefaultAutotlsRetries = 3
 
 type
   WsStream = ref object of Connection
@@ -498,13 +497,6 @@ proc connHandler(
 method accept*(
     self: WsTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  # wstransport can only start accepting connections after autotls is done
-  # if autotls is not present, self.running is true after listener setup completes
-  var retries = 0
-  while not self.running and retries < DefaultAutotlsRetries:
-    retries += 1
-    await sleepAsync(DefaultAutotlsWaitTimeout)
-
   if not self.running:
     raise newTransportClosedError()
 
