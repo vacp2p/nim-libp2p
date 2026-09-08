@@ -388,8 +388,11 @@ proc dialInOrder(
       return nil
 
     let advertised = DialCandidate(address: rawAddress, peerId: peerId)
-    for expanded in await self.expandCandidate(advertised, deadline):
-      for candidate in await self.resolveCandidate(expanded, deadline):
+    # Retain lookup results across awaits in the loop bodies.
+    let expandedCandidates = await self.expandCandidate(advertised, deadline)
+    for expanded in expandedCandidates:
+      let resolvedCandidates = await self.resolveCandidate(expanded, deadline)
+      for candidate in resolvedCandidates:
         let mux = await self.dialAndUpgrade(
           candidate.peerId, candidate.hostname, candidate.address, dir, deadline,
           forceDial, reach,
