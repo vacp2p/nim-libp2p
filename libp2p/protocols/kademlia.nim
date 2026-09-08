@@ -269,7 +269,7 @@ proc bootstrap*(
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   var timedOut = false
   var warnings: LogRateLimit
-  
+
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
     let refresh = kad.refreshTable(kad.rtable, false)
     if not await refresh.withTimeout(kad.config.bucketRefreshTime):
@@ -318,10 +318,9 @@ proc maintainMinPeers(kad: KadDHT) {.async.} =
     reportedLow = false
     timeoutWarnings: LogRateLimit
     lowPeerWarnings: LogRateLimit
-  
+
   heartbeat "Checking routing table size",
     kad.config.fixLowPeersInterval, sleepFirst = true:
-    
     let peers = kad.rtable.peerCount()
     let lowPeers =
       not kad.config.disableBootstrapping and peers < kad.config.minRoutingTableSize

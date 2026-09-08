@@ -3,7 +3,7 @@
 
 import pkg/[chronicles, chronos]
 
-const logFrequency = 1.minutes 
+const logFrequency = 1.minutes
 
 type LogRateLimit* = object
   initialized: bool
