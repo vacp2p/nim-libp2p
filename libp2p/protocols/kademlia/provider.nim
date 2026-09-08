@@ -235,6 +235,8 @@ proc putProviderRecord(
     os.failed.inc()
 
 proc schedulePut(os: OptimisticState, pid: PeerId) {.raises: [].} =
+  if os.kad.stopping:
+    return
   os.scheduled.incl(pid)
   os.kad.provideTasks.trackFut(os.putProviderRecord(pid))
 
