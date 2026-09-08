@@ -226,7 +226,7 @@ proc handleHopStreamV2*(
   let msg = HopMessage.decode(await stream.readLp(r.msgSize)).valueOr:
     await sendHopStatus(stream, MalformedMessage)
     return
-  trace "relayv2 handle stream", hopMsg = msg
+  trace "relayv2 handle stream", hopMsg = msg.shortLog
 
   if msg.msgType.isNone:
     trace "relayv2 mesage type not set"
@@ -315,13 +315,13 @@ proc handleHop*(
       return
 
   let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
-    trace "error reading stop response", response = msgRcvFromDstOpt
+    trace "error reading stop response", responsePresent = msgRcvFromDstOpt.isOk
     await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
     return
 
   if msgRcvFromDst.msgType.get(RelayType.Stop) != RelayType.Status or
       msgRcvFromDst.status.get(StatusV1.StopRelayRefused) != StatusV1.Success:
-    trace "unexcepted relay stop response", msgRcvFromDst
+    trace "Unexpected relay stop response", response = msgRcvFromDst.shortLog
     await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
     return
 
@@ -335,7 +335,7 @@ proc handleStreamV1(
   let msg = RelayMessage.decode(await stream.readLp(r.msgSize)).valueOr:
     await sendStatus(stream, StatusV1.MalformedMessage)
     return
-  trace "relay handle stream", msg
+  trace "relay handle stream", msg = msg.shortLog
 
   let typ = msg.msgType.valueOr:
     trace "Message type not set"

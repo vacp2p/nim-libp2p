@@ -182,7 +182,7 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
       if not self.config.allowPrivateAddresses and isPrivate($addrIp):
         return false
     except ValueError:
-      trace "Unable to parse IP address, skipping", addresses = $addrIp
+      trace "Unable to parse IP address, skipping", address = $addrs
       return false
   for t in self.switch.transports:
     if t.handles(addrs):

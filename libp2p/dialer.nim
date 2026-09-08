@@ -384,7 +384,7 @@ proc dialInOrder(
 
   for rawAddress in addrs:
     if deadline.timeLeft().isZero():
-      debug "Peer dial timed out", peerId, addresses = addrs
+      debug "Peer dial timed out", peerId, addresses = addrs.shortLog
       return nil
 
     let advertised = DialCandidate(address: rawAddress, peerId: peerId)
@@ -521,7 +521,7 @@ proc dialAndUpgrade*(
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Peer dial started", peerId, addresses = dialAddrs
+  debug "Peer dial started", peerId, addresses = dialAddrs.shortLog
 
   if self.dialRanking:
     await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
@@ -636,7 +636,7 @@ proc establishConnection(
     raise newException(
       DialFailedError,
       "Unable to establish outgoing link in establishConnection: peer_id=" &
-        shortLog(peerId) & " addrs=" & $dialAddrs,
+        shortLog(peerId) & " addrs=" & dialAddrs.shortLog,
     )
 
   slot.trackMuxer(muxed)
@@ -757,7 +757,7 @@ proc tryDial*(
   ## Returns the observed address when the probe succeeds.
   ##
 
-  trace "Peer reachability probe started", peerId, address = addrs
+  trace "Peer reachability probe started", peerId, addresses = addrs.shortLog
   try:
     let mux = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if mux.isNil():
@@ -818,7 +818,7 @@ method dial*(
       await stream.reset()
 
   try:
-    trace "Peer dial started", peerId, addresses = dialAddrs
+    trace "Peer dial started", peerId, addresses = dialAddrs.shortLog
     conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
     trace "Protocol stream opening started", peerId, protocols = protos, conn
     stream = await self.connManager.getStream(conn)
@@ -837,12 +837,12 @@ method dial*(
     raise exc
   except CatchableError as exc:
     debug "Protocol stream establishment failed",
-      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs, conn
+      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs.shortLog, conn
     await cleanup()
     raise newException(
       DialFailedError,
-      "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & $protos & " addrs=" &
-        $dialAddrs & ": " & exc.msg,
+      "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & protos.shortLog &
+        " addrs=" & dialAddrs.shortLog & ": " & exc.msg,
       exc,
     )
 

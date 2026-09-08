@@ -36,6 +36,9 @@ type
 
   DcutrError* = object of LPError
 
+func shortLog*(msg: DcutrMsg): auto =
+  (msgType: msg.msgType, addresses: msg.addrs.shortLog)
+
 Protobuf.serializerFor([DcutrMsg], withMetrics = true, domain = "dcutr")
 
 proc expectDcutrConnection*(

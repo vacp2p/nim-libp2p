@@ -3,7 +3,7 @@
 
 import std/hashes
 import chronos
-import ../../utils/opt
+import ../../utils/[opt, shortlog]
 import results
 import ../../multiaddress
 import stew/endians2
@@ -88,6 +88,35 @@ type
     providerStatus* {.fieldNumber: 11, ext.}: Opt[AddProviderStatus]
     register* {.fieldNumber: 21.}: Opt[RegisterMessage]
     getAds* {.fieldNumber: 22.}: Opt[GetAdsMessage]
+
+func shortLog*(record: Record): auto =
+  (
+    key: record.key.get(@[]).shortLog,
+    value: record.value.get(@[]).shortLog,
+    timeReceived: record.timeReceived.get("").shortLog,
+  )
+
+func shortLog*(peer: Peer): auto =
+  (
+    id: peer.id.get(@[]).shortLog,
+    addresses: peer.addrs.shortLog,
+    connection: peer.connection,
+  )
+
+func shortLog*(msg: Message): auto =
+  (
+    messageType: msg.msgType,
+    key: msg.key.get(@[]).shortLog,
+    record: msg.record.get(Record()).shortLog,
+    closerPeers: msg.closerPeers.shortLog,
+    providerPeers: msg.providerPeers.shortLog,
+    hasRegistration: msg.register.isSome,
+    advertisementCount:
+      if msg.getAds.isSome:
+        msg.getAds.get().advertisements.len
+      else:
+        0,
+  )
 
 func hide(c: Opt[ConnectionStatus], hideConnectionStatus: bool): Opt[ConnectionStatus] =
   if hideConnectionStatus:
