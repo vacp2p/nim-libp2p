@@ -133,6 +133,7 @@ proc init*(
     maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
     maxLowPriorityQueueLen = DefaultMaxLowPriorityQueueLen,
+    maxIWantsPerMessage = DefaultMaxIWantsPerMessage,
     sendIDontWantOnPublish = false,
     testExtensionConfig = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
@@ -180,6 +181,7 @@ proc init*(
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,
     maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,
     maxLowPriorityQueueLen: maxLowPriorityQueueLen,
+    maxIWantsPerMessage: maxIWantsPerMessage,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
@@ -248,6 +250,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: maxMediumPriorityQueueLen parameter error, Must be > 0")
   elif parameters.maxLowPriorityQueueLen <= 0:
     err("gossipsub: maxLowPriorityQueueLen parameter error, Must be > 0")
+  elif parameters.maxIWantsPerMessage <= 0:
+    err("gossipsub: maxIWantsPerMessage parameter error, Must be > 0")
   else:
     validateOverheadRateLimit(parameters)
 
@@ -398,6 +402,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
       info.firstMessageDeliveries = 0
 
   pubSubPeer.stopTasks()
+
+  g.releasePeerIWantRequests(peer)
 
   g.extensionsState.removePeer(peer)
 
@@ -769,6 +775,9 @@ method rpcHandler*(
       trace "Dropping message of topic without subscription",
         msgId = shortLog(msgId), peer
       continue
+
+    # released before validation, so a peer cannot block the retry with a bad message
+    g.forgetIWantRequests(msgId)
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
       trace "Message dropped",

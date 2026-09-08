@@ -62,6 +62,9 @@ declareCounter(
   "number of iwant requests avoided by preamble",
   labels = ["topic"],
 )
+declareCounter(
+  libp2p_gossipsub_saved_iwants, "number of iwant requests avoided", labels = ["reason"]
+)
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
   g.withPeerStats(p.peerId) do(stats: var PeerStats):
@@ -289,6 +292,44 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
       for handler in g.routingRecordsHandler:
         handler(peer.peerId, topic, routingRecords)
 
+proc recordIWantRequest(g: GossipSub, peer: PubSubPeer, msgId: MessageId) =
+  g.requestedIWants.mgetOrPut(msgId, @[]).add(
+    IWantRequest(peerId: peer.peerId, heartbeat: g.heartbeatCount)
+  )
+
+proc isIWantInFlight(g: GossipSub, peer: PubSubPeer, msgId: MessageId): bool =
+  g.requestedIWants.withValue(msgId, requests):
+    return
+      requests[].len >= g.parameters.maxIWantsPerMessage or
+      requests[].anyIt(it.peerId == peer.peerId)
+
+  false
+
+proc forgetIWantRequests*(g: GossipSub, msgId: MessageId) =
+  g.requestedIWants.del(msgId)
+
+proc delEmptyIWantRequests(g: GossipSub, emptied: seq[MessageId]) =
+  for msgId in emptied:
+    g.requestedIWants.del(msgId)
+
+proc releasePeerIWantRequests*(g: GossipSub, peerId: PeerId) =
+  var emptied: seq[MessageId]
+  for msgId, requests in g.requestedIWants.mpairs:
+    requests.keepItIf(it.peerId != peerId)
+    if requests.len == 0:
+      emptied.add(msgId)
+
+  g.delEmptyIWantRequests(emptied)
+
+proc expireIWantRequests(g: GossipSub) =
+  var emptied: seq[MessageId]
+  for msgId, requests in g.requestedIWants.mpairs:
+    requests.keepItIf(g.heartbeatCount - it.heartbeat < IWantHistoryLen)
+    if requests.len == 0:
+      emptied.add(msgId)
+
+  g.delEmptyIWantRequests(emptied)
+
 proc handleIHave*(
     g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]
 ): ControlIWant =
@@ -304,18 +345,27 @@ proc handleIHave*(
         trace "topic not set: ihave", peer
         continue
       trace "peer sent ihave", peer, topicID = topic, msgs = ihave.messageIDs
-      if topic in g.topics:
-        for msgId in ihave.messageIDs:
-          if not g.hasSeen(g.salt(msgId)):
-            if peer.iHaveBudget <= 0:
-              break
-            elif msgId notin res.messageIDs:
-              if g.extensionsState.preambleHandleIHave(peer.peerId, msgId):
-                libp2p_gossipsub_preamble_saved_iwants.inc(labelValues = [topic])
-                continue
-              res.messageIDs.add(msgId)
-              dec peer.iHaveBudget
-              trace "requested message via ihave", messageID = msgId
+      if topic notin g.topics:
+        continue
+
+      for msgId in ihave.messageIDs:
+        if g.hasSeen(g.salt(msgId)):
+          continue
+        if peer.iHaveBudget <= 0:
+          break
+        if msgId in res.messageIDs:
+          continue
+        if g.isIWantInFlight(peer, msgId):
+          libp2p_gossipsub_saved_iwants.inc(labelValues = ["in_flight"])
+          continue
+        if g.extensionsState.preambleHandleIHave(peer.peerId, msgId):
+          libp2p_gossipsub_preamble_saved_iwants.inc(labelValues = [topic])
+          continue
+
+        res.messageIDs.add(msgId)
+        g.recordIWantRequest(peer, msgId)
+        dec peer.iHaveBudget
+        trace "requested message via ihave", messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIDs)
@@ -707,6 +757,9 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
 
 proc onHeartbeat(g: GossipSub) =
   libp2p_gossipsub_seen_cache_size.set(g.seen.len.int64)
+
+  g.heartbeatCount.inc()
+  g.expireIWantRequests()
 
   # reset IWANT budget
   # reset IHAVE cap
