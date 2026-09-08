@@ -719,10 +719,14 @@ proc negotiateStream*(
   ## Raises DialFailedError when negotiation selects no supported protocol or
   ## the selected protocol's outgoing stream budget is exhausted.
 
+  var negotiated = false
+  defer:
+    if not negotiated:
+      await stream.reset()
+
   trace "Protocol negotiation started", stream, protocols = protos
   let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
-    await stream.reset()
     raise newException(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
@@ -730,7 +734,6 @@ proc negotiateStream*(
 
   self.ms.lookupProtocol(selected).withValue(protocol):
     if not protocol.reserveOutgoing(stream.peerId):
-      await stream.reset()
       raise newException(
         DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
       )
@@ -746,6 +749,7 @@ proc negotiateStream*(
       if idx >= 0:
         self.ongoingReleaseOnClose.del(idx)
 
+  negotiated = true
   return stream
 
 proc tryDial*(
@@ -806,22 +810,15 @@ method dial*(
   ## a connection if one doesn't exist already
   ##
 
-  var
-    conn: Muxer
-    stream: Stream
+  var conn: Muxer
 
   let dialAddrs = normalizedDialAddrs(Opt.some(peerId), addrs)
-
-  # `conn` belongs to the connection manager and carries other protocols' streams.
-  proc cleanup() {.async: (raises: []).} =
-    if not (isNil(stream)):
-      await stream.reset()
 
   try:
     trace "Peer dial started", peerId, addresses = dialAddrs.shortLog
     conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
     trace "Protocol stream opening started", peerId, protocols = protos, conn
-    stream = await self.connManager.getStream(conn)
+    let stream = await self.connManager.getStream(conn)
 
     if isNil(stream):
       raise newException(
@@ -833,12 +830,10 @@ method dial*(
   except CancelledError as exc:
     trace "Protocol stream establishment canceled",
       err = exc.msg, peerId, protocols = protos, conn
-    await cleanup()
     raise exc
   except CatchableError as exc:
     debug "Protocol stream establishment failed",
       err = exc.msg, peerId, protocols = protos, addresses = dialAddrs.shortLog, conn
-    await cleanup()
     raise newException(
       DialFailedError,
       "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & protos.shortLog &
