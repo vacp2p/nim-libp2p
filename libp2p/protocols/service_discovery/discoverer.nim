@@ -24,15 +24,15 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
       continue
 
     let ad = Advertisement.decode(adBuf).valueOr:
-      trace "failed to decode advertisement", error
+      trace "Failed to decode advertisement", error
       continue
 
     if not ad.advertisesService(serviceId):
-      trace "advert service mismatch", serviceId
+      trace "Advert service mismatch", serviceId
       continue
 
     if not ad.isValid():
-      trace "advertisement violates XPR or ServiceInfo size limits", serviceId
+      trace "Advertisement violates XPR or ServiceInfo size limits", serviceId
       continue
 
     validAds.add(ad)
@@ -44,7 +44,7 @@ proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string]
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
 ): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  debug "getting adverts", serviceId, registrar = peerId
+  debug "Getting adverts", serviceId, registrar = peerId
 
   let msg = Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId))
 
@@ -60,7 +60,7 @@ proc dispatchGetAds(
   let getAdsMsg = reply.getAds.valueOr:
     return err("get ads message response not found")
 
-  debug "adverts found",
+  debug "Adverts found",
     serviceId, remote = peerId, count = getAdsMsg.advertisements.len
 
   return ok(
@@ -147,7 +147,7 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "register interest", service = serviceId, serviceId = serviceHash
+  debug "Register interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -160,7 +160,7 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
   ## is kept for advertising.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "unregister interest", service = serviceId, serviceId = serviceHash
+  debug "Unregister interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.removeService(serviceHash, Interest)
 

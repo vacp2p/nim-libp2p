@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import chronos/streams/tlsstream, stew/byteutils
-import ../../libp2p/[crypto/crypto, transports/tls/certificate]
+import ../../libp2p/[crypto/crypto, peerid, transports/tls/certificate]
 
 var rngSingleton {.threadvar.}: Rng
 rngSingleton = newRng()
@@ -12,6 +12,9 @@ proc getRng(): Rng =
 
 template rng*(): Rng =
   getRng()
+
+proc randomPeerId*(r: Rng = rng()): PeerId =
+  PeerId.random(r).expect("the rng produces a valid peer id")
 
 proc tlsCertGenerator*(
     kp: Opt[KeyPair] = Opt.none(KeyPair)

@@ -335,8 +335,6 @@ proc runHandleLoop*(
     trace "exiting pubsub read loop", stream, peerId = p, closed = stream.closed
 
   while not stream.atEof:
-    trace "waiting for data", stream, peerId = p, closed = stream.closed
-
     var data =
       try:
         await stream.readLp(p.maxMessageSize)
@@ -365,7 +363,7 @@ proc closeSendStream(
     p: PubSubPeer, event: PubSubPeerEventKind
 ) {.async: (raises: [CancelledError]).} =
   if p.sendStream != nil:
-    trace "Removing send stream", p, stream = p.sendStream
+    trace "Removing send stream", peer = p, stream = p.sendStream
     await p.sendStream.close()
     p.sendStream = nil
 
@@ -397,7 +395,7 @@ proc connectOnce(
     # remote peer - if we had multiple channels up and one goes down, all
     # stop working so we make an effort to only keep a single channel alive
 
-    trace "Get new send stream", p, newStream
+    trace "Get new send stream", peer = p, newStream
 
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
@@ -501,7 +499,7 @@ proc sendMsgSlow(
 
   var stream = p.sendStream
   if stream == nil or stream.closed():
-    trace "No send stream", p, encoded = shortLog(msg)
+    trace "No send stream", peer = p, encoded = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", stream, encoded = shortLog(msg)
@@ -586,11 +584,11 @@ proc dropNonHighPriorityMessage(
   of MessagePriority.Medium:
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_medium_priority_queue_drops.inc()
-    trace "medium priority queue full, dropping message", p
+    trace "medium priority queue full, dropping message", peer = p
   of MessagePriority.Low:
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_low_priority_queue_drops.inc()
-    trace "low priority queue full, dropping message", p
+    trace "low priority queue full, dropping message", peer = p
   of MessagePriority.High:
     raiseAssert "high-priority messages are not dropped via queue overflow scoring"
   return newFutureCompleted[void]()
@@ -619,7 +617,7 @@ proc sendEncoded*(
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, encoded = shortLog(msg)
+    debug "empty message, skipping", peer = p, encoded = shortLog(msg)
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     warn "trying to send a msg too big for pubsub",
@@ -811,7 +809,7 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
     await p.sendMsg(move(msg.data), useCustomStream)
 
 proc startSendNonHighPriorityTask(p: PubSubPeer) =
-  trace "starting sendNonHighPriorityTask", p
+  trace "starting sendNonHighPriorityTask", peer = p
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
@@ -825,7 +823,7 @@ proc stopTasks*(p: PubSubPeer) =
     fut.cancelSoon()
   p.sendFuts = @[]
   if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
-    trace "stopping sendNonHighPriorityTask", p
+    trace "stopping sendNonHighPriorityTask", peer = p
     p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
     p.rpcmessagequeue.sendNonHighPriorityTask = nil
     for fut in p.rpcmessagequeue.sendPriorityQueue:

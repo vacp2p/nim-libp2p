@@ -8,6 +8,8 @@ import
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
+export crypto
+
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)
 
@@ -209,9 +211,6 @@ proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
 
 proc toPeer*(node: KadDHT): Peer =
   node.switch.peerInfo.toPeer()
-
-proc randomPeerId*(): PeerId =
-  PeerId.random(rng()).get()
 
 proc randomServiceId*(): Key =
   ## Stands in for a `hashServiceId()` result, a key already in the id space.

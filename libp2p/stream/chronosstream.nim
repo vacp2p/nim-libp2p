@@ -40,7 +40,7 @@ method initStream*(s: ChronosStream) =
     s.objName = ChronosStreamTrackerName
 
   s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
-    trace "Idle timeout expired, closing ChronosStream", s
+    trace "Idle timeout expired, closing ChronosStream", conn = s
     s.close()
 
   procCall Connection(s).initStream()
@@ -155,7 +155,7 @@ method closeWrite*(s: ChronosStream) {.async: (raises: []).} =
   if not s.client.closed():
     try:
       await s.client.shutdownWait()
-      trace "Write side closed", address = $s.client.remoteAddress(), s
+      trace "Write side closed", address = $s.client.remoteAddress(), conn = s
     except TransportError:
       # Ignore transport errors during shutdown
       discard
@@ -164,12 +164,11 @@ method closeWrite*(s: ChronosStream) {.async: (raises: []).} =
       discard
 
 method closeImpl*(s: ChronosStream) {.async: (raises: []).} =
-  trace "Shutting down chronos stream", address = $s.client.remoteAddress(), s
+  trace "Shutting down chronos stream", address = $s.client.remoteAddress(), conn = s
 
   if not s.client.closed():
     await s.client.closeWait()
-
-  trace "Shutdown chronos stream", address = $s.client.remoteAddress(), s
+  trace "Shutdown chronos stream", address = $s.client.remoteAddress(), conn = s
 
   when defined(libp2p_agents_metrics):
     # do this after closing!

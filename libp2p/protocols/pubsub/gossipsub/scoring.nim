@@ -70,6 +70,11 @@ declarePublicCounter(
   "The number of times peers were above their rate limit",
   labels = ["agent"],
 )
+declarePublicCounter(
+  libp2p_gossipsub_graylisted_rpcs,
+  "The number of RPCs ignored because the sender is graylisted",
+  labels = ["agent"],
+)
 
 proc init*(_: type[TopicParams]): TopicParams =
   TopicParams(
@@ -130,9 +135,11 @@ proc colocationFactor(g: GossipSub, peer: PubSubPeer): float64 =
   else:
     0.0
 
+func isGraylisted*(g: GossipSub, peer: PubSubPeer, score: float64): bool =
+  score < g.parameters.graylistThreshold and peer.peerId notin g.parameters.directPeers
+
 proc disconnectIfBadScorePeer*(g: GossipSub, peer: PubSubPeer, score: float64) =
-  if g.parameters.disconnectBadPeers and score < g.parameters.graylistThreshold and
-      peer.peerId notin g.parameters.directPeers:
+  if g.parameters.disconnectBadPeers and g.isGraylisted(peer, score):
     debug "disconnecting bad score peer", peer, score = peer.score
     g.pendingTasks.trackFut(g.disconnectPeer(peer))
     libp2p_gossipsub_bad_score_disconnection.inc(labelValues = [peer.getAgent()])
@@ -179,7 +186,7 @@ proc updateScores*(g: GossipSub) = # avoid async
           var p1 = info.meshTime / topicParams.timeInMeshQuantum
           if p1 > topicParams.timeInMeshCap:
             p1 = topicParams.timeInMeshCap
-          trace "p1", peer, p1, topic, topicScore
+          trace "p1", peer, timeInMeshCapped = p1, topic, topicScore
           topicScore += p1 * topicParams.timeInMeshWeight
         else:
           info.meshMessageDeliveriesActive = false
@@ -194,7 +201,7 @@ proc updateScores*(g: GossipSub) = # avoid async
             let deficit =
               topicParams.meshMessageDeliveriesThreshold - info.meshMessageDeliveries
             let p3 = deficit * deficit
-            trace "p3", peer, p3, topic, topicScore
+            trace "p3", peer, deficitSquared = p3, topic, topicScore
             topicScore += p3 * topicParams.meshMessageDeliveriesWeight
 
         topicScore += info.meshFailurePenalty * topicParams.meshFailurePenaltyWeight
@@ -328,11 +335,9 @@ proc updateScores*(g: GossipSub) = # avoid async
 
 proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "Gossipsub scoring", g.parameters.decayInterval:
-    trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
     for trigger in g.scoringHeartbeatEvents:
-      trace "firing scoring heartbeat event", instance = cast[int](g)
       trigger.fire()
 
 proc punishInvalidMessage*(

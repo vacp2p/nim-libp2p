@@ -11,7 +11,7 @@ import
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
-import ./utils except randomPeerId
+import ./utils
 
 proc makeKey(x: byte): Key =
   var buf: array[IdLength, byte]

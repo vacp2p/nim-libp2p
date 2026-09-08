@@ -29,7 +29,7 @@ import
   ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
 import ./converters
 
-export switch, converters
+export switch, converters, crypto
 
 randomize()
 
@@ -82,12 +82,6 @@ proc voidPeerHandler*(
     peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   discard
-
-proc randomPeerId*(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getStream(): Future[Stream] {.
@@ -559,6 +553,14 @@ proc currentRateLimitHits*(label: string = "nim-libp2p"): float64 =
   try:
     libp2p_gossipsub_peers_rate_limit_hits.valueByName(
       "libp2p_gossipsub_peers_rate_limit_hits_total", @[label]
+    )
+  except KeyError:
+    0
+
+proc currentGraylistedRpcs*(label: string = "nim-libp2p"): float64 =
+  try:
+    libp2p_gossipsub_graylisted_rpcs.valueByName(
+      "libp2p_gossipsub_graylisted_rpcs_total", @[label]
     )
   except KeyError:
     0

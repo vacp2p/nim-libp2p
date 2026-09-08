@@ -155,7 +155,7 @@ proc new*(
         if msgType in @[MessageType.register, MessageType.getAds]:
           await disco.handleMessage(stream, msg)
         else:
-          trace "received invalid message type", msgType = msgType
+          trace "Received invalid message type", msgType = msgType
           return
 
   return disco
@@ -172,7 +172,7 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
-      warn "cannot advertise configured service", service = serviceInfo.id, error
+      warn "Cannot advertise configured service", service = serviceInfo.id, error
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()

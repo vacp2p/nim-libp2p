@@ -48,7 +48,7 @@ method start*(
   ## start the transport
   ##
 
-  info "starting transport on addrs", address = $addrs
+  info "Transport starting", addresses = addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -58,7 +58,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  info "stopping transport", address = $self.addrs
+  info "Transport stopping", addresses = self.addrs
   self.running = false
   self.onStop.fire()
 
@@ -112,14 +112,14 @@ template safeCloseWait*(stream: untyped) =
     try:
       await noCancel stream.closeWait()
     except CatchableError as e:
-      trace "Error closing", err = e.msg
+      trace "Transport stream close failed", err = e.msg
 
 template safeClose*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.close()
     except CatchableError as e:
-      trace "Error closing", err = e.msg
+      trace "Libp2p stream close failed", err = e.msg
 
 proc toTransportAddress*(
     self: Transport, addrsMa: seq[MultiAddress]

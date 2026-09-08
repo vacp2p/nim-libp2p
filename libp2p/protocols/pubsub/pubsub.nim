@@ -693,11 +693,8 @@ method validate*(
     p: PubSub, message: Message
 ): Future[ValidationResult] {.async: (raises: [CancelledError]), base.} =
   var pending: seq[Future[ValidationResult]]
-  trace "about to validate message"
   let topic = message.topic
 
-  trace "looking for validators on topic",
-    topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
     trace "running validators for topic", topic = topic
     p.validators.withValue(topic, validators):

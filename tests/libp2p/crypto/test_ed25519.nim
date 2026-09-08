@@ -148,6 +148,23 @@ suite "Ed25519 test suite":
         isFullZero(rkey1.data) == true
         isFullZero(rkey2.data) == true
 
+  test "Malformed public keys are rejected":
+    var identity, orderTwo, nonCanonicalIdentity: array[EdPublicKeySize, byte]
+    identity[0] = 1
+    orderTwo[0] = 0xEC
+    nonCanonicalIdentity[0] = 0xEE
+    for i in 1 ..< EdPublicKeySize - 1:
+      orderTwo[i] = 0xFF
+      nonCanonicalIdentity[i] = 0xFF
+    orderTwo[^1] = 0x7F
+    nonCanonicalIdentity[^1] = 0x7F
+
+    var key: EdPublicKey
+    check:
+      not key.init(identity)
+      not key.init(orderTwo)
+      not key.init(nonCanonicalIdentity)
+
   test "RFC8032 test vectors":
     for i in 0 ..< 5:
       var key = EdPrivateKey.init(stripSpaces(SecretKeys[i])).expect("key/sig")
