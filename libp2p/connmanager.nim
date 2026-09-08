@@ -699,6 +699,14 @@ proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
     c.applyDecay()
   c.decayLoopFut = nil
 
+proc start*(c: ConnManager) =
+  ## Resume readiness waits and tag decay after a completed shutdown.
+  if not c.closed:
+    return
+  c.closed = false
+  if c.decayingTags.len > 0:
+    c.decayLoopFut = c.runDecayLoop()
+
 proc tagPeerDecaying*(
     c: ConnManager,
     peerId: PeerId,

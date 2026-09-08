@@ -235,6 +235,19 @@ suite "Connection Manager":
     check await readyWaiter
     await connMngr.close()
 
+  asyncTest "restart resumes readiness waits and retained tag decay":
+    let connMngr = newWatermark(1, 2, decayResolution = 1.millis)
+    connMngr.tagPeerDecaying(peerId, "retained", 1, 1.millis, decayFixed(1))
+    await connMngr.close()
+    connMngr.start()
+    defer:
+      await connMngr.close()
+    let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
+    await connMngr.storeMuxer(makeMuxer(peerId))
+    check await readyWaiter
+    checkUntilTimeoutCustom(1.seconds, 10.millis):
+      connMngr.peerScore(peerId) == 0
+
   asyncTest "waitForPeerReady timeout does not break concurrent waiters":
     let connMngr = newMaxTotal()
 
