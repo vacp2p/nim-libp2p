@@ -23,7 +23,7 @@ suite "Discovery tracker":
     let serviceId = service.hashServiceId()
     let ad = makeAdvertisement(service)
 
-    disco.acceptAd(Moment.now(), serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
 
     check disco.tracker.discoveries(serviceId).len == 0
 
@@ -34,13 +34,30 @@ suite "Discovery tracker":
     let ad = makeAdvertisement(service)
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
 
     let found = disco.tracker.discoveries(serviceId)
     check found.len == 1
     check found[0].provider == ad.data.peerId
     check found[0].rank == 1
     check found[0].source == FromRegistration
+
+  test "records the provider of a registration that gets a Wait reply":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(
+        advertExpiry = 100.secs, safetyParam = 1.0, advertCacheCap = 10
+      )
+    )
+    let service = "svc"
+    let serviceId = service.hashServiceId()
+    let ad = makeAdvertisement(service)
+    disco.registrar.ads.seedOccupancy(10)
+
+    check disco.registerInterest(service)
+    let reply = disco.registerAd(serviceId, ad)
+
+    check reply.status.get() == RegistrationStatus.Wait
+    check disco.tracker.discoveries(serviceId).len == 1
 
   test "records the same provider once":
     let disco = setupServiceDiscoveryNode()
@@ -49,8 +66,8 @@ suite "Discovery tracker":
     let ad = makeAdvertisement(service)
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, ad)
-    disco.acceptAd(Moment.now(), serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
 
     check disco.tracker.discoveries(serviceId).len == 1
 
@@ -62,8 +79,8 @@ suite "Discovery tracker":
     let ad2 = makeAdvertisement(service)
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, ad1)
-    disco.acceptAd(Moment.now(), serviceId, ad2)
+    discard disco.registerAd(serviceId, ad1)
+    discard disco.registerAd(serviceId, ad2)
 
     let found = disco.tracker.discoveries(serviceId)
     check found.len == 2
@@ -83,7 +100,7 @@ suite "Discovery tracker":
     let startedAt = disco.tracker.startedAt(serviceId)
     check startedAt.isSome()
 
-    disco.acceptAd(Moment.now(), serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
 
     let found = disco.tracker.discoveries(serviceId)
     check found.len == 1
@@ -115,7 +132,7 @@ suite "Discovery tracker":
     let serviceId = service.hashServiceId()
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, makeAdvertisement(service))
+    discard disco.registerAd(serviceId, makeAdvertisement(service))
     disco.tracker.clear()
 
     check disco.tracker.discoveries(serviceId).len == 0
@@ -129,7 +146,7 @@ suite "Discovery tracker":
 
     check disco.registerInterest(s1)
     check disco.registerInterest(s2)
-    disco.acceptAd(Moment.now(), s1.hashServiceId(), ad)
+    discard disco.registerAd(s1.hashServiceId(), ad)
 
     check disco.discoveries(s1).len == 1
     check disco.discoveries(s2).len == 0
@@ -140,9 +157,9 @@ suite "Discovery tracker":
     let serviceId = service.hashServiceId()
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, makeAdvertisement(service))
+    discard disco.registerAd(serviceId, makeAdvertisement(service))
     disco.unregisterInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, makeAdvertisement(service))
+    discard disco.registerAd(serviceId, makeAdvertisement(service))
 
     check disco.tracker.discoveries(serviceId).len == 1
 
@@ -152,13 +169,13 @@ suite "Discovery tracker":
     let serviceId = service.hashServiceId()
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, makeAdvertisement(service))
+    discard disco.registerAd(serviceId, makeAdvertisement(service))
     disco.unregisterInterest(service)
     check disco.registerInterest(service)
 
     check disco.tracker.discoveries(serviceId).len == 0
 
-    disco.acceptAd(Moment.now(), serviceId, makeAdvertisement(service))
+    discard disco.registerAd(serviceId, makeAdvertisement(service))
     check disco.tracker.discoveries(serviceId)[0].rank == 1
 
   asyncTest "lookup starts the interest":
@@ -189,7 +206,7 @@ suite "Discovery tracker":
     let ad = makeAdvertisement(service)
 
     check disco.registerInterest(service)
-    disco.acceptAd(Moment.now(), serviceId, ad)
+    discard disco.registerAd(serviceId, ad)
 
     let rows = disco.tracker.toCsv().splitLines()
     check rows.len == 2

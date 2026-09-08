@@ -9,7 +9,7 @@ import std/[tables, sets]
 import chronos, results
 import ./types
 import ../../peerid
-import ../../utils/collections
+import ../../utils/opt
 
 {.push raises: [].}
 

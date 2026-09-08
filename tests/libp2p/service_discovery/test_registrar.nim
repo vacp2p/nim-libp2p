@@ -45,14 +45,6 @@ proc makeAdvertisementWithServices(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc seedOccupancy(ads: AdvertisementCache, n: int, now: Moment = Moment.now()) =
-  ## Fill the cache with `n` unique ads under distinct services (no serviceSim
-  ## on a later subject serviceId).
-  for i in 0 ..< n:
-    let sid = makeServiceId(byte(i mod 250 + 1))
-    let ad = makeAdvertisement($sid)
-    ads.put(sid, ad.data.peerId, ad, ad.ipsFromAd(), now)
-
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
     let registrar = Registrar.new()

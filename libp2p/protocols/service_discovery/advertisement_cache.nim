@@ -4,7 +4,7 @@
 import std/[net, tables]
 import chronos, results
 import ../../peerid
-import ../../utils/[collections, iptree]
+import ../../utils/[iptree, opt]
 import ./types
 
 export types

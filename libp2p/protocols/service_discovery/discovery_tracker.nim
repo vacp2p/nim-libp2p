@@ -4,7 +4,6 @@
 import std/[tables, sets, strutils]
 import chronos, chronicles, results, stew/byteutils
 import ../../peerid
-import ../kademlia/types
 import ./[types, service_discovery_metrics]
 
 logScope:
@@ -70,7 +69,7 @@ proc recordProvider*(
     if discovery.rank == 1:
       cd_first_provider_discovery_seconds.observe(elapsedSeconds)
 
-    info "Provider found",
+    debug "Provider found",
       serviceId,
       provider,
       rank = discovery.rank,

@@ -255,8 +255,6 @@ proc acceptAdvertisement*(
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
 
-  disco.tracker.recordProvider(serviceId, ad.data.peerId, FromRegistration)
-
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
@@ -314,6 +312,8 @@ proc registration*(
     )
 
     return msg
+
+  disco.tracker.recordProvider(serviceId, ad.data.peerId, FromRegistration)
 
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)
