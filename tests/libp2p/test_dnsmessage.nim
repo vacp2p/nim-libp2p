@@ -39,24 +39,7 @@ suite "DNS message codec":
       q[4 .. 5] == @[0x00'u8, 0x01] # qdcount=1
       q[6 .. 11] == @[0x00'u8, 0x00, 0x00, 0x00, 0x00, 0x00] # an/ns/ar = 0
       # question: labels "status"."im", root, qtype=A, qclass=IN
-      q[12 .. ^1] ==
-        @[
-          0x06'u8,
-          ord('s').uint8,
-          ord('t').uint8,
-          ord('a').uint8,
-          ord('t').uint8,
-          ord('u').uint8,
-          ord('s').uint8,
-          0x02,
-          ord('i').uint8,
-          ord('m').uint8,
-          0x00,
-          0x00,
-          0x01,
-          0x00,
-          0x01,
-        ]
+      q[12 .. ^1] == "\x06status\x02im\x00\x00\x01\x00\x01".toBytes()
 
   test "encodeQuery rejects illegal names":
     expect ValueError:
@@ -87,52 +70,12 @@ suite "DNS message codec":
       )
 
   test "parseAnswers decodes and concatenates TXT records":
-    # header: id, flags=0x8180, qd=1, an=1; question "x"; answer via 0xc00c pointer
-    let txt = @[
-      0x00'u8,
-      0x01,
-      0x81,
-      0x80,
-      0x00,
-      0x01,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x00, # question: "x", TXT, IN
-      0x01,
-      ord('x').uint8,
-      0x00,
-      0x00,
-      0x10,
-      0x00,
-      0x01, # answer: name ptr -> 0x0c, TXT, IN, ttl=0, rdlength=12
-      0xc0,
-      0x0c,
-      0x00,
-      0x10,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x0c, # rdata: "hello" + "world"
-      0x05,
-      ord('h').uint8,
-      ord('e').uint8,
-      ord('l').uint8,
-      ord('l').uint8,
-      ord('o').uint8,
-      0x05,
-      ord('w').uint8,
-      ord('o').uint8,
-      ord('r').uint8,
-      ord('l').uint8,
-      ord('d').uint8,
-    ]
+    let txt = (
+      "\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00" & # id, flags, qd=1, an=1
+      "\x01x\x00\x00\x10\x00\x01" & # question: "x", TXT, IN
+      "\xc0\x0c\x00\x10\x00\x01\x00\x00\x00\x00\x00\x0c" & # answer: TXT, rdlen=12
+      "\x05hello\x05world"
+    ).toBytes()
     let answers = parseAnswers(txt, 0x0001'u16)
     check answers.len == 1
     check answers[0].kind == TXT
@@ -165,51 +108,17 @@ suite "DNS message codec":
       discard parseAnswers(noQuestion, 0x0001'u16)
 
   test "parseAnswers rejects an A record with the wrong length":
-    let badA = @[
-      0x00'u8,
-      0x01,
-      0x81,
-      0x80,
-      0x00,
-      0x01,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      ord('x').uint8,
-      0x00,
-      0x00,
-      0x01,
-      0x00,
-      0x01, # question: "x", A, IN
-      0xc0,
-      0x0c,
-      0x00,
-      0x01,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x03,
-      0x01,
-      0x02,
-      0x03, # answer: A, IN, rdlength=3 (invalid), 3 bytes rdata
-    ]
+    let badA = (
+      "\x00\x01\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00" & # id, flags, qd=1, an=1
+      "\x01x\x00\x00\x01\x00\x01" & # question: "x", A, IN
+      "\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x00\x00\x03\x01\x02\x03" # A, rdlen=3
+    ).toBytes()
     expect ValueError:
       discard parseAnswers(badA, 0x0001'u16)
 
   test "parseAnswers rejects a reserved DNS label type":
     # question label starts with 0x40 (reserved label type, top two bits 01)
-    let reserved = @[
-      0x00'u8, 0x01, 0x81, 0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
-      0x00,
-    ]
+    let reserved = "\x00\x01\x81\x80\x00\x01\x00\x00\x00\x00\x00\x00\x40\x00".toBytes()
     expect ValueError:
       discard parseAnswers(reserved, 0x0001'u16)
 
@@ -270,109 +179,23 @@ suite "DNS message codec: whole messages":
       parseMessage(encoded).questions[0].name == name
 
   test "parseMessage skips a record whose class is not IN":
-    # an=2: a CH-class A answer for "a", then an IN-class A answer for "a"
-    let message =
-      @[0x00'u8, 0x00, 0x84, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00] &
-      @[
-        0x01'u8,
-        byte('a'),
-        0x00,
-        0x00,
-        0x01,
-        0x00,
-        0x03,
-        0x00,
-        0x00,
-        0x00,
-        0x01,
-        0x00,
-        0x04,
-        0x01,
-        0x02,
-        0x03,
-        0x04,
-      ] &
-      @[
-        0x01'u8,
-        byte('a'),
-        0x00,
-        0x00,
-        0x01,
-        0x00,
-        0x01,
-        0x00,
-        0x00,
-        0x00,
-        0x01,
-        0x00,
-        0x04,
-        0x05,
-        0x06,
-        0x07,
-        0x08,
-      ]
+    let message = (
+      "\x00\x00\x84\x00\x00\x00\x00\x02\x00\x00\x00\x00" & # response, an=2
+      "\x01a\x00\x00\x01\x00\x03\x00\x00\x00\x01\x00\x04\x01\x02\x03\x04" & # A, CH
+      "\x01a\x00\x00\x01\x00\x01\x00\x00\x00\x01\x00\x04\x05\x06\x07\x08" # A, IN
+    ).toBytes()
     let decoded = parseMessage(message)
     check:
       decoded.answers.len == 1
       decoded.answers[0].address == "5.6.7.8"
 
   test "parseMessage keeps the cursor after a compressed name":
-    # PTR answer whose name is the 0xc00c pointer and whose target is
-    # "x" + a pointer back to the question name.
-    let message = @[
-      0x00'u8,
-      0x00,
-      0x84,
-      0x00,
-      0x00,
-      0x01,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      0x01,
-      ord('a').uint8,
-      0x00,
-      0x00,
-      0x0c,
-      0x00,
-      0x01, # question: "a", PTR, IN
-      0xc0,
-      0x0c,
-      0x00,
-      0x0c,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x0a,
-      0x00,
-      0x04,
-      0x01,
-      ord('x').uint8,
-      0xc0,
-      0x0c, # answer: PTR ttl=10 -> "x.a"
-      0x01,
-      ord('x').uint8,
-      0xc0,
-      0x0c,
-      0x00,
-      0x10,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x0a,
-      0x00,
-      0x03,
-      0x02,
-      ord('h').uint8,
-      ord('i').uint8, # additional: "x.a" TXT "hi"
-    ]
+    let message = (
+      "\x00\x00\x84\x00\x00\x01\x00\x01\x00\x00\x00\x01" & # response, qd=1, an=1, ar=1
+      "\x01a\x00\x00\x0c\x00\x01" & # question: "a", PTR, IN
+      "\xc0\x0c\x00\x0c\x00\x01\x00\x00\x00\x0a\x00\x04\x01x\xc0\x0c" & # PTR -> "x.a"
+      "\x01x\xc0\x0c\x00\x10\x00\x01\x00\x00\x00\x0a\x00\x03\x02hi" # TXT "hi"
+    ).toBytes()
     let decoded = parseMessage(message)
     check:
       decoded.answers.len == 1
@@ -385,53 +208,11 @@ suite "DNS message codec: whole messages":
       decoded.additionals[0].strings == @["hi"]
 
   test "parseMessage skips an unknown record type":
-    # an=2: a CNAME answer for "a", then a PTR answer for "a" -> "b"
-    let withCname = @[
-      0x00'u8,
-      0x00,
-      0x84,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x02,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      ord('a').uint8,
-      0x00,
-      0x00,
-      0x05,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      0x00,
-      0x03,
-      0x01,
-      ord('b').uint8,
-      0x00,
-      0x01,
-      ord('a').uint8,
-      0x00,
-      0x00,
-      0x0c,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      0x00,
-      0x03,
-      0x01,
-      ord('b').uint8,
-      0x00,
-    ]
+    let withCname = (
+      "\x00\x00\x84\x00\x00\x00\x00\x02\x00\x00\x00\x00" & # response, an=2
+      "\x01a\x00\x00\x05\x00\x01\x00\x00\x00\x01\x00\x03\x01b\x00" & # CNAME "a" -> "b"
+      "\x01a\x00\x00\x0c\x00\x01\x00\x00\x00\x01\x00\x03\x01b\x00" # PTR "a" -> "b"
+    ).toBytes()
     let decoded = parseMessage(withCname)
     check:
       decoded.answers.len == 1
@@ -440,22 +221,8 @@ suite "DNS message codec: whole messages":
       decoded.answers[0].target == @["b"]
 
   test "parseMessage rejects a compression loop":
-    let loop = @[
-      0x00'u8,
-      0x00,
-      0x84,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x00,
-      0xc0,
-      0x0c, # answer name points at itself
-    ]
+    # the answer name is a pointer to itself
+    let loop = "\x00\x00\x84\x00\x00\x00\x00\x01\x00\x00\x00\x00\xc0\x0c".toBytes()
     expect ValueError:
       discard parseMessage(loop)
 
