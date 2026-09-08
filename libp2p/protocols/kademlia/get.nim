@@ -132,8 +132,8 @@ method handleGetValue*(
       reason = "missingKey", messageType = "getValue", stream
     return
 
-  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
-  # as absent and sends the standard "no record found" response.
+  # Evict the entry eagerly if it has expired so the response below treats it as
+  # absent and sends the standard "no record found" response.
   var entryRecordOpt = kad.dataTable.get(key)
   entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
