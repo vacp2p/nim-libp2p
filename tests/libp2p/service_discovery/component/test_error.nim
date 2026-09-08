@@ -6,6 +6,7 @@ import chronos, results
 import
   ../../../../libp2p/[
     protocols/service_discovery/advertiser,
+    protocols/service_discovery/connection,
     protocols/service_discovery/types,
     stream/connection,
     switch,
@@ -40,6 +41,34 @@ proc sendMessage(
 suite "Service Discovery Component - Error Handling":
   teardown:
     checkTrackers()
+
+  asyncTest "cancelling an RPC propagates cancellation":
+    let registrarNode = setupServiceDiscoveryNode()
+    let clientNode = setupServiceDiscoveryNode()
+    let received = newFuture[void]()
+    registrarNode.handler = proc(
+        stream: Stream, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      try:
+        discard await stream.readLp(ServiceDiscoveryMaxMsgSize)
+        received.complete()
+        discard await stream.readLp(ServiceDiscoveryMaxMsgSize)
+      except LPStreamError:
+        discard
+      finally:
+        await noCancel stream.close()
+
+    startAndDeferStop(@[registrarNode, clientNode])
+    await connect(registrarNode, clientNode)
+    let pending = clientNode.send(
+      registrarNode.switch.peerInfo.peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await received.wait(2.seconds)
+    await pending.cancelAndWait()
+    check pending.cancelled()
 
   asyncTest "message with unknown MessageType is rejected without a reply":
     let registrarNode = setupServiceDiscoveryNode()
