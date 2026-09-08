@@ -3,6 +3,8 @@
 
 import pkg/[chronicles, chronos]
 
+const logFrequency = 1.minutes 
+
 type LogRateLimit* = object
   initialized: bool
   nextAllowed: Moment
@@ -12,7 +14,7 @@ proc allowLog*(limit: var LogRateLimit, now = Moment.now()): bool {.raises: [].}
   if limit.initialized and now < limit.nextAllowed:
     return false
   limit.initialized = true
-  limit.nextAllowed = now + 1.minutes
+  limit.nextAllowed = now + logFrequency
   true
 
 export LogLevel
