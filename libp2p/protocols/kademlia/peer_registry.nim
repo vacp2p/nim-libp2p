@@ -9,6 +9,7 @@ import std/[tables, sets]
 import chronos, results
 import ./types
 import ../../peerid
+import ../../utils/collections
 
 {.push raises: [].}
 
@@ -22,17 +23,14 @@ func contains*(registry: PeerRegistry, nodeId: Key): bool =
   nodeId in registry.peers
 
 func get*(registry: PeerRegistry, nodeId: Key): Opt[PeerRecord] =
-  registry.peers.withValue(nodeId, record):
-    return Opt.some(record[])
-  Opt.none(PeerRecord)
+  registry.peers.getOpt(nodeId)
 
 func len*(registry: PeerRegistry): int =
   registry.peers.len
 
 func membership*(registry: PeerRegistry, nodeId: Key, tableId: Key): Opt[Membership] =
   registry.tablesByPeer.withValue(nodeId, tables):
-    tables[].withValue(tableId, m):
-      return Opt.some(m[])
+    return tables[].getOpt(tableId)
   Opt.none(Membership)
 
 func lastActivity*(record: PeerRecord, membership: Membership): Moment =

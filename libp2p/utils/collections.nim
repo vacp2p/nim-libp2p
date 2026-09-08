@@ -3,7 +3,15 @@
 
 {.push raises: [].}
 
-import std/sets
+import std/[sets, tables]
+import results
+
+func getOpt*[K, V](t: Table[K, V], key: K): Opt[V] =
+  ## `Opt.some` of the value at `key`, `Opt.none` when `t` has no such key.
+  if t.hasKey(key):
+    Opt.some(t.getOrDefault(key))
+  else:
+    Opt.none(V)
 
 proc capLen*[T](s: var seq[T], length: int) =
   doAssert length >= 0, "length must be >= 0"

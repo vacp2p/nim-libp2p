@@ -4,7 +4,7 @@
 import std/[net, tables]
 import chronos, results
 import ../../peerid
-import ../../utils/iptree
+import ../../utils/[collections, iptree]
 import ./types
 
 export types
@@ -46,8 +46,7 @@ proc getCachedAd*(
     c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId
 ): Opt[CachedAd] =
   c.byService.withValue(serviceId, peers):
-    peers[].withValue(advertiser, cachedAd):
-      return Opt.some(cachedAd[])
+    return peers[].getOpt(advertiser)
   Opt.none(CachedAd)
 
 proc remove(c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId) =
