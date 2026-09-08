@@ -27,7 +27,7 @@ import ../../tools/crypto as testcrypto
 
 export protobuf, registrar, routing_table_manager, types, testcrypto
 
-converter toOptMoment*(a: Moment): Opt[Moment] =
+converter toOptTimestamp*(a: int64): Opt[int64] =
   Opt.some(a)
 
 converter toOptDuration*(a: Duration): Opt[Duration] =
@@ -58,8 +58,8 @@ proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
 proc makeTicket*(): Ticket =
   Ticket(
     advertisement: @[1'u8, 2, 3, 4],
-    tInit: Moment.init(1_000_000, Second),
-    tMod: Moment.init(2_000_000, Second),
+    tInit: 1_000_000'i64,
+    tMod: 2_000_000'i64,
     tWaitFor: 3000.secs,
     signature: Opt.none(seq[byte]),
   )
