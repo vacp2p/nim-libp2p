@@ -190,3 +190,55 @@ suite "Tor transport":
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()
+
+suite "Tor authentication cleanup":
+  teardown:
+    checkTrackers()
+
+  asyncTest "rejected authentication closes the proxy socket":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    discard await peer.write(@[5'u8, 255])
+    expect TransportDialError:
+      discard await dialing
+    var reply: array[1, byte]
+    check (await peer.readOnce(addr reply[0], 1).wait(100.millis)) == 0
+
+  asyncTest "cancelled authentication closes the proxy socket":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    await dialing.cancelAndWait()
+    var reply: array[1, byte]
+    check (await peer.readOnce(addr reply[0], 1).wait(100.millis)) == 0
+
+  asyncTest "truncated authentication is a dial error":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    discard await peer.write(@[5'u8])
+    await peer.shutdownWait()
+    expect TransportDialError:
+      discard await dialing
