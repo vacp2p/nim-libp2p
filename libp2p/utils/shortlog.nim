@@ -50,7 +50,7 @@ func shortLog*(item: string): string =
 func shortLog*[T](items: openArray[T], maxItems = ShortCollectionMax): string =
   ## Render a bounded collection preview without falling back to an unbounded
   ## ``$items`` representation. Elements with their own ``shortLog`` overload
-  ## retain a useful preview; all other elements are deliberately summarized.
+  ## retain a useful preview.
   let limit = min(items.len, maxItems)
   var res = newStringOfCap(limit * ShortDumpMax)
   res.add('[')
