@@ -1210,9 +1210,8 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
       "gossipsub: set the overhead rate limit through GossipSubParams, not the inherited FloodSub fields",
     )
 
-  let validationRes = g.parameters.validateParameters()
-  if validationRes.isErr:
-    raise newException(InitializationError, $validationRes.error)
+  g.parameters.validateParameters().isOkOr:
+    raise newException(InitializationError, $error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
   g.seen =
