@@ -167,6 +167,8 @@ suite "AutoTLS certificate issuance and renewal":
     defer:
       await certServer.stop()
 
+    # the certificate download is a real request, so it has to be on the directory origin
+    acmeApi.directoryURL = parseUri(certServer.url)
     acmeApi.scriptChallenge(ChallengeToken)
     acmeApi.scriptCertificate(certServer.url, OrderExpires)
 
