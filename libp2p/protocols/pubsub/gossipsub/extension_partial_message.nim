@@ -361,9 +361,8 @@ proc handlePartialRPC(
     ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
-  let validateRes = ext.config.validateRPC(rpc)
-  if validateRes.isErr():
-    debug "RPC rejected by application validation", reason = validateRes.error
+  ext.config.validateRPC(rpc).isOkOr:
+    debug "RPC rejected by application validation", reason = error
     return
 
   ext.recordReceivedMetadata(peerId, rpc)

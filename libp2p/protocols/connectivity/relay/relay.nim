@@ -271,9 +271,8 @@ proc handleHop*(
       return err(StatusV1.HopNoConnToDst)
     ok(msg)
 
-  let check = checkMsg()
-  if check.isErr:
-    await sendStatus(srcStream, check.error())
+  checkMsg().isOkOr:
+    await sendStatus(srcStream, error)
     return
 
   if r.peerCount[src.peerId] >= r.maxCircuitPerPeer or
