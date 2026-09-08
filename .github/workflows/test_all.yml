@@ -29,18 +29,23 @@ jobs:
           - os: linux
             cpu: amd64
             cc: gcc
+            log_level: TRACE
           - os: linux-gcc-14
             cpu: amd64
             cc: gcc
+            log_level: INFO
           - os: macos-15
             cpu: arm64
             cc: clang
+            log_level: INFO
           - os: windows
             cpu: amd64
             cc: clang
+            log_level: INFO
           - os: windows
             cpu: amd64
             cc: gcc
+            log_level: INFO
         nim:
           - ref: v2.2.4
             memory_management: refc
@@ -134,7 +139,7 @@ jobs:
         id: build-test-all
         run: |
           NIMFLAGS="--nimcache:nimcache/test_all --mm:${{ matrix.nim.memory_management }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
-          NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=INFO"
+          NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=${{ matrix.platform.log_level }}"
           NIMFLAGS="$NIMFLAGS --debugger:native --stacktrace:off --define:nimStackTraceOverride"
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             NIMFLAGS="$NIMFLAGS --cc:clang"
