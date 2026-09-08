@@ -4,6 +4,7 @@
 import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../utils/[heartbeat, future]
+import ../logging
 import ../[peerid, switch, multihash]
 import ./protocol
 import
@@ -266,10 +267,19 @@ proc bootstrap*(
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  var timedOut = false
+  var warnings: LogRateLimit
+  
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
     let refresh = kad.refreshTable(kad.rtable, false)
     if not await refresh.withTimeout(kad.config.bucketRefreshTime):
       await noCancel refresh.cancelAndWait()
+      if timedOut and warnings.allowLog():
+        warn "Routing table refresh repeatedly timed out",
+          timeout = kad.config.bucketRefreshTime, peers = kad.rtable.peerCount()
+      timedOut = true
+    else:
+      timedOut = false
 
 proc connectedPeerInfos(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
   ## Currently connected peers that we know an address for.
@@ -302,11 +312,38 @@ proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh = true)
 
 proc maintainMinPeers(kad: KadDHT) {.async.} =
+  var
+    timedOut = false
+    previouslyLow = false
+    reportedLow = false
+    timeoutWarnings: LogRateLimit
+    lowPeerWarnings: LogRateLimit
+  
   heartbeat "Checking routing table size",
     kad.config.fixLowPeersInterval, sleepFirst = true:
+    
+    let peers = kad.rtable.peerCount()
+    let lowPeers =
+      not kad.config.disableBootstrapping and peers < kad.config.minRoutingTableSize
+    if lowPeers and previouslyLow and lowPeerWarnings.allowLog():
+      warn "Routing table remains below minimum",
+        peers, minimum = kad.config.minRoutingTableSize
+      reportedLow = true
+    elif not lowPeers and reportedLow:
+      info "Routing table recovered", peers, minimum = kad.config.minRoutingTableSize
+      reportedLow = false
+    previouslyLow = lowPeers
     let fix = kad.fixLowPeers()
     if not await fix.withTimeout(kad.config.fixLowPeersInterval):
       await noCancel fix.cancelAndWait()
+      if timedOut and timeoutWarnings.allowLog():
+        warn "Minimum peer maintenance repeatedly timed out",
+          timeout = kad.config.fixLowPeersInterval,
+          peers = kad.rtable.peerCount(),
+          minimum = kad.config.minRoutingTableSize
+      timedOut = true
+    else:
+      timedOut = false
 
 proc initKadBase*(
     kad: KadDHT,
@@ -428,7 +465,7 @@ proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []
   kad.isServer = isServer
   if not isServer:
     await kad.resetServerStreams()
-  debug "Kad DHT changed mode", isServer
+  info "Kad DHT changed mode", previousIsServer = not isServer, isServer
   true
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =

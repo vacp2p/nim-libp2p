@@ -5,6 +5,7 @@
 
 {.push raises: [].}
 
+import ../logging
 import std/[sequtils]
 import chronos, chronicles, results, metrics, stew/byteutils
 import
@@ -135,6 +136,7 @@ method getWrapped*(s: WsStream): Connection =
   nil
 
 type WsTransport* = ref object of Transport
+  descriptorWarnings: LogRateLimit
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
@@ -276,7 +278,9 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
           if exc of TransportUseClosedError:
             debug "Server was closed", err = exc.msg
           elif exc of TransportTooManyError:
-            debug "Too many files opened", err = exc.msg
+            if self.descriptorWarnings.allowLog():
+              warn "Connection acceptance limited by file descriptor exhaustion",
+                err = exc.msg, errType = exc.name, transport = "websocket"
           elif exc of TransportAbortedError:
             debug "Transport connection aborted", err = exc.msg
           elif exc of TransportOsError:
