@@ -29,9 +29,7 @@ proc send*(
   let stream =
     try:
       await disco.switch.dial(peerId, addrs, disco.codec)
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
+    except DialFailedError as e:
       return err("dialing peer failed: " & e.msg)
   var replyRead = false
   defer:

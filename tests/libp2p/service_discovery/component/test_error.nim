@@ -5,6 +5,7 @@
 import chronos, results
 import
   ../../../../libp2p/[
+    multiaddress,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/connection,
     protocols/service_discovery/types,
@@ -12,8 +13,38 @@ import
     switch,
   ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, stall_server, unittest]
 import ../utils
+
+type
+  PendingWriteStream = ref object of Stream
+    writeStarted: Future[void].Raising([])
+    writePending: Future[void].Raising([CancelledError, LPStreamError])
+    reads: int
+
+  RpcSwitch = ref object of Switch
+    stream: Stream
+
+method dial(
+    self: RpcSwitch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false,
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError]).} =
+  return self.stream
+
+method write(
+    stream: PendingWriteStream, msg: sink seq[byte]
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  stream.writeStarted.complete()
+  await stream.writePending
+
+method readOnce(
+    stream: PendingWriteStream, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
+  stream.reads.inc()
+  raise newLPStreamEOFError()
 
 proc sendRawMessage(
     clientSwitch: Switch, registrarNode: ServiceDiscovery, msgBytes: seq[byte]
@@ -42,10 +73,59 @@ suite "Service Discovery Component - Error Handling":
   teardown:
     checkTrackers()
 
+  asyncTest "cancelling an RPC interrupts dialing":
+    let stall = startStallServer()
+    let clientNode = setupServiceDiscoveryNode()
+    await clientNode.switch.start()
+    defer:
+      await stall.stop()
+      await clientNode.switch.stop()
+
+    let peerId = randomPeerId()
+    clientNode.switch.peerStore[AddressBook][peerId] = @[stall.address]
+    let pending = clientNode.send(
+      peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await stall.waitAccepted().wait(2.seconds)
+    await pending.cancelAndWait().wait(2.seconds)
+    check pending.cancelled()
+
+  asyncTest "cancelling an RPC interrupts writing and resets the stream":
+    let clientNode = setupServiceDiscoveryNode()
+    let stream = PendingWriteStream(
+      writeStarted: Future[void].Raising([]).init("RPC write started"),
+      writePending:
+        Future[void].Raising([CancelledError, LPStreamError]).init("RPC write pending"),
+    )
+    stream.initStream()
+    defer:
+      await stream.close()
+
+    clientNode.switch =
+      RpcSwitch(peerStore: clientNode.switch.peerStore, stream: stream)
+    let peerId = randomPeerId()
+    clientNode.switch.peerStore[AddressBook][peerId] = @[makeMultiAddress("127.0.0.1")]
+    let pending = clientNode.send(
+      peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await stream.writeStarted.wait(2.seconds)
+    await pending.cancelAndWait().wait(2.seconds)
+    check:
+      pending.cancelled()
+      stream.writePending.cancelled()
+      stream.wasResetLocally()
+      stream.reads == 0
+
   asyncTest "cancelling an RPC propagates cancellation":
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
-    let received = newFuture[void]()
+    let received = Future[void].Raising([]).init("service discovery request received")
     registrarNode.handler = proc(
         stream: Stream, proto: string
     ) {.async: (raises: [CancelledError]).} =
