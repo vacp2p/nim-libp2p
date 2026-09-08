@@ -1365,7 +1365,7 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
 
 const AvgMultiAddressStringLength = 32
 
-func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
+func shortLog*(addrs: seq[MultiAddress], maxAddrs = ShortCollectionMax): string =
   let limit = min(addrs.len, maxAddrs)
   var res = newStringOfCap(limit * AvgMultiAddressStringLength)
   for i in 0 ..< limit:

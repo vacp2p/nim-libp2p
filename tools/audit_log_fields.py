@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Reject deprecated Chronicle error fields, unsafe elevated payload logs and
-log fields whose names are too short to be useful (single/two characters)."""
+"""Reject unsafe Chronicle log fields and unhelpfully short field names."""
 
 from pathlib import Path
 import re
@@ -15,6 +14,11 @@ EXCEPTION_ALIAS = re.compile(
 PAYLOAD_FIELD = re.compile(
     r"\b(?:msg|message|buffer|record|reply|response|rpcMsg|data|encoded|"
     r"certificate|ticket|key)\s*="
+)
+UNBOUNDED_FIELD = re.compile(
+    r"\b(?:data|buffer|payload|encoded|certificate|ticket|signature|"
+    r"advertisement|msg|message|request|response|record|addresses|addrs)\s*="
+    r"\s*([^,\n]+)"
 )
 FIELD_ASSIGNMENT = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=")
 FIELD_NAME = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
@@ -131,6 +135,15 @@ def main() -> int:
                 violations.append(
                     f"{path.relative_to(ROOT)}:{line}: elevated log contains payload field"
                 )
+            # Payloads and collections must be bounded even at trace/debug:
+            # peers can otherwise make a single event arbitrarily large. This
+            # is intentionally structural; it only checks field names that
+            # conventionally carry byte arrays or unbounded protocol objects.
+            for value in UNBOUNDED_FIELD.findall(block):
+                if "shortLog" not in value and ".len" not in value:
+                    violations.append(
+                        f"{path.relative_to(ROOT)}:{line}: potentially unbounded log field must use shortLog"
+                    )
             # Structured `name = value` fields ...
             for field_name in FIELD_ASSIGNMENT.findall(block):
                 if len(field_name) < 3 and field_name not in SHORT_FIELD_EXCEPTIONS:

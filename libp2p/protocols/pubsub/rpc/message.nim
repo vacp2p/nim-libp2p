@@ -60,7 +60,7 @@ proc verify*(m: Message): bool =
 
     var remote: Signature
     let key = m.extractPublicKey().valueOr:
-      trace "could not extract public key", msg = m
+      trace "could not extract public key", msg = m.shortLog
       return false
 
     if remote.init(m.signature):

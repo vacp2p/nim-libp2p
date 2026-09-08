@@ -63,7 +63,7 @@ proc connHandler*(
   proc onClose() {.async: (raises: []).} =
     await noCancel client.join()
 
-    trace "Cleaning up client", addresses = $client.remoteAddress, conn
+    trace "Cleaning up client", addresses = ($client.remoteAddress).shortLog, conn
 
     self.clients[dir].keepItIf(it != client)
 
@@ -76,7 +76,7 @@ proc connHandler*(
 
     await conn.close()
 
-    trace "Cleaned up client", addresses = $client.remoteAddress, conn
+    trace "Cleaned up client", addresses = ($client.remoteAddress).shortLog, conn
 
   self.clients[dir].add(client)
 
