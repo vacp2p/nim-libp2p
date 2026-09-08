@@ -172,6 +172,7 @@ proc validate*(ctype: typedesc[Cid], data: openArray[byte]): bool =
   var mcodec = CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
   if mcodec == InvalidMultiCodec:
     return false
+  offset += length
   if not MultiHash.validate(data.toOpenArray(offset, last)):
     return false
   true
@@ -275,7 +276,7 @@ proc write*(vb: var VBuffer, cid: Cid) =
   vb.writeArray(cid.data.buffer)
 
 proc hash*(cid: Cid): Hash =
-  hash(cid.data.buffer)
+  !$(hash(cid.mcodec) !& hash(cid.data.buffer.toOpenArray(cid.hpos, cid.data.high)))
 
 proc `$`*(cid: Cid): string =
   ## Return official string representation of content identifier ``cid``.
