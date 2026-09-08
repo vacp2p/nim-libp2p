@@ -107,7 +107,8 @@ static int wait_for_callback(CallbackWait *wait, const char *op) {
   if (rc == ETIMEDOUT) {
     fprintf(stderr, "%s: timed out after %d seconds\n", op,
             CALLBACK_TIMEOUT_SECONDS);
-    // A late callback still owns the stack waiter and its synchronization state.
+    // A late callback still owns the stack waiter and its synchronization
+    // state.
     exit(EXIT_FAILURE);
   }
   if (rc != 0) {
