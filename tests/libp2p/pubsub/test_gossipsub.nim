@@ -444,7 +444,7 @@ suite "GossipSub":
     # Given the announcer was asked for the message
     check:
       gossipSub.handleIHave(announcer, @[ihave]).messageIDs == @[msgId]
-      gossipSub.requestedIWants[msgId] == 1
+      gossipSub.requestedIWants[msgId].len == 1
 
     # When the message arrives from another peer
     await gossipSub.rpcHandler(sender, RPCMsg.withMessages(msg).encode(false))

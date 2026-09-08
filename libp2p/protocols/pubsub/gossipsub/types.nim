@@ -58,6 +58,10 @@ const
   DefaultMaxIWantsPerMessage* = 1
 
 type
+  IWantRequest* = object
+    peerId*: PeerId
+    heartbeat*: uint64
+
   TopicInfo* = object # gossip 1.1 related
     graftTime*: Moment
     meshTime*: Duration
@@ -202,8 +206,9 @@ type
     lastFanoutPubSub*: Table[string, Moment] # last publish time for fanout topics
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
-    requestedIWants*: Table[MessageId, int]
-      # number of peers we have an outstanding IWANT request with, per message
+    requestedIWants*: Table[MessageId, seq[IWantRequest]]
+      # peers we have an outstanding IWANT request with, per message
+    heartbeatCount*: uint64 # heartbeats since start, used to expire IWANT requests
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval

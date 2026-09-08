@@ -314,8 +314,7 @@ suite "GossipSub Component - Heartbeat":
     # Then the request is recorded
     check:
       iWant.messageIDs == @[id]
-      nodes[1].requestedIWants[id] == 1
-      id in peer.requestedIWants[0]
+      nodes[1].requestedIWants[id].mapIt(it.peerId) == @[peer.peerId]
 
     # And it is forgotten once the history moves past it
     checkUntilTimeout:
@@ -323,7 +322,6 @@ suite "GossipSub Component - Heartbeat":
 
     # And the unanswered request carries no penalty
     check:
-      peer.requestedIWants.allIt(id notin it)
       peer.behaviourPenalty == 0.0
 
     # And the message can be requested again

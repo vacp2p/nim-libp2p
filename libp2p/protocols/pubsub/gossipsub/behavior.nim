@@ -293,22 +293,42 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
         handler(peer.peerId, topic, routingRecords)
 
 proc recordIWantRequest(g: GossipSub, peer: PubSubPeer, msgId: MessageId) =
-  peer.requestedIWants[0].incl(msgId)
-  g.requestedIWants.mgetOrPut(msgId, 0).inc()
+  g.requestedIWants.mgetOrPut(msgId, @[]).add(
+    IWantRequest(peerId: peer.peerId, heartbeat: g.heartbeatCount)
+  )
 
-proc releaseIWantRequest(g: GossipSub, msgId: MessageId) =
-  g.requestedIWants.withValue(msgId, count):
-    count[].dec()
-    if count[] <= 0:
-      g.requestedIWants.del(msgId)
+proc isIWantInFlight(g: GossipSub, peer: PubSubPeer, msgId: MessageId): bool =
+  g.requestedIWants.withValue(msgId, requests):
+    return
+      requests[].len >= g.parameters.maxIWantsPerMessage or
+      requests[].anyIt(it.peerId == peer.peerId)
+
+  false
 
 proc forgetIWantRequests*(g: GossipSub, msgId: MessageId) =
   g.requestedIWants.del(msgId)
 
-proc releasePeerIWantRequests*(g: GossipSub, peer: PubSubPeer) =
-  for requested in peer.requestedIWants:
-    for msgId in requested:
-      g.releaseIWantRequest(msgId)
+proc delEmptyIWantRequests(g: GossipSub, emptied: seq[MessageId]) =
+  for msgId in emptied:
+    g.requestedIWants.del(msgId)
+
+proc releasePeerIWantRequests*(g: GossipSub, peerId: PeerId) =
+  var emptied: seq[MessageId]
+  for msgId, requests in g.requestedIWants.mpairs:
+    requests.keepItIf(it.peerId != peerId)
+    if requests.len == 0:
+      emptied.add(msgId)
+
+  g.delEmptyIWantRequests(emptied)
+
+proc expireIWantRequests(g: GossipSub) =
+  var emptied: seq[MessageId]
+  for msgId, requests in g.requestedIWants.mpairs:
+    requests.keepItIf(g.heartbeatCount - it.heartbeat < IWantHistoryLen)
+    if requests.len == 0:
+      emptied.add(msgId)
+
+  g.delEmptyIWantRequests(emptied)
 
 proc handleIHave*(
     g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]
@@ -335,7 +355,7 @@ proc handleIHave*(
           break
         if msgId in res.messageIDs:
           continue
-        if g.requestedIWants.getOrDefault(msgId) >= g.parameters.maxIWantsPerMessage:
+        if g.isIWantInFlight(peer, msgId):
           libp2p_gossipsub_saved_iwants.inc(labelValues = ["in_flight"])
           continue
         if g.extensionsState.preambleHandleIHave(peer.peerId, msgId):
@@ -743,6 +763,9 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
 proc onHeartbeat(g: GossipSub) =
   libp2p_gossipsub_seen_cache_size.set(g.seen.len.int64)
 
+  g.heartbeatCount.inc()
+  g.expireIWantRequests()
+
   # reset IWANT budget
   # reset IHAVE cap
   block:
@@ -753,10 +776,6 @@ proc onHeartbeat(g: GossipSub) =
       peer.iDontWants.addFirst(default(HashSet[SaltedId]))
       if peer.iDontWants.len > g.parameters.historyLength:
         discard peer.iDontWants.popLast()
-      peer.requestedIWants.addFirst(default(HashSet[MessageId]))
-      if peer.requestedIWants.len > IWantHistoryLen:
-        for msgId in peer.requestedIWants.popLast():
-          g.releaseIWantRequest(msgId)
       peer.iHaveBudget = IHavePeerBudget
 
   var meshMetrics = MeshMetrics()

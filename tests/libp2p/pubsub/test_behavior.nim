@@ -269,7 +269,6 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
       id notin gossipSub.requestedIWants
-      peer.requestedIWants.allIt(id notin it)
 
   asyncTest "handleIHave - request a message from only one peer at a time":
     # Given a GossipSub instance with two peers
@@ -292,9 +291,7 @@ suite "GossipSub Behavior":
     check:
       firstIWant.messageIDs == @[id]
       secondIWant.messageIDs.len == 0
-      gossipSub.requestedIWants[id] == 1
-      id in firstPeer.requestedIWants[0]
-      secondPeer.requestedIWants.allIt(id notin it)
+      gossipSub.requestedIWants[id].mapIt(it.peerId) == @[firstPeer.peerId]
 
     # And the unanswered request carries no penalty
     check:
@@ -321,7 +318,65 @@ suite "GossipSub Behavior":
       iWants[0].messageIDs == @[id]
       iWants[1].messageIDs == @[id]
       iWants[2].messageIDs.len == 0
-      gossipSub.requestedIWants[id] == 2
+      gossipSub.requestedIWants[id].mapIt(it.peerId) ==
+        @[peers[0].peerId, peers[1].peerId]
+
+  asyncTest "handleIHave - a repeated announcement takes one slot per peer":
+    # Given a GossipSub instance with two peers, asking two peers per message
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+      firstPeer = peers[0]
+      secondPeer = peers[1]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.parameters.maxIWantsPerMessage = 2
+
+    let id = @[0'u8, 1, 2, 3]
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
+
+    # When the first peer announces the same message twice
+    let firstIWant = gossipSub.handleIHave(firstPeer, @[msg])
+    let repeatedIWant = gossipSub.handleIHave(firstPeer, @[msg])
+
+    # Then the second announcement is ignored
+    check:
+      firstIWant.messageIDs == @[id]
+      repeatedIWant.messageIDs.len == 0
+      gossipSub.requestedIWants[id].mapIt(it.peerId) == @[firstPeer.peerId]
+
+    # And the free slot still goes to the second peer
+    check:
+      gossipSub.handleIHave(secondPeer, @[msg]).messageIDs == @[id]
+      gossipSub.requestedIWants[id].len == 2
+
+  asyncTest "unsubscribePeer - releases only the requests of that peer":
+    # Given two peers that were both asked for the same message
+    let
+      (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
+      firstPeer = peers[0]
+      secondPeer = peers[1]
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    gossipSub.parameters.maxIWantsPerMessage = 2
+
+    let id = @[0'u8, 1, 2, 3]
+    let msg = ControlIHave(topicID: topic, messageIDs: @[id])
+    discard gossipSub.handleIHave(firstPeer, @[msg])
+    discard gossipSub.handleIHave(secondPeer, @[msg])
+
+    # When the first peer disconnects
+    gossipSub.unsubscribePeer(firstPeer.peerId)
+
+    # Then only its request is released
+    check:
+      gossipSub.requestedIWants[id].mapIt(it.peerId) == @[secondPeer.peerId]
+
+    # And when the second peer disconnects the message is forgotten
+    gossipSub.unsubscribePeer(secondPeer.peerId)
+    check:
+      id notin gossipSub.requestedIWants
 
   asyncTest "handleIHave - iHaveBudget caps the recorded requests":
     # Given a GossipSub instance with one peer
@@ -342,7 +397,6 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == IHavePeerBudget
       gossipSub.requestedIWants.len == IHavePeerBudget
-      peer.requestedIWants[0].len == IHavePeerBudget
       peer.iHaveBudget == 0
 
   asyncTest "handleIWant - message is handled when in cache and with sent IHave":

@@ -165,8 +165,6 @@ type
     score*: float64
     subscribedTopics*: int # distinct topics this peer is tracked as subscribed to
     sentIHaves*: Deque[HashSet[MessageId]]
-    requestedIWants*: Deque[HashSet[MessageId]]
-      ## message id:s we asked this peer for and have not received yet
     iDontWants*: Deque[HashSet[SaltedId]]
       ## IDONTWANT contains unvalidated message id:s which may be long and/or
       ## expensive to look up, so we apply the same salting to them as during
@@ -885,7 +883,6 @@ proc new*(
     customStreamCallbacks: customStreamCallbacks,
   )
   response.sentIHaves.addFirst(default(HashSet[MessageId]))
-  response.requestedIWants.addFirst(default(HashSet[MessageId]))
   response.iDontWants.addFirst(default(HashSet[SaltedId]))
   response.startSendNonHighPriorityTask()
 

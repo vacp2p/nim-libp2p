@@ -403,7 +403,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   pubSubPeer.stopTasks()
 
-  g.releasePeerIWantRequests(pubSubPeer)
+  g.releasePeerIWantRequests(peer)
 
   g.extensionsState.removePeer(peer)
 
