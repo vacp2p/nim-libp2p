@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, math, sequtils, net]
+from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../[
@@ -180,14 +181,17 @@ proc isValidAdvertisement*(
   return ok(ad)
 
 proc updateWaitAfterRetry*(
-    disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
+    disco: ServiceDiscovery,
+    ticketOpt: Opt[Ticket],
+    now: UnixTimestamp,
+    wait: var Duration,
 ) =
   ticketOpt.withValue(ticket):
     let totalWaitSoFar = now - ticket.tInit.get()
-    wait -= totalWaitSoFar
+    wait -= totalWaitSoFar.seconds
 
 proc isValidTicket(
-    disco: ServiceDiscovery, regMsg: RegisterMessage, now: Moment
+    disco: ServiceDiscovery, regMsg: RegisterMessage, now: UnixTimestamp
 ): Result[Opt[Ticket], string] {.raises: [].} =
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
@@ -202,8 +206,8 @@ proc isValidTicket(
     return err("ticket fails verification")
 
   let
-    windowStart = ticket.tMod.get() + ticket.tWaitFor.get()
-    windowEnd = windowStart + disco.discoConfig.registrationWindow
+    windowStart = ticket.tMod.get() + ticket.tWaitFor.get().seconds
+    windowEnd = windowStart + disco.discoConfig.registrationWindow.seconds
 
   if now notin windowStart .. windowEnd:
     return err("ticket outside valid time window")
@@ -312,7 +316,9 @@ proc registration*(
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
-  let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
+  let unixNow = getTime().toUnix()
+
+  let ticketOpt = disco.isValidTicket(regMsg, unixNow).valueOr:
     trace "Invalid ticket", error
 
     cd_register_requests.inc(
@@ -324,7 +330,7 @@ proc registration*(
   let ips = disco.advertiserIps(peerId, connectionIps)
   var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
 
-  disco.updateWaitAfterRetry(ticketOpt, now, tWait)
+  disco.updateWaitAfterRetry(ticketOpt, unixNow, tWait)
 
   if tWait <= ZeroDuration:
     disco.acceptAdvertisement(now, serviceId, peerId, ad, ips)
@@ -343,17 +349,13 @@ proc registration*(
 
   var ticket = Ticket(
     advertisement: regMsg.advertisement,
-    tInit: Opt.some(now),
-    tMod: Opt.some(now),
+    tInit: Opt.some(unixNow),
+    tMod: Opt.some(unixNow),
     tWaitFor: Opt.some(tWait),
   )
 
-  regMsg.ticket.withValue(t):
-    let
-      windowStart = t.tMod.get() + t.tWaitFor.get()
-      windowEnd = windowStart + disco.discoConfig.registrationWindow
-    if now in windowStart .. windowEnd:
-      ticket.tInit = t.tInit
+  ticketOpt.withValue(t):
+    ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
     error "Failed to sign ticket"
