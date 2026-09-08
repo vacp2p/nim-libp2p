@@ -20,16 +20,18 @@ method newStream*(
   Connection.new(m.peerId, Direction.Out)
 
 proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
-  ConnManager.new(
+  result = ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxTotal(maxConnections)),
   )
+  result.start()
 
 proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
-  ConnManager.new(
+  result = ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxInOut(maxIn, maxOut)),
   )
+  result.start()
 
 proc newWatermark*(
     lowWater: int,
@@ -47,7 +49,8 @@ proc newWatermark*(
   )
   let scCfg =
     PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
-  ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
+  result = ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
+  result.start()
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng()).tryGet()
@@ -71,7 +74,7 @@ suite "Connection Manager":
     check peerMux == mux
     check peerMux.connection.dir == Direction.In
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "get all connections":
     let connMngr = newMaxTotal()
@@ -84,7 +87,7 @@ suite "Connection Manager":
     let connsMux = connMngr.getConnections().values.toSeq().mapIt(it[0])
     check unorderedCompare(connsMux, muxs)
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "shouldn't allow a closed connection":
     let connMngr = newMaxTotal()
@@ -94,7 +97,7 @@ suite "Connection Manager":
     expect LPError:
       await connMngr.storeMuxer(mux)
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "shouldn't allow an EOFed connection":
     let connMngr = newMaxTotal()
@@ -105,7 +108,7 @@ suite "Connection Manager":
       await connMngr.storeMuxer(mux)
 
     await mux.close()
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "shouldn't allow a muxer with no connection":
     let connMngr = newMaxTotal()
@@ -118,7 +121,7 @@ suite "Connection Manager":
 
     await conn.close()
     await muxer.close()
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "get conn with direction":
     let connMngr = newMaxTotal(maxConnsPerPeer = 2)
@@ -140,7 +143,7 @@ suite "Connection Manager":
     check outMux.connection.dir == Direction.Out
     check inMux.connection.dir == Direction.In
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "get muxed stream for peer":
     let connMngr = newMaxTotal()
@@ -157,7 +160,7 @@ suite "Connection Manager":
     check not stream.isNil
     check stream.peerId == peerId
 
-    await connMngr.close()
+    await connMngr.stop()
     await connection.close()
     await stream.close()
 
@@ -177,7 +180,7 @@ suite "Connection Manager":
     let stream2 = await connMngr.getStream(peerId, Direction.Out)
     check stream2.isNil
 
-    await connMngr.close()
+    await connMngr.stop()
     await stream1.close()
     await connection.close()
 
@@ -206,7 +209,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       await connMngr.storeMuxer(muxs[1])
 
-    await connMngr.close()
+    await connMngr.stop()
 
     checkUntilTimeout:
       waitedConn3.cancelled()
@@ -224,7 +227,7 @@ suite "Connection Manager":
     checkUntilTimeout:
       muxer notin connMngr
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "waitForPeerReady unblocks when muxer is stored":
     let connMngr = newMaxTotal()
@@ -233,20 +236,50 @@ suite "Connection Manager":
     await connMngr.storeMuxer(makeMuxer(peerId))
 
     check await readyWaiter
-    await connMngr.close()
+    await connMngr.stop()
+
+  asyncTest "readiness waits require start":
+    let connMngr = ConnManager.new()
+    defer:
+      await connMngr.stop()
+    check not (await connMngr.waitForPeerReady(peerId))
+    connMngr.start()
+    let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
+    await connMngr.storeMuxer(makeMuxer(peerId))
+    check await readyWaiter
+    await connMngr.stop()
+    check not (await connMngr.waitForPeerReady(peerId))
 
   asyncTest "restart resumes readiness waits and retained tag decay":
     let connMngr = newWatermark(1, 2, decayResolution = 1.millis)
     connMngr.tagPeerDecaying(peerId, "retained", 1, 1.millis, decayFixed(1))
-    await connMngr.close()
+    await connMngr.stop()
     connMngr.start()
     defer:
-      await connMngr.close()
+      await connMngr.stop()
     let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
     await connMngr.storeMuxer(makeMuxer(peerId))
     check await readyWaiter
     checkUntilTimeoutCustom(1.seconds, 10.millis):
       connMngr.peerScore(peerId) == 0
+
+  asyncTest "tags configured while stopped decay only after start":
+    let connMngr = newWatermark(1, 2, decayResolution = 10.millis)
+    defer:
+      connMngr.removeDecayingTag(peerId, "between-starts")
+      await connMngr.stop()
+    await connMngr.stop()
+    connMngr.tagPeerDecaying(peerId, "between-starts", 100, 1.millis, decayFixed(1))
+    await sleepAsync(50.millis)
+    check connMngr.peerScore(peerId) == 100
+    connMngr.start()
+    connMngr.start()
+    checkUntilTimeout:
+      connMngr.peerScore(peerId) < 100
+    await connMngr.stop()
+    let scoreAtStop = connMngr.peerScore(peerId)
+    await sleepAsync(50.millis)
+    check connMngr.peerScore(peerId) == scoreAtStop
 
   asyncTest "waitForPeerReady timeout does not break concurrent waiters":
     let connMngr = newMaxTotal()
@@ -258,7 +291,7 @@ suite "Connection Manager":
     await connMngr.storeMuxer(makeMuxer(peerId))
     check await longWaiter
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "waitForPeerReady cleanup after disconnect":
     let connMngr = newMaxTotal()
@@ -271,12 +304,12 @@ suite "Connection Manager":
       peerId notin connMngr
 
     check (await connMngr.waitForPeerReady(peerId, 10.millis)) == false
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "does not emit Joined when muxer is dropped before connected handlers finish":
     let connMngr = newMaxTotal()
     defer:
-      await connMngr.close()
+      await connMngr.stop()
 
     let
       muxer = makeMuxer(peerId)
@@ -346,7 +379,7 @@ suite "Connection Manager":
     check connMngr.selectMuxer(peerId, Direction.In).isNil
     check connMngr.selectMuxer(peerId, Direction.Out).isNil
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track total incoming connection limits":
     let connMngr = newMaxTotal(3)
@@ -357,7 +390,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "try incoming connection slot":
     let connMngr = newMaxTotal(1)
@@ -371,7 +404,7 @@ suite "Connection Manager":
     check reacquired.isSome
     reacquired.get().release()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track total outgoing connection limits":
     let connMngr = newMaxTotal(3)
@@ -383,7 +416,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
     let connMngr = newMaxTotal(3)
@@ -394,7 +427,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
     let connMngr = newMaxTotal(3)
@@ -406,7 +439,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track max incoming connection limits":
     let connMngr = newMaxInOut(3, 1)
@@ -416,7 +449,7 @@ suite "Connection Manager":
 
     check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track max outgoing connection limits":
     let connMngr = newMaxInOut(1, 3)
@@ -428,7 +461,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track incoming max connections limits - fail on incoming":
     let connMngr = newMaxInOut(1, 3)
@@ -441,7 +474,7 @@ suite "Connection Manager":
     # should timeout adding a connection over the limit
     check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "track incoming max connections limits - fail on outgoing":
     let connMngr = newMaxInOut(3, 1)
@@ -455,7 +488,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "allow force dial":
     let connMngr = newMaxTotal(2)
@@ -467,7 +500,7 @@ suite "Connection Manager":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot(false)
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "release slot on connection end":
     let connMngr = newMaxTotal(3)
@@ -489,7 +522,7 @@ suite "Connection Manager":
     await allFuturesRaising(muxs.mapIt(it.close()))
     check await incomingSlot.withTimeout(10.millis)
 
-    await connMngr.close()
+    await connMngr.stop()
 
 suite "Connection Manager maxConnsPerPeer":
   teardown:
@@ -517,7 +550,7 @@ suite "Connection Manager maxConnsPerPeer":
 
     check connMngr.connCount(peerId) == numberOfMuxersToConnect
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "maxConnsPerPeer = -1 uses default":
     await runTest(-1, defaultMaxConnsPerPeer)
@@ -547,7 +580,7 @@ suite "Connection Manager Watermark":
 
     check connMngr.getConnections().len == lowWater
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "grace period protects newly connected peers":
     # long grace period - newly connected peers must not be pruned
@@ -561,7 +594,7 @@ suite "Connection Manager Watermark":
     # all peers are within grace period - none should be pruned
     check connMngr.getConnections().len == peersToConnect
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "protected peers survive trim":
     const peersToConnect = 3
@@ -582,7 +615,7 @@ suite "Connection Manager Watermark":
     check connMngr.contains(peers[0])
     check connMngr.contains(peers[1])
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "unprotect removes tag and allows trimming":
     let connMngr = newWatermark(1, 3)
@@ -597,7 +630,7 @@ suite "Connection Manager Watermark":
     check connMngr.unprotect(peerId, "tag-b") == false # no longer protected
     check not connMngr.isProtected(peerId)
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "silence period throttles back-to-back trims":
     const peersToConnect = 3
@@ -617,7 +650,7 @@ suite "Connection Manager Watermark":
     # silence period still active - count should be >= before
     check connMngr.getConnections().len == connectedPeers + peersToConnect
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "getIncomingSlot does not block in watermark mode":
     let connMngr = newWatermark(1, 5)
@@ -625,7 +658,7 @@ suite "Connection Manager Watermark":
     # should return immediately without semaphore blocking
     check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "getOutgoingSlot does not raise in watermark mode":
     let connMngr = newWatermark(1, 5)
@@ -633,14 +666,14 @@ suite "Connection Manager Watermark":
     for i in 0 ..< 10:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()
 
   asyncTest "lifecycle events stay ordered when trim prunes the new connection":
     # The trim may prune the just-stored connection, but consumers such as
     # pubsub rely on Joined being observed before Left for the same peer.
     let connMngr = newWatermark(1, 2)
     defer:
-      await connMngr.close()
+      await connMngr.stop()
 
     let peers = PeerId.random(3, rng()).tryGet()
     let prunedPeer = peers[2]
@@ -692,7 +725,7 @@ suite "Connection Manager Watermark":
     # A pruned peer must not remain ready after trim removes its only muxer.
     let connMngr = newWatermark(1, 2)
     defer:
-      await connMngr.close()
+      await connMngr.stop()
 
     let peers = PeerId.random(3, rng()).tryGet()
     let prunedPeer = peers[2]
@@ -719,7 +752,7 @@ suite "Connection Manager Scoring":
   asyncTest "peerScore returns 0 for unknown peer":
     let cm = newWatermark(1, 2)
     check cm.peerScore(peerId) == 0
-    await cm.close()
+    await cm.stop()
 
   asyncTest "static tag contributes to peer score":
     let cm = newWatermark(1, 2)
@@ -728,7 +761,7 @@ suite "Connection Manager Scoring":
     check cm.peerScore(peerId) == 50
     cm.tagPeer(peerId, "🕶️", 30)
     check cm.peerScore(peerId) == 80
-    await cm.close()
+    await cm.stop()
 
   asyncTest "untagPeer removes score contribution":
     let cm = newWatermark(1, 2)
@@ -736,27 +769,27 @@ suite "Connection Manager Scoring":
     cm.tagPeer(peerId, tag, 50)
     cm.untagPeer(peerId, tag)
     check cm.peerScore(peerId) == 0
-    await cm.close()
+    await cm.stop()
 
   asyncTest "outbound connection gets outboundBonus":
     const outboundBonus = 2345432
     let cm = newWatermark(1, 2, outboundBonus = outboundBonus)
     await cm.storeMuxer(makeMuxer(peerId, Direction.Out))
     check cm.peerScore(peerId) == outboundBonus
-    await cm.close()
+    await cm.stop()
 
   asyncTest "inbound connection gets no outboundBonus":
     let cm = newWatermark(1, 2)
     await cm.storeMuxer(makeMuxer(peerId, Direction.In))
     check cm.peerScore(peerId) == 0
-    await cm.close()
+    await cm.stop()
 
   asyncTest "decaying tag contributes initial value to score":
     let cm = newWatermark(1, 2)
     await cm.storeMuxer(makeMuxer(peerId))
     cm.tagPeerDecaying(peerId, tag, 100, 1.hours, decayLinear(0.5))
     check cm.peerScore(peerId) == 100
-    await cm.close()
+    await cm.stop()
 
   asyncTest "decaying tag value decreases over interval":
     let cm = newWatermark(1, 2, decayResolution = 20.millis)
@@ -764,7 +797,7 @@ suite "Connection Manager Scoring":
     cm.tagPeerDecaying(peerId, tag, 100, 20.millis, decayFixed(30))
     checkUntilTimeout:
       cm.peerScore(peerId) < 100
-    await cm.close()
+    await cm.stop()
 
   asyncTest "decaying tag auto-removed when value hits zero":
     let cm = newWatermark(1, 2, decayResolution = 20.millis)
@@ -772,7 +805,7 @@ suite "Connection Manager Scoring":
     cm.tagPeerDecaying(peerId, tag, 10, 20.millis, decayFixed(15))
     checkUntilTimeout:
       cm.peerScore(peerId) == 0
-    await cm.close()
+    await cm.stop()
 
   asyncTest "bumpDecayingTag increases tag value":
     let cm = newWatermark(1, 2)
@@ -780,7 +813,7 @@ suite "Connection Manager Scoring":
     cm.tagPeerDecaying(peerId, tag, 50, 1.hours, decayNone())
     cm.bumpDecayingTag(peerId, tag, 25)
     check cm.peerScore(peerId) == 75
-    await cm.close()
+    await cm.stop()
 
   asyncTest "removeDecayingTag removes tag immediately":
     let cm = newWatermark(1, 2)
@@ -788,7 +821,7 @@ suite "Connection Manager Scoring":
     cm.tagPeerDecaying(peerId, tag, 50, 1.hours, decayNone())
     cm.removeDecayingTag(peerId, tag)
     check cm.peerScore(peerId) == 0
-    await cm.close()
+    await cm.stop()
 
   asyncTest "watermark trim prunes lowest-score peer first":
     let cm = newWatermark(1, 2)
@@ -801,7 +834,7 @@ suite "Connection Manager Scoring":
     await cm.storeMuxer(makeMuxer(PeerId.random(rng()).tryGet()))
     check cm.contains(highScorePeer)
     check cm.getConnections().len == 1
-    await cm.close()
+    await cm.stop()
 
   asyncTest "outbound peer survives watermark trim over inbound peers":
     let cm = newWatermark(1, 2, outboundBonus = 500)
@@ -812,7 +845,7 @@ suite "Connection Manager Scoring":
     await cm.storeMuxer(makeMuxer(PeerId.random(rng()).tryGet(), Direction.In))
     check cm.contains(outboundPeer)
     check cm.getConnections().len == 1
-    await cm.close()
+    await cm.stop()
 
 suite "Connection Manager: watermark with connection limiting":
   teardown:
@@ -831,6 +864,8 @@ suite "Connection Manager: watermark with connection limiting":
         )
       ),
     )
+
+    connMngr.start()
 
     # acquire a semaphore slot for each peer, protect it, then register it.
     # protecting before storeMuxer ensures the peer is already shielded when
@@ -853,4 +888,4 @@ suite "Connection Manager: watermark with connection limiting":
     expect TooManyConnectionsError:
       discard connMngr.getOutgoingSlot()
 
-    await connMngr.close()
+    await connMngr.stop()

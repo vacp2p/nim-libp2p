@@ -104,7 +104,7 @@ type
   .}
 
   ConnManager* = ref object of RootObj
-    closed: bool
+    started: bool
     muxerStore: MuxerStore
     maxConnsPerPeer: int
     maxConnectionsIn: int
@@ -171,7 +171,7 @@ proc new*(
     watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
     scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
-  ## Creates a `ConnManager`.
+  ## Creates a stopped `ConnManager`. Call `start` before using it.
   ##
   ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
   ##
@@ -257,8 +257,8 @@ proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Wait until `storeMuxer` has emitted the `Connected` conn event for `peerId`.
-  ## Existing ready peers bypass waiting.
-  if c.closed:
+  ## Existing ready peers bypass waiting. Returns false while stopped.
+  if not c.started:
     return false
 
   if peerId in c.readyPeers:
@@ -700,12 +700,12 @@ proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
   c.decayLoopFut = nil
 
 proc start*(c: ConnManager) =
-  ## Resume readiness waits and tag decay after a completed shutdown.
-  if not c.closed:
+  ## Enable readiness waits and tag decay, including after a completed stop.
+  if c.started:
+    warn "ConnManager has already been started"
     return
-  c.closed = false
-  if c.decayingTags.len > 0:
-    c.decayLoopFut = c.runDecayLoop()
+  c.started = true
+  c.decayLoopFut = c.runDecayLoop()
 
 proc tagPeerDecaying*(
     c: ConnManager,
@@ -716,7 +716,7 @@ proc tagPeerDecaying*(
     decayFn: DecayFn,
 ) =
   ## Attach an ephemeral tag to `peerId` with an initial `value`.
-  ## A single decay loop runs every `decayResolution`.
+  ## A single decay loop runs every `decayResolution` while the manager is started.
   ## On each run it applies `decayFn` to every tag whose `interval` has elapsed.
   ## A tag therefore decays at most once per `decayResolution`, even with a shorter `interval`.
   ## When the value drops to ≤0 the tag is removed automatically.
@@ -726,7 +726,7 @@ proc tagPeerDecaying*(
   let now = Moment.now()
   c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
     DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
-  if c.decayLoopFut.isNil or c.decayLoopFut.finished:
+  if c.started and (c.decayLoopFut.isNil or c.decayLoopFut.finished):
     c.decayLoopFut = c.runDecayLoop()
 
 proc bumpDecayingTag*(c: ConnManager, peerId: PeerId, tag: string, delta: int) =
@@ -804,10 +804,10 @@ proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
   await noCancel allFutures(c.onCloseFuts)
   c.onCloseFuts = @[]
 
-proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  ## Cleanup resources for the connection manager.
-  trace "Closing ConnManager"
-  c.closed = true
+proc stop*(c: ConnManager) {.async: (raises: [CancelledError]).} =
+  ## Stop background tasks and close all connections. Retain peer tags for restart.
+  trace "Stopping ConnManager"
+  c.started = false
 
   if not c.decayLoopFut.isNil:
     await c.decayLoopFut.cancelAndWait()
@@ -840,4 +840,4 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   await c.drainOnCloseTasks()
 
-  trace "Closed ConnManager"
+  trace "Stopped ConnManager"

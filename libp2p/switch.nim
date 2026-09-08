@@ -364,7 +364,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     await service.stop(s)
 
   # close and cleanup all connections
-  await s.connManager.close()
+  await s.connManager.stop()
 
   for transp in s.transports:
     try:

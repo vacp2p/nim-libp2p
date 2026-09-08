@@ -430,8 +430,13 @@ suite "Identify":
       LPProtocol.new(@[PingCodec], unusedHandler, maxOutgoingStreamsTotal = 0)
     ms.addHandler(limitedPing)
 
+    let connManager = ConnManager.new()
+    connManager.start()
+    defer:
+      await connManager.stop()
+
     let
-      dialer = Dialer.new(localInfo.peerId, ConnManager.new(), peerStore, @[], ms, nil)
+      dialer = Dialer.new(localInfo.peerId, connManager, peerStore, @[], ms, nil)
       stream = await muxDialer.newStream()
       negotiateFut = dialer.negotiateStream(stream, @[IdentifyCodec])
 
