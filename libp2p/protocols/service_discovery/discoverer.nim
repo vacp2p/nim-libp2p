@@ -197,9 +197,8 @@ proc lookup*(
 
     let peers = disco.peersToQuery(bucket)
 
-    found = await disco.collectBucketAds(
-      serviceId, peers, found, disco.discoConfig.fLookup
-    )
+    found =
+      await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)
