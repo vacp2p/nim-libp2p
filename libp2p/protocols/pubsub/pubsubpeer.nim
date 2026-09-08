@@ -342,11 +342,11 @@ proc runHandleLoop*(
         return
       except LPStreamError as e:
         trace "Exception occurred reading message PubSubPeer.handle",
-          stream, peer = p, closed = stream.closed, err = e.msg
+          err = e.msg, stream, peer = p, closed = stream.closed
         return
 
     trace "read data from peer",
-      stream, peer = p, closed = stream.closed, data = data.shortLog
+      stream, peer = p, closed = stream.closed, messageSize = data.len
 
     if p.handler.isNil:
       trace "Ignoring pubsub message without handler", stream, peerId = p
@@ -499,10 +499,10 @@ proc sendMsgSlow(
 
   var stream = p.sendStream
   if stream == nil or stream.closed():
-    trace "No send stream", peer = p, encoded = shortLog(msg)
+    trace "No send stream", peer = p, messageSize = msg.len
     return
 
-  trace "sending encoded msg to peer", stream, encoded = shortLog(msg)
+  trace "sending encoded msg to peer", stream, messageSize = msg.len
   await sendMsgContinue(stream, stream.writeLp(msg))
 
 proc sendMsg(
@@ -531,7 +531,7 @@ proc sendMsg(
 
   if not slowPath:
     trace "sending encoded msg to peer",
-      streamType = $streamType, stream, encoded = shortLog(msg)
+      streamType = $streamType, stream, messageSize = msg.len
     let f = stream.writeLp(msg)
     await sendMsgContinue(stream, f)
   else:
@@ -617,7 +617,7 @@ proc sendEncoded*(
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", peer = p, encoded = shortLog(msg)
+    debug "empty message, skipping", peer = p, messageSize = msg.len
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     warn "trying to send a msg too big for pubsub",

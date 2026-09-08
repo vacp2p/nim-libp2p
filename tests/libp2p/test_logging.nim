@@ -3,7 +3,9 @@
 
 {.used.}
 
-import chronicles
+import chronicles, chronos
+import ../../libp2p/logging as libp2p_logging
+import ../tools/unittest
 
 {.push raises: [].}
 
@@ -20,8 +22,6 @@ const canCaptureLogs = dynamicSink >= 0 and chronicles.runtimeFilteringEnabled
 
 when canCaptureLogs:
   import std/strutils
-  import ../../libp2p/logging as libp2p_logging
-  import ../tools/unittest
 
   # The writer stays installed for the whole test binary, so only this test's records may count.
   const logMarker = "test_logging:"
@@ -61,3 +61,19 @@ else:
       "test_logging is not compiled: it needs a dynamic chronicles sink and " &
       "'-d:chronicles_runtime_filtering:on'."
   .}
+
+suite "Operational log rate limiting":
+  test "first event and boundary pass, intervening events are suppressed":
+    var limit: LogRateLimit
+    let start = Moment.now()
+    check limit.allowLog(start)
+    check not limit.allowLog(start)
+    check not limit.allowLog(start + 59.seconds)
+    check limit.allowLog(start + 1.minutes)
+    check not limit.allowLog(start + 61.seconds)
+
+  test "instances do not suppress each other":
+    var first, second: LogRateLimit
+    let start = Moment.now()
+    check first.allowLog(start)
+    check second.allowLog(start)
