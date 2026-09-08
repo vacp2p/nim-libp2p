@@ -157,7 +157,7 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
   return peerIds
 
 chronicles.formatIt(Key):
-  shortLog(it)
+  it.shortLog
 
 type XorDistance* = array[IdLength, byte]
 type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.
@@ -385,7 +385,7 @@ type
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
-  debug "Local Kademlia record stored", key, value = $shortLog(value)
+  debug "Local Kademlia record stored", key, value = value.shortLog
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =

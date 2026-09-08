@@ -153,7 +153,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         msgType = msgType
         size = data.len
 
-      trace "Read message from connection", muxer = m, data = data.shortLog
+      trace "Read message from connection", muxer = m, messageSize = data.len
 
       var channel =
         if MessageType(msgType) != MessageType.New:
@@ -173,7 +173,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           # multiply the frame-size limit by the channel limit.
           m.newStreamInternal(false, id, timeout = m.outChannTimeout)
 
-      trace "Processing channel message", muxer = m, channel, data = data.shortLog
+      trace "Processing channel message", muxer = m, channel, messageSize = data.len
 
       case msgType
       of MessageType.New:
