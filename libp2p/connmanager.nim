@@ -704,8 +704,7 @@ proc start*(c: ConnManager) =
   if not c.closed:
     return
   c.closed = false
-  if c.decayingTags.len > 0:
-    c.decayLoopFut = c.runDecayLoop()
+  c.decayLoopFut = c.runDecayLoop()
 
 proc tagPeerDecaying*(
     c: ConnManager,
