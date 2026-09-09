@@ -148,7 +148,8 @@ int main(void) {
   // which this topology can never reach; 0 is rejected by the binding.
   KadGetValueRequest getReq = {key, 1};
   libp2p_ctx_kad_get_value(client, &getReq, on_value, &vw);
-  if (!wait_done(&vw.done) || vw.err_code != 0) {
+  wait_done(&vw.done);
+  if (vw.err_code != 0) {
     fprintf(stderr, "get_value: %s\n", vw.err[0] ? vw.err : "unknown");
     goto cleanup_client;
   }
@@ -168,7 +169,8 @@ int main(void) {
                              {(uint8_t *)cidData, strlen(cidData)}};
   // create_cid is context-independent ({.ffiStatic.}), so it takes no ctx.
   libp2p_static_create_cid(&cidReq, on_cid, &cw);
-  if (!wait_done(&cw.done) || cw.err_code != 0) {
+  wait_done(&cw.done);
+  if (cw.err_code != 0) {
     fprintf(stderr, "create_cid: %s\n", cw.err[0] ? cw.err : "unknown");
     goto cleanup_client;
   }
@@ -184,7 +186,8 @@ int main(void) {
   ProvidersWaiter pw;
   memset(&pw, 0, sizeof(pw));
   libp2p_ctx_kad_get_providers(client, nimffi_str(cw.cid), on_providers, &pw);
-  if (!wait_done(&pw.done) || pw.err_code != 0) {
+  wait_done(&pw.done);
+  if (pw.err_code != 0) {
     fprintf(stderr, "get_providers: %s\n", pw.err[0] ? pw.err : "unknown");
     goto cleanup_client;
   }
