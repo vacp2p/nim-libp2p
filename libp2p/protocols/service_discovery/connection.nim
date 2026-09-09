@@ -56,8 +56,6 @@ proc send*(
       return err("connection writing failed: " & e.msg)
     try:
       replyBuf = await stream.readLp(ServiceDiscoveryMaxMsgSize)
-    except CancelledError as e:
-      raise e
     except LPStreamError as e:
       return err("connection reading failed: " & e.msg)
   replyRead = true
