@@ -4,7 +4,6 @@
 
 {.push raises: [].}
 
-import sequtils
 import chronos, chronicles, results
 import
   ../stream/connection,
@@ -105,7 +104,7 @@ method handles*(
   let protocols = address.protocols.valueOr:
     return false
 
-  protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0
+  multiCodec("p2p-circuit") notin protocols
 
 template safeCloseWait*(stream: untyped) =
   if not isNil(stream):
