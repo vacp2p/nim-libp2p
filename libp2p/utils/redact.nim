@@ -11,7 +11,7 @@
 import std/macros
 import chronicles, json_serialization/writer
 
-export chronicles, json_serialization/writer
+export chronicles, writer
 
 const Redacted* = "[REDACTED]"
 
