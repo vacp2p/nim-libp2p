@@ -65,6 +65,7 @@ type
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
+    ownsNameResolver*: bool
     addressManager*: AddressManager
     started: bool
     services*: seq[Service]
@@ -382,6 +383,10 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   # stopped last, after every component which can still feed an address
   doAssert not s.addressManager.isNil(), MissingAddressManager
   s.addressManager.stop()
+
+  if s.ownsNameResolver and not s.nameResolver.isNil:
+    await s.nameResolver.close()
+    s.ownsNameResolver = false
 
   s.peerStore.close()
 

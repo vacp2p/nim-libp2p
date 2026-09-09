@@ -47,6 +47,7 @@ proc new*(
     peerStore: switch.peerStore,
     dialer: switch.dialer,
     nameResolver: switch.nameResolver,
+    ownsNameResolver: switch.ownsNameResolver,
     services: switch.services,
     addressManager: switch.addressManager,
     connectStub: connectStub,

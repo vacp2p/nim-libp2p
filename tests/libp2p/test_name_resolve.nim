@@ -104,6 +104,19 @@ suite "System Resolving":
   asyncTest "close without any resolution":
     let resolver = SystemResolver.new()
     await resolver.close()
+    check (await resolver.resolveIp("localhost", 4001.Port)).len == 0
+    await resolver.close() # idempotent
+
+  asyncTest "cancelled queued resolutions do not poison the worker pool":
+    let resolver = SystemResolver.new(workers = 1)
+    let resolutions =
+      (0 ..< 16).mapIt(resolver.resolveIp("cancel-" & $it & ".invalid", 0.Port))
+    for i in 1 ..< resolutions.len:
+      await resolutions[i].cancelAndWait()
+    discard await resolutions[0]
+
+    check (await resolver.resolveIp("localhost", 4001.Port)).len > 0
+    await resolver.close()
 
 suite "Name resolving":
   suite "Generic Resolving":
@@ -138,6 +151,30 @@ suite "Name resolving":
         "/dns4/localhost/tcp/443/tls/sni/example.com/ws",
         "/ip4/127.0.0.1/tcp/443/tls/sni/example.com/ws",
       )
+
+    asyncTest "DNS replacement preserves prefixes, suffixes and chained components":
+      resolver.ipResponses[("v4.test", false)] = @["192.0.2.1"]
+      resolver.ipResponses[("v6.test", true)] = @["2001:db8::1"]
+
+      await testOne("/dns4/v4.test", "/ip4/192.0.2.1")
+      await testOne(
+        "/p2p-circuit/dns4/v4.test/tcp/4001",
+        "/p2p-circuit/ip4/192.0.2.1/tcp/4001",
+      )
+      await testOne(
+        "/dns4/v4.test/dns6/v6.test/tcp/4001",
+        "/ip4/192.0.2.1/ip6/2001:db8::1/tcp/4001",
+      )
+
+    asyncTest "DNS replacement stops at the lookup limit":
+      var input = ""
+      for i in 0 .. MaxDnsLookups:
+        let hostname = "lookup-" & $i & ".test"
+        input.add("/dns4/" & hostname)
+        resolver.ipResponses[(hostname, false)] = @["192.0.2.1"]
+      input.add("/tcp/4001")
+
+      await testOne(input, newSeq[string]())
 
     asyncTest "test non dns resolve":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
@@ -197,6 +234,68 @@ suite "Name resolving":
         ],
       )
 
+    asyncTest "dnsaddr matches the complete suffix and skips malformed records":
+      const
+        peerId = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+        otherPeerId = "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
+      resolver.txtResponses["_dnsaddr.peers.test"] = @[
+        "not-a-dnsaddr-record",
+        "dnsaddr=not-a-multiaddress",
+        "dnsaddr=/ip4/192.0.2.2/tcp/4002/p2p/" & peerId,
+        "dnsaddr=/ip4/192.0.2.3/tcp/4001/p2p/" & otherPeerId,
+        "dnsaddr=/ip4/192.0.2.1/tcp/4001/p2p/" & peerId,
+      ]
+
+      await testOne(
+        "/p2p-circuit/dnsaddr/peers.test/tcp/4001/p2p/" & peerId,
+        "/p2p-circuit/ip4/192.0.2.1/tcp/4001/p2p/" & peerId,
+      )
+
+    asyncTest "dnsaddr bounds records and removes duplicate outputs":
+      var records: seq[string]
+      var expected: seq[string]
+      for i in 1 .. 20:
+        let address = "/ip4/192.0.2." & $i & "/tcp/4001"
+        records.add("dnsaddr=" & address)
+        # One duplicate is inserted at the front below, so the first bounded
+        # window contains unique addresses 1 through MaxDnsaddrRecords - 1.
+        if i < MaxDnsaddrRecords:
+          expected.add(address)
+      records.insert(records[0])
+      resolver.txtResponses["_dnsaddr.limit.test"] = records
+
+      await testOne("/dnsaddr/limit.test", expected)
+
+    asyncTest "dnsaddr bounds total output":
+      var
+        rootRecords: seq[string]
+        expected: seq[string]
+      for branch in 1 .. MaxDnsaddrRecords:
+        let branchName = "branch-" & $branch & ".test"
+        rootRecords.add("dnsaddr=/dnsaddr/" & branchName)
+
+        var branchRecords: seq[string]
+        for host in 1 .. MaxDnsaddrRecords:
+          let address =
+            "/ip4/198.51." & $branch & "." & $host & "/tcp/4001"
+          branchRecords.add("dnsaddr=" & address)
+          if expected.len < MaxResolvedAddresses:
+            expected.add(address)
+        resolver.txtResponses["_dnsaddr." & branchName] = branchRecords
+      resolver.txtResponses["_dnsaddr.output-limit.test"] = rootRecords
+
+      await testOne("/dnsaddr/output-limit.test", expected)
+
+    asyncTest "dnsaddr stops at the recursion limit":
+      for i in 0 .. MaxDnsaddrRecursion:
+        resolver.txtResponses["_dnsaddr.level-" & $i & ".test"] =
+          @["dnsaddr=/dnsaddr/level-" & $(i + 1) & ".test"]
+      resolver.txtResponses[
+        "_dnsaddr.level-" & $(MaxDnsaddrRecursion + 1) & ".test"
+      ] = @["dnsaddr=/ip4/192.0.2.1/tcp/4001"]
+
+      await testOne("/dnsaddr/level-0.test", newSeq[string]())
+
     asyncTest "dnsaddr infinite recursion":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
         @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
@@ -221,6 +320,12 @@ suite "Name resolving":
         ma("/dns/localhost/udp/0").getHostname == "localhost"
         ma("/dns4/hello.com/udp/0").getHostname == "hello.com"
         ma("/dns6/hello.com/udp/0").getHostname == "hello.com"
+        ma("/p2p-circuit/dns4/hello.com/tcp/4001").getHostname == "hello.com"
+        ma(
+          "/ip4/192.0.2.1/tcp/4001/p2p/" &
+            "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN" &
+            "/p2p-circuit/dns4/hello.com/tcp/4001"
+        ).getHostname == "hello.com"
         ma("/wss/").getHostname == ""
 
   suite "DNS Resolving":

@@ -21,12 +21,10 @@
 import std/[atomics, locks]
 import chronos, chronos/threadsync, chronicles
 import nameresolver, dnsresolver
-import ../crypto/rng, ../errors
+import ../crypto/rng
 
 logScope:
   topics = "libp2p systemresolver"
-
-const MaxResolvedAddresses = 32
 
 type
   RequestState {.pure.} = enum
@@ -55,11 +53,11 @@ type
 
   SystemResolver* = ref object of NameResolver
     ## Resolves names through the OS resolver (getaddrinfo), offloaded to
-    ## worker threads. Call `close` to stop the workers and release the
-    ## underlying resources.
+    ## lazily-created worker threads.
     txtResolver: NameResolver
     shared: ptr SharedState
     workers: seq[Thread[ptr SharedState]]
+    workerCount: int
     pending: seq[
       tuple[req: ptr SharedRequest, fut: Future[seq[TransportAddress]].Raising([CancelledError])]
     ]
@@ -94,9 +92,11 @@ proc workerLoop(shared: ptr SharedState) {.thread.} =
             req.resultsLen = min(resolved.len, MaxResolvedAddresses)
             for i in 0 ..< req.resultsLen:
               req.results[i] = resolved[i]
-            req.state.store(ord(RequestState.Done))
+            var expected = ord(RequestState.Pending)
+            discard req.state.compareExchange(expected, ord(RequestState.Done))
           except CatchableError:
-            req.state.store(ord(RequestState.Failed))
+            var expected = ord(RequestState.Pending)
+            discard req.state.compareExchange(expected, ord(RequestState.Failed))
 
         shared[].lock.acquire()
         req.next = shared[].completedHead
@@ -116,8 +116,10 @@ proc finishRequest(self: SystemResolver, req: ptr SharedRequest, withResults: bo
     let fut = self.pending[idx].fut
     self.pending.del(idx)
     if not fut.finished():
-      var res = newSeqOfCap[TransportAddress](req.resultsLen)
-      if withResults:
+      let deliver =
+        withResults and RequestState(req.state.load()) == RequestState.Done
+      var res = newSeqOfCap[TransportAddress](if deliver: req.resultsLen else: 0)
+      if deliver:
         for i in 0 ..< req.resultsLen:
           res.add(req.results[i])
       fut.complete(res)
@@ -144,16 +146,11 @@ proc dispatchLoop(self: SystemResolver) {.async: (raises: []).} =
   if not self.dispatcherDone.isNil and not self.dispatcherDone.finished():
     self.dispatcherDone.complete()
 
-proc new*(
-    T: type SystemResolver,
-    txtResolver: NameResolver = nil,
-    rng: Rng = newRng(),
-    workers: int = 2,
-): T {.raises: [LPError].} =
-  ## Create a SystemResolver backed by `workers` worker threads.
-  ## `txtResolver` handles TXT queries (getaddrinfo cannot); when nil, a
-  ## `DnsResolver` over the system nameservers is used.
-  doAssert workers >= 1
+proc startWorkers(self: SystemResolver) {.raises: [TransportAddressError].} =
+  ## Allocate the shared state and worker pool on first use. Most switches never
+  ## dial a DNS address, so eager workers would waste two threads per switch.
+  if not self.shared.isNil:
+    return
 
   let shared = cast[ptr SharedState](allocShared0(sizeof(SharedState)))
   initLock(shared[].lock)
@@ -161,41 +158,60 @@ proc new*(
   shared[].requestSignal = ThreadSignalPtr.new().valueOr:
     deinitLock(shared[].lock)
     deallocShared(shared)
-    raise newException(LPError, "Failed to create request signal: " & error)
+    raise newException(TransportAddressError, "Failed to create request signal: " & error)
   shared[].responseSignal = ThreadSignalPtr.new().valueOr:
     discard shared[].requestSignal.close()
     deinitLock(shared[].lock)
     deallocShared(shared)
-    raise newException(LPError, "Failed to create response signal: " & error)
+    raise newException(TransportAddressError, "Failed to create response signal: " & error)
 
-  let resolver = SystemResolver(
+  # createThread passes the address of the Thread object itself to pthread, so
+  # every object must already occupy its final, stable sequence slot.
+  var workers = newSeq[Thread[ptr SharedState]](self.workerCount)
+  var started = 0
+  try:
+    for i in 0 ..< workers.len:
+      createThread(workers[i], workerLoop, shared)
+      inc started
+  except ResourceExhaustedError as exc:
+    workers.setLen(started)
+    shared[].running.store(false)
+    discard shared[].requestSignal.fireSync()
+    joinThreads(workers)
+    discard shared[].requestSignal.close()
+    discard shared[].responseSignal.close()
+    deinitLock(shared[].lock)
+    deallocShared(shared)
+    raise newException(
+      TransportAddressError, "Failed to spawn resolver worker: " & exc.msg, exc
+    )
+
+  self.shared = shared
+  self.workers = workers
+  self.dispatcherDone =
+    Future[void].Raising([CancelledError]).init("systemresolver.dispatcherDone")
+  self.dispatcherStarted = true
+  asyncSpawn self.dispatchLoop()
+
+proc new*(
+    T: type SystemResolver,
+    txtResolver: NameResolver = nil,
+    rng: Rng = newRng(),
+    workers: int = 2,
+): T =
+  ## Create a SystemResolver which starts `workers` worker threads on first use.
+  ## `txtResolver` handles TXT queries (getaddrinfo cannot); when nil, a
+  ## `DnsResolver` over the system nameservers is used.
+  doAssert workers >= 1
+
+  T(
     txtResolver:
       if txtResolver.isNil:
         NameResolver(DnsResolver.new(getSystemNameServers(), rng))
       else:
         txtResolver,
-    shared: shared,
+    workerCount: workers,
   )
-  # Threads are created directly into a pre-sized seq: createThread passes
-  # the address of the Thread object itself to pthread, so it must not move
-  # or go out of scope while the thread runs.
-  resolver.workers.setLen(workers)
-  var started = 0
-  try:
-    for i in 0 ..< workers:
-      createThread(resolver.workers[i], workerLoop, shared)
-      inc started
-  except ResourceExhaustedError as exc:
-    resolver.workers.setLen(started)
-    shared[].running.store(false)
-    discard shared[].requestSignal.fireSync()
-    joinThreads(resolver.workers)
-    discard shared[].requestSignal.close()
-    discard shared[].responseSignal.close()
-    deinitLock(shared[].lock)
-    deallocShared(shared)
-    raise newException(LPError, "Failed to spawn resolver worker: " & exc.msg, exc)
-  resolver
 
 method resolveIp*(
     self: SystemResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
@@ -205,11 +221,8 @@ method resolveIp*(
   if self.closed or address.len == 0 or address.len > 255:
     return @[]
 
-  if not self.dispatcherStarted:
-    self.dispatcherStarted = true
-    self.dispatcherDone =
-      Future[void].Raising([CancelledError]).init("systemresolver.dispatcherDone")
-    asyncSpawn self.dispatchLoop()
+  if self.shared.isNil:
+    self.startWorkers()
 
   let
     shared = self.shared
@@ -221,6 +234,12 @@ method resolveIp*(
   req.port = uint16(port)
   req.domain = domain
   req.state.store(ord(RequestState.Pending))
+
+  proc cancellation(udata: pointer) {.gcsafe, raises: [].} =
+    var expected = ord(RequestState.Pending)
+    discard req.state.compareExchange(expected, ord(RequestState.Cancelled))
+
+  fut.cancelCallback = cancellation
   self.pending.add((req, fut))
 
   shared[].lock.acquire()
@@ -233,23 +252,24 @@ method resolveIp*(
   discard shared[].requestSignal.fireSync()
 
   trace "Resolving via getaddrinfo", address, port = uint16(port), domain
-  try:
-    return await fut
-  except CancelledError as exc:
-    req.state.store(ord(RequestState.Cancelled))
-    raise exc
+  return await fut
 
 method resolveTxt*(
     self: SystemResolver, address: string
 ): Future[seq[string]] {.async: (raises: [CancelledError]).} =
+  if self.closed:
+    return @[]
   return await self.txtResolver.resolveTxt(address)
 
-proc close*(self: SystemResolver) {.async: (raises: [CancelledError]).} =
+method close*(self: SystemResolver) {.async: (raises: []).} =
   ## Stop the worker threads and release all resources. Resolutions still
   ## in flight are completed with empty results.
   if self.closed:
     return
   self.closed = true
+
+  if self.shared.isNil:
+    return
 
   let shared = self.shared
   shared[].running.store(false)
@@ -269,10 +289,11 @@ proc close*(self: SystemResolver) {.async: (raises: [CancelledError]).} =
 
   if self.dispatcherStarted:
     discard shared[].responseSignal.fireSync()
-    await self.dispatcherDone
+    await noCancel self.dispatcherDone
 
   discard shared[].requestSignal.close()
   discard shared[].responseSignal.close()
   deinitLock(shared[].lock)
   deallocShared(shared)
   self.shared = nil
+  self.workers = @[]
