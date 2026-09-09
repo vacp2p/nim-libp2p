@@ -5,6 +5,7 @@
 import chronos, results, strutils, stew/byteutils
 import
   ../../../libp2p/[
+    peerid,
     protocols/service_discovery,
     protocols/service_discovery/discoverer,
     protocols/service_discovery/discovery_tracker,

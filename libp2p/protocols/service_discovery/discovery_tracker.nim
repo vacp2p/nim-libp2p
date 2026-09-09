@@ -47,34 +47,32 @@ proc recordProvider*(
   if provider == tracker.selfId:
     return
 
-  tracker.interests.withValue(serviceId, interest):
-    if not interest[].active:
-      return
-    if interest[].found.len >= tracker.maxProviders:
-      return
-    if interest[].seen.containsOrIncl(provider):
+  let interest =
+    try:
+      tracker.interests[serviceId].addr
+    except KeyError:
       return
 
-    let elapsed = Moment.now() - interest[].startedAt
-    let discovery = ProviderDiscovery(
-      provider: provider,
-      rank: interest[].found.len + 1,
-      elapsed: elapsed,
-      source: source,
-    )
-    interest[].found.add(discovery)
+  if not interest.active:
+    return
+  if interest.found.len >= tracker.maxProviders:
+    return
+  if interest.seen.containsOrIncl(provider):
+    return
 
-    let elapsedSeconds = elapsed.nanoseconds.float64 / 1_000_000_000.0
-    cd_provider_discovery_seconds.observe(elapsedSeconds)
-    if discovery.rank == 1:
-      cd_first_provider_discovery_seconds.observe(elapsedSeconds)
+  let elapsed = Moment.now() - interest.startedAt
+  let discovery = ProviderDiscovery(
+    provider: provider, rank: interest.found.len + 1, elapsed: elapsed, source: source
+  )
+  interest.found.add(discovery)
 
-    debug "Provider found",
-      serviceId,
-      provider,
-      rank = discovery.rank,
-      elapsedMs = elapsed.milliseconds,
-      source
+  let elapsedMs = elapsed.milliseconds.float64
+  cd_provider_discovery_ms.observe(elapsedMs)
+  if discovery.rank == 1:
+    cd_first_provider_discovery_ms.observe(elapsedMs)
+
+  debug "Provider found",
+    serviceId, provider, rank = discovery.rank, elapsedMs = elapsed.milliseconds, source
 
 proc recordProviders*(
     tracker: DiscoveryTracker,

@@ -30,14 +30,16 @@ declarePublicCounter cd_lookup_requests, "service lookup requests initiated"
 declarePublicCounter cd_lookup_peers_found, "peers found during service lookup"
 
 # Provider discovery latency metrics
-const DiscoveryLatencyBuckets =
-  [0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
+const DiscoveryLatencyBuckets = [
+  50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 30000.0, 60000.0,
+  120000.0, 300000.0,
+]
 
-declarePublicHistogram cd_provider_discovery_seconds,
-  "seconds between the registration of an interest in a service and the discovery of one of its providers",
+declarePublicHistogram cd_provider_discovery_ms,
+  "milliseconds between the registration of an interest in a service and the discovery of one of its providers",
   buckets = DiscoveryLatencyBuckets
-declarePublicHistogram cd_first_provider_discovery_seconds,
-  "seconds between the registration of an interest in a service and the discovery of its first provider",
+declarePublicHistogram cd_first_provider_discovery_ms,
+  "milliseconds between the registration of an interest in a service and the discovery of its first provider",
   buckets = DiscoveryLatencyBuckets
 
 # Registrar cache metrics
