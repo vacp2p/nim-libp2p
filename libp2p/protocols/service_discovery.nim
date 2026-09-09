@@ -30,7 +30,7 @@ proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   let extPeerRecord = disco.record().valueOr:
-    debug "Failed to create signed extended peer record", error
+    debug "Failed to create signed extended peer record", err = error
     return
 
   let encodedSR = extPeerRecord.encode()
@@ -38,9 +38,8 @@ proc refreshSelfSignedPeerRecord(
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
-  let putRes = await disco.putValue(key, encodedSR)
-  if putRes.isErr:
-    debug "Failed to put signed peer record", err = putRes.error
+  (await disco.putValue(key, encodedSR)).isOkOr:
+    debug "Failed to put signed peer record", err = error
 
 proc maintainSelfSignedPeerRecord(
     disco: ServiceDiscovery
@@ -174,7 +173,7 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
-      warn "Cannot advertise configured service", service = serviceInfo.id, error
+      warn "Cannot advertise configured service", err = error, service = serviceInfo.id
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()

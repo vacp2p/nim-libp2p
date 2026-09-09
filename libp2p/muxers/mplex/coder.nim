@@ -36,7 +36,7 @@ proc readMsg*(
   trace "Read header varint", varint = header, conn
 
   let data = await conn.readLp(MaxMsgSize)
-  trace "Read data", dataLen = data.len, data = shortLog(data), conn
+  trace "Read data", dataLen = data.len, conn
 
   let msgType = header and 0x7
   if msgType.int > ord(MessageType.ResetOut):

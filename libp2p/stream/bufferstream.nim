@@ -76,7 +76,7 @@ method pushData*(
   # processed
   try:
     s.pushing = true
-    trace "Pushing data", stream = s, data = data.len
+    trace "Pushing data", stream = s, dataSize = data.len
     await s.readQueue.addLast(data)
   finally:
     s.pushing = false

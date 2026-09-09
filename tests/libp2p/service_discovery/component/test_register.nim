@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+from std/times import getTime, toUnix
 import chronos, results
 import
   ../../../../libp2p/
@@ -44,11 +45,11 @@ suite "Service Discovery Component - Register":
       .encode()
       .get()
     let registrarKey = registrarNode.switch.peerInfo.privateKey
-    let now = Moment.now()
+    let now = getTime().toUnix()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: now - 10000000.secs,
-      tMod: now - 10000000.secs,
+      tInit: now - 10000000,
+      tMod: now - 10000000,
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -193,11 +194,11 @@ suite "Service Discovery Component - Register":
       .encode()
       .get()
 
-    let oldTInit = Moment.init(Moment.now().epochSeconds - 3600, Second)
+    let oldTInit = getTime().toUnix() - 3600
     var invalidTicket = Ticket(
       advertisement: maloryAdBytes,
       tInit: oldTInit,
-      tMod: Moment.now(),
+      tMod: getTime().toUnix(),
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
