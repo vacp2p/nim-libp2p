@@ -30,6 +30,7 @@ type
     localAddr*: Opt[MultiAddress]
     protocol*: string # protocol used by the connection, used as metrics tag
     transportDir*: Direction # underlying transport (usually socket) direction
+    openedAt*: Moment # initialization time of this layer; unwrap for transport age
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
@@ -73,6 +74,7 @@ method initStream*(s: Connection) =
   if s.objName.len == 0:
     s.objName = ConnectionTrackerName
 
+  s.openedAt = Moment.now()
   procCall LPStream(s).initStream()
 
   doAssert(s.timerTaskFut == nil)
@@ -141,7 +143,7 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
     if not await s.pollActivity():
       return
 
-method getWrapped*(s: Connection): Connection {.base.} =
+method getWrapped*(s: Connection): Connection {.base, gcsafe.} =
   raiseAssert("[Connection.getWrapped] abstract method not implemented!")
 
 when defined(libp2p_agents_metrics):
