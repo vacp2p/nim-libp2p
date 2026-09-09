@@ -23,18 +23,18 @@ proc new*(
   T(networkInterfaceProvider: networkInterfaceProvider)
 
 method setup*(self: WildcardAddressResolverService, switch: Switch) {.raises: [].} =
-  debug "Setting up WildcardAddressResolverService"
+  info "Setting up WildcardAddressResolverService"
 
 method start*(
     self: WildcardAddressResolverService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Running WildcardAddressResolverService"
+  info "Running WildcardAddressResolverService"
   switch.addressManager.networkInterfaceProvider = self.networkInterfaceProvider
   await switch.peerInfo.update()
 
 method stop*(
     self: WildcardAddressResolverService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  debug "Stopping WildcardAddressResolverService"
+  info "Stopping WildcardAddressResolverService"
   switch.addressManager.networkInterfaceProvider = nil
   await switch.peerInfo.update()

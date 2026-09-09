@@ -35,7 +35,7 @@ suite "ACME utils":
     let server = startTestHttpServer("")
     defer:
       await server.stop()
-    let acmeApi = ACMEApi.new()
+    let acmeApi = ACMEApi.new(directoryURL = parseUri(server.url))
     defer:
       await acmeApi.close()
 
@@ -45,7 +45,7 @@ suite "ACME utils":
     let server = startTestHttpServer("<html>not json</html>")
     defer:
       await server.stop()
-    let acmeApi = ACMEApi.new()
+    let acmeApi = ACMEApi.new(directoryURL = parseUri(server.url))
     defer:
       await acmeApi.close()
 

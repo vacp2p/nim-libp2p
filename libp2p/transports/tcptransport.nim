@@ -5,6 +5,7 @@
 
 {.push raises: [].}
 
+import ../logging
 import std/[sequtils]
 import chronos, chronicles, results
 import
@@ -34,6 +35,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
+    descriptorWarnings: LogRateLimit
     closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
@@ -63,7 +65,7 @@ proc connHandler*(
   proc onClose() {.async: (raises: []).} =
     await noCancel client.join()
 
-    trace "Cleaning up client", addrs = $client.remoteAddress, conn
+    trace "Cleaning up client", addresses = ($client.remoteAddress).shortLog, conn
 
     self.clients[dir].keepItIf(it != client)
 
@@ -76,7 +78,7 @@ proc connHandler*(
 
     await conn.close()
 
-    trace "Cleaned up client", addrs = $client.remoteAddress, conn
+    trace "Cleaned up client", addresses = ($client.remoteAddress).shortLog, conn
 
   self.clients[dir].add(client)
 
@@ -114,7 +116,7 @@ method start*(
     warn "TCP transport already running"
     return
 
-  trace "Starting TCP transport"
+  info "Starting TCP transport"
 
   self.flags.incl(ServerFlags.ReusePort)
 
@@ -154,12 +156,12 @@ method start*(
   trackCounter(TcpTransportTrackerName)
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
-  trace "Stopping TCP transport"
   self.stopping = true
   defer:
     self.stopping = false
 
   if self.running:
+    info "Stopping TCP transport"
     # Reset the running flag
     await noCancel procCall Transport(self).stop()
     # Stop each server by closing the socket - this will cause all accept loops
@@ -187,7 +189,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       warn "Couldn't clean up clients",
         len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
-    trace "Transport stopped"
+    info "Transport stopped"
     untrackCounter(TcpTransportTrackerName)
   else:
     # For legacy reasons, `stop` on a transpart that wasn't started is
@@ -241,10 +243,12 @@ method accept*(
     try:
       await finished
     except TransportTooManyError as exc:
-      debug "Too many files opened", description = exc.msg
+      if self.descriptorWarnings.allowLog():
+        warn "Connection acceptance limited by file descriptor exhaustion",
+          err = exc.msg, errType = exc.name, transport = "tcp"
       return nil
     except TransportAbortedError as exc:
-      debug "Connection aborted", description = exc.msg
+      debug "Transport connection aborted", err = exc.msg
       return nil
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
@@ -277,7 +281,7 @@ method accept*(
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
       safeCloseWait(transp)
-      debug "Cannot read address", description = exc.msg
+      debug "Cannot read address", err = exc.msg
       return nil
   self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 
@@ -310,7 +314,7 @@ method dial*(
     else:
       Opt.none(TransportAddress)
 
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
   let transp =
     try:
       await(

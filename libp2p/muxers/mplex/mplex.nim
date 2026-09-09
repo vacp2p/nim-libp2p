@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import tables, sequtils, oids
-import chronos, chronicles, stew/byteutils, metrics
+import chronos, chronicles, metrics
 import
   ../muxer,
   ../../stream/connection,
@@ -19,9 +19,11 @@ export muxer
 logScope:
   topics = "libp2p mplex"
 
-const MplexCodec* = "/mplex/6.7.0"
-
-const MaxChannelCount = 200
+const
+  MplexCodec* = "/mplex/6.7.0"
+  MaxChannelCount = 200
+  MaxBufferedBytes* = 4 * MaxMsgSize
+    ## Maximum unread data across four fully decoded frames.
 
 when defined(libp2p_expensive_metrics):
   declareGauge(libp2p_mplex_channels, "mplex channels", labels = ["initiator", "peer"])
@@ -37,6 +39,7 @@ type
     isClosed: bool
     oid*: Oid
     maxChannCount: int
+    maxBufferedBytes: int
 
 func shortLog*(m: Mplex): auto =
   shortLog(m.connection)
@@ -49,6 +52,14 @@ proc newTooManyChannels(): ref TooManyChannels =
 
 proc newInvalidChannelIdError(): ref InvalidChannelIdError =
   newException(InvalidChannelIdError, "max allowed channel count exceeded")
+
+proc bufferedBytes(m: Mplex): int =
+  var total = 0
+  for initiator in [false, true]:
+    for channel in m.channels[initiator].values:
+      if channel.protocol.len == 0:
+        total += channel.len
+  total
 
 proc drainChannelTasks(channs: seq[LPChannel]) {.async: (raises: []).} =
   ## Awaits the per-channel tasks so they don't outlive the muxer; callers must
@@ -68,7 +79,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   try:
     await chann.join()
     m.channels[chann.initiator].del(chann.id)
-    trace "cleaned up channel", m, chann
+    trace "Cleaned up channel", muxer = m, chann
 
     when defined(libp2p_expensive_metrics):
       libp2p_mplex_channels.set(
@@ -76,7 +87,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
         labelValues = [$chann.initiator, $m.connection.peerId],
       )
   except CancelledError as exc:
-    warn "Error cleaning up mplex channel", m, chann, description = exc.msg
+    trace "Mplex channel cleanup canceled", err = exc.msg, muxer = m, channel = chann
 
 proc newStreamInternal*(
     m: Mplex,
@@ -106,7 +117,7 @@ proc newStreamInternal*(
   when defined(libp2p_agents_metrics):
     channel.shortAgent = m.connection.shortAgent
 
-  trace "Creating new channel", m, channel = channel, id, initiator, name
+  trace "Creating new channel", muxer = m, channel = channel, id, initiator, name
 
   m.channels[initiator][id] = channel
 
@@ -124,14 +135,14 @@ proc handleStream(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
   ##
   await m.streamHandler(chann)
-  trace "finished handling stream", m, chann
+  trace "Mplex stream handler completed", muxer = m, channel = chann
   doAssert(chann.closed, "connection not closed by handler!")
 
 method handle*(m: Mplex) {.async: (raises: []).} =
-  trace "Starting mplex handler", m
+  trace "Mplex handler started", muxer = m
   try:
     while not m.connection.atEof:
-      trace "waiting for data", m
+      trace "Waiting for data", muxer = m
       let
         (id, msgType, data) = await m.connection.readMsg()
         initiator = bool(ord(msgType) and 1)
@@ -142,30 +153,31 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         msgType = msgType
         size = data.len
 
-      trace "read message from connection", m, data = data.shortLog
+      trace "Read message from connection", muxer = m, messageSize = data.len
 
       var channel =
         if MessageType(msgType) != MessageType.New:
           let tmp = m.channels[initiator].getOrDefault(id, nil)
           if tmp == nil:
-            trace "Channel not found, skipping", m
+            trace "Channel not found, skipping", muxer = m
             continue
 
           tmp
         else:
           if m.channels[false].len > m.maxChannCount - 1:
-            debug "too many channels created by remote peer",
-              allowedMax = m.maxChannCount, m
+            trace "Too many channels created by remote peer",
+              allowedMax = m.maxChannCount, muxer = m
             raise newTooManyChannels()
 
-          let name = string.fromBytes(data)
-          m.newStreamInternal(false, id, name, timeout = m.outChannTimeout)
+          # Stream names are only for debugging and retaining them lets peers
+          # multiply the frame-size limit by the channel limit.
+          m.newStreamInternal(false, id, timeout = m.outChannTimeout)
 
-      trace "Processing channel message", m, channel, data = data.shortLog
+      trace "Processing channel message", muxer = m, channel, messageSize = data.len
 
       case msgType
       of MessageType.New:
-        trace "created channel", m, channel
+        trace "Created channel", muxer = m, channel
 
         if m.streamHandler != nil:
           # Launch handler task
@@ -173,34 +185,46 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
         if data.len > MaxMsgSize:
-          warn "attempting to send a packet larger than allowed",
+          trace "Attempting to send a packet larger than allowed",
             allowed = MaxMsgSize, channel
           raise newLPStreamLimitError()
 
-        trace "pushing data to channel", m, channel, len = data.len
+        if channel.protocol.len == 0:
+          let bufferedBytes = m.bufferedBytes()
+          if data.len > m.maxBufferedBytes or
+              bufferedBytes > m.maxBufferedBytes - data.len:
+            debug "mplex pre-negotiation buffer limit reached",
+              allowedMax = m.maxBufferedBytes,
+              buffered = bufferedBytes,
+              incoming = data.len,
+              channel
+            await channel.reset()
+            continue
+
+        trace "Pushing data to channel", muxer = m, channel, len = data.len
         try:
           await channel.pushData(data)
-          trace "pushed data to channel", m, channel, len = data.len
+          trace "Pushed data to channel", muxer = m, channel, len = data.len
         except LPStreamClosedError as exc:
           # Channel is being closed, but `cleanupChann` was not yet triggered.
-          trace "pushing data to channel failed",
-            m, channel, len = data.len, description = exc.msg
+          trace "Channel data delivery failed",
+            err = exc.msg, muxer = m, channel, messageSize = data.len
           discard # Ignore message, same as if `cleanupChann` had completed.
       of MessageType.CloseIn, MessageType.CloseOut:
         await channel.pushEof()
       of MessageType.ResetIn, MessageType.ResetOut:
         await channel.resetChannel(isLocal = false)
   except CancelledError:
-    debug "Unexpected cancellation in mplex handler", m
+    trace "Mplex handler canceled", muxer = m
   except LPStreamEOFError as exc:
-    trace "Stream EOF", m, description = exc.msg
+    trace "Stream EOF", err = exc.msg, muxer = m
   except LPStreamError as exc:
-    trace "Unexpected stream exception in mplex read loop", m, description = exc.msg
+    trace "Unexpected stream exception in mplex read loop", err = exc.msg, muxer = m
   except MuxerError as exc:
-    debug "Unexpected muxer exception in mplex read loop", m, description = exc.msg
+    debug "Unexpected muxer exception in mplex read loop", err = exc.msg, muxer = m
   finally:
     await m.close()
-  trace "Stopped mplex handler", m
+  trace "Mplex handler stopped", muxer = m
 
 proc new*(
     M: type Mplex,
@@ -208,6 +232,7 @@ proc new*(
     inTimeout: Duration = DefaultChanTimeout,
     outTimeout: Duration = DefaultChanTimeout,
     maxChannCount: int = MaxChannelCount,
+    maxBufferedBytes: int = MaxBufferedBytes,
 ): Mplex =
   M(
     connection: conn,
@@ -215,6 +240,7 @@ proc new*(
     outChannTimeout: outTimeout,
     oid: genOid(),
     maxChannCount: maxChannCount,
+    maxBufferedBytes: maxBufferedBytes,
   )
 
 method newStream*(
@@ -229,11 +255,11 @@ method newStream*(
 
 method close*(m: Mplex) {.async: (raises: []).} =
   if m.isClosed:
-    trace "Already closed", m
+    trace "Already closed", muxer = m
     return
   m.isClosed = true
 
-  trace "Closing mplex", m
+  trace "Closing mplex", muxer = m
 
   var channs = toSeq(m.channels[false].values) & toSeq(m.channels[true].values)
 
@@ -255,7 +281,7 @@ method close*(m: Mplex) {.async: (raises: []).} =
   m.channels[false].clear()
   m.channels[true].clear()
 
-  trace "Closed mplex", m
+  trace "Closed mplex", muxer = m
 
 method getStreams*(m: Mplex): seq[MuxedStream] {.gcsafe.} =
   var streams: seq[MuxedStream]

@@ -6,6 +6,9 @@ import chronos
 
 import ../multiaddress, ../multicodec
 
+logScope:
+  topics = "libp2p ipaddr"
+
 const RouteProbes = [parseIpAddress("8.8.8.8"), parseIpAddress("2001:4860:4860::8888")]
 
 proc isIPv4*(ip: IpAddress): bool =
@@ -41,12 +44,12 @@ proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
   try:
     Opt.some(getPrimaryIPAddr(probe))
   except CatchableError as e:
-    debug "Unable to get primary ip address", probe, description = e.msg
+    debug "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
   except Defect as e:
     raise e
   except Exception as e: # on windows getPrimaryIPAddr has untracked effects
-    debug "Unable to get primary ip address", probe, description = e.msg
+    debug "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
 
 func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =

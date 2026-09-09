@@ -173,7 +173,7 @@ proc handleConnect(
       raise exc
     except DialFailedError as exc:
       libp2p_relay_connections.inc(labelValues = ["dial_failed"])
-      trace "error opening relay stream", dst, description = exc.msg
+      trace "error opening relay stream", err = exc.msg, dst
       await sendHopStatus(srcStream, ConnectionFailed)
       return
   defer:
@@ -203,7 +203,7 @@ proc handleConnect(
     raise exc
   except CatchableError as exc:
     libp2p_relay_connections.inc(labelValues = ["stop_failed"])
-    trace "error sending stop message", description = exc.msg
+    trace "error sending stop message", err = exc.msg
     await sendHopStatus(srcStream, ConnectionFailed)
     return
 
@@ -271,9 +271,8 @@ proc handleHop*(
       return err(StatusV1.HopNoConnToDst)
     ok(msg)
 
-  let check = checkMsg()
-  if check.isErr:
-    await sendStatus(srcStream, check.error())
+  checkMsg().isOkOr:
+    await sendStatus(srcStream, error)
     return
 
   if r.peerCount[src.peerId] >= r.maxCircuitPerPeer or
@@ -293,7 +292,7 @@ proc handleHop*(
     except CancelledError as exc:
       raise exc
     except DialFailedError as exc:
-      trace "error opening relay stream", dst, description = exc.msg
+      trace "error opening relay stream", err = exc.msg, dst
       await sendStatus(srcStream, StatusV1.HopCantDialDst)
       return
   defer:
@@ -310,19 +309,18 @@ proc handleHop*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error writing stop handshake or reading stop response",
-        description = exc.msg
+      trace "error writing stop handshake or reading stop response", err = exc.msg
       await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
       return
 
-  let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
-    trace "error reading stop response", response = msgRcvFromDstOpt
+  let msgRcvFromDst: RelayMessage = msgRcvFromDstOpt.valueOr:
+    trace "error reading stop response", responsePresent = msgRcvFromDstOpt.isOk
     await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
     return
 
   if msgRcvFromDst.msgType.get(RelayType.Stop) != RelayType.Status or
       msgRcvFromDst.status.get(StatusV1.StopRelayRefused) != StatusV1.Success:
-    trace "unexcepted relay stop response", msgRcvFromDst
+    trace "Unexpected relay stop response", response = msgRcvFromDst
     await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
     return
 
@@ -396,7 +394,7 @@ proc new*(
       trace "cancelled relayv2 handler"
       raise exc
     except CatchableError as exc:
-      debug "exception in relayv2 handler", description = exc.msg, stream
+      debug "exception in relayv2 handler", err = exc.msg, stream
     finally:
       trace "exiting relayv2 handler", stream
       await stream.close()

@@ -3,6 +3,7 @@
 {.used.}
 
 import chronos, results
+import protobuf_serialization
 import ../../../libp2p/[crypto/crypto, protocols/kademlia/protobuf]
 import ../../tools/[crypto, unittest]
 import ./utils
@@ -49,13 +50,13 @@ suite "Ticket - tamper detection":
   test "tampered tInit":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.tInit = t.tInit.get() + 1.secs
+    t.tInit = t.tInit.get() + 1
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tMod":
     let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
-    t.tMod = t.tMod.get() + 1.secs
+    t.tMod = t.tMod.get() + 1
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tWaitFor":
@@ -70,8 +71,8 @@ suite "Ticket - boundary values":
     let key = PrivateKey.random(rng()).get()
     var t = Ticket(
       advertisement: @[0xAB'u8],
-      tInit: Moment.low,
-      tMod: Moment.low,
+      tInit: 0'i64,
+      tMod: 0'i64,
       tWaitFor: ZeroDuration,
       signature: Opt.none(seq[byte]),
     )
@@ -83,8 +84,8 @@ suite "Ticket - boundary values":
     let key = PrivateKey.random(rng()).get()
     var t = Ticket(
       advertisement: @[],
-      tInit: Moment.init(1000, Second),
-      tMod: Moment.init(2000, Second),
+      tInit: 1000'i64,
+      tMod: 2000'i64,
       tWaitFor: 300.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -102,3 +103,28 @@ suite "Ticket - boundary values":
       t.sign(key2).isOk()
       not t.verify(key1.getPublicKey().get())
       t.verify(key2.getPublicKey().get())
+
+suite "Ticket - timestamp encoding":
+  test "Unix seconds use int64 varints and survive signing round-trip":
+    let key = PrivateKey.random(rng()).get()
+    var ticket = Ticket(tInit: 1_700_000_000'i64, tMod: 1_700_000_001'i64)
+    check Protobuf.encode(ticket) ==
+      @[0x10'u8, 0x80, 0xE2, 0xCF, 0xAA, 0x06, 0x18, 0x81, 0xE2, 0xCF, 0xAA, 0x06]
+    check ticket.toBytes() ==
+      @[0'u8, 0, 0, 0, 0x65, 0x53, 0xF1, 0, 0, 0, 0, 0, 0x65, 0x53, 0xF1, 1, 0, 0, 0, 0]
+    check ticket.sign(key).isOk()
+    let decoded = Protobuf.decode(Protobuf.encode(ticket), Ticket)
+    check:
+      decoded.tInit == ticket.tInit
+      decoded.tMod == ticket.tMod
+      decoded.verify(key.getPublicKey().get())
+
+  test "absent timestamps remain distinct from explicit Unix epoch":
+    let absent = Protobuf.decode(Protobuf.encode(Ticket()), Ticket)
+    let epoch = Protobuf.decode(@[0x10'u8, 0, 0x18, 0], Ticket)
+    check:
+      absent.tInit.isNone()
+      absent.tMod.isNone()
+      epoch.tInit == Opt.some(0'i64)
+      epoch.tMod == Opt.some(0'i64)
+      Protobuf.encode(epoch) == @[0x10'u8, 0, 0x18, 0]

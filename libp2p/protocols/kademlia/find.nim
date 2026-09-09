@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm, sets]
+import std/[tables, sequtils, algorithm, sets, strutils]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
@@ -286,10 +286,10 @@ proc lookupCheck*(
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
-    trace "Kad probe timed out", peer = peerId.shortLog(), timeout = kad.config.timeout
+    trace "Kad probe timed out", peerId, timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kad probe failed", peer = peerId.shortLog(), description = error
+    trace "Kademlia probe failed", peerId, err = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
@@ -306,7 +306,7 @@ proc admitPeer(
     except CancelledError:
       return
   if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peer = peerId.shortLog()
+    trace "Kad admission probe failed, not inserting peer", peerId
     kad.probeRecordFailure(peerId, addrs)
     return
   kad.probeClearFailures(peerId)
@@ -315,7 +315,7 @@ proc admitPeer(
 
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
-    trace "Kad admission probe abandoned: table detached", peer = peerId.shortLog()
+    trace "Kad admission probe abandoned: table detached", peerId
     return
   if rtable.insert(peerId) and not onAdmit.isNil():
     onAdmit(peerId)
@@ -351,12 +351,12 @@ proc scheduleAdmissionProbe(
     return false
 
   if kad.probeBackedOff(peerId, addrs):
-    trace "Kad admission probe backed off", peer = peerId.shortLog()
+    trace "Kad admission probe backed off", peerId
     kad_admission_probes_backed_off.inc()
     return false
 
   if not kad.admissionSem.tryAcquire():
-    trace "Kad admission probe dropped: no free slot", peer = peerId.shortLog()
+    trace "Kad admission probe dropped: no free slot", peerId
     kad_admission_probes_dropped.inc()
     return false
 
@@ -438,7 +438,14 @@ proc dispatchPeer(
 ): Future[DispatchResult] {.async: (raises: [CancelledError]).} =
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
-    debug "Kad lookup: RPC error", peer = peerId.shortLog(), msg = res.error()
+    let err = res.error()
+    if err.startsWith($dialStage):
+      trace "Kademlia RPC stream establishment failed",
+        err, peerId, protocol = kad.codec
+    elif err.startsWith($writeStage):
+      trace "Kademlia RPC write failed", err, peerId, protocol = kad.codec
+    else:
+      trace "Kademlia RPC read failed", err, peerId, protocol = kad.codec
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -479,7 +486,7 @@ proc fillSlots(
     if peerId in active:
       continue
     state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
-    debug "Lookup query", peer = peerId.shortLog()
+    trace "Kademlia lookup query started", peerId
     pending.add(
       Attempt(
         peer: peerId,
@@ -740,7 +747,8 @@ method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
-    error "Key not set: handleFindNode", msg = msg, stream = stream
+    trace "Find-node request rejected",
+      reason = "missingKey", messageType = "findNode", stream
     return
 
   let response = Message(
@@ -752,8 +760,8 @@ method handleFindNode*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Write error when writing kad find-node RPC reply",
-      stream = stream, err = exc.msg
+    trace "Kademlia find-node RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.findNode
     return
 
   # Only admit senders with known dialable addresses; an inbound connection

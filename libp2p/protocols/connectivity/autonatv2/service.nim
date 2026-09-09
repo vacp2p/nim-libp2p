@@ -87,7 +87,7 @@ proc addressMapper(
   addrs
 
 method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
-  trace "Setting up AutonatV2Service"
+  info "Setting up AutonatV2Service"
 
   self.addressManager = switch.addressManager
   self.verifier = AutonatV2Verifier.new(switch, self.client, self.rng)
@@ -100,7 +100,7 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
 method start*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Running AutonatV2Service"
+  info "Running AutonatV2Service"
 
   let manager = switch.addressManager
   self.config.scheduleInterval.withValue(interval):
@@ -129,7 +129,7 @@ method start*(
 method stop*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Stopping AutonatV2Service"
+  info "Stopping AutonatV2Service"
 
   let manager = switch.addressManager
   switch.removePeerEventHandler(self.peerHandler, PeerEventKind.Identified)

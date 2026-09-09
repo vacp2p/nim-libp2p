@@ -4,11 +4,12 @@
 {.push raises: [].}
 
 import
+  chronicles,
   results,
   protobuf_serialization,
   protobuf_serialization/pkg/results,
   protobuf_serialization/std/enums,
-  ../../utils/protobuf
+  ../../utils/[protobuf, shortlog]
 
 export results
 
@@ -67,6 +68,41 @@ type
     unregister* {.fieldNumber: 4.}: Opt[Unregister]
     discover* {.fieldNumber: 5.}: Opt[Discover]
     discoverResponse* {.fieldNumber: 6.}: Opt[DiscoverResponse]
+
+func shortLog*(response: RegisterResponse): auto =
+  (status: response.status, text: response.text.get("").shortLog, ttl: response.ttl)
+
+chronicles.formatIt(RegisterResponse):
+  shortLog(it)
+
+func shortLog*(response: Opt[RegisterResponse]): string =
+  if response.isSome:
+    $response.get().shortLog
+  else:
+    "<unset>"
+
+chronicles.formatIt(Opt[RegisterResponse]):
+  shortLog(it)
+
+func shortLog*(response: DiscoverResponse): auto =
+  (
+    status: response.status,
+    registrationCount: response.registrations.len,
+    cookie: response.cookie.get(@[]).shortLog,
+    text: response.text.get("").shortLog,
+  )
+
+chronicles.formatIt(DiscoverResponse):
+  shortLog(it)
+
+func shortLog*(response: Opt[DiscoverResponse]): string =
+  if response.isSome:
+    $response.get().shortLog
+  else:
+    "<unset>"
+
+chronicles.formatIt(Opt[DiscoverResponse]):
+  shortLog(it)
 
 Protobuf.serializerFor(
   [Cookie, Register, RegisterResponse, Unregister, Discover, DiscoverResponse]

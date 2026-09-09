@@ -239,7 +239,7 @@ proc send*(
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
+  trace "sending pubsub message to peer", peer, msg
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
 proc countBroadcastMetrics*(
@@ -300,7 +300,7 @@ proc broadcast*(
 
   countBroadcastMetrics(p, sendPeers, msg)
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
+  trace "broadcasting messages to peers", peersCount = sendPeers.len, msg
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
@@ -420,7 +420,7 @@ method getOrCreatePeer*(
     try:
       await p.rpcHandler(peer, move(data))
     except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler", description = e.msg, peer = peer
+      trace "failed to decode message in peerHandler", err = e.msg, peerId = peer
       # loop continues and invalid messages are swallowed
 
   # create new pubsub peer
@@ -496,7 +496,7 @@ proc handleData*(
         for fut in futs:
           if fut.failed:
             let err = fut.error()
-            warn "Error in topic handler", description = err.msg
+            warn "Error in topic handler", err = err.msg
 
       return waiter()
 
@@ -632,7 +632,7 @@ proc subscribe*(
     # node has allready sent subscription.
     topicData[].handlers.add(handler)
   do:
-    trace "subscribing to topic", name = topic
+    trace "subscribing to topic", topic
     p.topics[topic] = TopicData(
       handlers: @[handler],
       requestsPartial: requestsPartial,
@@ -693,13 +693,10 @@ method validate*(
     p: PubSub, message: Message
 ): Future[ValidationResult] {.async: (raises: [CancelledError]), base.} =
   var pending: seq[Future[ValidationResult]]
-  trace "about to validate message"
   let topic = message.topic
 
-  trace "looking for validators on topic",
-    topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
-    trace "running validators for topic", topic = topic
+    trace "running validators for topic", topic
     p.validators.withValue(topic, validators):
       for validator in validators[]:
         pending.add(validator(topic, message))
@@ -716,8 +713,7 @@ method validate*(
         if res == ValidationResult.Reject:
           break
     except CatchableError as e:
-      trace "validator for message could not be executed, ignoring",
-        topic = topic, err = e.msg
+      trace "validator for message could not be executed, ignoring", err = e.msg, topic
       valResult = ValidationResult.Ignore
 
   case valResult

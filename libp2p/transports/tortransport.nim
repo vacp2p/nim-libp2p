@@ -17,6 +17,9 @@ import
   ../multiaddress,
   ../upgrademngrs/upgrade
 
+logScope:
+  topics = "libp2p tortransport"
+
 const
   IPTcp = mapAnd(IP, mapEq("tcp"))
   IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
@@ -25,6 +28,7 @@ const
 
   Socks5ProtocolVersion = byte(5)
   NMethods = byte(1)
+  MaxSocks5DomainLength = high(uint8).int
 
 type
   TorTransport* = ref object of Transport
@@ -183,8 +187,10 @@ proc parseIpTcp(
 proc parseDnsTcp(
     address: MultiAddress
 ): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
+  let dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
+  if dnsAddress.len > MaxSocks5DomainLength:
+    raise newException(LPError, "DNS address exceeds SOCKS5 domain length limit")
   let
-    dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
     dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
@@ -227,7 +233,7 @@ method dial*(
   ##
   if not handlesDial(address):
     raise newException(TransportDialError, "Address not supported")
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
 
   var transp: StreamTransport
 

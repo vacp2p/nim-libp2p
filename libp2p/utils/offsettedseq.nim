@@ -17,26 +17,16 @@ proc any*[T](o: OffsettedSeq[T], pred: proc(x: T): bool): bool =
   o.s.any(pred)
 
 proc apply*[T](o: OffsettedSeq[T], op: proc(x: T)) =
-  o.s.apply(pred)
+  o.s.apply(op)
 
-proc apply*[T](o: OffsettedSeq[T], op: proc(x: T): T) =
-  o.s.apply(pred)
+proc apply*[T](o: var OffsettedSeq[T], op: proc(x: T): T) =
+  o.s.apply(op)
 
-proc apply*[T](o: OffsettedSeq[T], op: proc(x: var T)) =
-  o.s.apply(pred)
+proc apply*[T](o: var OffsettedSeq[T], op: proc(x: var T)) =
+  o.s.apply(op)
 
 func count*[T](o: OffsettedSeq[T], x: T): int =
   o.s.count(x)
-
-proc flushIf*[T](o: OffsettedSeq[T], pred: proc(x: T): bool) =
-  var i = 0
-  for e in o.s:
-    if not pred(e):
-      break
-    i.inc()
-  if i > 0:
-    o.s.delete(0 ..< i)
-    o.offset.inc(i)
 
 template flushIfIt*(o, pred: untyped) =
   var i = 0
@@ -47,6 +37,9 @@ template flushIfIt*(o, pred: untyped) =
   if i > 0:
     o.s.delete(0 ..< i)
     o.offset.inc(i)
+
+proc flushIf*[T](o: var OffsettedSeq[T], pred: proc(x: T): bool) =
+  o.flushIfIt(pred(it))
 
 proc add*[T](o: var OffsettedSeq[T], v: T) =
   o.s.add(v)

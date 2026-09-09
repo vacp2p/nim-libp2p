@@ -78,17 +78,17 @@ method initStream*(s: Connection) =
   doAssert(s.timerTaskFut == nil)
 
   if s.timeout > 0.millis:
-    trace "Monitoring for timeout", s, timeout = s.timeout
+    trace "Monitoring for timeout", conn = s, timeout = s.timeout
 
     s.timerTaskFut = s.timeoutMonitor()
     if s.timeoutHandler == nil:
       s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
-        trace "Idle timeout expired, closing connection", s
+        trace "Idle timeout expired, closing connection", conn = s
         s.close()
 
 method closeImpl*(s: Connection): Future[void] {.async: (raises: []).} =
   # Cleanup timeout timer
-  trace "Closing connection", s
+  trace "Closing connection", conn = s
 
   if s.timerTaskFut != nil and not s.timerTaskFut.finished:
     # Don't `cancelAndWait` here to avoid risking deadlock in this scenario:
@@ -98,7 +98,7 @@ method closeImpl*(s: Connection): Future[void] {.async: (raises: []).} =
     s.timerTaskFut.cancelSoon()
     s.timerTaskFut = nil
 
-  trace "Closed connection", s
+  trace "Closed connection", conn = s
 
   procCall LPStream(s).closeImpl()
 
@@ -115,10 +115,10 @@ proc pollActivity(s: Connection): Future[bool] {.async: (raises: []).} =
 
   # Inactivity timeout happened, call timeout monitor
 
-  trace "Connection timed out", s
+  trace "Connection timed out", conn = s
   libp2p_stream_timeouts.inc(labelValues = [s.objName, metricLabel(s.dir)])
   if s.timeoutHandler != nil:
-    trace "Calling timeout handler", s
+    trace "Calling timeout handler", conn = s
     await s.timeoutHandler()
 
   return false

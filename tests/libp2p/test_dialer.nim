@@ -66,7 +66,6 @@ suite "Dialer":
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "Max connections reached":
-    # TODO: vacp2p/nim-lsquic#162
     var switches: seq[Switch]
 
     let dst = makeStandardSwitchBuilder()
@@ -84,9 +83,10 @@ suite "Dialer":
     let src = makeStandardSwitch()
     switches.add(src)
     await src.start()
-    check not await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs).withTimeout(
-      1000.millis
-    )
+
+    expect DialFailedError:
+      await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    check src.peerInfo.peerId notin dst.connManager.connectedPeers()
 
     await allFuturesRaising(switches.mapIt(it.stop()))
 
@@ -247,6 +247,36 @@ suite "Dialer":
     await dialer.connect(dst.peerInfo.peerId, @[stalling] & dst.peerInfo.addrs).wait(
       5.seconds
     )
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+    check resolver.cancelled
+
+  asyncTest "Ranked dialing does not wait for a stalled sibling resolution":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let resolver = StallingResolver.new()
+    resolver.txtResponses["_dnsaddr.mixed.example"] =
+      @["dnsaddr=" & $dst.peerInfo.addrs[0], "dnsaddr=/dns4/stalls.example/tcp/1234"]
+
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      src.transports,
+      src.ms,
+      resolver,
+      dialTimeout = 1.seconds,
+      dialRanking = true,
+    )
+
+    let mixed = MultiAddress.init("/dnsaddr/mixed.example").tryGet()
+    await dialer.connect(dst.peerInfo.peerId, @[mixed]).wait(5.seconds)
 
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
     check resolver.cancelled

@@ -182,7 +182,7 @@ suite "AutoTLS ACME API":
       discard await api.requestNewOrder(@["some-domain"], key, "kid")
 
     expect(ACMEError):
-      discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
+      discard await api.requestAuthorizations(@[AuthorizationsURL], key, "kid")
 
     expect(ACMEError):
       discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")
@@ -389,6 +389,7 @@ suite "AutoTLS ACME API":
     defer:
       await certServer.stop()
 
+    api.directoryURL = parseUri(certServer.url)
     api.queueGetOrder(certServer.url, expires)
     await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
 
@@ -409,10 +410,14 @@ suite "AutoTLS ACME API":
     expect(ACMEError):
       discard await downloadWithExpires("2026-11-02T14:30:00+00:00")
 
-  asyncTest "an order whose certificate url has no hostname is a network error":
+  asyncTest "an order whose certificate url is off the directory origin is refused":
     api.queueGetOrder("", "2026-11-02T14:30:00Z")
+    api.queueGetOrder("https://elsewhere.example/cert/1", "2026-11-02T14:30:00Z")
 
-    expect(ACMENetworkError):
+    expect(ACMEError):
+      discard await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
+
+    expect(ACMEError):
       discard await api.downloadCertificate(parseUri(OrderURL), key, AccountURL)
 
 suite "AutoTLS ACME API over HTTP":
@@ -422,7 +427,8 @@ suite "AutoTLS ACME API over HTTP":
     checkTrackers()
 
   asyncTest "a url the session cannot turn into an address is an http error":
-    let api = ACMEApi.new()
+    # an empty directory URL keeps the empty request URL on its origin
+    let api = ACMEApi.new(directoryURL = parseUri(""))
     defer:
       await api.close()
 
@@ -434,14 +440,39 @@ suite "AutoTLS ACME API over HTTP":
 
   asyncTest "a post carries the server's response body back":
     let server = startTestHttpServer($ %*{"status": "valid"})
-    let api = ACMEApi.new()
+    let api = ACMEApi.new(directoryURL = parseUri(server.url))
     defer:
       await api.close()
       await server.stop()
 
     check (await api.post(parseUri(server.url), "{}")).body == %*{"status": "valid"}
 
-  asyncTest "a directory url with no hostname is a network error":
+  asyncTest "a request off the directory origin is refused":
+    let api = ACMEApi.new(parseUri("https://acme.example/directory"))
+    defer:
+      await api.close()
+
+    expect(ACMEError):
+      discard await api.get(parseUri("https://elsewhere.example/new-nonce"))
+
+    expect(ACMEError):
+      discard await api.post(parseUri("http://127.0.0.1:8080/new-order"), "{}")
+
+    # same host, other scheme and port
+    expect(ACMEError):
+      discard await api.get(parseUri("http://acme.example/new-nonce"))
+
+  asyncTest "a request on the directory origin is sent":
+    let server = startTestHttpServer($ %*{"status": "valid"})
+    let api = ACMEApi.new(directoryURL = parseUri(server.url))
+    defer:
+      await api.close()
+      await server.stop()
+
+    check (await api.get(parseUri(server.url & "acme/new-nonce"))).body ==
+      %*{"status": "valid"}
+
+  asyncTest "a directory naming a resource off its origin is refused":
     let server = startTestHttpServer(
       $ %*{"newNonce": "", "newOrder": OrderURL, "newAccount": AccountURL}
     )
@@ -450,7 +481,7 @@ suite "AutoTLS ACME API over HTTP":
       await api.close()
       await server.stop()
 
-    expect(ACMENetworkError):
+    expect(ACMEError):
       discard await api.requestNonce()
 
 suite "AutoTLS ACME Client":

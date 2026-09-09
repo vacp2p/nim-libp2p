@@ -22,11 +22,12 @@ import
     routing_record,
     switch,
   ]
-import ../../tools/[crypto, switch_builder, multiaddress]
+import ../../tools/[switch_builder, multiaddress]
+import ../../tools/crypto as testcrypto
 
-export protobuf, registrar, routing_table_manager, types
+export protobuf, registrar, routing_table_manager, types, testcrypto
 
-converter toOptMoment*(a: Moment): Opt[Moment] =
+converter toOptTimestamp*(a: UnixTimestamp): Opt[UnixTimestamp] =
   Opt.some(a)
 
 converter toOptDuration*(a: Duration): Opt[Duration] =
@@ -40,9 +41,6 @@ converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
 
 proc randomKey*(): PrivateKey =
   PrivateKey.random(rng()).get()
-
-proc randomPeerId*(): PeerId =
-  PeerId.init(randomKey()).get()
 
 proc makePeerInfo*(
     peerId: PeerId = randomPeerId(), addrs: seq[MultiAddress] = @[]
@@ -60,8 +58,8 @@ proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
 proc makeTicket*(): Ticket =
   Ticket(
     advertisement: @[1'u8, 2, 3, 4],
-    tInit: Moment.init(1_000_000, Second),
-    tMod: Moment.init(2_000_000, Second),
+    tInit: 1_000_000'i64,
+    tMod: 2_000_000'i64,
     tWaitFor: 3000.secs,
     signature: Opt.none(seq[byte]),
   )
@@ -221,6 +219,13 @@ proc putAd*(
       ad.ipsFromAd()
   ads.put(serviceId, adv, ad, advertiserIps, now)
 
+proc seedOccupancy*(ads: AdvertisementCache, n: int, now: Moment = Moment.now()) =
+  ## Fills the cache with `n` ads under distinct services, so serviceSim stays 0.
+  for i in 0 ..< n:
+    let sid = makeServiceId(byte(i mod 250 + 1))
+    let ad = makeAdvertisement($sid)
+    ads.put(sid, ad.data.peerId, ad, ad.ipsFromAd(), now)
+
 proc acceptAd*(
     disco: ServiceDiscovery,
     now: Moment,
@@ -236,6 +241,22 @@ proc acceptAd*(
     else:
       ad.ipsFromAd()
   disco.acceptAdvertisement(now, serviceId, adv, ad, advertiserIps)
+
+proc registerAd*(
+    disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
+): RegisterMessage =
+  let inMsg = Message(
+    msgType: MessageType.register,
+    key: serviceId,
+    register: Opt.some(
+      RegisterMessage(
+        advertisement: ad.encode().get(),
+        status: Opt.none(RegistrationStatus),
+        ticket: Opt.none(Ticket),
+      )
+    ),
+  )
+  disco.registration(ad.data.peerId, inMsg).register.get()
 
 proc seedAd*(
     reg: Registrar,

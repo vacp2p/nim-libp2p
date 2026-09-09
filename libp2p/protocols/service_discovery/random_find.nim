@@ -17,7 +17,7 @@ proc randomRecords(
   ## Return all peer records on the path towards a random target ID.
 
   let randomPeerId = PeerId.random(disco.rng).valueOr:
-    debug "cannot generate random peer id", error
+    debug "Cannot generate random peer id", error
     return @[]
 
   let randomKey = randomPeerId.toKey()
@@ -50,7 +50,7 @@ proc randomRecords(
         raise e
 
     let reply = res.valueOr:
-      error "kad getValue failed", error = error
+      trace "Kademlia get-value failed", err = error
       continue
 
     let record = reply.record.valueOr:
@@ -64,7 +64,7 @@ proc randomRecords(
   var records: HashSet[ExtendedPeerRecord]
   for buffer in buffers:
     let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
-      debug "cannot decode signed extended peer record", error
+      debug "Cannot decode signed extended peer record", error
       continue
 
     records.incl(sxpr.data)

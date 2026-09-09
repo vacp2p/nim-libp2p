@@ -1,7 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import pkg/chronicles
+import pkg/[chronicles, chronos]
+
+const logFrequency = 1.minutes
+
+type LogRateLimit* = object
+  initialized: bool
+  nextAllowed: Moment
+
+proc allowLog*(limit: var LogRateLimit, now = Moment.now()): bool {.raises: [].} =
+  ## Bound repeated operational warnings without retaining per-peer state.
+  if limit.initialized and now < limit.nextAllowed:
+    return false
+  limit.initialized = true
+  limit.nextAllowed = now + logFrequency
+  true
 
 export LogLevel
 
