@@ -243,7 +243,7 @@ suite "Tor authentication":
     expect TransportDialError:
       discard await dialing
 
-suite "Tor CONNECT reply cleanup":
+suite "Tor CONNECT reply":
   teardown:
     checkTrackers()
 
