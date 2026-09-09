@@ -28,14 +28,12 @@ macro redactType*(T: typedesc, exported: static bool = true): untyped =
       else:
         ident("writeValue")
 
-  result = quote do:
+  result = quote:
     proc `dollarName`(value: `T`): string =
       Redacted
 
     chronicles.formatIt(`T`):
       Redacted
 
-    proc `writeValueName`(
-        writer: var JsonWriter, value: `T`
-    ) {.raises: [IOError].} =
+    proc `writeValueName`(writer: var JsonWriter, value: `T`) {.raises: [IOError].} =
       writer.writeValue(Redacted)
