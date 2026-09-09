@@ -4,14 +4,14 @@
 {.push raises: [].}
 
 import std/strformat
-import chronos, results, chronicles
+import chronos, results, chronicles, json_serialization/writer
 import protobuf_serialization, protobuf_serialization/pkg/results
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
-import ../../utils/[opt, shortlog, bytesview, protobuf]
+import ../../utils/[opt, shortlog, bytesview, protobuf, redact]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
@@ -88,6 +88,66 @@ type
   NoiseHandshakePayloadMsg* {.proto2.} = object
     identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
     identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
+
+proc `$`(key: KeyPair): string =
+  Redacted
+
+proc `$`(state: CipherState): string =
+  Redacted
+
+proc `$`(state: SymmetricState): string =
+  Redacted
+
+proc `$`(state: HandshakeState): string =
+  Redacted
+
+proc `$`(result: HandshakeResult): string =
+  Redacted
+
+proc `$`*(noise: Noise): string =
+  Redacted
+
+chronicles.formatIt(KeyPair):
+  Redacted
+
+chronicles.formatIt(CipherState):
+  Redacted
+
+chronicles.formatIt(SymmetricState):
+  Redacted
+
+chronicles.formatIt(HandshakeState):
+  Redacted
+
+chronicles.formatIt(HandshakeResult):
+  Redacted
+
+chronicles.formatIt(Noise):
+  Redacted
+
+proc writeValue(writer: var JsonWriter, key: KeyPair) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue(writer: var JsonWriter, state: CipherState) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue(
+    writer: var JsonWriter, state: SymmetricState
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue(
+    writer: var JsonWriter, state: HandshakeState
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue(
+    writer: var JsonWriter, result: HandshakeResult
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue*(writer: var JsonWriter, noise: Noise) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
 
 # Utility
 

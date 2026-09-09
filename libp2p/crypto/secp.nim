@@ -3,8 +3,10 @@
 
 {.push raises: [].}
 
+import chronicles, json_serialization/writer
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
 import rng as libp2p_rng
+import ../utils/redact
 
 export sha2, results
 
@@ -194,13 +196,27 @@ func clear*(key: var SkPrivateKey) =
   clear(secp256k1.SkSecretKey(key))
 
 func `$`*(key: SkPrivateKey): string =
-  $secp256k1.SkSecretKey(key)
+  Redacted
 func `$`*(key: SkPublicKey): string =
   $secp256k1.SkPublicKey(key)
 func `$`*(key: SkSignature): string =
   $secp256k1.SkSignature(key)
 func `$`*(key: SkKeyPair): string =
-  $secp256k1.SkKeyPair(key)
+  Redacted
+
+chronicles.formatIt(SkPrivateKey):
+  Redacted
+
+chronicles.formatIt(SkKeyPair):
+  Redacted
+
+proc writeValue*(
+    writer: var JsonWriter, key: SkPrivateKey
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue*(writer: var JsonWriter, key: SkKeyPair) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
 
 func `==`*(a, b: SkPrivateKey): bool =
   secp256k1.SkSecretKey(a) == secp256k1.SkSecretKey(b)

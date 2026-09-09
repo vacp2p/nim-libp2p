@@ -31,10 +31,11 @@ import
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utils/opt
+  utils/[opt, tlsredact]
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
+  tlsredact,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
   connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig,
   natservice.PortMappingMode, natservice.AutonatVersion, natservice.PortMapperFactory,

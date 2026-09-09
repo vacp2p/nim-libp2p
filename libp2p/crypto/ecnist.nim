@@ -11,6 +11,8 @@
 {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
+import chronicles
+import json_serialization/writer
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import minasn1
@@ -19,6 +21,7 @@ import stew/ctops
 import results
 
 import ../utils/conversion
+import ../utils/redact
 import rng
 
 export results
@@ -266,17 +269,27 @@ proc random*(T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng): EcResult[T] =
   ok(key)
 
 proc `$`*(seckey: EcPrivateKey): string =
-  ## Return string representation of EC private key.
-  if isNil(seckey) or seckey.key.curve == 0 or seckey.key.xlen == 0 or
-      len(seckey.buffer) == 0:
-    return "Empty or uninitialized ECNIST key"
-  if seckey.key.curve notin EcSupportedCurvesCint:
-    return "Unknown key"
-  let offset = seckey.getOffset()
-  if offset < 0:
-    return "Corrupted key"
-  let e = offset + cast[int](seckey.key.xlen) - 1
-  ncrutils.toHex(seckey.buffer.toOpenArray(offset, e))
+  ## Return a diagnostic representation without exposing private key material.
+  ## Use `getBytes`, `getRawBytes`, `toBytes`, or `toRawBytes` for intentional
+  ## serialization.
+  Redacted
+
+proc `$`*(key: EcKeyPair): string =
+  Redacted
+
+chronicles.formatIt(EcPrivateKey):
+  Redacted
+
+chronicles.formatIt(EcKeyPair):
+  Redacted
+
+proc writeValue*(
+    writer: var JsonWriter, key: EcPrivateKey
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue*(writer: var JsonWriter, key: EcKeyPair) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.

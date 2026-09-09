@@ -7,7 +7,7 @@
 
 {.push raises: [].}
 
-import constants
+import constants, chronicles, json_serialization/writer
 import ../rng
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
@@ -16,6 +16,7 @@ import results
 import stew/ctops
 
 import ../../utils/conversion
+import ../../utils/redact
 
 export results
 
@@ -2306,8 +2307,26 @@ proc `==`*(eda, edb: EdSignature): bool =
   CT.isEqual(eda.data, edb.data)
 
 proc `$`*(key: EdPrivateKey): string =
-  ## Return string representation of ED25519 `private key`.
-  ncrutils.toHex(key.data)
+  ## Return a diagnostic representation without exposing private key material.
+  ## Use `getBytes` or `toBytes` for intentional serialization.
+  Redacted
+
+proc `$`*(key: EdKeyPair): string =
+  Redacted
+
+chronicles.formatIt(EdPrivateKey):
+  Redacted
+
+chronicles.formatIt(EdKeyPair):
+  Redacted
+
+proc writeValue*(
+    writer: var JsonWriter, key: EdPrivateKey
+) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
+
+proc writeValue*(writer: var JsonWriter, key: EdKeyPair) {.raises: [IOError].} =
+  writer.writeValue(Redacted)
 
 proc `$`*(key: EdPublicKey): string =
   ## Return string representation of ED25519 `private key`.
