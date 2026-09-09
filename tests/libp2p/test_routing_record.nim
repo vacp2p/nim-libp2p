@@ -5,17 +5,14 @@
 
 import stew/byteutils
 import ../../libp2p/[routing_record, crypto/crypto]
-import ../tools/[unittest, crypto]
+import ../tools/[unittest, crypto, multiaddress]
 
 suite "Routing record":
   test "Encode -> decode test":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
 
       buffer = routingRecord.encode()
@@ -48,10 +45,7 @@ suite "Signed Routing Record":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       routingRecord = SignedPeerRecord
         .init(privKey, PeerRecord.init(peerId, multiAddresses, 42))
         .tryGet()
@@ -71,10 +65,7 @@ suite "Signed Routing Record":
       privKey = PrivateKey.random(rng()).tryGet()
       privKey2 = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       routingRecord = SignedPeerRecord
         .init(privKey2, PeerRecord.init(peerId, multiAddresses, 42))
         .tryGet()
@@ -86,8 +77,7 @@ suite "Signed Routing Record":
     let
       privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      multiAddresses = @[MultiAddress(), ma("/ip4/0.0.0.0/tcp/25")]
       routingRecord = PeerRecord.init(peerId, multiAddresses, 42)
 
       buffer = routingRecord.encode()

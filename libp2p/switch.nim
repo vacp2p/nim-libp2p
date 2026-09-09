@@ -264,15 +264,15 @@ proc upgradeMonitor(
     await upgrades.acquire().wait(deadlineFut)
     semAcquired = true
     await switch.upgrader(trans, conn).wait(deadlineFut)
-    trace "Connection upgrade succeeded"
+    trace "Incoming connection upgrade completed", conn
     upgradeSuccessful = true
   except CancelledError:
-    trace "Connection upgrade cancelled", conn
+    trace "Incoming connection upgrade canceled", conn
   except AsyncTimeoutError:
-    trace "Connection upgrade timeout", conn
+    trace "Incoming connection upgrade timed out", conn
     libp2p_failed_upgrades_incoming.inc()
   except UpgradeError as e:
-    trace "Connection upgrade failed", description = e.msg, conn
+    trace "Incoming connection upgrade failed", err = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
     deadlineFut.cancelSoon()
@@ -292,7 +292,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   while transport.running:
     var conn: RawConn
     try:
-      debug "About to accept incoming connection"
+      debug "Transport connection acceptance started"
       conn =
         try:
           await transport.accept()
@@ -305,7 +305,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
-        debug "Unable to get a connection"
+        debug "Transport connection acceptance returned no connection"
         await sleepAsync(AcceptRetryDelay)
         continue
 
@@ -324,12 +324,12 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       # gossipsub gives priority to connections we make
       conn.transportDir = Direction.In
 
-      debug "Accepted an incoming connection", conn
+      debug "Transport connection accepted", conn
       s.upgradeFuts.trackFut(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
     except CatchableError as exc:
-      error "Exception in accept loop, exiting", description = exc.msg
+      error "Accept loop stopped", err = exc.msg, errType = exc.name
       if not isNil(conn):
         await conn.close()
       return
@@ -342,7 +342,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
-  trace "Stopping switch"
+  info "Stopping switch"
 
   s.started = false
 
@@ -352,7 +352,10 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Cannot cancel accepts", description = exc.msg
+    warn "Accept loop cancellation failed",
+      err = exc.msg,
+      errType = exc.name,
+      pendingAccepts = s.acceptFuts.countIt(not it.finished())
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]
@@ -372,7 +375,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", description = exc.msg
+      warn "Transport cleanup failed", err = exc.msg
 
   await s.ms.stop()
 
@@ -382,7 +385,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   s.peerStore.close()
 
-  trace "Switch stopped"
+  info "Switch stopped"
 
 proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
@@ -390,7 +393,7 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     warn "Switch has already been started"
     return
 
-  debug "starting switch for peer", peerInfo = s.peerInfo
+  info "Starting switch for peer", peerInfo = s.peerInfo
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager
@@ -429,4 +432,4 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   s.peerStore.startAddressPruning()
 
-  debug "Started libp2p node", peer = s.peerInfo
+  info "Started libp2p node", peerId = s.peerInfo

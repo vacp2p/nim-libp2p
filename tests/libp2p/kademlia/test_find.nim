@@ -6,7 +6,7 @@
 import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/protocols/kademlia/[find, types]
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, topology, unittest, multiaddress]
 import ./utils.nim
 
 suite "KadDHT Find":
@@ -202,7 +202,7 @@ suite "KadDHT Find":
 
     # kads[1] vouches for a peer nothing is listening for
     let deadPeerId = randomPeerId()
-    let deadAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").tryGet()]
+    let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/59999")]
     kads[1].updatePeers(@[(deadPeerId, deadAddrs)])
 
     discard await kads[0].findNode(deadPeerId.toKey())
@@ -315,8 +315,7 @@ suite "KadDHT Find":
 
     # A client-mode peer is in nobody's routing table, but its addresses are known.
     let client = randomPeerId()
-    kads[0].switch.peerStore[AddressBook][client] =
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/9999").tryGet()]
+    kads[0].switch.peerStore[AddressBook][client] = @[ma("/ip4/127.0.0.1/tcp/9999")]
 
     let response = (
       await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, client.toKey())

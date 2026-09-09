@@ -28,7 +28,7 @@ suite "AutoTLS certificate issuance and renewal":
     RenewBufferTime = 1.hours
     ChallengeToken = "some-token"
     NodeIP = "127.0.0.1"
-    DnsServerURL = "example.test"
+    DomainSuffix = "example.test"
 
   # RSA generation dominates the runtime of every test here, so one key pair each.
   let
@@ -167,6 +167,8 @@ suite "AutoTLS certificate issuance and renewal":
     defer:
       await certServer.stop()
 
+    # the certificate download is a real request, so it has to be on the directory origin
+    acmeApi.directoryURL = parseUri(certServer.url)
     acmeApi.scriptChallenge(ChallengeToken)
     acmeApi.scriptCertificate(certServer.url, OrderExpires)
 
@@ -174,7 +176,7 @@ suite "AutoTLS certificate issuance and renewal":
     service = newService(
       AutotlsConfig.new(
         ipAddress = Opt.some(parseIpAddress(NodeIP)),
-        dnsServerURL = DnsServerURL,
+        domainSuffix = DomainSuffix,
         issueRetries = 3,
         issueRetryTime = 0.seconds,
       )
@@ -189,7 +191,7 @@ suite "AutoTLS certificate issuance and renewal":
     # Nothing signals a round that ended, so wait out a three retries window.
     await sleepAsync(50.milliseconds)
 
-    let baseDomain = encodePeerId(switch.peerInfo.peerId) & "." & DnsServerURL
+    let baseDomain = encodePeerId(switch.peerInfo.peerId) & "." & DomainSuffix
     check:
       # One round is 8 requests, so more would be a second attempt.
       acmeApi.requestedUris.len == 8

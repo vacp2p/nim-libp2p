@@ -233,7 +233,7 @@ proc unionWithSentPartsMetadata(
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
       # union failed, it is safe to use the most recent parts metadata
-      warn "failed to create union from the two parts metadata", msg = unionRes.error
+      debug "Parts metadata union failed", reason = unionRes.error
       hasChanged = true
       peerState.sentPartsMetadata = Opt.some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
@@ -361,9 +361,8 @@ proc handlePartialRPC(
     ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
-  let validateRes = ext.config.validateRPC(rpc)
-  if validateRes.isErr():
-    debug "RPC did not pass application validation", msg = validateRes.error
+  ext.config.validateRPC(rpc).isOkOr:
+    debug "RPC rejected by application validation", reason = error
     return
 
   ext.recordReceivedMetadata(peerId, rpc)
@@ -415,8 +414,8 @@ proc publishPartialToPeer(
           peerState.receivedPartsMetadata.get(), msgPartsMetadata
         )
         if unionRes.isErr:
-          warn "failed to create union from the two parts metadata",
-            msg = unionRes.error
+          debug "failed to create union from the two parts metadata",
+            err = unionRes.error
           # technically should never happen since materializeParts was successful
         else:
           peerState.receivedPartsMetadata = Opt.some(unionRes.get())

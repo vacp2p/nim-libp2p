@@ -37,7 +37,7 @@ method start*(
     await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
-  trace "Starting Relay transport"
+  info "Starting Relay transport"
 
 method stop*(self: RelayTransport) {.async: (raises: []).} =
   self.running = false
@@ -127,7 +127,6 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
       handles = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
   except CatchableError:
     handles = false
-  trace "Handles return", ma, handles
   handles
 
 proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =

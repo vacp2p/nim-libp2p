@@ -73,7 +73,7 @@ chronicles.formatIt(LPChannel):
   shortLog(it)
 
 proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "Opening channel", s, conn = s.conn
+  trace "Opening channel", channel = s, conn = s.conn
   if s.conn.isClosed:
     return
   try:
@@ -96,7 +96,7 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async: (raises: []).} =
 
 proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
   if s.localReset or s.remoteReset:
-    trace "Already reset", s
+    trace "Already reset", channel = s
     return
 
   s.isClosed = true
@@ -104,23 +104,23 @@ proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
   s.localReset = isLocal
   s.remoteReset = not isLocal
 
-  trace "Resetting channel", s, len = s.len
+  trace "Resetting channel", channel = s, len = s.len
 
   if isLocal and s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
     proc resetMessage() {.async: (raises: []).} =
       try:
-        trace "sending reset message", s, conn = s.conn
+        trace "Sending reset message", channel = s, conn = s.conn
         await noCancel s.conn.writeMsg(s.id, s.resetCode) # write reset
       except LPStreamError as exc:
-        trace "Can't send reset message", s, conn = s.conn, description = exc.msg
+        trace "Can't send reset message", err = exc.msg, channel = s, conn = s.conn
         await s.conn.close()
 
     s.resetMessageFut = resetMessage()
 
   await s.closeImpl()
 
-  trace "Channel reset", s
+  trace "Channel reset", channel = s
 
 method resetImpl*(s: LPChannel) {.async: (raises: []).} =
   await s.resetChannel(isLocal = true)
@@ -130,11 +130,11 @@ method close*(s: LPChannel) {.async: (raises: []).} =
   ## informing them that the channel is closed and that we're waiting for
   ## their acknowledgement.
   if s.closedLocal:
-    trace "Already closed", s
+    trace "Already closed", channel = s
     return
   s.closedLocal = true
 
-  trace "Closing channel", s, conn = s.conn, len = s.len
+  trace "Closing channel", channel = s, conn = s.conn, len = s.len
 
   if s.isOpen and not s.conn.isClosed:
     try:
@@ -145,11 +145,11 @@ method close*(s: LPChannel) {.async: (raises: []).} =
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
       await s.conn.close()
-      trace "Cannot send close message", s, id = s.id, description = exc.msg
+      trace "Cannot send close message", channel = s, id = s.id, err = exc.msg
 
   await s.closeUnderlying() # maybe already eofed
 
-  trace "Closed channel", s, len = s.len
+  trace "Closed channel", channel = s, len = s.len
 
 method closeWrite*(s: LPChannel) {.async: (raises: []).} =
   ## For mplex, closeWrite is the same as close - it implements half-close
@@ -160,7 +160,7 @@ method initStream*(s: LPChannel) =
     s.objName = LPChannelTrackerName
 
   s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
-    trace "Idle timeout expired, resetting LPChannel", s
+    trace "Idle timeout expired, resetting LPChannel", channel = s
     s.reset()
 
   procCall BufferStream(s).initStream()
@@ -173,7 +173,7 @@ method readOnce*(
   ## channel must not be done from within a callback / read handler of another
   ## or the reads will lock each other.
   if s.remoteReset:
-    trace "reset stream in readOnce", s
+    trace "Reset stream in readOnce", channel = s
     raise newLPStreamResetError()
   if s.localReset:
     raise newLPStreamClosedError()
@@ -193,7 +193,7 @@ method readOnce*(
       if s.protocol.len > 0:
         libp2p_protocols_bytes.inc(bytes.int64, labelValues = [s.protocol, "in"])
 
-    trace "readOnce", s, bytes
+    trace "readOnce", channel = s, bytes
     if bytes == 0:
       await s.closeUnderlying()
     return bytes
@@ -212,7 +212,7 @@ proc prepareWrite(
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
   if s.remoteReset:
-    trace "stream is reset when prepareWrite", s
+    trace "Stream is reset when prepareWrite", channel = s
     raise newLPStreamResetError()
   if s.closedLocal:
     raise newLPStreamClosedError()
@@ -223,8 +223,8 @@ proc prepareWrite(
     return
 
   if s.writes >= MaxWrites:
-    debug "Closing connection, too many in-flight writes on channel",
-      s, conn = s.conn, writes = s.writes
+    trace "Closing connection, too many in-flight writes on channel",
+      channel = s, conn = s.conn, writes = s.writes
     when defined(libp2p_mplex_metrics):
       libp2p_mplex_qlenclose.inc()
     await s.reset()
@@ -268,7 +268,7 @@ proc completeWrite(
   except LPStreamEOFError as exc:
     raise exc
   except LPStreamError as exc:
-    trace "exception in lpchannel write handler", s, description = exc.msg
+    trace "Exception in lpchannel write handler", err = exc.msg, channel = s
     await s.reset()
     await s.conn.close()
     raise newLPStreamConnDownError(exc)
@@ -329,6 +329,6 @@ proc init*(
       else:
         $chann.oid
 
-  trace "Created new lpchannel", s = chann, id, initiator
+  trace "LP channel created", channel = chann, id, initiator
 
   return chann

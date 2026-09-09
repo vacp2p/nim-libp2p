@@ -12,6 +12,8 @@ import ../../tools/[unittest, crypto]
 import ../../stubs/peer_id_auth_client_stub
 
 suite "PeerID Auth Client":
+  const ExampleURL = "https://example.com/some/uri"
+
   # keys from the peer-id-auth spec's handshake examples
   let
     specServerKey = PrivateKey
@@ -47,11 +49,12 @@ suite "PeerID Auth Client":
       async: (raises: [PeerIDAuthError, CancelledError])
   .} =
     client.authenticationInfo = Opt.some(
-      "libp2p-PeerID sig=\"somesig\", bearer=\"somebearer\", expires=\"" & expires & "\""
+      PeerIDAuthPrefix & " sig=\"somesig\", bearer=\"somebearer\", expires=\"" & expires &
+        "\""
     )
     await client.requestAuthorization(
       peerInfo,
-      parseUri("https://example.com/some/uri"),
+      parseUri(ExampleURL),
       "some-challenge-client",
       "some-challenge-server",
       specServerKey.getPublicKey().get(),
@@ -60,16 +63,15 @@ suite "PeerID Auth Client":
     )
 
   asyncTest "request authentication":
-    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng()).get()
-    let serverPubkey = serverPrivateKey.getPublicKey().get()
+    let serverPubkey = specServerKey.getPublicKey().get()
     let b64serverPubkey = serverPubkey.pubkeyBytes().encode(safe = true)
     client.wwwAuthenticate = Opt.some(
-      "libp2p-PeerID " & "challenge-client=\"somechallengeclient\", public-key=\"" &
+      PeerIDAuthPrefix & " challenge-client=\"somechallengeclient\", public-key=\"" &
         b64serverPubkey & "\", opaque=\"someopaque\""
     )
 
     let authenticationResponse =
-      await client.requestAuthentication(parseUri("https://example.com/some/uri"))
+      await client.requestAuthentication(parseUri(ExampleURL))
 
     check authenticationResponse.challengeClient ==
       PeerIDAuthChallenge("somechallengeclient")
@@ -80,12 +82,11 @@ suite "PeerID Auth Client":
     let sig = PeerIDAuthSignature("somesig")
     let bearer = BearerToken(token: "somebearer", expires: Opt.none(DateTime))
     client.authenticationInfo = Opt.some(
-      "libp2p-PeerID " & "sig=\"" & sig & "\", " & "bearer=\"" & bearer.token & "\""
+      PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & bearer.token & "\""
     )
 
-    let uri = parseUri("https://example.com/some/uri")
-    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng()).get()
-    let serverPubkey = serverPrivateKey.getPublicKey().get()
+    let uri = parseUri(ExampleURL)
+    let serverPubkey = specServerKey.getPublicKey().get()
     let authorizationResponse = await client.requestAuthorization(
       peerInfo, uri, "some-challenge-client", "some-challenge-server", serverPubkey,
       "some-opaque", "some-payload",
@@ -96,7 +97,7 @@ suite "PeerID Auth Client":
   asyncTest "client signature matches the peer-id-auth spec vector":
     discard await client.requestAuthorization(
       PeerInfo.new(specClientKey),
-      parseUri("https://example.com/some/uri"),
+      parseUri(ExampleURL),
       "ERERERERERERERERERERERERERERERERERERERERERE=",
       "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMz",
       specServerKey.getPublicKey().get(),
@@ -109,7 +110,7 @@ suite "PeerID Auth Client":
       "OrwJPO4buHKJdKXP2av8PFwv3XF_-m5MqndskeVV5UzufYzBCTm7RBaFnBS1sEhuQHZSZPh9RJgN5NmLzrUrBQ=="
 
   asyncTest "each handshake draws a fresh challenge-server":
-    let uri = parseUri("https://example.com/some/uri")
+    let uri = parseUri(ExampleURL)
     discard await client.send(uri, peerInfo, "somepayload")
     discard await client.send(uri, peerInfo, "somepayload")
 
@@ -120,9 +121,7 @@ suite "PeerID Auth Client":
     client.challengeServer = Opt.some("someotherchallenge")
 
     expect PeerIDAuthError:
-      discard await client.send(
-        parseUri("https://example.com/some/uri"), peerInfo, "somepayload"
-      )
+      discard await client.send(parseUri(ExampleURL), peerInfo, "somepayload")
 
   asyncTest "bearer expiry is parsed in local time":
     # TODO: vacp2p/nim-libp2p#2975
@@ -158,7 +157,7 @@ suite "PeerID Auth Client":
     expect(HttpError):
       discard await realClient.post(parseUri(""), "somepayload", "someauthheader")
 
-  asyncTest "checkSignature successful":
+  test "checkSignature successful":
     # example from peer-id-auth spec
     let serverPublicKey = specServerKey.getPublicKey().get()
     let challenge = "ERERERERERERERERERERERERERERERERERERERERERE="
@@ -168,7 +167,7 @@ suite "PeerID Auth Client":
     let clientPublicKey = specClientKey.getPublicKey().get()
     check checkSignature(sig, serverPublicKey, challenge, clientPublicKey, hostname)
 
-  asyncTest "checkSignature failed":
+  test "checkSignature failed":
     # example from peer-id-auth spec (but with sig altered)
     let serverPublicKey = specServerKey.getPublicKey().get()
     let challenge = "ERERERERERERERERERERERERERERERERERERERERERE="

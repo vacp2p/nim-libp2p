@@ -5,6 +5,7 @@
 {.push raises: [].}
 
 import tables, chronos, stew/[byteutils]
+import std/strutils except fromHex
 import
   ../../../libp2p/[
     stream/connection,
@@ -17,7 +18,7 @@ import
     muxers/mplex/mplex,
     builders,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 import ../../stubs/torstub
 import ./basic_tests
 import ./connection_tests
@@ -87,20 +88,17 @@ suite "Tor transport":
   )
   connectionTransportTest(torTransProvider, address, address2)
   streamTransportTest(
-    torTransProvider,
-    MultiAddress.init(address).get(),
-    Opt.none(MultiAddress),
-    streamProvider,
+    torTransProvider, ma(address), Opt.none(MultiAddress), streamProvider
   )
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())
-    let ma2 = @[MultiAddress.init(lintesAddr).tryGet()]
+    let ma2 = @[ma(lintesAddr)]
     await server.start(ma2)
 
     proc runClient() {.async.} =
       let client = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
-      let conn = await client.dial("", MultiAddress.init(dialAddr).tryGet())
+      let conn = await client.dial("", ma(dialAddr))
 
       await conn.write("client")
       var resp: array[6, byte]
@@ -132,6 +130,27 @@ suite "Tor transport":
   asyncTest "test start and dial using dns":
     await test("/ip4/127.0.0.1/tcp/8080", "/dns/libp2p.nim/tcp/8080")
 
+  asyncTest "SOCKS5 DNS address length boundary":
+    let
+      maxDnsAddress = repeat('a', 255)
+      oversizedDnsAddress = repeat('a', 256)
+      client = TorTransport.new(transportAddress = torServer, upgrade = Upgrade())
+    stub.registerAddr(maxDnsAddress & ":8080", "/ip4/127.0.0.1/tcp/8080")
+
+    let server = TcpTransport.new({ReuseAddr}, Upgrade())
+    await server.start(@[ma("/ip4/127.0.0.1/tcp/8080")])
+    let acceptFut = server.accept()
+
+    let conn = await client.dial("", ma("/dns/" & maxDnsAddress & "/tcp/8080"))
+    let serverConn = await acceptFut
+    await conn.close()
+    await serverConn.close()
+    await server.stop()
+
+    expect TransportDialError:
+      discard await client.dial("", ma("/dns/" & oversizedDnsAddress & "/tcp/8080"))
+    await client.stop()
+
   asyncTest "test start and dial usion onion3 and builder":
     const TestCodec = "/test/proto/1.0.0" # custom protocol string identifier
 
@@ -152,13 +171,13 @@ suite "Tor transport":
 
       return T.new(codecs = @[TestCodec], handler = handle)
 
-    let ma = MultiAddress
+    let maddr = MultiAddress
       .init(
         "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
       )
       .tryGet()
 
-    let serverSwitch = TorSwitch.new(torServer, rng(), @[ma], {ReuseAddr})
+    let serverSwitch = TorSwitch.new(torServer, rng(), @[maddr], {ReuseAddr})
 
     # setup the custom proto
     let testProto = TestProto.new()

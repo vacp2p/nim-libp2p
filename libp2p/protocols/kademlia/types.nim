@@ -5,10 +5,14 @@ import std/[tables, sequtils, sets, heapqueue, hashes]
 from std/times import format, getTime, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
+import ../../utils/shortlog
 import ../protocol
 import ./[protobuf, message_sender]
 
 export tables, sets, heapqueue, message_sender
+
+logScope:
+  topics = "kad-dht types"
 
 const
   IdLength* = 32 # 256-bit IDs
@@ -95,7 +99,7 @@ proc toCid*(k: Key): Cid =
   if cidRes.isOk:
     cidRes.get()
   else:
-    debug "Key is an invalid CID, encapsulating", key = k
+    debug "Kademlia key wrapped as CID", key = k
     Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
 
 proc toKey*(mh: MultiHash): Key =
@@ -152,11 +156,8 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
 
   return peerIds
 
-proc shortLog*(k: Key): string =
-  "key:" & toHex(k)
-
 chronicles.formatIt(Key):
-  shortLog(it)
+  it.shortLog
 
 type XorDistance* = array[IdLength, byte]
 type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.
@@ -343,7 +344,8 @@ proc toPeerIds*(keys: seq[Key]): seq[PeerId] =
   var peerIds = newSeqOfCap[PeerId](keys.len)
   for k in keys:
     let peerId = k.toPeerId().valueOr:
-      error "cannot convert key to peer id", error
+      trace "Kademlia key conversion failed",
+        err = error, operation = "convert key to peer ID"
       continue
     peerIds.add(peerId)
   return peerIds
@@ -383,7 +385,7 @@ type
 proc insert*(
     self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
-  debug "Local table insertion", key = key, value = value
+  debug "Local Kademlia record stored", key, value = value.shortLog
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =

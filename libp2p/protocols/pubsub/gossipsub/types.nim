@@ -12,6 +12,7 @@ import results
 import extensions, preamblestore
 
 export results, tables, sets
+export RateLimit # downstream code names it through this module
 
 const
   GossipSubCodec_13* = "/meshsub/1.3.0"
@@ -101,10 +102,6 @@ type
     appScore*: float64 # application specific score
     slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
-
-  RateLimit* = object
-    bytes*: int
-    interval*: Duration
 
   GossipSubParams* = object
     # explicit is used to check if the GossipSubParams instance was created by the user either passing params to GossipSubParams(...)

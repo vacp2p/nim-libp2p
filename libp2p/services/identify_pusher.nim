@@ -86,12 +86,11 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
   except CancelledError as e:
     raise e
   except MuxerError as e:
-    trace "failed to open stream for identify push", peerId, description = e.msg
+    trace "failed to open stream for identify push", err = e.msg, peerId
   except MultiStreamError as e:
-    trace "multistream negotiation failed for identify push",
-      peerId, description = e.msg
+    trace "multistream negotiation failed for identify push", err = e.msg, peerId
   except LPStreamError as e:
-    trace "stream error during identify push", peerId, description = e.msg
+    trace "stream error during identify push", err = e.msg, peerId
   finally:
     if not stream.isNil:
       if pushCompleted:

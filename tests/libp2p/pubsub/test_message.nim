@@ -39,6 +39,18 @@ suite "Message":
     # get the key from fromPeer field (inlined)
     check verify(msg)
 
+  test "signature rejects padded inline PeerId":
+    let
+      seqno = 11'u64
+      seckey = PrivateKey.random(Ed25519, rng()).get()
+      peer = PeerInfo.new(seckey)
+    var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
+    msg.fromPeer.data.add(0'u8)
+    msg.key = @[]
+    msg.signature = sign(msg, seckey).tryGet()
+
+    check not verify(msg)
+
   test "signature without inlined pubkey in peerId":
     let
       seqno = 11'u64

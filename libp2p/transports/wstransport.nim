@@ -5,6 +5,7 @@
 
 {.push raises: [].}
 
+import ../logging
 import std/[sequtils]
 import chronos, chronicles, results, metrics, stew/byteutils
 import
@@ -31,7 +32,6 @@ const
   DefaultConcurrentAccepts = 200
   DefaultAcceptFailureBackoff = 100.millis
   DefaultAutotlsWaitTimeout = 3.seconds
-  DefaultAutotlsRetries = 3
 
 type
   WsStream = ref object of Connection
@@ -135,6 +135,7 @@ method getWrapped*(s: WsStream): Connection =
   nil
 
 type WsTransport* = ref object of Transport
+  descriptorWarnings: LogRateLimit
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
@@ -164,6 +165,12 @@ proc hostHeaderHook(host: string): Hook =
     ok()
   hook
 
+func websockRng(rng: Rng): RandomBytesRng =
+  doAssert not rng.isNil(), "Rng is nil"
+  proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+    rng.generate(dst)
+    true
+
 proc getSni(address: MultiAddress): string =
   let value = address.getProtocolArgument(multiCodec("sni")).valueOr:
     return ""
@@ -185,13 +192,13 @@ proc releaseAcceptSlot(self: WsTransport) {.raises: [].} =
   try:
     self.acceptSem.release()
   except AsyncSemaphoreError as e:
-    trace "Error releasing WS accept semaphore", description = e.msg
+    trace "WebSocket accept slot release failed", err = e.msg
 
 proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
   try:
     await noCancel stream.closeWait()
   except CatchableError as e:
-    trace "Error closing HTTP stream", description = e.msg
+    trace "HTTP stream close failed", err = e.msg
 
 proc connHandler(
   self: WsTransport, stream: WSSession, secure: bool, dir: Direction
@@ -216,19 +223,19 @@ proc wsHandshakeWorker(
     await self.acceptResults.addLast(conn)
     accepted = true
   except WebSocketError as e:
-    debug "Websocket Error", description = e.msg
+    debug "WebSocket handshake failed", err = e.msg
   except HttpError as e:
-    debug "Http Error", description = e.msg
+    debug "WebSocket HTTP handshake failed", err = e.msg
   except AsyncStreamError as e:
-    debug "AsyncStream Error", description = e.msg
+    debug "WebSocket transport stream failed", err = e.msg
   except AsyncTimeoutError as e:
-    debug "Timed out", description = e.msg
+    debug "WebSocket handshake timed out", err = e.msg
   except CancelledError as e:
     if not accepted:
       await noCancel closeHttpStream(stream)
     raise e
   except CatchableError as e:
-    debug "Unexpected error accepting websocket connection", description = e.msg
+    debug "WebSocket connection acceptance failed", err = e.msg
 
   if not accepted:
     await closeHttpStream(stream)
@@ -268,15 +275,17 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         elif finished.failed():
           let exc = finished.error()
           if exc of TransportUseClosedError:
-            debug "Server was closed", description = exc.msg
+            debug "Server was closed", err = exc.msg
           elif exc of TransportTooManyError:
-            debug "Too many files opened", description = exc.msg
+            if self.descriptorWarnings.allowLog():
+              warn "Connection acceptance limited by file descriptor exhaustion",
+                err = exc.msg, errType = exc.name, transport = "websocket"
           elif exc of TransportAbortedError:
-            debug "Connection aborted", description = exc.msg
+            debug "Transport connection aborted", err = exc.msg
           elif exc of TransportOsError:
-            debug "OS Error", description = exc.msg
+            debug "WebSocket socket acceptance failed", err = exc.msg
           else:
-            info "Unexpected error accepting websocket stream", description = exc.msg
+            debug "WebSocket stream acceptance failed", err = exc.msg
 
           if acquired:
             self.releaseAcceptSlot()
@@ -301,7 +310,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         if acquired:
           self.releaseAcceptSlot()
         if self.running:
-          info "Unexpected error in websocket accept dispatcher", description = e.msg
+          debug "WebSocket accept dispatcher failed", err = e.msg
         else:
           break
   finally:
@@ -312,7 +321,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await closeHttpStream(fut.read())
         except CatchableError as e:
-          trace "Error reading completed WS accept stream", description = e.msg
+          trace "WebSocket accepted stream read failed", err = e.msg
 
     if notifyOnClose:
       var toWait: seq[Future[void]]
@@ -324,7 +333,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await noCancel allFutures(toWait)
         except CatchableError as e:
-          trace "Error stopping WS handshake workers", description = e.msg
+          trace "WebSocket handshake worker shutdown failed", err = e.msg
 
       self.notifyAcceptClosed()
 
@@ -332,12 +341,11 @@ method start*(
     self: WsTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
-  ##
-  trace "Starting WS transport"
-
   if self.running:
     warn "WS transport already running"
     return
+
+  info "Starting WS transport"
 
   let addrsTa = self.toTransportAddress(addrs).valueOr:
     raise newException(TransportStartError, $error)
@@ -359,8 +367,7 @@ method start*(
       except TLSStreamProtocolError as e:
         raise newException(LPError, e.msg, e)
 
-  self.wsserver =
-    WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
+  self.wsserver = WSServer.new(factories = self.factories, rng = websockRng(self.rng))
 
   var resolvedAddrs = addrs
   for i, ma in addrs:
@@ -369,7 +376,7 @@ method start*(
         if self.secure:
           true
         else:
-          warn "Trying to listen on a WSS address without setting certificate or autotls!"
+          warn "Trying to listen on a WSS address without setting certificate or autotls"
           false
       else:
         false
@@ -419,7 +426,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
   self.running = false # mark stopped as soon as possible
 
   try:
-    trace "Stopping WS transport"
+    info "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
     var toWait: seq[Future[void]]
@@ -447,9 +454,9 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     self.handshakeFuts = @[]
     self.connectionCleanupFuts = @[]
     self.acceptLoop = nil
-    trace "Transport stopped"
+    info "Transport stopped"
   except CatchableError as e:
-    trace "Error shutting down ws transport", description = e.msg
+    trace "WebSocket transport shutdown failed", err = e.msg
   finally:
     self.notifyAcceptClosed()
 
@@ -474,7 +481,7 @@ proc connHandler(
         MultiAddress.init(localAddr).tryGet() & codec.tryGet(),
       )
     except CatchableError as e:
-      trace "Failed to create observedAddr or listenAddr", description = e.msg
+      trace "WebSocket connection address extraction failed", err = e.msg
       if not (isNil(stream) and stream.stream.reader.closed):
         safeClose(stream)
       raise e
@@ -485,7 +492,6 @@ proc connHandler(
   proc onClose() {.async: (raises: []).} =
     await noCancel conn.session.stream.reader.join()
     self.connections[dir].keepItIf(it != conn)
-    trace "Cleaned up client"
 
   self.connectionCleanupFuts.keepItIf(not it.finished)
   self.connectionCleanupFuts.add(onClose())
@@ -495,15 +501,6 @@ proc connHandler(
 method accept*(
     self: WsTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  trace "WsTransport accept"
-
-  # wstransport can only start accepting connections after autotls is done
-  # if autotls is not present, self.running is true after listener setup completes
-  var retries = 0
-  while not self.running and retries < DefaultAutotlsRetries:
-    retries += 1
-    await sleepAsync(DefaultAutotlsWaitTimeout)
-
   if not self.running:
     raise newTransportClosedError()
 
@@ -523,7 +520,7 @@ method dial*(
   ## dial a peer
   ##
 
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
   var transp: websock.WSSession
 
   try:
@@ -542,7 +539,7 @@ method dial*(
           @[hostHeaderHook(httpHostname)]
         else:
           @[]
-    debug "creating websocket",
+    debug "Creating websocket",
       address = initAddress,
       secure = secure,
       hostName = httpHostname,
@@ -554,7 +551,7 @@ method dial*(
       hostName = serverName,
       hooks = hooks,
       flags = self.tlsFlags,
-      rng = bearSslDrbgRef(self.rng),
+      rng = websockRng(self.rng),
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:

@@ -73,7 +73,7 @@ proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
 
     stats.topicInfos[topic] = info
 
-    trace "grafted", peer = p, topic
+    trace "grafted", peerId = p, topic
 
 proc pruned*(
     g: GossipSub,
@@ -101,7 +101,7 @@ proc pruned*(
 
       info.inMesh = false
 
-      trace "pruned", peer = p, topic
+      trace "pruned", peerId = p, topic
 
 proc handleBackingOff*(t: var BackoffTable, topic: string) =
   let now = Moment.now()
@@ -144,7 +144,7 @@ proc handleGraft*(
     if peer.peerId in g.parameters.directPeers:
       # receiving a graft from a direct peer should yield a more prominent warning (protocol violation)
       # we are trusting direct peer not to abuse this
-      warn "a direct peer attempted to graft us, peering agreements should be reciprocal",
+      trace "a direct peer attempted to graft us, peering agreements should be reciprocal",
         peer, topic
       # and such an attempt should be logged and rejected with a PRUNE
       prunes.add(
@@ -213,7 +213,7 @@ proc handleGraft*(
           trace "peer already in mesh", peer, topic
       else:
         trace "pruning grafting peer, mesh full",
-          peer, topic, score = peer.score, mesh = g.mesh.peers(topic)
+          peer, topic, score = peer.score, meshSize = g.mesh.peers(topic)
         prunes.add(
           ControlPrune(
             topicID: topic,
@@ -303,7 +303,7 @@ proc handleIHave*(
       if topic.len == 0:
         trace "topic not set: ihave", peer
         continue
-      trace "peer sent ihave", peer, topicID = topic, msgs = ihave.messageIDs
+      trace "peer sent ihave", peer, topic, messageCount = ihave.messageIDs.len
       if topic in g.topics:
         for msgId in ihave.messageIDs:
           if not g.hasSeen(g.salt(msgId)):
@@ -315,7 +315,7 @@ proc handleIHave*(
                 continue
               res.messageIDs.add(msgId)
               dec peer.iHaveBudget
-              trace "requested message via ihave", messageID = msgId
+              trace "requested message via ihave", peer, messageID = msgId
     # shuffling res.messageIDs before sending it out to increase the likelihood
     # of getting an answer if the peer truncates the list due to internal size restrictions.
     g.rng.shuffle(res.messageIDs)
@@ -374,10 +374,8 @@ proc commitMetrics(metrics: var MeshMetrics) =
 proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil) =
   logScope:
     topic
-    mesh = g.mesh.peers(topic)
-    gossipsub = g.gossipsub.peers(topic)
-
-  trace "rebalancing mesh"
+    meshSize = g.mesh.peers(topic)
+    gossipsubSize = g.gossipsub.peers(topic)
 
   # create a mesh topic that we're subscribing to
 
@@ -455,7 +453,7 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     # Graft outgoing peers so we reach a count of dOut
     candidates.setLen(min(candidates.len, g.parameters.dOut - nOutPeers))
 
-    trace "grafting outbound peers", topic, peers = candidates.len
+    trace "grafting outbound peers", topic, peersCount = candidates.len
 
     for peer in candidates:
       if g.mesh.addPeer(topic, peer):
@@ -599,8 +597,6 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
       metrics[].otherPeersPerTopicFanout += g.fanout.peers(topic).int64
       metrics[].otherPeersPerTopicMesh += g.mesh.peers(topic).int64
 
-  trace "mesh balanced"
-
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
     let graft = RPCMsg.withControl(ControlMessage.withGraft(topic))
@@ -628,13 +624,9 @@ proc dropFanoutPeers*(g: GossipSub) =
 
 proc replenishFanout*(g: GossipSub, topic: string) =
   ## get fanout peers for a topic
-  logScope:
-    topic
-  trace "about to replenish fanout"
-
   if g.fanout.peers(topic) < g.parameters.dLow:
     let currentMesh = g.mesh.getOrDefault(topic)
-    trace "replenishing fanout", peers = g.fanout.peers(topic)
+    trace "replenishing fanout", topic, peersCount = g.fanout.peers(topic)
     for peer in g.gossipsub.getOrDefault(topic):
       if peer in currentMesh:
         continue
@@ -642,7 +634,7 @@ proc replenishFanout*(g: GossipSub, topic: string) =
         if g.fanout.peers(topic) == g.parameters.d:
           break
 
-  trace "fanout replenished with peers", peers = g.fanout.peers(topic)
+  trace "fanout replenished with peers", topic, peersCount = g.fanout.peers(topic)
 
 proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage] =
   ## gossip iHave messages to peers
@@ -655,7 +647,7 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
   trace "getting gossip peers (iHave)", ntopics = topics.len
   for topic in topics:
     if topic notin g.gossipsub:
-      trace "topic not in gossip array, skipping", topic = topic
+      trace "topic not in gossip array, skipping", topic
       continue
 
     let mids = g.mcache.window(topic)
@@ -775,9 +767,7 @@ proc onHeartbeat(g: GossipSub) =
 
 proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:
-    trace "running heartbeat", instance = cast[int](g)
     g.onHeartbeat()
 
     for trigger in g.heartbeatEvents:
-      trace "firing heartbeat event", instance = cast[int](g)
       trigger.fire()

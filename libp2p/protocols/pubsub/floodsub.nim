@@ -24,16 +24,18 @@ import
 logScope:
   topics = "libp2p floodsub"
 
-const FloodSubCodec* = "/floodsub/1.0.0"
+const
+  FloodSubCodec* = "/floodsub/1.0.0"
+  FloodSubSeenMaxSize* = 1_000_000 # ~112 bytes per entry, so a ~120 MB ceiling
 
 type FloodSub* = ref object of PubSub
   floodsub*: PeerTable # topic to remote peer map
   seen*: TimedCache[SaltedId]
-    # Early filter for messages recently observed on the network
-    # We use a salted id because the messages in this cache have not yet
-    # been validated meaning that an attacker has greater control over the
-    # hash key and therefore could poison the table
+    # salted: these ids are unvalidated, so a plain key lets an attacker poison the table
   seenSalt: array[32, byte] # random data used as salt
+  # gossipsub rejects these two at init and reads GossipSubParams instead
+  overheadRateLimit*: Opt[RateLimit]
+  disconnectPeerAboveRateLimit*: bool
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
   var hash: sha256
@@ -68,7 +70,7 @@ proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bo
   if subscribe and not (isNil(f.subscriptionValidator)) and
       not (f.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
-    warn "ignoring invalid topic subscription", topic, peer
+    trace "ignoring invalid topic subscription", topic, peer
     return
 
   if subscribe:
@@ -99,14 +101,23 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 
   procCall PubSub(f).unsubscribePeer(peer)
 
+template chargeOverhead(f: FloodSub, peer: PubSubPeer, overhead: int) =
+  # a template, so that a peer within its budget allocates no future
+  if not peer.tryCharge(overhead):
+    f.punishOverBudget(peer, overhead, f.disconnectPeerAboveRateLimit)
+
 method rpcHandler*(
     f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
+  let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
-    debug "failed to decode msg from peer", peer, err = error
+    trace "PubSub RPC decode failed",
+      err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
+    f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
-  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
+  trace "PubSub RPC decoded",
+    peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
   # trigger hooks
   peer.recvObservers(rpcMsg)
 
@@ -119,9 +130,8 @@ method rpcHandler*(
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
-      debug "Dropping message due to failed message id generation",
-        error = msgIdResult.error
-      # TODO: descore peers due to error during message validation (malicious?)
+      trace "Message dropped after ID generation failed", err = msgIdResult.error
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     let
@@ -130,17 +140,19 @@ method rpcHandler*(
       topic = msg.topic
 
     if topic notin f.topics:
-      debug "Dropping message due to topic not in floodsub topics", topic, msgId, peer
+      trace "Dropping message due to topic not in floodsub topics", topic, msgId, peer
       continue
 
     if (msg.signature.len > 0 or f.verifySignature) and not msg.verify():
       # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification", msgId, peer
+      trace "Dropping message due to failed signature verification", msgId, peer
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if msg.seqno.len > 0 and msg.seqno.len != 8:
       # if we have seqno should be 8 bytes long
-      debug "Dropping message due to invalid seqno length", msgId, peer
+      trace "Dropping message due to invalid seqno length", msgId, peer
+      f.chargeOverhead(peer, msg.byteSize())
       continue
 
     if f.addSeen(saltedId):
@@ -153,10 +165,10 @@ method rpcHandler*(
     let validation = await f.validate(msg)
     case validation
     of ValidationResult.Reject:
-      debug "Dropping message after validation, reason: reject", msgId, peer
+      trace "Dropping message after validation, reason: reject", msgId, peer
       continue
     of ValidationResult.Ignore:
-      debug "Dropping message after validation, reason: ignore", msgId, peer
+      trace "Dropping message after validation, reason: ignore", msgId, peer
       continue
     of ValidationResult.Accept:
       discard
@@ -196,7 +208,7 @@ method publish*(
     data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
-  trace "Publishing message on topic", data = data.shortLog, topic
+  trace "Publishing message", messageSize = data.len, topic
 
   if topic.len <= 0: # data could be 0/empty
     debug "Empty topic, skipping publish", topic
@@ -227,10 +239,15 @@ method publish*(
     return 0
 
   let msgId = f.msgIdProvider(msg).valueOr:
-    trace "Error generating message id, skipping publish", error = error
+    trace "Publish skipped after message ID generation failed", err = error
     return 0
 
-  trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
+  trace "Message created",
+    messageType = "publish",
+    messageSize = messageSize,
+    peerCount = peers.len,
+    topic,
+    msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
@@ -247,9 +264,36 @@ method publish*(
 
   return peers.len
 
+func validateOverheadRateLimit(f: FloodSub): Result[void, cstring] =
+  let limit = f.overheadRateLimit.valueOr:
+    if f.disconnectPeerAboveRateLimit:
+      return err(
+        "floodsub: disconnectPeerAboveRateLimit parameter error, Requires overheadRateLimit"
+      )
+    return ok()
+  if limit.bytes <= 0:
+    return err("floodsub: overheadRateLimit.bytes parameter error, Must be > 0")
+  if limit.interval <= ZeroDuration:
+    return err("floodsub: overheadRateLimit.interval parameter error, Must be > 0")
+  ok()
+
+method getOrCreatePeer*(
+    f: FloodSub, peerId: PeerId, protosToDial: seq[string], protoNegotiated: string = ""
+): PubSubPeer =
+  let peer = procCall PubSub(f).getOrCreatePeer(peerId, protosToDial, protoNegotiated)
+  # a returning peer keeps its bucket, so a new stream is no way to refill it
+  if peer.overheadRateLimitOpt.isNone():
+    peer.overheadRateLimitOpt = newOverheadBucket(f.overheadRateLimit)
+
+  peer
+
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
-  f.seen = TimedCache[SaltedId].init(2.minutes)
+
+  f.validateOverheadRateLimit().isOkOr:
+    raise newException(InitializationError, $error)
+
+  f.seen = TimedCache[SaltedId].init(2.minutes, maxSize = FloodSubSeenMaxSize)
   f.rng.generate(f.seenSalt)
 
   f.init()

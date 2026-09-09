@@ -1225,7 +1225,7 @@ proc getRepeatedField*(
   else:
     for item in items:
       let ma = MultiAddress.init(item).valueOr:
-        debug "Unsupported MultiAddress in blob", ma = item
+        debug "Unsupported MultiAddress in blob", address = item
         continue
 
       value.add(ma)
@@ -1365,7 +1365,7 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
 
 const AvgMultiAddressStringLength = 32
 
-func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
+func shortLog*(addrs: seq[MultiAddress], maxAddrs = ShortCollectionMax): string =
   let limit = min(addrs.len, maxAddrs)
   var res = newStringOfCap(limit * AvgMultiAddressStringLength)
   for i in 0 ..< limit:
@@ -1377,6 +1377,9 @@ func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
     res.add($(addrs.len - maxAddrs))
     res.add(" more)")
   return res
+
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
 
 ## protobuf_serialization extension
 

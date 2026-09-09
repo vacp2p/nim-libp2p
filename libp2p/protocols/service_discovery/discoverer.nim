@@ -7,7 +7,10 @@ import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
 import
-  ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
+  ./[
+    types, routing_table_manager, service_discovery_metrics, registrar, connection,
+    discovery_tracker,
+  ]
 import ../../utils/future
 
 logScope:
@@ -24,15 +27,15 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
       continue
 
     let ad = Advertisement.decode(adBuf).valueOr:
-      error "failed to decode advertisement", error
+      trace "Failed to decode advertisement", error
       continue
 
     if not ad.advertisesService(serviceId):
-      error "advert service mismatch", serviceId
+      trace "Advert service mismatch", serviceId
       continue
 
     if not ad.isValid():
-      error "advertisement violates XPR or ServiceInfo size limits", serviceId
+      trace "Advertisement violates XPR or ServiceInfo size limits", serviceId
       continue
 
     validAds.add(ad)
@@ -44,7 +47,7 @@ proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string]
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
 ): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  debug "getting adverts", serviceId, registrar = peerId
+  debug "Getting adverts", serviceId, registrar = peerId
 
   let msg = Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId))
 
@@ -60,7 +63,7 @@ proc dispatchGetAds(
   let getAdsMsg = reply.getAds.valueOr:
     return err("get ads message response not found")
 
-  debug "adverts found",
+  debug "Adverts found",
     serviceId, remote = peerId, count = getAdsMsg.advertisements.len
 
   return ok(
@@ -91,6 +94,10 @@ proc processResponse(
     limit: int,
 ) =
   disco.admitCloserPeers(serviceId, response.closerPeers)
+
+  # an ad past the caller's limit is still a provider this node found
+  disco.tracker.recordProviders(serviceId, response.ads, FromLookup)
+
   for ad in response.ads:
     if found.len >= limit:
       break
@@ -105,6 +112,7 @@ proc drainCompletedPeers(
     let res = fut.value()
     if res.isOk():
       disco.admitCloserPeers(serviceId, res.value().closerPeers)
+      disco.tracker.recordProviders(serviceId, res.value().ads, FromLookup)
 
 proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
@@ -147,7 +155,9 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "register interest", service = serviceId, serviceId = serviceHash
+  debug "Register interest", service = serviceId, serviceId = serviceHash
+
+  disco.tracker.startInterest(serviceHash)
 
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -160,7 +170,9 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
   ## is kept for advertising.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "unregister interest", service = serviceId, serviceId = serviceHash
+  debug "Unregister interest", service = serviceId, serviceId = serviceHash
+
+  disco.tracker.stopInterest(serviceHash)
 
   disco.rtManager.removeService(serviceHash, Interest)
 
@@ -169,6 +181,8 @@ proc lookup*(
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   ## Look up providers for a specific service id.
   cd_lookup_requests.inc()
+
+  disco.tracker.startInterest(serviceId)
 
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,

@@ -3,7 +3,8 @@
 
 {.used.}
 
-import sequtils, strformat, sugar, chronos, stew/byteutils, protobuf_serialization
+import
+  sequtils, strformat, sugar, tables, chronos, stew/byteutils, protobuf_serialization
 import
   ../../../libp2p/[
     protocols/rendezvous,
@@ -473,6 +474,32 @@ suite "RendezVous":
         )
       ).len == 5
 
+  asyncTest "Expired registration releases its namespace, its record and its quota":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(2)
+    startAndDeferStop(rendezvousNode & peerNodes)
+
+    await connectHub(rendezvousNode, peerNodes)
+
+    await peerNodes[0].advertise("keep", Opt.some(5.hours))
+    await peerNodes[1].advertise("drop")
+
+    check:
+      rendezvousNode.namespaces.len == 2
+      rendezvousNode.registered.s.len == 2
+
+    let deletionLoop = rendezvousNode.deletesRegister(1.seconds)
+    defer:
+      await deletionLoop.cancelAndWait()
+
+    rendezvousNode.registered[1].expiration = Moment.now()
+
+    checkUntilTimeout:
+      # The live entry at index 0 blocks the flush, so index 1 stays in place.
+      rendezvousNode.registered.s.len == 2
+      rendezvousNode.registered[1].data.signedPeerRecord.len == 0
+      rendezvousNode.countRegister(peerNodes[1].switch.peerInfo.peerId) == 0
+      rendezvousNode.namespaces.len == 1
+
   asyncTest "Cookie offset is reset to end (returns empty) then new peers are discoverable":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startAndDeferStop(rendezvousNode & peerNodes)
@@ -668,6 +695,35 @@ suite "RendezVous":
     # 1001st registration ignored, limit reached
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
+
+  asyncTest "Registration count follows the registrations held for a peer":
+    let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
+    startAndDeferStop(rendezvousNode & peerNodes)
+
+    await connect(peerNodes[0], rendezvousNode)
+
+    const namespace = "foo"
+    let peerId = peerNodes[0].switch.peerInfo.peerId
+
+    await peerNodes[0].advertise(namespace)
+    await peerNodes[0].advertise(namespace)
+    check:
+      rendezvousNode.registered.s.len == 2
+      rendezvousNode.countRegister(peerId) == 2
+
+    # Unregistering expires the entries, it does not delete them
+    await peerNodes[0].unsubscribe(namespace)
+    checkUntilTimeout:
+      rendezvousNode.registered.s.allIt(it.expiration < Moment.now())
+    check rendezvousNode.countRegister(peerId) == 2
+
+    let deletionLoop = rendezvousNode.deletesRegister(1.seconds)
+    defer:
+      await deletionLoop.cancelAndWait()
+
+    checkUntilTimeout:
+      rendezvousNode.registered.s.len == 0
+      rendezvousNode.countRegister(peerId) == 0
 
   asyncTest "Peer can register to and unsubscribe multiple namespaces":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)

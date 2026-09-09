@@ -19,6 +19,13 @@ import
   ]
 import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
+proc startAndConnect(src, dst: Switch, client: AutonatV2Client) {.async.} =
+  client.setup(src)
+  src.mount(client)
+  await src.start()
+  await dst.start()
+  await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = @[TcpAutoAddress],
     dstAddrs: seq[MultiAddress] = @[TcpAutoAddress],
@@ -29,12 +36,7 @@ proc setupAutonat(
     dst = makeStandardSwitchBuilder(dstAddrs).withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
-  client.setup(src)
-  src.mount(client)
-  await src.start()
-  await dst.start()
-
-  await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+  await startAndConnect(src, dst, client)
   (src, dst, client)
 
 proc checkedGetIPAddress(): string =
@@ -308,6 +310,91 @@ suite "AutonatV2":
         ),
         addrs: Opt.some(src.peerInfo.addrs[0]),
       )
+
+  asyncTest "Amplification attack prevention runs before the dial back":
+    # the client refuses to pay dial data, so the server must not dial it back
+    let
+      listenAddrs = @[
+        ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
+      ]
+      reqAddrs = @[listenAddrs[0]]
+      (src, dst, client) = await setupAutonat(
+        srcAddrs = listenAddrs,
+        config =
+          AutonatV2Config.new(dialDataSize = (MaxAcceptedDialDataRequest + 1).uint64),
+      )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    expect(AutonatV2Error):
+      discard await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+
+  asyncTest "DialRequest refused when every dial back permit is taken":
+    let (src, dst, client) = await setupAutonat(
+      config = AutonatV2Config.new(
+        maxConcurrentDialBacks = 1,
+        maxConcurrentRequestsPerPeer = 2,
+        allowPrivateAddresses = true,
+        amplificationAttackTimeout = 1.minutes,
+      )
+    )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    # the server holds its only permit while it waits for dial data that never comes
+    let holdingStream =
+      await src.dialer.dial(dst.peerInfo.peerId, @[$AutonatV2Codec.DialRequest])
+    defer:
+      await holdingStream.close()
+
+    await holdingStream.writeLp(
+      AutonatV2Msg(
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialRequest,
+          dialRequest:
+            DialRequest(addrs: @[ma("/ip4/1.1.1.1/tcp/4040")], nonce: 0.Nonce),
+        )
+      ).encode()
+    )
+    let held = AutonatV2Msg.decode(await holdingStream.readLp(AutonatV2MsgLpSize)).valueOr:
+      raiseAssert "expected a DialDataRequest: " & error
+    check held.oneof.kind == MsgKind.DialDataRequest
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, src.peerInfo.addrs)) ==
+      AutonatV2Response(
+        reachability: Unknown,
+        dialResp: DialResponse(
+          status: EDialRefused,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.none(DialStatus),
+        ),
+        addrs: Opt.none(MultiAddress),
+      )
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+
+  test "Concurrent DialRequests are capped per peer and in total":
+    let
+      dst = makeStandardSwitch()
+      autonatServer = server.AutonatV2.new(
+        dst,
+        AutonatV2Config.new(
+          maxConcurrentRequestsPerPeer = 1, maxConcurrentRequestsTotal = 2
+        ),
+      )
+      peerA = PeerId.random(rng()).get()
+      peerB = PeerId.random(rng()).get()
+      peerC = PeerId.random(rng()).get()
+
+    check:
+      autonatServer.reserveIncoming(peerA)
+      not autonatServer.reserveIncoming(peerA)
+      autonatServer.reserveIncoming(peerB)
+      not autonatServer.reserveIncoming(peerC)
+
+    autonatServer.releaseIncoming(peerA)
+    check autonatServer.canAcceptIncoming(peerA)
 
   asyncTest "Server responding with invalid messages":
     let

@@ -48,7 +48,7 @@ method initStream*(s: BufferStream) =
 
   s.readQueue = newAsyncQueue[seq[byte]](1)
 
-  trace "BufferStream created", s
+  trace "BufferStream created", stream = s
 
 proc new*(T: typedesc[BufferStream], timeout: Duration = DefaultConnectionTimeout): T =
   let bufferStream = T(timeout: timeout)
@@ -76,7 +76,7 @@ method pushData*(
   # processed
   try:
     s.pushing = true
-    trace "Pushing data", s, data = data.len
+    trace "Pushing data", stream = s, dataSize = data.len
     await s.readQueue.addLast(data)
   finally:
     s.pushing = false
@@ -95,7 +95,7 @@ method pushEof*(
   # processed
   try:
     s.pushing = true
-    trace "Pushing EOF", s
+    trace "Pushing EOF", stream = s
     await s.readQueue.addLast(Eof)
   finally:
     s.pushing = false
@@ -133,7 +133,7 @@ method readOnce*(
 
     if buf.len == 0:
       # No more data will arrive on read queue
-      trace "EOF", s
+      trace "EOF", stream = s
       s.isEof = true
     else:
       s.readBuf.push(buf)
@@ -151,7 +151,7 @@ method readOnce*(
 
 method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true).} =
   ## close the stream and clear the buffer
-  trace "Closing BufferStream", s, len = s.len
+  trace "Closing BufferStream", stream = s, len = s.len
 
   # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
   # there may already be such calls in the event queue however
@@ -194,6 +194,6 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   except AsyncQueueEmptyError as e:
     raiseAssert("closeImpl failed queue empty: " & e.msg)
 
-  trace "Closed BufferStream", s
+  trace "Closed BufferStream", stream = s
 
   procCall Connection(s).closeImpl()

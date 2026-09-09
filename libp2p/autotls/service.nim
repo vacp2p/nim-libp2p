@@ -4,7 +4,6 @@
 {.push raises: [].}
 
 import sequtils
-import bearssl/pem
 import chronos, chronicles, net, results, uri
 import chronos/streams/tlsstream
 from times import DateTime, now, toTime, toUnix
@@ -38,7 +37,7 @@ const
   DefaultIssueRetries = 3
   DefaultIssueRetryTime = 1.seconds
 
-  AutoTLSDNSServer* = "libp2p.direct"
+  DefaultDomainSuffix* = "libp2p.direct"
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
@@ -54,7 +53,7 @@ type AutotlsConfig* = object
   issueRetries*: int
   issueRetryTime*: Duration
   registrationURL*: Uri
-  dnsServerURL*: string
+  domainSuffix*: string
   dnsRetries*: int
   dnsRetryTime*: Duration
   acmeRetries*: int
@@ -97,7 +96,7 @@ proc new*(
     issueRetries: int = DefaultIssueRetries,
     issueRetryTime: Duration = DefaultIssueRetryTime,
     registrationURL: Uri = DefaultRegistrationURL,
-    dnsServerURL: string = AutoTLSDNSServer,
+    domainSuffix: string = DefaultDomainSuffix,
     dnsRetries: int = 10,
     dnsRetryTime: Duration = 1.seconds,
     acmeRetries: int = 10,
@@ -114,7 +113,7 @@ proc new*(
     issueRetries: issueRetries,
     issueRetryTime: issueRetryTime,
     registrationURL: registrationURL,
-    dnsServerURL: dnsServerURL,
+    domainSuffix: domainSuffix,
     dnsRetries: dnsRetries,
     dnsRetryTime: dnsRetryTime,
     acmeRetries: acmeRetries,
@@ -139,7 +138,7 @@ proc new*(
   )
 
 method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
-  trace "Setting up AutotlsService"
+  info "Setting up AutotlsService"
   if self.config.ipAddress.isSome():
     return
   let ip = getPublicIPAddress().valueOr:
@@ -156,9 +155,9 @@ method issueCertificate(
   if self.peerInfo.isNil():
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
 
-  # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
+  # generate autotls domain string: "*.{peerID}.{domainSuffix}"
   let baseDomain =
-    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
+    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.domainSuffix)
 
   trace "Requesting ACME challenge"
   let dns01Challenge =
@@ -211,12 +210,14 @@ method issueCertificate(
       )
   self.cert = Opt.some(newCert)
   self.certReady.fire()
-  notice "AutoTLS successfully renewed certificate"
+  info "AutoTLS successfully renewed certificate"
 
 proc hasTcpStarted(switch: Switch): bool =
   switch.transports.filterIt(it of TcpTransport and it.running).len == 0
 
 proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
+  var lastError: ref CatchableError
+  let operation = if self.cert.isSome(): "renewal" else: "initial issuance"
   for attempt in 0 .. self.config.issueRetries:
     if attempt > 0:
       await sleepAsync(self.config.issueRetryTime)
@@ -226,13 +227,25 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      error "Failed to issue certificate", err = exc.msg
-  error "Failed to issue certificate"
+      lastError = exc
+      debug "Certificate issuance failed", err = exc.msg, errType = exc.name
+  let expiry =
+    if self.cert.isSome():
+      $self.cert.get().expiry
+    else:
+      "none"
+  error "Failed to issue certificate",
+    err = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
+    errType = (if lastError.isNil: "" else: $lastError.name),
+    operation,
+    maxAttempts = self.config.issueRetries + 1,
+    hasCertificate = self.cert.isSome(),
+    expiry
 
 method start*(
     self: AutotlsService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Starting Autotls management"
+  info "Starting Autotls management"
   self.running.fire()
   self.peerInfo = switch.peerInfo
 

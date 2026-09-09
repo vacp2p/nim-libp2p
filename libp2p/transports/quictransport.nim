@@ -261,7 +261,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     ## call the muxer stream handler for this channel
     ##
     await m.streamHandler(stream)
-    trace "finished handling stream"
+    trace "Finished handling stream"
     doAssert(stream.closed, "connection not closed by handler!")
 
   while not (m.session.atEof or m.session.closed):
@@ -275,7 +275,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     except ConnectionError as e:
       # keep handling, until connection is closed. 
       # this stream failed but we need to keep handling for other streams.
-      trace "QuicMuxer.handler got error while opening stream", msg = e.msg
+      trace "QuicMuxer.handler got error while opening stream", err = e.msg
 
   if not m.session.isClosed:
     await m.session.close()
@@ -324,15 +324,15 @@ type PeerIdCertificateVerifier = ref object of CertificateVerifier
 
 proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
   if certificatesDer.len != 1:
-    trace "CertificateVerifier: expected one certificate in the chain",
-      cert_count = certificatesDer.len
+    trace "QUIC certificate chain rejected",
+      certificateCount = certificatesDer.len, reason = "expected one certificate"
     return Opt.none(P2pCertificate)
 
   let cert =
     try:
       parse(certificatesDer[0])
     except CertificateParsingError as e:
-      trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+      trace "QUIC certificate parsing failed", err = e.msg
       return Opt.none(P2pCertificate)
 
   Opt.some(cert)
@@ -342,7 +342,7 @@ proc verifyCertificates(certificatesDer: seq[seq[byte]]): bool =
     return false
 
   if cert.verifiedIdentityKey().isNone:
-    trace "CertificateVerifier: certificate verification failed"
+    trace "QUIC certificate verification failed"
     return false
   true
 
@@ -353,8 +353,7 @@ proc verifyCertificatesForPeer(
     return false
 
   if not cert.verify(expectedPeerId):
-    trace "CertificateVerifier: certificate did not match expected peer id",
-      expectedPeerId = expectedPeerId
+    trace "QUIC certificate peer identity rejected", expectedPeerId = expectedPeerId
     return false
   true
 
@@ -572,13 +571,13 @@ method accept*(
     let conn = await finished
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
-    debug "Quic Error", description = exc.msg
+    debug "QUIC connection acceptance failed", err = exc.msg
     raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
-    debug "Transport Error", description = exc.msg
+    debug "QUIC transport stopped during acceptance", err = exc.msg
     raise newTransportClosedError(exc)
   except TransportOsError as exc:
-    debug "OS Error", description = exc.msg
+    debug "QUIC socket acceptance failed", err = exc.msg
     raise
       (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
@@ -682,7 +681,7 @@ method upgrade*(
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   let muxer = QuicMuxer.new(conn, peerId)
   muxer.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
-    trace "Starting stream handler"
+    trace "QUIC stream handler started", stream
     try:
       let quicUpgrader = QuicUpgrade(self.upgrader)
       quicUpgrader.connManager.withValue(connManager):
@@ -694,9 +693,9 @@ method upgrade*(
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", stream, msg = exc.msg
+      trace "QUIC stream handler failed", err = exc.msg, stream
     finally:
       await stream.closeWithEOF()
-      trace "Stream handler done", stream
+      trace "QUIC stream handler completed", stream
   muxer.handleFut = muxer.handle()
   return muxer

@@ -6,11 +6,11 @@
 import chronos, results, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/utils/future
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, unittest, multiaddress]
 import ./utils.nim
 
 proc deadAddrs(port: int): seq[MultiAddress] =
-  @[MultiAddress.init("/ip4/127.0.0.1/tcp/" & $port).tryGet()]
+  @[ma("/ip4/127.0.0.1/tcp/" & $port)]
 
 suite "KadDHT - Probe backoff":
   teardown:

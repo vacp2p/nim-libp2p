@@ -402,9 +402,12 @@ proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
-    discard await kad.republishProvidedKeys().withTimeout(
+    if not await kad.republishProvidedKeys().withTimeout(
       kad.config.republishProvidedKeysInterval
-    )
+    ):
+      warn "Provider republishing timed out",
+        timeout = kad.config.republishProvidedKeysInterval,
+        providedKeys = kad.providerManager.providedKeys.provided.len
 
 proc anyExpired(pr: ProviderRecords): bool =
   pr.len() > 0 and pr.records[0] < chronos.Moment.now()
@@ -424,19 +427,23 @@ proc sendAddProviderResponse(
   try:
     await stream.writeLp(response.encode(kad.config.hideConnectionStatus))
   except LPStreamError as exc:
-    debug "Failed to send add-provider response",
-      stream = stream, err = exc.msg, status = status
+    trace "Failed to send add-provider response", err = exc.msg, stream, status = status
 
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
-    error "Key not set: handleAddProvider", msg = msg, stream = stream
+    trace "Add-provider request rejected",
+      reason = "missingKey", messageType = "addProvider", stream
     return
 
   if msgKey.len == 0 or msgKey.len > MaxProviderKeyLen:
-    error "ADD_PROVIDER key length out of bounds",
-      msg = msg, stream = stream, keyLen = msgKey.len, maxLen = MaxProviderKeyLen
+    trace "Add-provider request rejected",
+      reason = "invalidKeyLength",
+      stream,
+      messageType = "addProvider",
+      keySize = msgKey.len,
+      maxKeySize = MaxProviderKeyLen
     if kad.config.providerRejection:
       await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
@@ -460,7 +467,8 @@ method handleAddProvider*(
     let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
     if effectiveCount >= limit:
       atCap = true
-      debug "ADD_PROVIDER rejected: per-key limit reached", key = msgKey, limit = limit
+      trace "Add-provider request rejected",
+        reason = "perKeyLimit", keySize = msgKey.len, limit = limit
 
   if not atCap:
     for peer in validPeers:
@@ -491,7 +499,8 @@ proc dispatchGetProviders*(
   let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let reply = ?await kad.dispatchRpc(peer, msg)
 
-  debug "Received reply for GetProviders", peer = peer, reply = reply
+  trace "Get-providers reply received",
+    peerId = peer, messageType = "getProviders", providerCount = reply.providerPeers.len
 
   ok(reply)
 
@@ -518,7 +527,7 @@ proc getProviders*(
       let idraw = provider.id.valueOr:
         continue
       if PeerId.init(idraw).isErr:
-        debug "Invalid peer id received", peerId = provider.id
+        trace "Invalid peer id received", peerId = provider.id
         continue
       allProviders.incl(provider)
 
@@ -533,7 +542,8 @@ proc handleGetProviders*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let msgKey = msg.key.valueOr:
-    error "Key not set: handleGetProviders", msg = msg, stream = stream
+    trace "Get-providers request rejected",
+      reason = "missingKey", messageType = "getProviders", stream
     return
 
   var providers =
@@ -556,4 +566,4 @@ proc handleGetProviders*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send get-providers RPC reply", stream = stream, err = exc.msg
+    trace "Failed to send get-providers RPC reply", err = exc.msg, stream

@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, math, sequtils, net]
+from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../[
@@ -12,7 +13,11 @@ import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
-import ./[types, routing_table_manager, service_discovery_metrics, advertisement_cache]
+import
+  ./[
+    types, routing_table_manager, service_discovery_metrics, advertisement_cache,
+    discovery_tracker,
+  ]
 
 logScope:
   topics = "service-disco registrar"
@@ -59,7 +64,7 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
   # Expire IP-level bounds
   pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
 
-  debug "pruned expired adverts", count = expiredCount
+  debug "Pruned expired adverts", count = expiredCount
 
 proc advertiserIps*(
     disco: ServiceDiscovery, advertiser: PeerId, connectionIps: seq[IpAddress] = @[]
@@ -180,14 +185,17 @@ proc isValidAdvertisement*(
   return ok(ad)
 
 proc updateWaitAfterRetry*(
-    disco: ServiceDiscovery, ticketOpt: Opt[Ticket], now: Moment, wait: var Duration
+    disco: ServiceDiscovery,
+    ticketOpt: Opt[Ticket],
+    now: UnixTimestamp,
+    wait: var Duration,
 ) =
   ticketOpt.withValue(ticket):
     let totalWaitSoFar = now - ticket.tInit.get()
-    wait -= totalWaitSoFar
+    wait -= totalWaitSoFar.seconds
 
 proc isValidTicket(
-    disco: ServiceDiscovery, regMsg: RegisterMessage, now: Moment
+    disco: ServiceDiscovery, regMsg: RegisterMessage, now: UnixTimestamp
 ): Result[Opt[Ticket], string] {.raises: [].} =
   let ticket = regMsg.ticket.valueOr:
     return ok(Opt.none(Ticket))
@@ -202,8 +210,8 @@ proc isValidTicket(
     return err("ticket fails verification")
 
   let
-    windowStart = ticket.tMod.get() + ticket.tWaitFor.get()
-    windowEnd = windowStart + disco.discoConfig.registrationWindow
+    windowStart = ticket.tMod.get() + ticket.tWaitFor.get().seconds
+    windowEnd = windowStart + disco.discoConfig.registrationWindow.seconds
 
   if now notin windowStart .. windowEnd:
     return err("ticket outside valid time window")
@@ -229,7 +237,7 @@ proc sendRegisterResponse*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    error "failed to send register response", err = writeRes.error.msg
+    trace "Failed to send register response", err = writeRes.error.msg
 
 proc acceptAdvertisement*(
     disco: ServiceDiscovery,
@@ -269,7 +277,7 @@ proc registration*(
     connectionIps: seq[IpAddress] = @[],
 ): Message =
   let serviceId = inMsg.key.valueOr:
-    error "Key not set: registration", msg = inMsg
+    trace "Key not set: registration", msg = inMsg
     return
 
   discard disco.rtable.insert(peerId)
@@ -292,7 +300,7 @@ proc registration*(
   )
 
   let regMsg = inMsg.register.valueOr:
-    error "no register message"
+    trace "No register message"
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -301,7 +309,7 @@ proc registration*(
     return msg
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
-    error "invalid advertisement", error
+    trace "Invalid advertisement", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -309,11 +317,15 @@ proc registration*(
 
     return msg
 
+  disco.tracker.recordProvider(serviceId, ad.data.peerId, FromRegistration)
+
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)
 
-  let ticketOpt = disco.isValidTicket(regMsg, now).valueOr:
-    error "invalid ticket", error
+  let unixNow = getTime().toUnix()
+
+  let ticketOpt = disco.isValidTicket(regMsg, unixNow).valueOr:
+    trace "Invalid ticket", error
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -324,7 +336,7 @@ proc registration*(
   let ips = disco.advertiserIps(peerId, connectionIps)
   var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
 
-  disco.updateWaitAfterRetry(ticketOpt, now, tWait)
+  disco.updateWaitAfterRetry(ticketOpt, unixNow, tWait)
 
   if tWait <= ZeroDuration:
     disco.acceptAdvertisement(now, serviceId, peerId, ad, ips)
@@ -343,20 +355,16 @@ proc registration*(
 
   var ticket = Ticket(
     advertisement: regMsg.advertisement,
-    tInit: Opt.some(now),
-    tMod: Opt.some(now),
+    tInit: Opt.some(unixNow),
+    tMod: Opt.some(unixNow),
     tWaitFor: Opt.some(tWait),
   )
 
-  regMsg.ticket.withValue(t):
-    let
-      windowStart = t.tMod.get() + t.tWaitFor.get()
-      windowEnd = windowStart + disco.discoConfig.registrationWindow
-    if now in windowStart .. windowEnd:
-      ticket.tInit = t.tInit
+  ticketOpt.withValue(t):
+    ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
-    error "failed to sign ticket"
+    error "Failed to sign ticket"
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -375,7 +383,7 @@ proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
   let serviceId = msg.key.valueOr:
-    error "Key not set: getAdvertisements", msg = msg
+    trace "Key not set: getAdvertisements", msg
     return
 
   discard disco.rtable.insert(peerId)

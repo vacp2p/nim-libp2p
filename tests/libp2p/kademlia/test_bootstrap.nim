@@ -5,7 +5,7 @@
 
 import chronos
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, unittest, multiaddress]
 import ./[mock_kademlia, utils]
 
 suite "KadDHT Bootstrap":
@@ -166,7 +166,7 @@ suite "KadDHT Bootstrap Component":
   asyncTest "bootstrap with unreachable peer completes gracefully":
     # Fake bootstrap peer with valid address format
     let fakePeerId = randomPeerId()
-    let fakeAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").get()]
+    let fakeAddrs = @[ma("/ip4/127.0.0.1/tcp/59999")]
 
     let config = testKadConfig(timeout = chronos.milliseconds(100))
     let kad = setupKad(config = config, bootstrapNodes = @[(fakePeerId, fakeAddrs)])

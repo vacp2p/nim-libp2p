@@ -3,6 +3,7 @@
 {.used.}
 
 import std/sequtils
+from std/times import getTime, toUnix
 import chronos, math, results, tables, net
 import
   ../../../libp2p/[
@@ -20,7 +21,7 @@ import
     stream/connection,
   ]
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
-import ../../tools/[crypto, unittest]
+import ../../tools/[crypto, unittest, multiaddress]
 import ./utils
 
 func initMoment(secs: int64): Moment =
@@ -44,14 +45,6 @@ proc makeAdvertisementWithServices(
     peerId: peerId, seqNo: seqNo, addresses: addressInfos, services: services
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-proc seedOccupancy(ads: AdvertisementCache, n: int, now: Moment = Moment.now()) =
-  ## Fill the cache with `n` unique ads under distinct services (no serviceSim
-  ## on a later subject serviceId).
-  for i in 0 ..< n:
-    let sid = makeServiceId(byte(i mod 250 + 1))
-    let ad = makeAdvertisement($sid)
-    ads.put(sid, ad.data.peerId, ad, ad.ipsFromAd(), now)
 
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
@@ -267,8 +260,7 @@ suite "Service Discovery Registrar - advertExpiry cap":
 
     disco.registrar.ads.seedOccupancy(10)
 
-    let firstAttemptTime =
-      Moment.init((Moment.now() - advertExpiry).epochSeconds, Second)
+    let firstAttemptTime = getTime().toUnix() - advertExpiry.seconds
     var retryTicket = Ticket(
       advertisement: adBytes,
       tInit: firstAttemptTime,
@@ -671,7 +663,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     let ad = makeAdvertisement(addrs = @[ipv6Addr])
     let now = Moment.now()
 
@@ -686,7 +678,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let now = Moment.now()
     let filler = makeServiceId(99)
 
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     registrar.seedAd(filler, makeAdvertisement(addrs = @[ipv6Addr]), now)
 
     let ad = makeAdvertisement(addrs = @[ipv6Addr])
@@ -706,7 +698,7 @@ suite "Service Discovery Registrar - Edge Cases":
     )
 
     let ipv4Addr = makeMultiAddress("192.168.1.50")
-    let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
+    let ipv6Addr = ma("/ip6/::1/tcp/9000")
     let ad = makeAdvertisement(addrs = @[ipv4Addr, ipv6Addr])
 
     let w = registrar.waitingTime(discoConfig, serviceId, ad.ipsFromAd(), now)
@@ -939,10 +931,10 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    let now = Moment.now()
+    let now = getTime().toUnix()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: now - 150.secs,
+      tInit: now - 150,
       tMod: now,
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
@@ -971,8 +963,8 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     var ticket = Ticket(
       advertisement: otherBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.now(),
+      tInit: 1_000'i64,
+      tMod: getTime().toUnix(),
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -1004,8 +996,8 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.now(),
+      tInit: 1_000'i64,
+      tMod: getTime().toUnix(),
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -1446,7 +1438,7 @@ suite "Service Discovery Registrar - registration response":
       ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
 
-  test "registration quantizes now to whole-second granularity":
+  test "registration uses Unix seconds for tickets and monotonic cache timestamps":
     let config = ServiceDiscoveryConfig.new(safetyParam = 1.0)
     let disco = setupServiceDiscoveryNode(discoConfig = config)
     let serviceName = "service"
@@ -1467,6 +1459,7 @@ suite "Service Discovery Registrar - registration response":
       ),
     )
 
+    let beforeRegistration = getTime().toUnix()
     let reply = disco.registration(advertiserId, inMsg).register.get()
 
     check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
@@ -1475,8 +1468,8 @@ suite "Service Discovery Registrar - registration response":
     let ticket = reply.ticket.get()
     let tInit = ticket.tInit.get()
     let tMod = ticket.tMod.get()
-    check tInit == Moment.init(tInit.epochSeconds, Second)
-    check tMod == Moment.init(tMod.epochSeconds, Second)
+    check tInit in beforeRegistration .. getTime().toUnix()
+    check tMod == tInit
 
     check serviceId in disco.registrar.timestampService
     let ts = disco.registrar.timestampService[serviceId]
@@ -1489,13 +1482,13 @@ suite "Service Discovery Registrar - registration response":
     let serviceId = serviceName.hashServiceId()
     let advertiserKey = PrivateKey.random(rng()).get()
     let advertiserId = PeerId.init(advertiserKey).get()
-    let ma = makeMultiAddress("10.0.0.1")
+    let maddr = makeMultiAddress("10.0.0.1")
     let adBytes =
-      makeAdvertisement(serviceName, advertiserKey, addrs = @[ma]).encode().get()
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[maddr]).encode().get()
     # Peerstore IP so scoring is not max-penalized for a missing address set.
-    disco.switch.peerStore[AddressBook][advertiserId] = @[ma]
+    disco.switch.peerStore[AddressBook][advertiserId] = @[maddr]
 
-    let pastNow = Moment.now() - 5.secs
+    let pastNow = getTime().toUnix() - 5
     var ticket = Ticket(
       advertisement: adBytes,
       tInit: pastNow,
@@ -1527,8 +1520,8 @@ suite "Service Discovery Registrar - registration response":
 suite "Service Discovery Registrar - connection IPs":
   asyncTest "observedIps extracts IP from stream.observedAddr":
     let peerId = randomPeerId()
-    let ma = makeMultiAddress("203.0.113.10")
-    let stream = Connection.new(peerId, Direction.In, observedAddr = Opt.some(ma))
+    let maddr = makeMultiAddress("203.0.113.10")
+    let stream = Connection.new(peerId, Direction.In, observedAddr = Opt.some(maddr))
     defer:
       await stream.close()
     check stream.observedIps() == @[parseIpAddress("203.0.113.10")]

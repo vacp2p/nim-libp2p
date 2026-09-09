@@ -4,6 +4,7 @@
 {.push raises: [].}
 
 import chronos, chronicles, times, tables, sequtils
+import ../logging
 import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
@@ -24,6 +25,9 @@ type
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
     rng: Rng
+    reservationWarnings: LogRateLimit
+    lifetimeWarnings: LogRateLimit
+    availabilityWarnings: LogRateLimit
 
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
@@ -45,12 +49,17 @@ proc reserveAndUpdate(
       relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
       ttl = rsvp.expire.int64 - times.getTime().toUnix
     if ttl <= 60:
+      if self.lifetimeWarnings.allowLog():
+        warn "Relay reservation lifetime too short", relayPid, ttl, minimumTtl = 61
       # A reservation under a minute is basically useless
       break
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
+      let hadAddresses = self.relayAddresses.values.toSeq().anyIt(it.len > 0)
       self.relayAddresses[relayPid] = relayedAddr
       await switch.peerInfo.update()
       debug "Updated relay addresses", relayPid, relayedAddr
+      if not hadAddresses and relayedAddr.len > 0:
+        info "Relay connectivity established", relayPid, addresses = relayedAddr.len
       if self.running and not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
@@ -94,8 +103,25 @@ proc innerRun(
     for k in peers:
       try:
         if self.relayPeers[k].finished():
+          let
+            future = self.relayPeers[k]
+            hadReservation = self.relayAddresses.hasKey(k)
+            hadAddresses = self.relayAddresses.values.toSeq().anyIt(it.len > 0)
           self.relayPeers.del(k)
           self.relayAddresses.del(k)
+          let remainingRelays = self.relayAddresses.len
+          if future.failed() and self.reservationWarnings.allowLog():
+            let exc = future.error()
+            warn "Relay reservation task failed",
+              err = exc.msg,
+              errType = exc.name,
+              relayPid = k,
+              hadReservation,
+              remainingRelays
+          if self.running and hadAddresses and
+              not self.relayAddresses.values.toSeq().anyIt(it.len > 0) and
+              self.availabilityWarnings.allowLog():
+            warn "Last usable relay reservation lost", relayPid = k, remainingRelays
           if self.running and not self.onReservation.isNil():
             self.onReservation(concat(toSeq(self.relayAddresses.values)))
           # To avoid ddosing our peers in certain conditions

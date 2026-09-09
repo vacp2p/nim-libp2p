@@ -17,6 +17,9 @@ import
 
 export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 
+logScope:
+  topics = "libp2p peerinfo"
+
 const p2pMultiCodec = multiCodec("p2p")
 
 type
@@ -111,7 +114,7 @@ proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey, PeerRecord.init(p.peerId, p.addrs)
   ).valueOr:
-    info "Can't update the signed peer record"
+    debug "Signed peer record update failed"
     return
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =

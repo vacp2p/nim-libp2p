@@ -315,7 +315,7 @@ proc mapOnePort(
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
-    warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
+    warn "NAT port mapping failed", port = lp.port, protocol = lp.proto, err = error
     return Opt.none(MappedEntry)
 
   Opt.some(
@@ -338,9 +338,8 @@ proc unmapStale(
     if entry in keep:
       continue
     let (port, proto) = entry
-    let r = await self.mapper.unmap(port, proto)
-    if r.isErr:
-      warn "Failed to unmap stale port", port, proto, err = r.error
+    (await self.mapper.unmap(port, proto)).isOkOr:
+      warn "Failed to unmap stale port", port, proto, err = error
 
 proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
   await self.unmapStale(@[])
@@ -468,7 +467,7 @@ proc setupReachability(
       self.setupAutonatV2(switch, r)
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  debug "Setting up NATService",
+  info "Setting up NATService",
     portMapping = self.config.portMapping.isSome(),
     reachability = self.config.reachability.isSome(),
     holePunching = self.config.holePunching.isSome()
@@ -503,7 +502,7 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
   let mapper = PlumMapper.new(
     mode.toProtocolFilter(), pm.discoveryTimeout, pm.mappingTimeout
   ).valueOr:
-    error "Failed to construct libplum port mapper", mode, err = error
+    warn "Failed to construct libplum port mapper", mode, err = error
     return Opt.none(PortMapper)
   Opt.some(PortMapper(mapper))
 
@@ -537,7 +536,7 @@ proc startReachability(
     await self.reachability.start(switch)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Starting NATService"
+  info "Starting NATService"
   self.startPortMapping(switch)
   await self.startReachability(switch)
 
@@ -569,6 +568,6 @@ proc stopReachability(
     await self.reachability.stop(switch)
 
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Stopping NATService"
+  info "Stopping NATService"
   await self.stopPortMapping(switch)
   await self.stopReachability(switch)

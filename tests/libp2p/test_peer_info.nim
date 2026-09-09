@@ -10,7 +10,7 @@ import
   ../../libp2p/peerinfo,
   ../../libp2p/peerid,
   ../../libp2p/routing_record
-import ../tools/[unittest, crypto]
+import ../tools/[unittest, crypto, multiaddress]
 
 suite "PeerInfo":
   test "Should init with private key":
@@ -29,10 +29,7 @@ suite "PeerInfo":
     let
       seckey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(seckey).get()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
 
     waitFor(peerInfo.update())
@@ -58,11 +55,8 @@ suite "PeerInfo":
   test "Public address mapping":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      multiAddresses = @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-      ]
-      multiAddresses2 = @[MultiAddress.init("/ip4/8.8.8.8/tcp/33").tryGet()]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24"), ma("/ip4/0.0.0.0/tcp/25")]
+      multiAddresses2 = @[ma("/ip4/8.8.8.8/tcp/33")]
 
     proc addressMapper(
         input: seq[MultiAddress]
@@ -79,12 +73,10 @@ suite "PeerInfo":
   test "Announced addresses win over the mapper chain":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      listenAddrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
-      mapperAddrs = @[MultiAddress.init("/ip4/8.8.8.8/tcp/33").tryGet()]
-      announcedAddrs = @[
-        MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet(),
-        MultiAddress.init("/ip4/203.0.113.7/udp/9000/quic-v1").tryGet(),
-      ]
+      listenAddrs = @[ma("/ip4/0.0.0.0/tcp/24")]
+      mapperAddrs = @[ma("/ip4/8.8.8.8/tcp/33")]
+      announcedAddrs =
+        @[ma("/ip4/203.0.113.7/tcp/9000"), ma("/ip4/203.0.113.7/udp/9000/quic-v1")]
 
     var mapperCalled = false
     proc addressMapper(
@@ -109,12 +101,12 @@ suite "PeerInfo":
   test "addressPolicy still filters announced addresses":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      publicAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
-      privateAddr = MultiAddress.init("/ip4/192.168.1.42/tcp/9000").tryGet()
+      publicAddr = ma("/ip4/203.0.113.7/tcp/9000")
+      privateAddr = ma("/ip4/192.168.1.42/tcp/9000")
       announcedAddrs = @[publicAddr, privateAddr]
 
-    proc onlyPublic(ma: MultiAddress): bool {.gcsafe, raises: [].} =
-      ma == publicAddr
+    proc onlyPublic(maddr: MultiAddress): bool {.gcsafe, raises: [].} =
+      maddr == publicAddr
 
     let peerInfo = PeerInfo.new(
       seckey, [], addressPolicy = onlyPublic, announcedAddrs = announcedAddrs
@@ -126,7 +118,7 @@ suite "PeerInfo":
   test "Observers fire on notifyObservers":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24")]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
 
     var
@@ -163,7 +155,7 @@ suite "PeerInfo":
   test "Observers fire on update":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
+      multiAddresses = @[ma("/ip4/0.0.0.0/tcp/24")]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
 
     var
