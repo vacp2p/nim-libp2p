@@ -1365,8 +1365,10 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
 
 ## Keeps this bounded formatter visible to Chronicles and the log-field audit;
 ## rendering itself is delegated to the generic collection formatter.
+const AvgMultiAddressStringLength = 32
+
 func shortLog*(addrs: seq[MultiAddress]): string =
-  shortLog[MultiAddress](addrs)
+  shortLog[MultiAddress](addrs, averageItemLength = AvgMultiAddressStringLength)
 
 chronicles.formatIt(seq[MultiAddress]):
   shortLog(it)

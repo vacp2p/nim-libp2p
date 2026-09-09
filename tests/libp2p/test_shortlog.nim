@@ -42,6 +42,7 @@ suite "Short log":
     check:
       shortLog(newSeq[int]()) == "[]"
       shortLog(@[1, 2]) == "[1, 2]"
+      shortLog(@[1, 2], averageItemLength = 32) == "[1, 2]"
       shortLog(@[1, 2, 3, 4, 5, 6]) == "[1, 2, 3, 4, 5]...(+1 more)"
 
   test "multiaddress collections use the shared representation":

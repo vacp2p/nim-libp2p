@@ -40,12 +40,14 @@ func shortLog*(item: string): string =
   s &= item[(item.len - split) .. item.high]
   s
 
-func shortLog*[T](items: openArray[T], maxItems = ShortCollectionMax): string =
+func shortLog*[T](
+    items: openArray[T], maxItems = ShortCollectionMax, averageItemLength = ShortDumpMax
+): string =
   ## Render a bounded collection preview without falling back to an unbounded
   ## ``$items`` representation. Elements with their own ``shortLog`` overload
   ## retain a useful preview.
   let limit = min(items.len, maxItems)
-  var res = newStringOfCap(limit * ShortDumpMax)
+  var res = newStringOfCap(limit * averageItemLength)
   res.add('[')
   for i in 0 ..< limit:
     if i > 0:
