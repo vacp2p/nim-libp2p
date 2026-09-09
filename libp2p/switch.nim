@@ -392,7 +392,8 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   info "Starting switch for peer", peerInfo = s.peerInfo
 
-  s.connManager.start()
+  if not s.connManager.isRunning():
+    s.connManager.start()
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager

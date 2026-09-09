@@ -104,7 +104,7 @@ type
   .}
 
   ConnManager* = ref object of RootObj
-    closed: bool
+    running: bool
     muxerStore: MuxerStore
     maxConnsPerPeer: int
     maxConnectionsIn: int
@@ -209,6 +209,7 @@ proc new*(
     maxOutArg = ConnectionsUnlimited
 
   T(
+    running: true,
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
       if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
@@ -219,6 +220,9 @@ proc new*(
     watermark: watermark,
     scoring: scoring,
   )
+
+proc isRunning*(c: ConnManager): bool =
+  c.running
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxerStore.count(peerId)
@@ -258,7 +262,7 @@ proc waitForPeerReady*(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Wait until `storeMuxer` has emitted the `Connected` conn event for `peerId`.
   ## Existing ready peers bypass waiting. Returns false while stopped.
-  if c.closed:
+  if not c.running:
     return false
 
   if peerId in c.readyPeers:
@@ -701,9 +705,10 @@ proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
 proc start*(c: ConnManager) =
   ## Resume readiness waits and tag decay after a completed stop.
-  if not c.closed:
+  if c.running:
+    warn "ConnManager is already running"
     return
-  c.closed = false
+  c.running = true
   c.decayLoopFut = c.runDecayLoop()
 
 proc tagPeerDecaying*(
@@ -725,7 +730,7 @@ proc tagPeerDecaying*(
   let now = Moment.now()
   c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
     DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
-  if not c.closed and (c.decayLoopFut.isNil or c.decayLoopFut.finished):
+  if c.running and (c.decayLoopFut.isNil or c.decayLoopFut.finished):
     c.decayLoopFut = c.runDecayLoop()
 
 proc bumpDecayingTag*(c: ConnManager, peerId: PeerId, tag: string, delta: int) =
@@ -806,7 +811,7 @@ proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
 proc stop*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   ## Stop background tasks and close all connections. Retain peer tags for restart.
   trace "Stopping ConnManager"
-  c.closed = true
+  c.running = false
 
   if not c.decayLoopFut.isNil:
     await c.decayLoopFut.cancelAndWait()

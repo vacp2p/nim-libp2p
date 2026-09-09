@@ -24,14 +24,12 @@ proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxTotal(maxConnections)),
   )
-  result.start()
 
 proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
   result = ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxInOut(maxIn, maxOut)),
   )
-  result.start()
 
 proc newWatermark*(
     lowWater: int,
@@ -50,7 +48,6 @@ proc newWatermark*(
   let scCfg =
     PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
   result = ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
-  result.start()
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng()).tryGet()
@@ -240,12 +237,14 @@ suite "Connection Manager":
 
   asyncTest "readiness waits work without start until stopped":
     let connMngr = ConnManager.new()
+    check connMngr.isRunning()
     defer:
       await connMngr.stop()
     let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
     await connMngr.storeMuxer(makeMuxer(peerId))
     check await readyWaiter
     await connMngr.stop()
+    check not connMngr.isRunning()
     check not (await connMngr.waitForPeerReady(peerId))
 
   asyncTest "new manager decays tags without explicit start":
@@ -261,6 +260,7 @@ suite "Connection Manager":
     connMngr.tagPeerDecaying(peerId, "retained", 1, 1.millis, decayFixed(1))
     await connMngr.stop()
     connMngr.start()
+    check connMngr.isRunning()
     defer:
       await connMngr.stop()
     let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
@@ -870,8 +870,6 @@ suite "Connection Manager: watermark with connection limiting":
         )
       ),
     )
-
-    connMngr.start()
 
     # acquire a semaphore slot for each peer, protect it, then register it.
     # protecting before storeMuxer ensures the peer is already shielded when

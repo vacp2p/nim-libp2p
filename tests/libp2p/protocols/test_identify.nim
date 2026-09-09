@@ -431,7 +431,6 @@ suite "Identify":
     ms.addHandler(limitedPing)
 
     let connManager = ConnManager.new()
-    connManager.start()
     defer:
       await connManager.stop()
 
