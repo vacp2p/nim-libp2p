@@ -606,6 +606,18 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   trace "Yamux stream handler completed", channel = $channel
   doAssert(channel.isClosed, "connection not closed by handler!")
 
+proc discardData(
+    conn: RawConn, length: uint32
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  # Unknown or reset streams still carry framed payloads; never interpret those
+  # bytes as headers or allocate an untrusted frame-sized discard buffer.
+  var buffer: array[8192, byte]
+  var remaining = length
+  while remaining > 0:
+    let count = min(remaining, uint32(buffer.len)).int
+    await conn.readExactly(addr buffer[0], count)
+    remaining -= uint32(count)
+
 method handle*(m: Yamux) {.async: (raises: []).} =
   trace "Yamux handler started", peerId = m.connection.peerId
   try:
@@ -638,31 +650,33 @@ method handle*(m: Yamux) {.async: (raises: []).} =
                 currentId = m.currentId,
                 peerId = m.connection.peerId
               raise newException(YamuxError, "Peer used our reserved stream id")
-            let newStream =
-              m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
-            if m.channels.len > m.maxChannCount:
+            if m.channels.len >= m.maxChannCount:
               trace "Too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
-              await newStream.reset()
+              var remaining = YamuxDefaultWindowSize
+              if header.msgType == Data:
+                if header.length > uint32(remaining):
+                  raise newException(YamuxError, "Peer exhausted the recvWindow")
+                remaining -= int(header.length)
+              m.rememberFlushed(header.streamId, remaining)
+              await m.connection.write(YamuxHeader.data(header.streamId, 0, {Rst}))
+              if header.msgType == Data:
+                await m.connection.discardData(header.length)
               continue
+            let newStream =
+              m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             await newStream.open()
             newStream.handlerFut = m.handleStream(newStream)
         elif header.streamId notin m.channels:
-          # Flush the data
-          var flushedDrained = false
-          m.flushed.withValue(header.streamId, flushed):
-            if header.msgType == Data:
-              flushed[].dec(int(header.length))
-              if flushed[] < 0:
+          if header.msgType == Data:
+            m.flushed.withValue(header.streamId, flushed):
+              if header.length > uint32(flushed[]):
                 raise
                   newException(YamuxError, "Peer exhausted the recvWindow after reset")
-              if header.length > 0:
-                var buffer = newSeqUninit[byte](header.length)
-                await m.connection.readExactly(addr buffer[0], int(header.length))
-              flushedDrained = flushed[] == 0
-
-          if flushedDrained:
-            m.forgetFlushed(header.streamId)
+              flushed[] -= int(header.length)
+              if flushed[] == 0:
+                m.forgetFlushed(header.streamId)
+            await m.connection.discardData(header.length)
 
           # If we do not have a stream, likely we sent a RST and/or closed the stream
           trace "Unknown stream id", id = header.streamId
