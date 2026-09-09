@@ -89,19 +89,17 @@ proc innerRun(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   while self.running:
-    # Remove relayPeers that failed
-    let peers = toSeq(self.relayPeers.keys())
-    for k in peers:
-      try:
-        if self.relayPeers[k].finished():
-          self.relayPeers.del(k)
-          self.relayAddresses.del(k)
-          if self.running and not self.onReservation.isNil():
-            self.onReservation(concat(toSeq(self.relayAddresses.values)))
-          # To avoid ddosing our peers in certain conditions
-          self.backingOff[k] = self.manageBackedOff(k)
-      except KeyError:
-        raiseAssert "checked with in"
+    let addressCount = self.relayAddresses.len
+    for (k, future) in toSeq(self.relayPeers.pairs()):
+      if future.finished():
+        self.relayPeers.del(k)
+        self.relayAddresses.del(k)
+        if self.running and not self.onReservation.isNil():
+          self.onReservation(concat(toSeq(self.relayAddresses.values)))
+        # Avoid immediately retrying a failed reservation.
+        self.backingOff[k] = self.manageBackedOff(k)
+    if self.relayAddresses.len != addressCount:
+      await switch.peerInfo.update()
 
     # Get all connected relayPeers
     self.peerAvailable.clear()
@@ -141,9 +139,10 @@ method stop*(
   if not self.running:
     return
   self.running = false
-  self.runner.cancelSoon()
-  for fut in self.backingOff.values:
-    fut.cancelSoon()
+  await noCancel self.runner.cancelAndWait()
+  await noCancel (toSeq(self.relayPeers.values) & toSeq(self.backingOff.values)).cancelAndWait()
+  self.relayPeers.clear()
+  self.relayAddresses.clear()
   self.backingOff.clear()
   switch.addressManager.removeMapper(self.addressMapper)
   await switch.peerInfo.update()
