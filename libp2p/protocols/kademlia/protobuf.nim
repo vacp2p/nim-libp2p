@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/hashes
-import chronos
+import chronos, chronicles
 import ../../utils/[opt, shortlog]
 import results
 import ../../multiaddress
@@ -96,12 +96,18 @@ func shortLog*(record: Record): auto =
     timeReceived: record.timeReceived.get("").shortLog,
   )
 
+chronicles.formatIt(Record):
+  shortLog(it)
+
 func shortLog*(peer: Peer): auto =
   (
     id: peer.id.get(@[]).shortLog,
     addresses: peer.addrs.shortLog,
     connection: peer.connection,
   )
+
+chronicles.formatIt(Peer):
+  shortLog(it)
 
 func shortLog*(msg: Message): auto =
   (
@@ -117,6 +123,9 @@ func shortLog*(msg: Message): auto =
       else:
         0,
   )
+
+chronicles.formatIt(Message):
+  shortLog(it)
 
 func hide(c: Opt[ConnectionStatus], hideConnectionStatus: bool): Opt[ConnectionStatus] =
   if hideConnectionStatus:

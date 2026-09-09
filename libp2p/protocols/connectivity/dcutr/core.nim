@@ -5,7 +5,7 @@
 
 import std/sequtils
 
-import chronos
+import chronos, chronicles
 import stew/objects
 import protobuf_serialization, protobuf_serialization/std/enums
 import results
@@ -38,6 +38,9 @@ type
 
 func shortLog*(msg: DcutrMsg): auto =
   (msgType: msg.msgType, addresses: msg.addrs.shortLog)
+
+chronicles.formatIt(DcutrMsg):
+  shortLog(it)
 
 Protobuf.serializerFor([DcutrMsg], withMetrics = true, domain = "dcutr")
 

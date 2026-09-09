@@ -66,7 +66,7 @@ proc checkAndEvictPeer(
   if kad.stopping:
     return
   if not kad.livenessSem.tryAcquire():
-    trace "Liveness probe skipped: no free slot", peerId = peerId.shortLog()
+    trace "Liveness probe skipped: no free slot", peerId
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
   defer:
@@ -85,8 +85,7 @@ proc checkAndEvictPeer(
     if rtable.isReplaceable(peerId, grace, Moment.now()):
       dueTables.add(rtable)
   if dueTables.len == 0:
-    trace "Liveness probe skipped: peer no longer replaceable",
-      peerId = peerId.shortLog()
+    trace "Liveness probe skipped: peer no longer replaceable", peerId
     return
 
   let addrs = kad.dialAddrs(peerId)
@@ -99,17 +98,15 @@ proc checkAndEvictPeer(
       discard rtable.removePeer(peerId, reason = "liveness")
       inc evicted
     if evicted > 0:
-      trace "Evicting peer with no known addresses",
-        peer = peerId.shortLog(), tables = evicted
+      trace "Evicting peer with no known addresses", peer = peerId, tables = evicted
       kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
     else:
-      trace "Liveness probe skipped: peer no longer replaceable",
-        peer = peerId.shortLog()
+      trace "Liveness probe skipped: peer no longer replaceable", peer = peerId
     return
 
-  trace "Probing peer for liveness", peerId = peerId.shortLog(), tables = dueTables.len
+  trace "Probing peer for liveness", peerId, tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
-    trace "Liveness probe succeeded", peerId = peerId.shortLog()
+    trace "Liveness probe succeeded", peerId
     # Peer is reachable: one registry write refreshes usefulness for every index.
     kad.rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
@@ -123,22 +120,21 @@ proc checkAndEvictPeer(
     discard rtable.removePeer(peerId, reason = "liveness")
     inc evicted
   if evicted == 0:
-    trace "Liveness probe failed but peer refreshed mid-flight",
-      peer = peerId.shortLog()
+    trace "Liveness probe failed but peer refreshed mid-flight", peer = peerId
     return
 
   trace "Evicting unresponsive peer after liveness probe",
-    peer = peerId.shortLog(), tables = evicted
+    peer = peerId, tables = evicted
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
 proc launchLivenessProbe(kad: KadDHT, peerId: PeerId) {.raises: [].} =
   ## Starts a liveness probe unless one is already in flight for this peer.
   if kad.livenessProbes.hasKey(peerId):
-    trace "Liveness probe already in flight", peerId = peerId.shortLog()
+    trace "Liveness probe already in flight", peerId
     return
   if kad.stopping:
     return
-  trace "Launching liveness probe", peerId = peerId.shortLog()
+  trace "Launching liveness probe", peerId
   kad.trackLivenessProbe(peerId, kad.checkAndEvictPeer(peerId))
 
 proc probeAndEvictPeers*(
@@ -160,7 +156,7 @@ proc probeAndEvictPeers*(
   var futs = newSeqOfCap[Future[void]](peers.len)
   for peerId in peers:
     kad.livenessProbes.withValue(peerId, existing):
-      trace "Liveness batch reusing in-flight probe", peerId = peerId.shortLog()
+      trace "Liveness batch reusing in-flight probe", peerId
       futs.add(existing[])
       continue
     let fut = kad.checkAndEvictPeer(peerId)
