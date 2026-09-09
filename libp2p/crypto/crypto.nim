@@ -5,7 +5,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
-import protobuf_serialization
+import protobuf_serialization, chronicles
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -738,6 +738,12 @@ func shortLog*(key: PrivateKey | PublicKey): string =
       "secp256k1 key (" & ($key.skkey).shortLog & ")"
     else:
       "unsupported secp256k1 key"
+
+chronicles.formatIt(PrivateKey):
+  "[PrivateKey Redacted]"
+
+chronicles.formatIt(PublicKey):
+  shortLog(it)
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.

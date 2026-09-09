@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import sequtils
+import sequtils, chronicles
 import protobuf_serialization
 import ../../../[peerid, routing_record]
 import ../../../utils/[opt, shortlog]
@@ -143,20 +143,38 @@ func len[T](opt: Opt[T]): int =
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
 
+chronicles.formatIt(ControlIHave):
+  shortLog(it)
+
 func shortLog*(s: ControlIWant): auto =
   (messageIDs: mapIt(s.messageIDs, it.shortLog))
+
+chronicles.formatIt(ControlIWant):
+  shortLog(it)
 
 func shortLog*(s: ControlGraft): auto =
   (topic: s.topicID.shortLog)
 
+chronicles.formatIt(ControlGraft):
+  shortLog(it)
+
 func shortLog*(s: ControlPrune): auto =
   (topic: s.topicID.shortLog)
+
+chronicles.formatIt(ControlPrune):
+  shortLog(it)
 
 func shortLog*(s: Preamble): auto =
   (topic: s.topicID.shortLog, messageID: s.messageID.shortLog)
 
+chronicles.formatIt(Preamble):
+  shortLog(it)
+
 func shortLog*(s: IMReceiving): auto =
   (messageID: s.messageID.shortLog)
+
+chronicles.formatIt(IMReceiving):
+  shortLog(it)
 
 func shortLog*(so: Opt[ControlExtensions]): auto =
   if so.isNone():
@@ -175,6 +193,9 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
       preambleExtension: shortLog(s.preambleExtension),
     )
 
+chronicles.formatIt(Opt[ControlExtensions]):
+  shortLog(it)
+
 func shortLog*(c: ControlMessage): auto =
   (
     ihave: mapIt(c.ihave, it.shortLog),
@@ -183,6 +204,9 @@ func shortLog*(c: ControlMessage): auto =
     prune: mapIt(c.prune, it.shortLog),
     extensions: shortLog(c.extensions),
   )
+
+chronicles.formatIt(ControlMessage):
+  shortLog(it)
 
 func shortLog*(msg: Message): auto =
   (
@@ -194,6 +218,9 @@ func shortLog*(msg: Message): auto =
     key: msg.key.shortLog,
   )
 
+chronicles.formatIt(Message):
+  shortLog(it)
+
 func shortLog*(pme: PartialMessageExtensionRPC): auto =
   (
     topicID: pme.topicID.shortLog,
@@ -202,14 +229,23 @@ func shortLog*(pme: PartialMessageExtensionRPC): auto =
     partsMetadata: pme.partsMetadata.shortLog,
   )
 
+chronicles.formatIt(PartialMessageExtensionRPC):
+  shortLog(it)
+
 func shortLog*(rpc: PingPongExtensionRPC): auto =
   (ping: rpc.ping.shortLog, pong: rpc.pong.shortLog)
+
+chronicles.formatIt(PingPongExtensionRPC):
+  shortLog(it)
 
 func shortLog*(rpc: PreambleExtensionRPC): auto =
   (
     preamble: mapIt(rpc.preamble, it.shortLog),
     imreceiving: mapIt(rpc.imreceiving, it.shortLog),
   )
+
+chronicles.formatIt(PreambleExtensionRPC):
+  shortLog(it)
 
 func shortLog*(m: RPCMsg): auto =
   (
@@ -222,6 +258,9 @@ func shortLog*(m: RPCMsg): auto =
     pingpongExtension: m.pingpongExtension.valueOr(PingPongExtensionRPC()).shortLog,
     preambleExtension: m.preambleExtension.valueOr(PreambleExtensionRPC()).shortLog,
   )
+
+chronicles.formatIt(RPCMsg):
+  shortLog(it)
 
 static:
   expectedFields(PeerInfoMsg, @["peerId", "signedPeerRecord"])

@@ -28,7 +28,7 @@ proc sendResponse*(
   ## This should not be used for application-published messages; use `send`
   ## instead.
 
-  trace "sending pubsub response to peer", peer, rpcMsg = shortLog(msg)
+  trace "sending pubsub response to peer", peer, rpcMsg = msg
   peer.sendResponse(msg, p.anonymize, priority, useCustomStream)
 
 proc broadcastResponse*(
@@ -47,7 +47,7 @@ proc broadcastResponse*(
 
   countBroadcastMetrics(p, sendPeers, msg)
 
-  trace "broadcasting responses to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
+  trace "broadcasting responses to peers", peers = sendPeers.len, rpcMsg = msg
 
   if anyIt(sendPeers, it.hasObservers) or msg.messages.len > 1:
     for peer in sendPeers:

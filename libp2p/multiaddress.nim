@@ -1378,6 +1378,9 @@ func shortLog*(addrs: seq[MultiAddress], maxAddrs = ShortCollectionMax): string 
     res.add(" more)")
   return res
 
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
+
 ## protobuf_serialization extension
 
 Protobuf.extensionDefaults(MultiAddress, pbytes, defaultWriteSeq = true)
