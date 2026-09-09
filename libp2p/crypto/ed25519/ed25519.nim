@@ -7,7 +7,7 @@
 
 {.push raises: [].}
 
-import constants, chronicles, json_serialization/writer
+import constants
 import ../rng
 import nimcrypto/[hash, sha2]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.

@@ -11,6 +11,8 @@
 import std/macros
 import chronicles, json_serialization/writer
 
+export chronicles, json_serialization/writer
+
 const Redacted* = "[REDACTED]"
 
 macro redactType*(T: typedesc, exported: static bool = true): untyped =

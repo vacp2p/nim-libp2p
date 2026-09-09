@@ -5,7 +5,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
-import chronicles, json_serialization/writer, protobuf_serialization
+import protobuf_serialization, chronicles
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 

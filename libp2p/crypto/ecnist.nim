@@ -11,8 +11,6 @@
 {.push raises: [].}
 
 import bearssl/[ec, rand, hash]
-import chronicles
-import json_serialization/writer
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import minasn1

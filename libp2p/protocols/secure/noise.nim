@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import std/strformat
-import chronos, results, chronicles, json_serialization/writer
+import chronos, results, chronicles
 import protobuf_serialization, protobuf_serialization/pkg/results
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]

@@ -3,7 +3,6 @@
 
 {.push raises: [].}
 
-import chronicles, json_serialization/writer
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
 import rng as libp2p_rng
 import ../utils/redact

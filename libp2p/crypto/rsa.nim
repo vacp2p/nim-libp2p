@@ -10,8 +10,6 @@
 {.push raises: [].}
 
 import bearssl/[rsa, rand, hash]
-import chronicles
-import json_serialization/writer
 import minasn1
 import results
 import stew/[bitops2, ctops]
