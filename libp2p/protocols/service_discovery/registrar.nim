@@ -13,7 +13,11 @@ import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
-import ./[types, routing_table_manager, service_discovery_metrics, advertisement_cache]
+import
+  ./[
+    types, routing_table_manager, service_discovery_metrics, advertisement_cache,
+    discovery_tracker,
+  ]
 
 logScope:
   topics = "service-disco registrar"
@@ -312,6 +316,8 @@ proc registration*(
     )
 
     return msg
+
+  disco.tracker.recordProvider(serviceId, ad.data.peerId, FromRegistration)
 
   #Always use seconds granularity
   let now = Moment.init(Moment.now().epochSeconds, Second)

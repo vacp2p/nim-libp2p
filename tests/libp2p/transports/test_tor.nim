@@ -212,3 +212,99 @@ suite "Tor transport":
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()
+
+suite "Tor authentication":
+  teardown:
+    checkTrackers()
+
+  asyncTest "rejected authentication closes the proxy socket":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    discard await peer.write(@[5'u8, 255])
+    expect TransportDialError:
+      discard await dialing
+    var reply: array[1, byte]
+    check (await peer.readOnce(addr reply[0], 1).wait(100.millis)) == 0
+
+  asyncTest "cancelled authentication closes the proxy socket":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    await dialing.cancelAndWait()
+    var reply: array[1, byte]
+    check (await peer.readOnce(addr reply[0], 1).wait(100.millis)) == 0
+
+  asyncTest "truncated authentication is a dial error":
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    discard await peer.write(@[5'u8])
+    await peer.shutdownWait()
+    expect TransportDialError:
+      discard await dialing
+
+suite "Tor CONNECT reply":
+  teardown:
+    checkTrackers()
+
+  proc checkTruncatedReply(response: seq[byte]) {.async.} =
+    let server = createStreamServer(initTAddress("127.0.0.1:0"))
+    let transport = TorTransport.new(server.localAddress, upgrade = Upgrade())
+    let dialing = transport.dial("", ma("/ip4/127.0.0.1/tcp/1234"))
+    let peer = await server.accept()
+    defer:
+      await peer.closeWait()
+      await server.closeWait()
+      await transport.stop()
+    var greeting: array[3, byte]
+    await peer.readExactly(addr greeting[0], greeting.len)
+    discard await peer.write(@[5'u8, 0])
+    var request: array[10, byte]
+    await peer.readExactly(addr request[0], request.len)
+    discard await peer.write(response)
+    # Signal EOF while keeping the read side open to observe client cleanup.
+    await peer.shutdownWait()
+    expect TransportDialError:
+      discard await dialing
+    var reply: array[1, byte]
+    check (await peer.readOnce(addr reply[0], 1).wait(100.millis)) == 0
+
+  asyncTest "truncated CONNECT header closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0])
+
+  asyncTest "missing CONNECT FQDN length closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0, 3])
+
+  asyncTest "truncated CONNECT IPv4 address closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0, 1, 127, 0, 0])
+
+  asyncTest "truncated CONNECT IPv4 port closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0, 1, 127, 0, 0, 1, 0])
+
+  asyncTest "truncated CONNECT IPv6 port closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0, 4] & newSeq[byte](17))
+
+  asyncTest "truncated CONNECT FQDN port closes the proxy socket":
+    await checkTruncatedReply(@[5'u8, 0, 0, 3, 3, 97, 98, 99, 0])

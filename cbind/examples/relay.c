@@ -141,7 +141,8 @@ int main(void) {
   DialCircuitRelayRequest dialReq = {nimffi_str(dstInfo.peerId),
                                      nimffi_str(circuit), nimffi_str(Proto), 0};
   libp2p_ctx_dial_circuit_relay(src, &dialReq, on_dial, &dw);
-  if (!wait_done(&dw.done) || dw.err_code != 0) {
+  wait_done(&dw.done);
+  if (dw.err_code != 0) {
     fprintf(stderr, "dial_circuit_relay: %s\n", dw.err[0] ? dw.err : "unknown");
     goto cleanup;
   }
@@ -155,15 +156,13 @@ int main(void) {
     goto cleanup;
 
   // Dst serves its relayed stream from this thread: read and verify.
-  if (!wait_done(&g_have_stream)) {
-    fprintf(stderr, "dst: no incoming stream\n");
-    goto cleanup;
-  }
+  wait_done(&g_have_stream);
   ReadWaiter rw;
   memset(&rw, 0, sizeof(rw));
   StreamReadLpRequest rd = {g_stream_id, 4096};
   libp2p_ctx_stream_read_lp(dst, &rd, on_read, &rw);
-  if (!wait_done(&rw.done) || rw.err_code != 0) {
+  wait_done(&rw.done);
+  if (rw.err_code != 0) {
     fprintf(stderr, "dst read: %s\n", rw.err[0] ? rw.err : "unknown");
     goto cleanup;
   }

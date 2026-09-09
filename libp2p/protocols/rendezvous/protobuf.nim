@@ -76,10 +76,10 @@ chronicles.formatIt(RegisterResponse):
   shortLog(it)
 
 func shortLog*(response: Opt[RegisterResponse]): string =
-  if response.isSome:
-    $response.get().shortLog
-  else:
-    "<unset>"
+  shortLog[RegisterResponse](response)
+
+chronicles.formatIt(Opt[RegisterResponse]):
+  shortLog(it)
 
 chronicles.formatIt(Opt[RegisterResponse]):
   shortLog(it)
@@ -96,10 +96,10 @@ chronicles.formatIt(DiscoverResponse):
   shortLog(it)
 
 func shortLog*(response: Opt[DiscoverResponse]): string =
-  if response.isSome:
-    $response.get().shortLog
-  else:
-    "<unset>"
+  shortLog[DiscoverResponse](response)
+
+chronicles.formatIt(Opt[DiscoverResponse]):
+  shortLog(it)
 
 chronicles.formatIt(Opt[DiscoverResponse]):
   shortLog(it)
