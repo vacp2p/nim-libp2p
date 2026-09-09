@@ -715,11 +715,6 @@ proc `$`*(key: PublicKey): string =
     else:
       "unsupported secp256k1 key"
 
-func shortLog*(key: PrivateKey): string =
-  ## Return a bounded diagnostic representation without exposing private key
-  ## material.
-  Redacted
-
 func shortLog*(key: PublicKey): string =
   ## Get short string representation of public key ``key``.
   case key.scheme
