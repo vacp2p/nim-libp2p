@@ -77,7 +77,7 @@ proc getValue*(
         expected = key, got = record.key
       return
 
-    let value = record.value.valueOr:
+    let value: Value = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
 

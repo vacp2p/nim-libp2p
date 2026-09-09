@@ -86,7 +86,9 @@ const
 
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
-type Key* = seq[byte]
+type
+  Key* = seq[byte]
+  Value* = seq[byte]
 
 func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
   ## Key of `IdLength` bytes holding `bytes`, zero-padded.
@@ -369,11 +371,11 @@ proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
   now().utc.toTime().toUnix()
 
 type EntryRecord* = object
-  value*: seq[byte]
+  value*: Value
   time*: Timestamp
 
 proc init*(
-    T: typedesc[EntryRecord], value: Key, time: Opt[Timestamp]
+    T: typedesc[EntryRecord], value: Value, time: Opt[Timestamp]
 ): EntryRecord {.gcsafe, raises: [].} =
   EntryRecord(value: value, time: time.get(Timestamp.now()))
 
@@ -383,7 +385,7 @@ type
   LocalTable* = Table[Key, EntryRecord]
 
 proc insert*(
-    self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
+    self: var LocalTable, key: Key, value: sink Value, time: Timestamp
 ) {.raises: [].} =
   debug "Local Kademlia record stored", key, value = value.shortLog
   self[key] = EntryRecord(value: value, time: time)
@@ -422,7 +424,7 @@ method select*(
     return err("No records to choose from")
 
   # Map value -> (count, firstIndex)
-  var counts: Table[seq[byte], (int, int)]
+  var counts: Table[Value, (int, int)]
   for i, v in records.mapIt(it.value):
     try:
       let (cnt, idx) = counts[v]
