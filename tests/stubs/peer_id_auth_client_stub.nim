@@ -113,7 +113,8 @@ method post*(
     var expires = ""
     if self.expires.isSome():
       expires =
-        ", expires=\"" & self.expires.get().format("yyyy-MM-dd'T'HH:mm:ss") & ".000Z\""
+        ", expires=\"" & self.expires.get().utc.format("yyyy-MM-dd'T'HH:mm:ss") &
+        ".000Z\""
 
     PeerIDAuthPrefix & " sig=\"" & sig & "\", bearer=\"" & self.token & "\"" & expires
 

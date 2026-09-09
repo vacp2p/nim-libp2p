@@ -54,30 +54,21 @@ type SigParam = object
 proc new*(T: typedesc[PeerIDAuthClient], rng: Rng): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
-proc sampleChar(ctx: Rng, choices: string): char {.raises: [ValueError].} =
-  ## Samples a random character from the input string using the DRBG context
-  if choices.len == 0:
-    raise newException(ValueError, "Cannot sample from an empty string")
-  var idx: uint32
-  ctx.generate(idx)
-  return choices[uint32(idx mod uint32(choices.len))]
-
 proc randomChallenge(
     rng: Rng, challengeLen: int = ChallengeDefaultLen
-): PeerIDAuthChallenge {.raises: [PeerIDAuthError].} =
-  var challenge = ""
-  try:
-    for _ in 0 ..< challengeLen:
-      challenge.add(rng.sampleChar(ChallengeCharset))
-  except ValueError as exc:
-    raise newException(PeerIDAuthError, "Failed to generate challenge", exc)
+): PeerIDAuthChallenge =
+  var challenge = newString(challengeLen)
+  for c in challenge.mitems:
+    c = ChallengeCharset[rng.rand(0, ChallengeCharset.high)]
   PeerIDAuthChallenge(challenge)
 
 proc extractField(data, key: string): string {.raises: [PeerIDAuthError].} =
-  # Helper to extract quoted value from key
-  for segment in data.split(","):
-    if key in segment:
-      return segment.split("=", 1)[1].strip(chars = {' ', '"'})
+  var fields = data
+  fields.removePrefix(PeerIDAuthPrefix & " ")
+  for segment in fields.split(","):
+    let parts = segment.split("=", 1)
+    if parts.len == 2 and parts[0].strip() == key:
+      return parts[1].strip(chars = {' ', '"'})
   raise newException(PeerIDAuthError, "Failed to find " & key & " in " & data)
 
 proc genDataToSign(
@@ -220,10 +211,18 @@ proc pubkeyBytes*(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
     )
 
 proc parse3339DateTime(timeStr: string): DateTime {.raises: [ValueError].} =
-  let parts = timeStr.split('.')
-  let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
-  let millis = parseInt(parts[1].strip(chars = {'Z'}))
-  base + initDuration(milliseconds = millis)
+  if timeStr.len > 19 and timeStr[19] == '.':
+    var fractionEnd = 20
+    while fractionEnd < timeStr.len and timeStr[fractionEnd] in {'0' .. '9'}:
+      inc fractionEnd
+    let digits = fractionEnd - 20
+    if digits < 1 or digits > 9:
+      raise newException(ValueError, "Invalid fractional second")
+    let normalized =
+      timeStr[0 ..< fractionEnd] & repeat('0', 9 - digits) & timeStr[fractionEnd .. ^1]
+    parse(normalized, "yyyy-MM-dd'T'HH:mm:ss'.'fffffffffzzz", utc())
+  else:
+    parse(timeStr, "yyyy-MM-dd'T'HH:mm:sszzz", utc())
 
 proc requestAuthorization*(
     self: PeerIDAuthClient,

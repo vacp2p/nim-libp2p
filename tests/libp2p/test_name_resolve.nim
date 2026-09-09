@@ -302,3 +302,24 @@ suite "Name resolving":
     #   var dnsresolver = DnsResolver.new(@[initTAddress("172.67.10.161:0")])
     #   let invalid = await dnsresolver.resolveIp("google.fr", 0.Port)
     #   check invalid.len == 0
+
+  suite "DNS cancellation":
+    teardown:
+      checkTrackers()
+
+    asyncTest "cancelling a dual-stack lookup closes both query sockets":
+      let received = newAsyncEvent()
+      var queries = 0
+      proc discardQuery(
+          transp: DatagramTransport, raddr: TransportAddress
+      ) {.async: (raises: []).} =
+        inc queries
+        if queries == 2:
+          received.fire()
+
+      let server = newDatagramTransport(discardQuery)
+      let resolver = DnsResolver.new(@[server.localAddress])
+      let lookup = resolver.resolveIp("example.com", Port(0))
+      await received.wait().wait(1.seconds)
+      await lookup.cancelAndWait()
+      await server.closeWait()
