@@ -20,13 +20,13 @@ method newStream*(
   Connection.new(m.peerId, Direction.Out)
 
 proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
-  result = ConnManager.new(
+  return ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxTotal(maxConnections)),
   )
 
 proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
-  result = ConnManager.new(
+  return ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
     limits = Opt.some(ConnectionLimits.maxInOut(maxIn, maxOut)),
   )
@@ -47,7 +47,7 @@ proc newWatermark*(
   )
   let scCfg =
     PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
-  result = ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
+  return ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng()).tryGet()
