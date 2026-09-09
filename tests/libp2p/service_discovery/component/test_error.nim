@@ -18,7 +18,7 @@ import ../utils
 
 type
   PendingWriteStream = ref object of Stream
-    writeStarted: Future[void].Raising([])
+    writeStarted: Future[void].Raising([CancelledError])
     writePending: Future[void].Raising([CancelledError, LPStreamError])
     reads: int
 
@@ -96,7 +96,7 @@ suite "Service Discovery Component - Error Handling":
   asyncTest "cancelling an RPC interrupts writing and resets the stream":
     let clientNode = setupServiceDiscoveryNode()
     let stream = PendingWriteStream(
-      writeStarted: Future[void].Raising([]).init("RPC write started"),
+      writeStarted: Future[void].Raising([CancelledError]).init("RPC write started"),
       writePending:
         Future[void].Raising([CancelledError, LPStreamError]).init("RPC write pending"),
     )
@@ -125,7 +125,8 @@ suite "Service Discovery Component - Error Handling":
   asyncTest "cancelling an RPC propagates cancellation":
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
-    let received = Future[void].Raising([]).init("service discovery request received")
+    let received =
+      Future[void].Raising([CancelledError]).init("service discovery request received")
     registrarNode.handler = proc(
         stream: Stream, proto: string
     ) {.async: (raises: [CancelledError]).} =
