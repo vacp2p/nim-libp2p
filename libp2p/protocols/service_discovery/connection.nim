@@ -50,8 +50,6 @@ proc send*(
   cd_message_duration_ms.time(labelValues = [$msg.msgType]):
     try:
       await stream.writeLp(encodedMsg)
-    except CancelledError as e:
-      raise e
     except LPStreamError as e:
       return err("connection writing failed: " & e.msg)
     try:
