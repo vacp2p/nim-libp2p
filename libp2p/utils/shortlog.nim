@@ -8,44 +8,37 @@ import stew/byteutils
 const ShortDumpMax = 12
 const ShortCollectionMax* = 5
 
-func shortLog*(item: seq[byte]): string =
+func shortLogBytes(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
-    item.toHex()
-  else:
-    const
-      split = ShortDumpMax div 2
-      dumpLen = (ShortDumpMax * 2) + 3
-    var s = newStringOfCap(dumpLen)
-    s &= item.toOpenArray(0, split - 1).toHex()
-    s &= "..."
-    s &= item.toOpenArray(item.len - split, item.high).toHex()
-    s
+    return item.toHex()
+
+  const
+    split = ShortDumpMax div 2
+    dumpLen = (ShortDumpMax * 2) + 3
+  var s = newStringOfCap(dumpLen)
+  s &= item.toOpenArray(0, split - 1).toHex()
+  s &= "..."
+  s &= item.toOpenArray(item.len - split, item.high).toHex()
+  s
+
+func shortLog*(item: seq[byte]): string =
+  shortLogBytes(item)
 
 func shortLog*(item: openArray[byte]): string =
-  if item.len <= ShortDumpMax:
-    item.toHex()
-  else:
-    const
-      split = ShortDumpMax div 2
-      dumpLen = (ShortDumpMax * 2) + 3
-    var s = newStringOfCap(dumpLen)
-    s &= item.toOpenArray(0, split - 1).toHex()
-    s &= "..."
-    s &= item.toOpenArray(item.len - split, item.high).toHex()
-    s
+  shortLogBytes(item)
 
 func shortLog*(item: string): string =
   if item.len <= ShortDumpMax:
-    item
-  else:
-    const
-      split = ShortDumpMax div 2
-      dumpLen = ShortDumpMax + 3
-    var s = newStringOfCap(dumpLen)
-    s &= item[0 ..< split]
-    s &= "..."
-    s &= item[(item.len - split) .. item.high]
-    s
+    return item
+
+  const
+    split = ShortDumpMax div 2
+    dumpLen = ShortDumpMax + 3
+  var s = newStringOfCap(dumpLen)
+  s &= item[0 ..< split]
+  s &= "..."
+  s &= item[(item.len - split) .. item.high]
+  s
 
 func shortLog*[T](items: openArray[T], maxItems = ShortCollectionMax): string =
   ## Render a bounded collection preview without falling back to an unbounded

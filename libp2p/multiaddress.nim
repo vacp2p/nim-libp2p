@@ -1363,21 +1363,6 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
     return err("multiaddress: no IP component to replace")
   ok(res)
 
-const AvgMultiAddressStringLength = 32
-
-func shortLog*(addrs: seq[MultiAddress], maxAddrs = ShortCollectionMax): string =
-  let limit = min(addrs.len, maxAddrs)
-  var res = newStringOfCap(limit * AvgMultiAddressStringLength)
-  for i in 0 ..< limit:
-    if i > 0:
-      res.add(',')
-    res.add($addrs[i])
-  if addrs.len > maxAddrs:
-    res.add(",...(+")
-    res.add($(addrs.len - maxAddrs))
-    res.add(" more)")
-  return res
-
 chronicles.formatIt(seq[MultiAddress]):
   shortLog(it)
 
