@@ -83,6 +83,10 @@ proc new*(
     maxNamespaces: maxNs,
   )
 
+# A config built with an object literal leaves maxNamespaces at 0.
+func namespaceLimit*(config: RendezVousConfig): int =
+  if config.maxNamespaces <= 0: MaximumNamespaces else: config.maxNamespaces
+
 type
   AdvertiseError* = object of LPError
   RendezVousError* = object of LPError
@@ -190,7 +194,7 @@ proc save*[E](
 ): Result[void, string] =
   let nsSalted = ns & rdv.salt
   if not rdv.namespaces.hasKey(nsSalted) and
-      rdv.namespaces.len >= rdv.config.maxNamespaces:
+      rdv.namespaces.len >= rdv.config.namespaceLimit():
     return err("Namespace limit reached")
 
   discard rdv.namespaces.hasKeyOrPut(nsSalted, newSeq[int]())
@@ -513,7 +517,7 @@ proc request*[E](
       if ns.isSome():
         for (_, r) in s.values():
           rdv.save(ns.get(), peer, r, false).isOkOr:
-            trace "Cannot save registration", ns, description = error
+            trace "Cannot save registration", namespace = ns, description = error
     except CancelledError as e:
       raise e
     except DialFailedError as e:

@@ -721,6 +721,10 @@ suite "RendezVous":
       rendezvousNode.namespaces.len == 2
       rendezvousNode.registered.s.len == 3
 
+  test "A config built with an object literal keeps the default namespace limit":
+    check RendezVousConfig(minTTL: 60, maxTTL: 3600).namespaceLimit() ==
+      MaximumNamespaces
+
   asyncTest "Namespace with no live registration is deleted and frees a slot":
     let
       rendezvousNode = createSwitch(RendezVousConfig.new(maxNamespaces = 1))
