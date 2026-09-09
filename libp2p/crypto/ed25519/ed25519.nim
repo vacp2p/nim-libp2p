@@ -2306,27 +2306,8 @@ proc `==`*(eda, edb: EdSignature): bool =
   ## Compare ED25519 `signature` objects for equality.
   CT.isEqual(eda.data, edb.data)
 
-proc `$`*(key: EdPrivateKey): string =
-  ## Return a diagnostic representation without exposing private key material.
-  ## Use `getBytes` or `toBytes` for intentional serialization.
-  Redacted
-
-proc `$`*(key: EdKeyPair): string =
-  Redacted
-
-chronicles.formatIt(EdPrivateKey):
-  Redacted
-
-chronicles.formatIt(EdKeyPair):
-  Redacted
-
-proc writeValue*(
-    writer: var JsonWriter, key: EdPrivateKey
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, key: EdKeyPair) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(EdPrivateKey)
+redactType(EdKeyPair)
 
 proc `$`*(key: EdPublicKey): string =
   ## Return string representation of ED25519 `private key`.

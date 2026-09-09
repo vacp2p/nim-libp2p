@@ -636,18 +636,7 @@ proc init*[T: RsaPKI](t: typedesc[T], data: string): T =
   ## string representation ``data`` and return constructed object.
   t.init(ncrutils.fromHex(data))
 
-proc `$`*(key: RsaPrivateKey): string =
-  ## Return a diagnostic representation without exposing private key material.
-  ## Use `getBytes` or `toBytes` for intentional serialization.
-  Redacted
-
-chronicles.formatIt(RsaPrivateKey):
-  Redacted
-
-proc writeValue*(
-    writer: var JsonWriter, key: RsaPrivateKey
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(RsaPrivateKey)
 
 proc `$`*(key: RsaPublicKey): string =
   ## Return string representation of RSA public key.

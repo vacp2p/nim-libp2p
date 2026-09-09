@@ -89,65 +89,12 @@ type
     identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
     identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
 
-proc `$`(key: KeyPair): string =
-  Redacted
-
-proc `$`(state: CipherState): string =
-  Redacted
-
-proc `$`(state: SymmetricState): string =
-  Redacted
-
-proc `$`(state: HandshakeState): string =
-  Redacted
-
-proc `$`(result: HandshakeResult): string =
-  Redacted
-
-proc `$`*(noise: Noise): string =
-  Redacted
-
-chronicles.formatIt(KeyPair):
-  Redacted
-
-chronicles.formatIt(CipherState):
-  Redacted
-
-chronicles.formatIt(SymmetricState):
-  Redacted
-
-chronicles.formatIt(HandshakeState):
-  Redacted
-
-chronicles.formatIt(HandshakeResult):
-  Redacted
-
-chronicles.formatIt(Noise):
-  Redacted
-
-proc writeValue(writer: var JsonWriter, key: KeyPair) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue(writer: var JsonWriter, state: CipherState) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue(
-    writer: var JsonWriter, state: SymmetricState
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue(
-    writer: var JsonWriter, state: HandshakeState
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue(
-    writer: var JsonWriter, result: HandshakeResult
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, noise: Noise) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(KeyPair, exported = false)
+redactType(CipherState, exported = false)
+redactType(SymmetricState, exported = false)
+redactType(HandshakeState, exported = false)
+redactType(HandshakeResult, exported = false)
+redactType(Noise)
 
 # Utility
 

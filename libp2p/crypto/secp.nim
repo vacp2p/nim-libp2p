@@ -195,28 +195,13 @@ proc verify*[T: byte | char](
 func clear*(key: var SkPrivateKey) =
   clear(secp256k1.SkSecretKey(key))
 
-func `$`*(key: SkPrivateKey): string =
-  Redacted
 func `$`*(key: SkPublicKey): string =
   $secp256k1.SkPublicKey(key)
 func `$`*(key: SkSignature): string =
   $secp256k1.SkSignature(key)
-func `$`*(key: SkKeyPair): string =
-  Redacted
 
-chronicles.formatIt(SkPrivateKey):
-  Redacted
-
-chronicles.formatIt(SkKeyPair):
-  Redacted
-
-proc writeValue*(
-    writer: var JsonWriter, key: SkPrivateKey
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, key: SkKeyPair) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(SkPrivateKey)
+redactType(SkKeyPair)
 
 func `==`*(a, b: SkPrivateKey): bool =
   secp256k1.SkSecretKey(a) == secp256k1.SkSecretKey(b)

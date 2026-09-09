@@ -691,12 +691,6 @@ proc `==`*(key1, key2: PrivateKey): bool =
   else:
     false
 
-proc `$`*(key: PrivateKey): string =
-  ## Return a diagnostic representation without exposing private key material.
-  ## Use `getBytes`, `getRawBytes`, `toBytes`, or `toRawBytes` for intentional
-  ## serialization.
-  Redacted
-
 proc `$`*(key: PublicKey): string =
   ## Get string representation of public key ``key``.
   case key.scheme
@@ -750,31 +744,9 @@ func shortLog*(key: PublicKey): string =
     else:
       "unsupported secp256k1 key"
 
-proc `$`*(key: KeyPair): string =
-  Redacted
-
-proc `$`*(secret: Secret): string =
-  Redacted
-
-chronicles.formatIt(PrivateKey):
-  Redacted
-
-chronicles.formatIt(KeyPair):
-  Redacted
-
-chronicles.formatIt(Secret):
-  Redacted
-
-proc writeValue*(
-    writer: var JsonWriter, key: PrivateKey
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, key: KeyPair) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, secret: Secret) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(PrivateKey)
+redactType(KeyPair)
+redactType(Secret)
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.

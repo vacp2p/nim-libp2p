@@ -268,28 +268,8 @@ proc random*(T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng): EcResult[T] =
     key = EcKeyPair(seckey: seckey, pubkey: pubkey)
   ok(key)
 
-proc `$`*(seckey: EcPrivateKey): string =
-  ## Return a diagnostic representation without exposing private key material.
-  ## Use `getBytes`, `getRawBytes`, `toBytes`, or `toRawBytes` for intentional
-  ## serialization.
-  Redacted
-
-proc `$`*(key: EcKeyPair): string =
-  Redacted
-
-chronicles.formatIt(EcPrivateKey):
-  Redacted
-
-chronicles.formatIt(EcKeyPair):
-  Redacted
-
-proc writeValue*(
-    writer: var JsonWriter, key: EcPrivateKey
-) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
-
-proc writeValue*(writer: var JsonWriter, key: EcKeyPair) {.raises: [IOError].} =
-  writer.writeValue(Redacted)
+redactType(EcPrivateKey)
+redactType(EcKeyPair)
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.
