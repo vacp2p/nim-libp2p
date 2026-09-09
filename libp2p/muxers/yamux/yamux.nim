@@ -693,8 +693,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           if header.length > 0:
             var buffer = newSeqUninit[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
-            trace "Yamux data frame received",
-              messageSize = buffer.len, payloadPreview = shortLog(buffer)
+            trace "Yamux data frame received", messageSize = buffer.len
             await channel.gotDataFromRemote(move(buffer))
 
         if MsgFlags.Fin in header.flags:

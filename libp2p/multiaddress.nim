@@ -1365,18 +1365,16 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
 
 const AvgMultiAddressStringLength = 32
 
-func shortLog*(addrs: seq[MultiAddress], maxAddrs = ShortCollectionMax): string =
-  let limit = min(addrs.len, maxAddrs)
-  var res = newStringOfCap(limit * AvgMultiAddressStringLength)
-  for i in 0 ..< limit:
-    if i > 0:
-      res.add(',')
-    res.add($addrs[i])
-  if addrs.len > maxAddrs:
-    res.add(",...(+")
-    res.add($(addrs.len - maxAddrs))
-    res.add(" more)")
-  return res
+func shortLog*(addrs: seq[MultiAddress]): string =
+  ## Keeps this bounded formatter visible to Chronicles and the log-field audit;
+  ## rendering itself is delegated to the generic collection formatter.
+  shortLog[MultiAddress](addrs, averageItemLength = AvgMultiAddressStringLength)
+
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
+
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
 
 ## protobuf_serialization extension
 

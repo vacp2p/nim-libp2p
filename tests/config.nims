@@ -43,10 +43,6 @@ else:
   switch("define", "chronicles_log_level=TRACE")
   switch("define", "chronicles_runtime_filtering=on")
 
-# begin tests Nimble config (version 2)
-when withDir(testsDir, system.fileExists("nimble.paths")):
-  include "nimble.paths"
-# end tests Nimble config
 # begin Nimble config (version 2)
 when withDir(thisDir(), system.fileExists("nimble.paths")):
   include "nimble.paths"

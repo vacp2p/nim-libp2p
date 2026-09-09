@@ -7,7 +7,10 @@ import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
 import
-  ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
+  ./[
+    types, routing_table_manager, service_discovery_metrics, registrar, connection,
+    discovery_tracker,
+  ]
 import ../../utils/future
 
 logScope:
@@ -91,6 +94,10 @@ proc processResponse(
     limit: int,
 ) =
   disco.admitCloserPeers(serviceId, response.closerPeers)
+
+  # an ad past the caller's limit is still a provider this node found
+  disco.tracker.recordProviders(serviceId, response.ads, FromLookup)
+
   for ad in response.ads:
     if found.len >= limit:
       break
@@ -105,6 +112,7 @@ proc drainCompletedPeers(
     let res = fut.value()
     if res.isOk():
       disco.admitCloserPeers(serviceId, res.value().closerPeers)
+      disco.tracker.recordProviders(serviceId, res.value().ads, FromLookup)
 
 proc collectBucketAds(
     disco: ServiceDiscovery,
@@ -153,6 +161,8 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
 
   debug "Register interest", service = serviceId, serviceId = serviceHash
 
+  disco.tracker.startInterest(serviceHash)
+
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
@@ -166,6 +176,8 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
 
   debug "Unregister interest", service = serviceId, serviceId = serviceHash
 
+  disco.tracker.stopInterest(serviceHash)
+
   disco.rtManager.removeService(serviceHash, Interest)
 
 proc lookup*(
@@ -173,6 +185,8 @@ proc lookup*(
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   ## Look up providers for a specific service id.
   cd_lookup_requests.inc()
+
+  disco.tracker.startInterest(serviceId)
 
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,

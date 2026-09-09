@@ -384,12 +384,15 @@ proc dialInOrder(
 
   for rawAddress in addrs:
     if deadline.timeLeft().isZero():
-      debug "Peer dial timed out", peerId, addresses = addrs.shortLog
+      debug "Peer dial timed out", peerId, addresses = addrs
       return nil
 
     let advertised = DialCandidate(address: rawAddress, peerId: peerId)
-    for expanded in await self.expandCandidate(advertised, deadline):
-      for candidate in await self.resolveCandidate(expanded, deadline):
+    # Retain lookup results across awaits in the loop bodies.
+    let expandedCandidates = await self.expandCandidate(advertised, deadline)
+    for expanded in expandedCandidates:
+      let resolvedCandidates = await self.resolveCandidate(expanded, deadline)
+      for candidate in resolvedCandidates:
         let mux = await self.dialAndUpgrade(
           candidate.peerId, candidate.hostname, candidate.address, dir, deadline,
           forceDial, reach,
@@ -521,7 +524,7 @@ proc dialAndUpgrade*(
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Peer dial started", peerId, addresses = dialAddrs.shortLog
+  debug "Peer dial started", peerId, addresses = dialAddrs
 
   if self.dialRanking:
     await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
@@ -757,7 +760,7 @@ proc tryDial*(
   ## Returns the observed address when the probe succeeds.
   ##
 
-  trace "Peer reachability probe started", peerId, addresses = addrs.shortLog
+  trace "Peer reachability probe started", peerId, addresses = addrs
   try:
     let mux = await self.dialAndUpgrade(Opt.some(peerId), addrs)
     if mux.isNil():
@@ -818,7 +821,7 @@ method dial*(
       await stream.reset()
 
   try:
-    trace "Peer dial started", peerId, addresses = dialAddrs.shortLog
+    trace "Peer dial started", peerId, addresses = dialAddrs
     conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
     trace "Protocol stream opening started", peerId, protocols = protos, conn
     stream = await self.connManager.getStream(conn)
@@ -837,7 +840,7 @@ method dial*(
     raise exc
   except CatchableError as exc:
     debug "Protocol stream establishment failed",
-      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs.shortLog, conn
+      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs, conn
     await cleanup()
     raise newException(
       DialFailedError,

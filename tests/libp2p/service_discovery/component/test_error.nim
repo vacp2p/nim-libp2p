@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+from std/times import getTime, toUnix
 import chronos, results
 import
   ../../../../libp2p/[
@@ -317,8 +318,8 @@ suite "Service Discovery Component - Error Handling":
 
     var badTicket = kad_protobuf.Ticket(
       advertisement: otherAdBytes,
-      tInit: Moment.now() - 10.secs,
-      tMod: Moment.now() - 5.secs,
+      tInit: getTime().toUnix() - 10,
+      tMod: getTime().toUnix() - 5,
       tWaitFor: 1.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -357,8 +358,8 @@ suite "Service Discovery Component - Error Handling":
     let otherNode = setupServiceDiscoveryNode()
     var badTicket = kad_protobuf.Ticket(
       advertisement: adBytes,
-      tInit: Moment.now() - 1000.secs,
-      tMod: Moment.now() - 500.secs,
+      tInit: getTime().toUnix() - 1000,
+      tMod: getTime().toUnix() - 500,
       tWaitFor: 10.secs,
       signature: Opt.none(seq[byte]),
     )

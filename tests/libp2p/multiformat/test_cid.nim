@@ -3,6 +3,7 @@
 
 {.used.}
 
+import std/sets
 import ../../../libp2p/[cid, multihash, multicodec]
 import ../../tools/[unittest]
 
@@ -53,6 +54,8 @@ suite "Content identifier CID test suite":
       .tryGet()
     check:
       cid0 == cid1
+      hash(cid0) == hash(cid1)
+      cid1 in [cid0].toHashSet()
       cid1 == cid2
       cid2 == cid3
       cid3 == cid0
@@ -60,3 +63,15 @@ suite "Content identifier CID test suite":
       cid1 != cid5
       cid2 != cid4
       cid3 != cid6
+
+  test "Binary validation agrees with decoding":
+    let digest = MultiHash.digest("sha2-256", [byte 1, 2, 3]).get()
+    for version in [CIDv0, CIDv1]:
+      let encoded = Cid.init(version, multiCodec("dag-pb"), digest).get().data.buffer
+      check Cid.validate(encoded)
+      check not Cid.validate(encoded[0 ..< encoded.high])
+      check not Cid.validate(encoded & @[0.byte])
+    check not Cid.validate([])
+    check not Cid.validate([1.byte])
+    check not Cid.validate([1.byte, 0xff])
+    check not Cid.validate([1.byte, 0x70])

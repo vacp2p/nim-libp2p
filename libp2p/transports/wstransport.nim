@@ -5,6 +5,7 @@
 
 {.push raises: [].}
 
+import ../logging
 import std/[sequtils]
 import chronos, chronicles, results, metrics, stew/byteutils
 import
@@ -31,7 +32,6 @@ const
   DefaultConcurrentAccepts = 200
   DefaultAcceptFailureBackoff = 100.millis
   DefaultAutotlsWaitTimeout = 3.seconds
-  DefaultAutotlsRetries = 3
 
 type
   WsStream = ref object of Connection
@@ -135,6 +135,7 @@ method getWrapped*(s: WsStream): Connection =
   nil
 
 type WsTransport* = ref object of Transport
+  descriptorWarnings: LogRateLimit
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
@@ -276,7 +277,9 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
           if exc of TransportUseClosedError:
             debug "Server was closed", err = exc.msg
           elif exc of TransportTooManyError:
-            debug "Too many files opened", err = exc.msg
+            if self.descriptorWarnings.allowLog():
+              warn "Connection acceptance limited by file descriptor exhaustion",
+                err = exc.msg, errType = exc.name, transport = "websocket"
           elif exc of TransportAbortedError:
             debug "Transport connection aborted", err = exc.msg
           elif exc of TransportOsError:
@@ -414,7 +417,7 @@ method start*(
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
 
-  trace "Listening on", addresses = self.addrs.shortLog
+  trace "Listening on", addresses = self.addrs
 
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
@@ -479,8 +482,7 @@ proc connHandler(
       )
     except CatchableError as e:
       trace "WebSocket connection address extraction failed", err = e.msg
-      if not (isNil(stream) and stream.stream.reader.closed):
-        safeClose(stream)
+      safeClose(stream)
       raise e
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))
@@ -498,13 +500,6 @@ proc connHandler(
 method accept*(
     self: WsTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  # wstransport can only start accepting connections after autotls is done
-  # if autotls is not present, self.running is true after listener setup completes
-  var retries = 0
-  while not self.running and retries < DefaultAutotlsRetries:
-    retries += 1
-    await sleepAsync(DefaultAutotlsWaitTimeout)
-
   if not self.running:
     raise newTransportClosedError()
 

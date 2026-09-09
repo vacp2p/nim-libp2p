@@ -93,10 +93,32 @@ type
     registrationWindow*: Duration
     bucketsCount*: int
 
+  DiscoverySource* = enum
+    FromLookup
+    FromRegistration
+
+  ProviderDiscovery* = object
+    provider*: PeerId
+    rank*: int
+    elapsed*: Duration
+    source*: DiscoverySource
+
+  ServiceInterest* = object
+    active*: bool
+    startedAt*: Moment
+    seen*: HashSet[PeerId]
+    found*: seq[ProviderDiscovery]
+
+  DiscoveryTracker* = ref object
+    selfId*: PeerId
+    maxProviders*: int
+    interests*: Table[ServiceId, ServiceInterest]
+
   ServiceDiscovery* = ref object of KadDHT
     advertiser*: Advertiser
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
+    tracker*: DiscoveryTracker
     services*: HashSet[ServiceInfo]
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config

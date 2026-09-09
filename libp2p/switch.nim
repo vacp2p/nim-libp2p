@@ -352,7 +352,10 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Cannot cancel accepts", err = exc.msg
+    warn "Accept loop cancellation failed",
+      err = exc.msg,
+      errType = exc.name,
+      pendingAccepts = s.acceptFuts.countIt(not it.finished())
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]

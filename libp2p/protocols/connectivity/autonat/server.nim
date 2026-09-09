@@ -92,10 +92,10 @@ proc tryDial(
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", err = exc.msg, addresses = addrs.shortLog
+    debug "All dial attempts failed", err = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", err = exc.msg, addresses = addrs.shortLog
+    debug "Dial timeout", err = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "Dial timeout")
   finally:
     try:
@@ -128,7 +128,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
     return stream.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(observedAddr)
-  trace "addrs received", addresses = peerInfo.addrs.shortLog
+  trace "addrs received", addresses = peerInfo.addrs
   for ma in peerInfo.addrs:
     isRelayed = ma.contains(multiCodec("p2p-circuit")).valueOr:
       continue
@@ -154,7 +154,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
   if len(addrs) == 0:
     return stream.sendResponseError(DialRefused, "No dialable address")
   let addrsSeq = toSeq(addrs)
-  trace "trying to dial", addresses = addrsSeq.shortLog
+  trace "trying to dial", addresses = addrsSeq
   return autonat.tryDial(stream, addrsSeq)
 
 proc new*(
