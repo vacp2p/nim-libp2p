@@ -41,6 +41,17 @@ proc refreshSelfSignedPeerRecord(
   (await disco.putValue(key, Value.fromBytes(encodedSR))).isOkOr:
     debug "Failed to put signed peer record", err = error
 
+proc republishInFlight(disco: ServiceDiscovery): bool =
+  not disco.selfRecordRepublish.isNil() and not disco.selfRecordRepublish.finished()
+
+proc republishOnAddressChange(disco: ServiceDiscovery): PeerInfoObserver =
+  ## Without this, a moved address stays stale in the DHT for a `bucketRefreshTime`.
+  proc(p: PeerInfo) {.gcsafe, raises: [].} =
+    if disco.stopping or disco.republishInFlight():
+      return
+
+    disco.selfRecordRepublish = disco.refreshSelfSignedPeerRecord()
+
 proc maintainSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
@@ -174,6 +185,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   if disco.xprPublishing:
     disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
+    disco.addressObserver = disco.republishOnAddressChange()
+    disco.switch.peerInfo.addObserver(disco.addressObserver)
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
@@ -200,9 +213,17 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   let serviceBootstrapFuts = move disco.serviceBootstrapFuts
   await noCancel serviceBootstrapFuts.values.toSeq().cancelAndWait()
 
+  if not disco.addressObserver.isNil():
+    disco.switch.peerInfo.removeObserver(disco.addressObserver)
+    disco.addressObserver = nil
+
   if not disco.selfSignedPeerRecordLoop.isNil:
     await disco.selfSignedPeerRecordLoop.cancelAndWait()
     disco.selfSignedPeerRecordLoop = nil
+
+  if not disco.selfRecordRepublish.isNil:
+    await disco.selfRecordRepublish.cancelAndWait()
+    disco.selfRecordRepublish = nil
 
   if not disco.pruneExpiredAdsLoop.isNil:
     await disco.pruneExpiredAdsLoop.cancelAndWait()

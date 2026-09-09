@@ -6,7 +6,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
-import ./[types, service_discovery_metrics, registrar]
+import ./[types, service_discovery_metrics, registrar, dial_backoff]
 
 logScope:
   topics = "service-disco connection"
@@ -26,11 +26,17 @@ proc send*(
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
 
+  if disco.dialBackedOff(peerId, addrs):
+    return err("peer is in dial backoff: " & $peerId)
+
   let stream =
     try:
       await disco.switch.dial(peerId, addrs, disco.codec)
     except DialFailedError as e:
+      disco.recordDialFailure(peerId, addrs)
       return err("dialing peer failed: " & e.msg)
+  disco.clearDialFailures(peerId)
+
   var replyRead = false
   defer:
     # Closing only half-closes the channel: an abandoned RPC leaves its unread

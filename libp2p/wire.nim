@@ -187,3 +187,23 @@ proc isPrivateMA*(ma: MultiAddress): bool =
     return false
 
   hostIP.isPrivate() or hostIP.isShared() or hostIP.isLinkLocal()
+
+const AnyAddress4Mapped = [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0, 0]
+  ## ``::ffff:0.0.0.0``, the IPv4-mapped spelling of the wildcard host.
+
+proc isDialableMA*(ma: MultiAddress): bool =
+  ## False for a wildcard bind host (``0.0.0.0`` / ``::``) or an unresolved ephemeral port.
+  if isCircuitRelayMA(ma):
+    return true
+
+  let hostIP = initTAddress(ma).valueOr:
+    return true
+
+  case hostIP.family
+  of AddressFamily.IPv4:
+    hostIP.port != Port(0) and hostIP.address_v4 != AnyAddress.address_v4
+  of AddressFamily.IPv6:
+    hostIP.port != Port(0) and hostIP.address_v6 != AnyAddress6.address_v6 and
+      hostIP.address_v6 != AnyAddress4Mapped
+  else:
+    true

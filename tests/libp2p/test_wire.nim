@@ -192,3 +192,27 @@ suite "isGlobalMA":
   test "rejects a name":
     check not isGlobalMA(ma("/dns4/example.com/tcp/4001"))
     check not isGlobalMA(ma("/dns/example.com/tcp/4001"))
+
+suite "isDialableMA":
+  test "wildcard bind hosts are not dialable":
+    check not isDialableMA(ma("/ip4/0.0.0.0/tcp/60000"))
+    check not isDialableMA(ma("/ip6/::/tcp/60000"))
+    check not isDialableMA(ma("/ip6/::ffff:0.0.0.0/tcp/60000"))
+
+  test "an unresolved ephemeral port is not dialable":
+    check not isDialableMA(ma("/ip4/127.0.0.1/tcp/0"))
+    check not isDialableMA(ma("/ip4/1.1.1.1/tcp/0"))
+
+  test "private and loopback addresses stay dialable":
+    check isDialableMA(ma("/ip4/127.0.0.1/tcp/4001"))
+    check isDialableMA(ma("/ip4/192.168.1.87/tcp/59203"))
+    check isDialableMA(ma("/ip4/1.1.1.1/tcp/4001"))
+
+  test "non-wire addresses pass through":
+    check isDialableMA(ma("/dns4/example.com/tcp/4001"))
+    check isDialableMA(ma("/unix/tmp/socket"))
+    check isDialableMA(
+      ma(
+        "/ip4/0.0.0.0/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
+      )
+    )

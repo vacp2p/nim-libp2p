@@ -19,6 +19,12 @@ proc filterAddrs*(
 ): seq[MultiAddress] =
   addrs.filterIt(policy.accepts(it))
 
+proc dialableAddrs*(
+    policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
+): seq[MultiAddress] =
+  ## A preset chooses `policy`, but no preset ever wants to dial `0.0.0.0`.
+  addrs.filterIt(isDialableMA(it) and policy(it))
+
 const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress
 ): bool {.gcsafe, raises: [].} =

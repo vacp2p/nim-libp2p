@@ -11,7 +11,7 @@ import
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
   ]
-import ../../tools/unittest
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 suite "Advertiser - addProvidedService":
@@ -268,7 +268,8 @@ suite "Advertiser - removeProvidedService":
 
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
-    check disco.registerInterest(service.id)
+    discard disco.registerInterest(service.id)
+    check disco.rtManager.serviceStatus[sid] == Both
 
     let bootstrapFut = newFuture[void]("test service bootstrap")
     disco.serviceBootstrapFuts[sid] = bootstrapFut
@@ -385,3 +386,25 @@ suite "Advertiser - record creation":
     let recDef = discoDef.record()
     check recDef.isOk()
     check recDef.get().data.addresses.len == 2
+
+  test "record creation drops addresses that no policy can make dialable":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    let routable = makeMultiAddress("10.0.0.1")
+    disco.switch.peerInfo.addrs =
+      @[ma("/ip4/0.0.0.0/tcp/60000"), ma("/ip4/127.0.0.1/tcp/0"), routable]
+
+    let rec = disco.record()
+    check rec.isOk()
+    let xprAddrs = rec.get().data.addresses
+    check:
+      xprAddrs.len == 1
+      xprAddrs[0].address == routable
+
+  test "record creation fails while nothing dialable is announced":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+
+    disco.switch.peerInfo.addrs = @[ma("/ip4/0.0.0.0/tcp/60000")]
+    check disco.record().isErr()
+
+    disco.switch.peerInfo.addrs = @[]
+    check disco.record().isErr()

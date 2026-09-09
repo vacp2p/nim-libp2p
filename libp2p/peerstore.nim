@@ -488,7 +488,7 @@ proc updatePeerInfo*(
     direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
-    let addrs = peerStore.addressPolicy.filterAddrs(info.addrs)
+    let addrs = peerStore.addressPolicy.dialableAddrs(info.addrs)
     if addrs.len > 0:
       peerStore[AddressBook].set(info.peerId, addrs, AddressConfidence.Medium)
     else:

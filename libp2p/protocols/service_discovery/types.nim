@@ -34,6 +34,9 @@ const
   Default_Delta* = 1.secs
   Default_M_buckets* = 16
   Default_IpSimCoefficient* = 1.0
+  Default_DialBackoffBase* = 30.secs
+  Default_DialBackoffMax* = 30.minutes
+  Default_MaxDialFailures* = 5
 
 type
   ServiceId* = Key
@@ -93,6 +96,11 @@ type
     ipSimCoefficient*: float64
     registrationWindow*: Duration
     bucketsCount*: int
+    dialBackoffBase*: Duration
+    dialBackoffMax*: Duration
+      ## Cap of the doubling dial backoff, reached only above 5 failures.
+    maxDialFailures*: int
+      ## Consecutive failed dials before the peer leaves every service table.
 
   DiscoverySource* = enum
     FromLookup
@@ -130,6 +138,9 @@ type
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
     serviceBootstrapFuts*: Table[ServiceId, Future[void]]
+    selfRecordRepublish*: Future[void]
+    addressObserver*: PeerInfoObserver
+    dialFailures*: Table[PeerId, ProbeFailure]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
@@ -144,9 +155,14 @@ proc new*(
     ipSimCoefficient = Default_IpSimCoefficient,
     registrationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
+    dialBackoffBase = Default_DialBackoffBase,
+    dialBackoffMax = Default_DialBackoffMax,
+    maxDialFailures = Default_MaxDialFailures,
 ): T {.raises: [].} =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   doAssert ipSimCoefficient >= 0.0, "ipSimCoefficient must be >= 0"
+  doAssert maxDialFailures > 0, "maxDialFailures must be > 0"
+  doAssert dialBackoffBase > 0.nanoseconds, "dialBackoffBase must be > 0"
   ServiceDiscoveryConfig(
     kRegister: kRegister,
     kLookup: kLookup,
@@ -159,6 +175,9 @@ proc new*(
     ipSimCoefficient: ipSimCoefficient,
     registrationWindow: registrationWindow,
     bucketsCount: bucketsCount,
+    dialBackoffBase: dialBackoffBase,
+    dialBackoffMax: dialBackoffMax,
+    maxDialFailures: maxDialFailures,
   )
 
 proc hash*(t: AdvertiseTask): Hash =
@@ -263,7 +282,10 @@ method select*(
 
 proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
   let peerInfo = disco.switch.peerInfo
-  let filteredAddresses = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
+  let filteredAddresses = disco.config.addressPolicy.dialableAddrs(peerInfo.addrs)
+  # Before the transports bind, `addrs` still holds the raw listen address.
+  if filteredAddresses.len == 0:
+    return err("no dialable address to publish yet")
 
   let peerRecord = ExtendedPeerRecord.init(
     peerId = peerInfo.peerId,
