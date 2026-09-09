@@ -53,12 +53,6 @@ func shortLog*(pid: PeerId): string =
 chronicles.formatIt(PeerId):
   shortLog(it)
 
-func shortLog*(pid: Opt[PeerId]): string =
-  if pid.isNone:
-    "[none]"
-  else:
-    shortLog(pid.value())
-
 chronicles.formatIt(Opt[PeerId]):
   shortLog(it)
 

@@ -3,7 +3,8 @@
 
 {.used.}
 
-import ../../libp2p/[multiaddress, utils/shortlog]
+import ../../libp2p/multiaddress
+import ../../libp2p/utils/[opt, shortlog]
 import ../tools/unittest
 
 {.push raises: [].}
@@ -33,6 +34,12 @@ suite "Short log":
     check:
       shortLog("012345678901") == "012345678901"
       shortLog("0123456789012") == "012345...789012"
+
+  test "optional values use inner formatters, fallbacks, and unset markers":
+    check:
+      shortLog(Opt.some(ShortItem(value: "one"))) == "short-one"
+      shortLog(Opt.some(42)) == "42"
+      shortLog(Opt.none(ShortItem)) == "<unset>"
 
   test "generic collections are bounded and use element short logs":
     check shortLog(@[ShortItem(value: "one"), ShortItem(value: "two")], 1) ==

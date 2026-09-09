@@ -4,6 +4,7 @@
 {.push raises: [].}
 
 import stew/byteutils
+import ./opt
 
 const ShortDumpMax = 12
 const ShortCollectionMax* = 5
@@ -39,6 +40,16 @@ func shortLog*(item: string): string =
   s &= "..."
   s &= item[(item.len - split) .. item.high]
   s
+
+func shortLog*[T](item: Opt[T]): string =
+  if item.isNone:
+    return "<unset>"
+
+  let value = item.get()
+  when compiles(shortLog(value)):
+    $shortLog(value)
+  else:
+    $value
 
 func shortLog*[T](
     items: openArray[T], maxItems = ShortCollectionMax, averageItemLength = ShortDumpMax
