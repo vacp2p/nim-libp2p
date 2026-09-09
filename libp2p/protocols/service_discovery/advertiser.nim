@@ -20,7 +20,7 @@ type RegistrationResponse* = object
   ticket*: Opt[Ticket]
   closerPeers*: seq[PeerInfo]
 
-proc clear*(a: Advertiser) {.async: (raises: []).} =
+proc cancelRunningTasks(a: Advertiser) {.async: (raises: []).} =
   var running = move a.running
   var runningFuts: seq[Future[void]]
   for task in running:
@@ -28,8 +28,11 @@ proc clear*(a: Advertiser) {.async: (raises: []).} =
 
   await runningFuts.cancelAndWait()
 
-  a.providedAdverts = initTable[ServiceId, seq[byte]]()
   cd_advertiser_pending_actions.set(0)
+
+proc clear*(a: Advertiser) {.async: (raises: []).} =
+  await a.cancelRunningTasks()
+  a.providedAdverts = initTable[ServiceId, ProvidedAdvert]()
 
 proc cleanupFinishedTasks(a: Advertiser) =
   var toRemove: HashSet[AdvertiseTask]
@@ -52,7 +55,7 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
 proc advertFor(disco: ServiceDiscovery, serviceId: ServiceId): seq[byte] =
   ## The bytes stored when the service was added, a fresh record only after a clear().
   disco.advertiser.providedAdverts.withValue(serviceId, stored):
-    return stored[]
+    return stored[].bytes
 
   disco.getAdvertBytes(Opt.none(seq[byte])).get(@[])
 
@@ -187,6 +190,28 @@ proc maintainRegistrations*(
   if disco.services.len > 0 and
       (disco.localRegistrationLoop.isNil or disco.localRegistrationLoop.finished):
     disco.startLocalRegistration()
+
+proc republishProvidedAdverts*(
+    disco: ServiceDiscovery
+) {.async: (raises: [CancelledError]).} =
+  ## Registrars keep serving the bytes cached at `addProvidedService`.
+  let fresh = disco.getAdvertBytes(Opt.none(seq[byte])).valueOr:
+    return
+
+  var refreshed = false
+  for advert in disco.advertiser.providedAdverts.mvalues:
+    if advert.callerSupplied:
+      continue
+    advert.bytes = fresh
+    refreshed = true
+
+  if not refreshed:
+    return
+
+  await disco.advertiser.cancelRunningTasks()
+  await disco.stopLocalRegistration()
+  disco.startLocalRegistration()
+  await disco.maintainRegistrations()
 
 proc maintainAdvertiser*(
     disco: ServiceDiscovery
@@ -397,7 +422,8 @@ proc addProvidedService*(
     return err("cannot build the extended peer record to advertise")
 
   # Rotations reuse these bytes; a later seqNo would duplicate this node in a lookup.
-  disco.advertiser.providedAdverts[serviceId] = advertBytes
+  disco.advertiser.providedAdverts[serviceId] =
+    ProvidedAdvert(bytes: advertBytes, callerSupplied: advert.isSome())
 
   debug "Added provided service", service = service.id, serviceId
   cd_advertiser_services_added.inc()

@@ -202,6 +202,19 @@ suite "isDialableMA":
   test "an unresolved ephemeral port is not dialable":
     check not isDialableMA(ma("/ip4/127.0.0.1/tcp/0"))
     check not isDialableMA(ma("/ip4/1.1.1.1/tcp/0"))
+    check not isDialableMA(ma("/ip4/1.1.1.1/udp/0/quic-v1"))
+    check not isDialableMA(ma("/dns4/example.com/tcp/0"))
+
+  test "a terminal peer id does not hide the host or the port":
+    check not isDialableMA(
+      ma("/ip4/0.0.0.0/tcp/60000/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")
+    )
+    check not isDialableMA(
+      ma("/ip4/1.1.1.1/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")
+    )
+    check isDialableMA(
+      ma("/ip4/1.1.1.1/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC")
+    )
 
   test "private and loopback addresses stay dialable":
     check isDialableMA(ma("/ip4/127.0.0.1/tcp/4001"))

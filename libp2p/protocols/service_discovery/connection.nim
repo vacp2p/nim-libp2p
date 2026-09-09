@@ -35,7 +35,6 @@ proc send*(
     except DialFailedError as e:
       disco.recordDialFailure(peerId, addrs)
       return err("dialing peer failed: " & e.msg)
-  disco.clearDialFailures(peerId)
 
   var replyRead = false
   defer:
@@ -57,10 +56,12 @@ proc send*(
     try:
       await stream.writeLp(encodedMsg)
     except LPStreamError as e:
+      disco.recordDialFailure(peerId, addrs)
       return err("connection writing failed: " & e.msg)
     try:
       replyBuf = await stream.readLp(ServiceDiscoveryMaxMsgSize)
     except LPStreamError as e:
+      disco.recordDialFailure(peerId, addrs)
       return err("connection reading failed: " & e.msg)
   replyRead = true
 
@@ -68,8 +69,10 @@ proc send*(
   cd_message_bytes_received.inc(replyBuf.len.float64, labelValues = [$msg.msgType])
 
   let reply = Message.decode(replyBuf).valueOr:
+    disco.recordDialFailure(peerId, addrs)
     return err("failed to decode message response: " & $error)
 
+  disco.clearDialFailures(peerId)
   return ok(reply)
 
 proc handleMessage*(

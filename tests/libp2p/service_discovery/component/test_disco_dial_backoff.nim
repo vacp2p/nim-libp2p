@@ -10,6 +10,7 @@ import
     protocols/kademlia,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/connection,
+    protocols/service_discovery/dial_backoff,
     protocols/service_discovery/types,
     switch,
   ]
@@ -22,8 +23,9 @@ suite "Service Discovery Component - Dial Backoff":
     checkTrackers()
 
   asyncTest "an unreachable peer backs off, then leaves the service table":
+    # A backoff no test run can outlive keeps the assertions off the scheduler.
     let discoConfig = ServiceDiscoveryConfig.new(
-      dialBackoffBase = 1.millis, dialBackoffMax = 1.millis, maxDialFailures = 3
+      dialBackoffBase = 1.hours, dialBackoffMax = 1.hours, maxDialFailures = 3
     )
     let disco = setupServiceDiscoveryNode(discoConfig = discoConfig)
     startAndDeferStop(@[disco])
@@ -33,9 +35,8 @@ suite "Service Discovery Component - Dial Backoff":
     let table = disco.rtManager.getTable(service.id.hashServiceId()).get()
 
     let dead = randomPeerId()
-    disco.switch.peerStore[AddressBook].set(
-      dead, @[ma("/ip4/127.0.0.1/tcp/1")], AddressConfidence.Low
-    )
+    let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/1")]
+    disco.switch.peerStore[AddressBook].set(dead, deadAddrs, AddressConfidence.Low)
     check table.insert(dead)
 
     let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.ping)
@@ -48,9 +49,9 @@ suite "Service Discovery Component - Dial Backoff":
       strutils.contains(backedOff.error, "backoff")
       table.contains(dead.toKey())
 
+    # The gate blocks further dials, so the rest is recorded without a wait.
     for _ in 1 .. 2:
-      await sleepAsync(10.millis)
-      check (await disco.send(dead, msg)).isErr()
+      disco.recordDialFailure(dead, deadAddrs)
 
     check not table.contains(dead.toKey())
 

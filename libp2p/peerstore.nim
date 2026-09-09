@@ -114,6 +114,7 @@ type
     toClean*: seq[PeerId]
     addressPolicy*: PeerAddressPolicy
       ## Gate on an inbound peer address: storage, redistribution, hole punch, lookup.
+    allowUndialableAddrs*: bool ## Local test setups store a wildcard host too.
     addressTtls*: AddressConfidenceTtls ## Per-confidence TTLs for address expiry.
     pruneHandle*: Future[void]
 
@@ -488,7 +489,8 @@ proc updatePeerInfo*(
     direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
-    let addrs = peerStore.addressPolicy.dialableAddrs(info.addrs)
+    let addrs =
+      peerStore.addressPolicy.dialableAddrs(info.addrs, peerStore.allowUndialableAddrs)
     if addrs.len > 0:
       peerStore[AddressBook].set(info.peerId, addrs, AddressConfidence.Medium)
     else:

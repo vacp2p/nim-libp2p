@@ -20,10 +20,10 @@ proc filterAddrs*(
   addrs.filterIt(policy.accepts(it))
 
 proc dialableAddrs*(
-    policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
+    policy: PeerAddressPolicy, addrs: openArray[MultiAddress], allowUndialable = false
 ): seq[MultiAddress] =
-  ## A preset chooses `policy`, but no preset ever wants to dial `0.0.0.0`.
-  addrs.filterIt(isDialableMA(it) and policy(it))
+  ## A preset chooses `policy`, and `allowUndialable` keeps `0.0.0.0` for a local test.
+  addrs.filterIt((allowUndialable or isDialableMA(it)) and policy(it))
 
 const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress

@@ -71,7 +71,8 @@ proc admissibleAddrs(
     caps: DiversityCaps,
     pending: seq[PeerId] = @[],
 ): seq[MultiAddress] {.raises: [].} =
-  let addrs = addressPolicy.dialableAddrs(p.addrs)
+  let addrs =
+    addressPolicy.dialableAddrs(p.addrs, switch.peerStore.allowUndialableAddrs)
   if addrs.len == 0:
     return @[]
   if not switch.peerStore[AddressBook].hasIpDiversity(

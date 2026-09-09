@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## Hold back a peer whose service-discovery dial failed. An address policy
-## rejects an address no one can reach; only the failure count catches a
-## well-formed public address that is simply dead.
+## Hold back a peer whose exchange failed anywhere from the dial to the decoded reply.
 
 {.push raises: [].}
 

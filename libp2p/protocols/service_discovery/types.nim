@@ -79,10 +79,14 @@ type
     registrar*: PeerId
     bucketIdx*: int
 
+  ProvidedAdvert* = object
+    bytes*: seq[byte]
+    callerSupplied*: bool ## Bytes we did not build carry addresses we cannot refresh.
+
   Advertiser* = ref object
     running*: HashSet[AdvertiseTask]
     seqNo*: uint64
-    providedAdverts*: Table[ServiceId, seq[byte]]
+    providedAdverts*: Table[ServiceId, ProvidedAdvert]
 
   ServiceDiscoveryConfig* = object
     kRegister*: int
@@ -97,8 +101,7 @@ type
     registrationWindow*: Duration
     bucketsCount*: int
     dialBackoffBase*: Duration
-    dialBackoffMax*: Duration
-      ## Cap of the doubling dial backoff, reached only above 5 failures.
+    dialBackoffMax*: Duration ## Cap of the exponential dial backoff.
     maxDialFailures*: int
       ## Consecutive failed dials before the peer leaves every service table.
 
@@ -132,13 +135,13 @@ type
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
-    selfSignedPeerRecordLoop*: Future[void]
+    selfPublicationLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
     serviceBootstrapFuts*: Table[ServiceId, Future[void]]
-    selfRecordRepublish*: Future[void]
+    addressChanged*: AsyncEvent
     addressObserver*: PeerInfoObserver
     dialFailures*: Table[PeerId, ProbeFailure]
 
@@ -163,6 +166,7 @@ proc new*(
   doAssert ipSimCoefficient >= 0.0, "ipSimCoefficient must be >= 0"
   doAssert maxDialFailures > 0, "maxDialFailures must be > 0"
   doAssert dialBackoffBase > 0.nanoseconds, "dialBackoffBase must be > 0"
+  doAssert dialBackoffMax > 0.nanoseconds, "dialBackoffMax must be > 0"
   ServiceDiscoveryConfig(
     kRegister: kRegister,
     kLookup: kLookup,
@@ -225,7 +229,7 @@ proc new*(T: typedesc[Advertiser]): T =
   T(
     running: initHashSet[AdvertiseTask](),
     seqNo: Moment.now().epochSeconds.uint64,
-    providedAdverts: initTable[ServiceId, seq[byte]](),
+    providedAdverts: initTable[ServiceId, ProvidedAdvert](),
   )
 
 proc toKey*(service: ServiceInfo): Key =
@@ -282,7 +286,9 @@ method select*(
 
 proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
   let peerInfo = disco.switch.peerInfo
-  let filteredAddresses = disco.config.addressPolicy.dialableAddrs(peerInfo.addrs)
+  let filteredAddresses = disco.config.addressPolicy.dialableAddrs(
+    peerInfo.addrs, disco.switch.peerStore.allowUndialableAddrs
+  )
   # Before the transports bind, `addrs` still holds the raw listen address.
   if filteredAddresses.len == 0:
     return err("no dialable address to publish yet")
