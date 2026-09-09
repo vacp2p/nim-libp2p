@@ -1,10 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/macros
+import std/[macros, tables]
 import results
 
 export results
+
+func getOpt*[K, V](t: Table[K, V], key: K): Opt[V] =
+  ## `Opt.some` of the value at `key`, `Opt.none` when `t` has no such key.
+  if key notin t:
+    return Opt.none(V)
+
+  try:
+    Opt.some(t[key])
+  except KeyError:
+    raiseAssert "key presence checked above"
 
 func toOpt*[T](v: Opt[T] | T): Opt[T] =
   when v is T:
