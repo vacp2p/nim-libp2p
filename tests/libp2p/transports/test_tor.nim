@@ -16,7 +16,6 @@ import
     muxers/muxer,
     muxers/mplex/mplex,
     builders,
-    connmanager,
   ]
 import ../../tools/[unittest, crypto, multiaddress]
 import ../../stubs/torstub
@@ -171,8 +170,6 @@ suite "Tor transport":
       let clientSwitch =
         TorSwitch.new(torServer = torServer, rng = rng(), flags = {ReuseAddr})
 
-      # This dial-only client has no Tor listen address.
-      clientSwitch.connManager.start()
       let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
 
       await conn.write("client")

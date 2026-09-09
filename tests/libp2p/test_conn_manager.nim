@@ -238,17 +238,23 @@ suite "Connection Manager":
     check await readyWaiter
     await connMngr.stop()
 
-  asyncTest "readiness waits require start":
+  asyncTest "readiness waits work without start until stopped":
     let connMngr = ConnManager.new()
     defer:
       await connMngr.stop()
-    check not (await connMngr.waitForPeerReady(peerId))
-    connMngr.start()
     let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
     await connMngr.storeMuxer(makeMuxer(peerId))
     check await readyWaiter
     await connMngr.stop()
     check not (await connMngr.waitForPeerReady(peerId))
+
+  asyncTest "new manager decays tags without explicit start":
+    let connMngr = ConnManager.new(scoring = PeerScoring(decayResolution: 1.millis))
+    defer:
+      await connMngr.stop()
+    connMngr.tagPeerDecaying(peerId, "initial", 1, 1.millis, decayFixed(1))
+    checkUntilTimeoutCustom(1.seconds, 10.millis):
+      connMngr.peerScore(peerId) == 0
 
   asyncTest "restart resumes readiness waits and retained tag decay":
     let connMngr = newWatermark(1, 2, decayResolution = 1.millis)
