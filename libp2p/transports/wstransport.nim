@@ -482,8 +482,7 @@ proc connHandler(
       )
     except CatchableError as e:
       trace "WebSocket connection address extraction failed", err = e.msg
-      if not (isNil(stream) and stream.stream.reader.closed):
-        safeClose(stream)
+      safeClose(stream)
       raise e
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))
