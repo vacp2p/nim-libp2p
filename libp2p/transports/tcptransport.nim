@@ -5,6 +5,7 @@
 
 {.push raises: [].}
 
+import ../logging
 import std/[sequtils]
 import chronos, chronicles, results
 import
@@ -34,6 +35,7 @@ type
     acceptFuts: seq[AcceptFuture]
     connectionsTimeout: Duration
     stopping: bool
+    descriptorWarnings: LogRateLimit
     closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
@@ -241,7 +243,9 @@ method accept*(
     try:
       await finished
     except TransportTooManyError as exc:
-      debug "Too many files opened", err = exc.msg
+      if self.descriptorWarnings.allowLog():
+        warn "Connection acceptance limited by file descriptor exhaustion",
+          err = exc.msg, errType = exc.name, transport = "tcp"
       return nil
     except TransportAbortedError as exc:
       debug "Transport connection aborted", err = exc.msg

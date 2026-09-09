@@ -4,6 +4,7 @@
 import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../utils/[heartbeat, future]
+import ../logging
 import ../[peerid, switch, multihash]
 import ./protocol
 import
@@ -65,7 +66,7 @@ proc checkAndEvictPeer(
   if kad.stopping:
     return
   if not kad.livenessSem.tryAcquire():
-    trace "Liveness probe skipped: no free slot", peerId = peerId.shortLog()
+    trace "Liveness probe skipped: no free slot", peerId
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
   defer:
@@ -84,8 +85,7 @@ proc checkAndEvictPeer(
     if rtable.isReplaceable(peerId, grace, Moment.now()):
       dueTables.add(rtable)
   if dueTables.len == 0:
-    trace "Liveness probe skipped: peer no longer replaceable",
-      peerId = peerId.shortLog()
+    trace "Liveness probe skipped: peer no longer replaceable", peerId
     return
 
   let addrs = kad.dialAddrs(peerId)
@@ -98,17 +98,15 @@ proc checkAndEvictPeer(
       discard rtable.removePeer(peerId, reason = "liveness")
       inc evicted
     if evicted > 0:
-      trace "Evicting peer with no known addresses",
-        peer = peerId.shortLog(), tables = evicted
+      trace "Evicting peer with no known addresses", peer = peerId, tables = evicted
       kad_routing_table_liveness_probes.inc(labelValues = ["no_addrs"])
     else:
-      trace "Liveness probe skipped: peer no longer replaceable",
-        peer = peerId.shortLog()
+      trace "Liveness probe skipped: peer no longer replaceable", peer = peerId
     return
 
-  trace "Probing peer for liveness", peerId = peerId.shortLog(), tables = dueTables.len
+  trace "Probing peer for liveness", peerId, tables = dueTables.len
   if (await kad.lookupCheck(peerId, addrs)):
-    trace "Liveness probe succeeded", peerId = peerId.shortLog()
+    trace "Liveness probe succeeded", peerId
     # Peer is reachable: one registry write refreshes usefulness for every index.
     kad.rtable.markUseful(peerId)
     kad_routing_table_liveness_probes.inc(labelValues = ["ok"])
@@ -122,22 +120,21 @@ proc checkAndEvictPeer(
     discard rtable.removePeer(peerId, reason = "liveness")
     inc evicted
   if evicted == 0:
-    trace "Liveness probe failed but peer refreshed mid-flight",
-      peer = peerId.shortLog()
+    trace "Liveness probe failed but peer refreshed mid-flight", peer = peerId
     return
 
   trace "Evicting unresponsive peer after liveness probe",
-    peer = peerId.shortLog(), tables = evicted
+    peer = peerId, tables = evicted
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
 proc launchLivenessProbe(kad: KadDHT, peerId: PeerId) {.raises: [].} =
   ## Starts a liveness probe unless one is already in flight for this peer.
   if kad.livenessProbes.hasKey(peerId):
-    trace "Liveness probe already in flight", peerId = peerId.shortLog()
+    trace "Liveness probe already in flight", peerId
     return
   if kad.stopping:
     return
-  trace "Launching liveness probe", peerId = peerId.shortLog()
+  trace "Launching liveness probe", peerId
   kad.trackLivenessProbe(peerId, kad.checkAndEvictPeer(peerId))
 
 proc probeAndEvictPeers*(
@@ -159,7 +156,7 @@ proc probeAndEvictPeers*(
   var futs = newSeqOfCap[Future[void]](peers.len)
   for peerId in peers:
     kad.livenessProbes.withValue(peerId, existing):
-      trace "Liveness batch reusing in-flight probe", peerId = peerId.shortLog()
+      trace "Liveness batch reusing in-flight probe", peerId
       futs.add(existing[])
       continue
     let fut = kad.checkAndEvictPeer(peerId)
@@ -266,10 +263,19 @@ proc bootstrap*(
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  var timedOut = false
+  var warnings: LogRateLimit
+
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
     let refresh = kad.refreshTable(kad.rtable, false)
     if not await refresh.withTimeout(kad.config.bucketRefreshTime):
       await noCancel refresh.cancelAndWait()
+      if timedOut and warnings.allowLog():
+        warn "Routing table refresh repeatedly timed out",
+          timeout = kad.config.bucketRefreshTime, peers = kad.rtable.peerCount()
+      timedOut = true
+    else:
+      timedOut = false
 
 proc connectedPeerInfos(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
   ## Currently connected peers that we know an address for.
@@ -302,11 +308,37 @@ proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh = true)
 
 proc maintainMinPeers(kad: KadDHT) {.async.} =
+  var
+    timedOut = false
+    previouslyLow = false
+    reportedLow = false
+    timeoutWarnings: LogRateLimit
+    lowPeerWarnings: LogRateLimit
+
   heartbeat "Checking routing table size",
     kad.config.fixLowPeersInterval, sleepFirst = true:
+    let peers = kad.rtable.peerCount()
+    let lowPeers =
+      not kad.config.disableBootstrapping and peers < kad.config.minRoutingTableSize
+    if lowPeers and previouslyLow and lowPeerWarnings.allowLog():
+      warn "Routing table remains below minimum",
+        peers, minimum = kad.config.minRoutingTableSize
+      reportedLow = true
+    elif not lowPeers and reportedLow:
+      info "Routing table recovered", peers, minimum = kad.config.minRoutingTableSize
+      reportedLow = false
+    previouslyLow = lowPeers
     let fix = kad.fixLowPeers()
     if not await fix.withTimeout(kad.config.fixLowPeersInterval):
       await noCancel fix.cancelAndWait()
+      if timedOut and timeoutWarnings.allowLog():
+        warn "Minimum peer maintenance repeatedly timed out",
+          timeout = kad.config.fixLowPeersInterval,
+          peers = kad.rtable.peerCount(),
+          minimum = kad.config.minRoutingTableSize
+      timedOut = true
+    else:
+      timedOut = false
 
 proc initKadBase*(
     kad: KadDHT,
@@ -428,7 +460,7 @@ proc changeMode*(kad: KadDHT, isServer: bool): Future[bool] {.async: (raises: []
   kad.isServer = isServer
   if not isServer:
     await kad.resetServerStreams()
-  debug "Kad DHT changed mode", isServer
+  info "Kad DHT changed mode", previousIsServer = not isServer, isServer
   true
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =

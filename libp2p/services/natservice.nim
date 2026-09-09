@@ -338,9 +338,8 @@ proc unmapStale(
     if entry in keep:
       continue
     let (port, proto) = entry
-    let r = await self.mapper.unmap(port, proto)
-    if r.isErr:
-      warn "Failed to unmap stale port", port, proto, err = r.error
+    (await self.mapper.unmap(port, proto)).isOkOr:
+      warn "Failed to unmap stale port", port, proto, err = error
 
 proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
   await self.unmapStale(@[])

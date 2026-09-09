@@ -331,6 +331,11 @@ suite "WebSocket transport with autotls":
       not wstransport.running
       wstransport.addrs.len == 0
 
+    let acceptFut = wstransport.accept()
+    check await acceptFut.withTimeout(200.milliseconds)
+    expect TransportClosedError:
+      discard await acceptFut
+
   asyncTest "start never returns when the autotls certificate never arrives":
     # TODO: vacp2p/nim-libp2p#2957
     let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())

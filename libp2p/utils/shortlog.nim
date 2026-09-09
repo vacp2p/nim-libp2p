@@ -6,7 +6,7 @@
 import stew/byteutils
 
 const ShortDumpMax = 12
-const ShortCollectionMax* = 3
+const ShortCollectionMax* = 5
 
 func shortLog*(item: seq[byte]): string =
   if item.len <= ShortDumpMax:

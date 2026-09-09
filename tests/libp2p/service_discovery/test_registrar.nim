@@ -3,6 +3,7 @@
 {.used.}
 
 import std/sequtils
+from std/times import getTime, toUnix
 import chronos, math, results, tables, net
 import
   ../../../libp2p/[
@@ -267,8 +268,7 @@ suite "Service Discovery Registrar - advertExpiry cap":
 
     disco.registrar.ads.seedOccupancy(10)
 
-    let firstAttemptTime =
-      Moment.init((Moment.now() - advertExpiry).epochSeconds, Second)
+    let firstAttemptTime = getTime().toUnix() - advertExpiry.seconds
     var retryTicket = Ticket(
       advertisement: adBytes,
       tInit: firstAttemptTime,
@@ -939,10 +939,10 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    let now = Moment.now()
+    let now = getTime().toUnix()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: now - 150.secs,
+      tInit: now - 150,
       tMod: now,
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
@@ -971,8 +971,8 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     var ticket = Ticket(
       advertisement: otherBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.now(),
+      tInit: 1_000'i64,
+      tMod: getTime().toUnix(),
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -1004,8 +1004,8 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: Moment.init(1_000, Second),
-      tMod: Moment.now(),
+      tInit: 1_000'i64,
+      tMod: getTime().toUnix(),
       tWaitFor: 0.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -1446,7 +1446,7 @@ suite "Service Discovery Registrar - registration response":
       ticket.tWaitFor.get() > ZeroDuration
       ticket.verify(registrarPubKey)
 
-  test "registration quantizes now to whole-second granularity":
+  test "registration uses Unix seconds for tickets and monotonic cache timestamps":
     let config = ServiceDiscoveryConfig.new(safetyParam = 1.0)
     let disco = setupServiceDiscoveryNode(discoConfig = config)
     let serviceName = "service"
@@ -1467,6 +1467,7 @@ suite "Service Discovery Registrar - registration response":
       ),
     )
 
+    let beforeRegistration = getTime().toUnix()
     let reply = disco.registration(advertiserId, inMsg).register.get()
 
     check reply.status.get() == kadprotobuf.RegistrationStatus.Wait
@@ -1475,8 +1476,8 @@ suite "Service Discovery Registrar - registration response":
     let ticket = reply.ticket.get()
     let tInit = ticket.tInit.get()
     let tMod = ticket.tMod.get()
-    check tInit == Moment.init(tInit.epochSeconds, Second)
-    check tMod == Moment.init(tMod.epochSeconds, Second)
+    check tInit in beforeRegistration .. getTime().toUnix()
+    check tMod == tInit
 
     check serviceId in disco.registrar.timestampService
     let ts = disco.registrar.timestampService[serviceId]
@@ -1495,7 +1496,7 @@ suite "Service Discovery Registrar - registration response":
     # Peerstore IP so scoring is not max-penalized for a missing address set.
     disco.switch.peerStore[AddressBook][advertiserId] = @[maddr]
 
-    let pastNow = Moment.now() - 5.secs
+    let pastNow = getTime().toUnix() - 5
     var ticket = Ticket(
       advertisement: adBytes,
       tInit: pastNow,

@@ -480,7 +480,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       for prune in respControl.prune:
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
-    trace "sending control message", control = shortLog(respControl), peer
+    trace "sending control message", control = respControl, peer
     g.sendResponse(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
@@ -1210,9 +1210,8 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
       "gossipsub: set the overhead rate limit through GossipSubParams, not the inherited FloodSub fields",
     )
 
-  let validationRes = g.parameters.validateParameters()
-  if validationRes.isErr:
-    raise newException(InitializationError, $validationRes.error)
+  g.parameters.validateParameters().isOkOr:
+    raise newException(InitializationError, $error)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
   g.seen =
