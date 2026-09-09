@@ -55,7 +55,7 @@ jobs:
       contents: read
     env:
       NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
-    timeout-minutes: 55
+    timeout-minutes: 30
     runs-on: ${{ needs.pick-platform.outputs.builder }}
     name: "test_multiformat_exts"
     defaults:

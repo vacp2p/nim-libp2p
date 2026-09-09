@@ -32,8 +32,7 @@ proc new*(
       let connectMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
         raise newException(DcutrError, error)
 
-      trace "Dcutr receiver received a Connect message.",
-        connectMsg = connectMsg.shortLog
+      trace "Dcutr receiver received a Connect message.", connectMsg = connectMsg
 
       var ourAddrs = switch.addressManager.mostObservedProtosAndPorts()
         # likely empty when the peer is reachable
@@ -49,7 +48,7 @@ proc new*(
       var ourDialableAddrs = getHolePunchableAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
         trace "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.",
-          addresses = ourAddrs.shortLog
+          addresses = ourAddrs
         return
 
       peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
@@ -58,9 +57,9 @@ proc new*(
         trace "Dcutr receiver has sent a Connect message back."
         let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
           raise newException(DcutrError, error)
-        trace "Dcutr receiver has received a Sync message.", syncMsg = syncMsg.shortLog
+        trace "Dcutr receiver has received a Sync message.", syncMsg
         trace "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
-          addresses = connectMsg.addrs.shortLog
+          addresses = connectMsg.addrs
         return
 
       # Expected DCUtR connections bypass ConnManager limits.
@@ -81,12 +80,12 @@ proc new*(
       trace "Dcutr receiver has sent a Connect message back."
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
         raise newException(DcutrError, error)
-      trace "Dcutr receiver has received a Sync message.", syncMsg = syncMsg.shortLog
+      trace "Dcutr receiver has received a Sync message.", syncMsg
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0 ..< maxDialableAddrs]
       trace "Dcutr receiver starting direct dial attempts",
-        addresses = peerDialableAddrs.shortLog, connectTimeout
+        addresses = peerDialableAddrs, connectTimeout
       let dialFuts = peerDialableAddrs.mapIt(
         switch.connect(
           stream.peerId,
@@ -116,12 +115,10 @@ proc new*(
       raise err
     except AllFuturesFailedError as err:
       trace "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts failed",
-        err = err.msg, addresses = peerDialableAddrs.shortLog
+        "all connect attempts failed", err = err.msg, addresses = peerDialableAddrs
     except AsyncTimeoutError as err:
       trace "Dcutr receiver could not connect to the remote peer, " &
-        "all connect attempts timed out",
-        err = err.msg, addresses = peerDialableAddrs.shortLog
+        "all connect attempts timed out", err = err.msg, addresses = peerDialableAddrs
     except CatchableError as err:
       trace "Unexpected error when Dcutr receiver tried to connect " &
         "to the remote peer", err = err.msg

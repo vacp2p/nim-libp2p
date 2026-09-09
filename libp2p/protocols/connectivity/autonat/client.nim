@@ -70,7 +70,7 @@ method dialMe*(
         debug "Unexpected error", err = e.msg
 
   try:
-    trace "sending Dial", addresses = switch.peerInfo.addrs.shortLog
+    trace "sending Dial", addresses = switch.peerInfo.addrs
     await stream.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   except CancelledError as e:
     raise e

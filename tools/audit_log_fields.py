@@ -22,6 +22,17 @@ UNBOUNDED_FIELD = re.compile(
 )
 FIELD_ASSIGNMENT = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=")
 FIELD_NAME = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
+SHORTLOG_TYPE = re.compile(r"^func shortLog\*?\([^:]+:\s*([^)=]+)", re.MULTILINE)
+FORMATIT = re.compile(
+    r"chronicles\.formatIt\(([^)]+)\):\s*\n\s*(?:shortLog\(it\)|it\.shortLog)"
+)
+DECLARATION = re.compile(r"\b(?:let|var)\s+(\w+)\s*:\s*([^=\n]+)")
+INFERRED_DECLARATION = re.compile(r"\b(?:let|var)\s+(\w+)\s*=\s*(\w+)\.")
+PARAMETER = re.compile(r"\b(\w+)\s*:\s*([\w\[\], |]+)")
+FIELD_DECLARATION = re.compile(
+    r"^\s*(\w+)\*?\s*(?:\{[^}]+\})?\s*:\s*([^=\n]+)", re.MULTILINE
+)
+RETURN_TYPE = re.compile(r"\b(?:func|proc)\s+(\w+)\*?\([^)]*\)\s*:\s*([^=\n{]+)")
 
 # These established identifiers are clearer than a longer expansion in their
 # logging contexts. Every other log field name must be at least three
@@ -123,9 +134,74 @@ def short_positional_fields(block: str):
             yield name
 
 
+def normalized_type(type_name: str) -> str:
+    return re.sub(r"\s+", "", type_name).split(",", 1)[0].rstrip("*")
+
+
+def source_types(paths):
+    """Return types with a compact Chronicles formatter and simple declarations.
+
+    This deliberately handles only declarations visible in Nim source. If an
+    expression cannot be resolved, the audit keeps requiring explicit
+    ``shortLog`` rather than guessing from a field name.
+    """
+    shortlog_types = set()
+    formatter_types = set()
+    declarations = {}
+    fields = {}
+    returns = {}
+    for path in paths:
+        text = path.read_text()
+        shortlog_types.update(normalized_type(t) for t in SHORTLOG_TYPE.findall(text))
+        formatter_types.update(normalized_type(t) for t in FORMATIT.findall(text))
+        for name, type_name in FIELD_DECLARATION.findall(text):
+            fields.setdefault(name, set()).add(normalized_type(type_name))
+        for name, type_name in RETURN_TYPE.findall(text):
+            returns[name] = normalized_type(type_name)
+
+    for path in paths:
+        text = path.read_text()
+        values = declarations.setdefault(path, {})
+        for name, type_name in PARAMETER.findall(text):
+            values.setdefault(name, set()).add(normalized_type(type_name))
+        for name, type_name in DECLARATION.findall(text):
+            values.setdefault(name, set()).add(normalized_type(type_name))
+        for name, constructor in INFERRED_DECLARATION.findall(text):
+            values.setdefault(name, set()).add(constructor)
+        for name, expression in re.findall(r"\b(?:let|var)\s+(\w+)\s*=\s*([^\n]+)", text):
+            for field_name in re.findall(r"\.(\w+)", expression):
+                candidates = fields.get(field_name, set())
+                if len(candidates) == 1:
+                    values.setdefault(name, set()).add(next(iter(candidates)))
+            callee = re.match(r"(?:await\s+)?(\w+)\(", expression.strip())
+            if callee and callee.group(1) in returns:
+                values.setdefault(name, set()).add(returns[callee.group(1)])
+
+    return shortlog_types & formatter_types, declarations, fields
+
+
+def has_compact_formatter(value: str, declarations, fields) -> bool:
+    """Whether a simple log expression resolves to a compact formatter type."""
+    value = value.strip()
+    if value in declarations:
+        if declarations[value] & COMPACT_FORMAT_TYPES:
+            return True
+    if value in fields:
+        return bool(fields[value] & COMPACT_FORMAT_TYPES)
+    if "addr" in value.lower():
+        return "seq[MultiAddress]" in COMPACT_FORMAT_TYPES
+    field_names = re.findall(r"\.(\w+)", value)
+    if field_names:
+        return any(fields.get(name, set()) & COMPACT_FORMAT_TYPES for name in field_names)
+    return False
+
+
 def main() -> int:
     violations = []
-    for path in ROOT.joinpath("libp2p").rglob("*.nim"):
+    paths = list(ROOT.joinpath("libp2p").rglob("*.nim"))
+    global COMPACT_FORMAT_TYPES
+    COMPACT_FORMAT_TYPES, declarations, fields = source_types(paths)
+    for path in paths:
         for line, level, block in log_blocks(path):
             if EXCEPTION_ALIAS.search(block):
                 violations.append(
@@ -140,7 +216,11 @@ def main() -> int:
             # is intentionally structural; it only checks field names that
             # conventionally carry byte arrays or unbounded protocol objects.
             for value in UNBOUNDED_FIELD.findall(block):
-                if "shortLog" not in value and ".len" not in value:
+                if (
+                    "shortLog" not in value
+                    and ".len" not in value
+                    and not has_compact_formatter(value, declarations[path], fields)
+                ):
                     violations.append(
                         f"{path.relative_to(ROOT)}:{line}: potentially unbounded log field must use shortLog"
                     )
