@@ -37,9 +37,8 @@ proc refreshSelfSignedPeerRecord(
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
-  let putRes = await disco.putValue(key, encodedSR)
-  if putRes.isErr:
-    debug "Failed to put signed peer record", err = putRes.error
+  (await disco.putValue(key, encodedSR)).isOkOr:
+    debug "Failed to put signed peer record", err = error
 
 proc maintainSelfSignedPeerRecord(
     disco: ServiceDiscovery

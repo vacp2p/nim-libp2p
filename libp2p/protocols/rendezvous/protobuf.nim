@@ -81,6 +81,9 @@ func shortLog*(response: Opt[RegisterResponse]): string =
 chronicles.formatIt(Opt[RegisterResponse]):
   shortLog(it)
 
+chronicles.formatIt(Opt[RegisterResponse]):
+  shortLog(it)
+
 func shortLog*(response: DiscoverResponse): auto =
   (
     status: response.status,
@@ -94,6 +97,9 @@ chronicles.formatIt(DiscoverResponse):
 
 func shortLog*(response: Opt[DiscoverResponse]): string =
   shortLog[DiscoverResponse](response)
+
+chronicles.formatIt(Opt[DiscoverResponse]):
+  shortLog(it)
 
 chronicles.formatIt(Opt[DiscoverResponse]):
   shortLog(it)

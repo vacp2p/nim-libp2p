@@ -211,9 +211,8 @@ proc register*[E](
   let ttl = r.ttl.get(rdv.config.minTTL)
   if ttl < rdv.config.minTTL or ttl > rdv.config.maxTTL:
     return stream.sendRegisterResponseError(InvalidTTL)
-  let pr = rdv.peerRecordValidator(peerRecord, r.signedPeerRecord, stream.peerId)
-  if pr.isErr():
-    return stream.sendRegisterResponseError(InvalidSignedPeerRecord, pr.error())
+  rdv.peerRecordValidator(peerRecord, r.signedPeerRecord, stream.peerId).isOkOr:
+    return stream.sendRegisterResponseError(InvalidSignedPeerRecord, error)
   if rdv.countRegister(stream.peerId) >= RegistrationLimitPerPeer:
     return stream.sendRegisterResponseError(NotAuthorized, "Registration limit reached")
 

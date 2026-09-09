@@ -55,13 +55,15 @@ type
     accepted = 0
     rejected = 1
 
+  UnixTimestamp* = int64 ## Seconds since the Unix epoch (1970-01-01 UTC).
+
   # Ticket message for Service Discovery
   Ticket* {.proto2.} = object
     advertisement* {.fieldNumber: 1.}: Opt[seq[byte]]
       # field 1 - Copy of the original advertisement
-    tInit* {.fieldNumber: 2, ext.}: Opt[Moment]
+    tInit* {.fieldNumber: 2, pint.}: Opt[UnixTimestamp]
       # field 2 - Ticket creation timestamp (Unix time in seconds)
-    tMod* {.fieldNumber: 3, ext.}: Opt[Moment]
+    tMod* {.fieldNumber: 3, pint.}: Opt[UnixTimestamp]
       # field 3 - Last modification timestamp (Unix time in seconds)
     tWaitFor* {.fieldNumber: 4, ext.}: Opt[Duration]
       # field 4 - Remaining wait time in seconds
@@ -171,8 +173,8 @@ proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   let ad = ticket.advertisement.get(@[])
   var buf = newSeqOfCap[byte](ad.len + 8 + 8 + 4)
   buf.add(ad)
-  buf.add(@(toBytesBE(ticket.tInit.get(Moment.low).epochSeconds.uint64)))
-  buf.add(@(toBytesBE(ticket.tMod.get(Moment.low).epochSeconds.uint64)))
+  buf.add(@(toBytesBE(ticket.tInit.get(0).uint64)))
+  buf.add(@(toBytesBE(ticket.tMod.get(0).uint64)))
   buf.add(@(toBytesBE(ticket.tWaitFor.get(ZeroDuration).seconds.uint32)))
   buf
 
