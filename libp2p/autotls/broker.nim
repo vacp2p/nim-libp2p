@@ -70,7 +70,11 @@ proc sendChallenge*(
     self.registrationURL, peerInfo, payload, self.bearer
   )
   # remember the latest bearer in case the broker rotated it
-  self.bearer = Opt.some(bearer)
+  self.bearer =
+    if response.status == 401:
+      Opt.none(BearerToken)
+    else:
+      Opt.some(bearer)
 
   if response.status != HttpOk:
     raise newException(
