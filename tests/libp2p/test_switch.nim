@@ -584,6 +584,7 @@ suite "Switch":
     await switches[0].start()
 
     switches.add(makeStandardSwitchBuilder().withPrivateKey(privateKey).build())
+    await switches[1].start()
     await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     onConnect.done()
 
@@ -621,6 +622,7 @@ suite "Switch":
       )
       switches[i].addConnEventHandler(hook, ConnEventKind.Connected)
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
+      await switches[i].start()
       await switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
 
     # Wait until all 5 are connected
@@ -637,7 +639,7 @@ suite "Switch":
       not isCounterLeaked(LPChannelTrackerName)
       not isCounterLeaked(SecureConnTrackerName)
 
-    await allFuturesRaising(switches[0].stop())
+    await allFuturesRaising(switches.mapIt(it.stop()))
 
   asyncTest "e2e drop peer from inside its own stream handler":
     let disconnected = newWaitGroup(1)
@@ -733,6 +735,7 @@ suite "Switch":
     let switch2 = makeStandardSwitch()
 
     await switch1.start()
+    await switch2.start()
 
     let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
@@ -1065,6 +1068,7 @@ suite "Switch":
       destSwitch = makeStandardSwitch(@[TcpAutoAddress, WsAutoAddress])
 
     await destSwitch.start()
+    await srcTcpSwitch.start()
     await srcWsSwitch.start()
 
     resolver.txtResponses["_dnsaddr.test.io"] = @[
