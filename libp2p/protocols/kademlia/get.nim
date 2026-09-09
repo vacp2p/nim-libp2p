@@ -14,7 +14,8 @@ logScope:
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
+  let msg =
+    Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key.toBytes()))
   await kad.dispatchRpc(peer, msg)
 
 proc bestValidRecord(
@@ -72,14 +73,15 @@ proc getValue*(
       trace "Get-value reply has no record", messageType = "getValue"
       return
 
-    if record.key.isNone or record.key.get() != key:
+    if record.key.isNone or record.key.get() != key.toBytes():
       trace "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
 
-    let value: Value = record.value.valueOr:
+    let valueBytes = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
+    let value = Value.fromBytes(valueBytes)
 
     if value.len > kad.config.limits.maxValueSize:
       trace "GetValue dropped: value exceeds maxValueSize",
@@ -127,10 +129,11 @@ proc getValue*(
 method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let key = msg.key.valueOr:
+  let keyBytes = msg.key.valueOr:
     trace "Get-value request rejected",
       reason = "missingKey", messageType = "getValue", stream
     return
+  let key = Key.fromBytes(keyBytes)
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
   # as absent and sends the standard "no record found" response.
@@ -144,7 +147,7 @@ method handleGetValue*(
   let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
       msgType: Opt.some(MessageType.getValue),
-      key: Opt.some(key),
+      key: Opt.some(key.toBytes()),
       closerPeers: kad.findClosestPeers(key, stream.peerId),
     )
     let encoded = response.encode(kad.config.hideConnectionStatus)
@@ -157,11 +160,11 @@ method handleGetValue*(
 
   let response = Message(
     msgType: Opt.some(MessageType.getValue),
-    key: Opt.some(key),
+    key: Opt.some(key.toBytes()),
     record: Opt.some(
       Record(
-        key: Opt.some(key),
-        value: Opt.some(entryRecord.value),
+        key: Opt.some(key.toBytes()),
+        value: Opt.some(entryRecord.value.toBytes()),
         timeReceived: Opt.some(entryRecord.time),
       )
     ),

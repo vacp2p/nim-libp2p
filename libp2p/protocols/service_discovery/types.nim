@@ -228,7 +228,7 @@ type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedExtendedPeerRecord.decode(record.value).valueOr:
+  let spr = SignedExtendedPeerRecord.decode(record.value.toBytes()).valueOr:
     return false
 
   let expectedPeerId = key.toPeerId().valueOr:

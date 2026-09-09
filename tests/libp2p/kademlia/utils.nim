@@ -192,8 +192,8 @@ proc containsData*(kad: KadDHT, key: Key, value: Value): bool =
 
   if record.value != value:
     checkpoint(
-      "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
-        ", got: " & $record.value
+      "containsData: value mismatch for " & $key.shortLog() & " - expected: " &
+        $value & ", got: " & $record.value
     )
     return false
 
@@ -216,7 +216,7 @@ proc randomServiceId*(): Key =
   ## Stands in for a `hashServiceId()` result, a key already in the id space.
   var buf = newSeqUninit[byte](IdLength)
   rng().generate(buf)
-  buf
+  Key.fromBytes(buf)
 
 proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
@@ -255,7 +255,7 @@ proc peersWithAddrs*(count: int): seq[PeerInfo] =
 
 proc closerPeer*(id: Key): Peer =
   ## `toPeer` refuses an address-free peer, so no real reply carries one.
-  Peer(id: id, addrs: @[ma("/ip4/127.0.0.1/tcp/1")])
+  Peer(id: id.toBytes(), addrs: @[ma("/ip4/127.0.0.1/tcp/1")])
 
 proc addPeersWithAddrs*(kad: KadDHT, count: int) =
   ## Adds `count` random peers to the routing table, with an address each so they
@@ -352,7 +352,7 @@ proc sendAddProviderAndGetStatus*(
     await stream.close()
   let msg = Message(
     msgType: MessageType.addProvider,
-    key: key,
+    key: key.toBytes(),
     providerPeers: @[sender.switch.peerInfo.toPeer()],
   )
   let writeRes = catch:
