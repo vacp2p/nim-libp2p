@@ -239,7 +239,7 @@ proc send*(
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, msg = msg.shortLog
+  trace "sending pubsub message to peer", peer, msg
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
 proc countBroadcastMetrics*(
@@ -300,7 +300,7 @@ proc broadcast*(
 
   countBroadcastMetrics(p, sendPeers, msg)
 
-  trace "broadcasting messages to peers", peersCount = sendPeers.len, msg = msg.shortLog
+  trace "broadcasting messages to peers", peersCount = sendPeers.len, msg
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:

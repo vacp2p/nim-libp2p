@@ -418,7 +418,7 @@ method start*(
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
 
-  trace "Listening on", addresses = self.addrs.shortLog
+  trace "Listening on", addresses = self.addrs
 
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport

@@ -323,10 +323,9 @@ proc advertisePeer[E](
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
-        trace "Refuse to register", peer, response = msgRecv.registerResponse.shortLog
+        trace "Refuse to register", peer, response = msgRecv.registerResponse
       else:
-        trace "Successfully registered",
-          peer, response = msgRecv.registerResponse.shortLog
+        trace "Successfully registered", peer, response = msgRecv.registerResponse
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
@@ -594,15 +593,14 @@ proc new*(
           stream, msg.register.tryGet(), rdv.switch.peerInfo.signedPeerRecord.data
         )
       of MessageType.RegisterResponse:
-        trace "Got an unexpected Register Response",
-          response = msg.registerResponse.shortLog
+        trace "Got an unexpected Register Response", response = msg.registerResponse
       of MessageType.Unregister:
         rdv.unregister(stream, msg.unregister.tryGet())
       of MessageType.Discover:
         await rdv.discover(stream, msg.discover.tryGet())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response",
-          response = msg.discoverResponse.get(DiscoverResponse()).shortLog
+          response = msg.discoverResponse.get(DiscoverResponse())
     except CancelledError as exc:
       trace "Cancelled rendezvous handler"
       raise exc

@@ -39,7 +39,7 @@ proc startSync*(
     var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:
       trace "Dcutr initiator has no supported dialable addresses. Aborting Dcutr.",
-        addresses = addrs.shortLog
+        addresses = addrs
       return
 
     stream = await switch.dial(remotePeerId, DcutrCodec)
@@ -52,12 +52,12 @@ proc startSync*(
     peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:
       trace "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
-        addresses = connectAnswer.addrs.shortLog
+        addresses = connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()
     trace "Dcutr initiator has received a Connect message back.",
-      connectAnswer = connectAnswer.shortLog
+      connectAnswer = connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
 
     # Expected DCUtR connections bypass ConnManager limits.
@@ -74,7 +74,7 @@ proc startSync*(
     if peerDialableAddrs.len > self.maxDialableAddrs:
       peerDialableAddrs = peerDialableAddrs[0 ..< self.maxDialableAddrs]
     trace "Dcutr initiator starting direct dial attempts",
-      addresses = peerDialableAddrs.shortLog, connectTimeout = self.connectTimeout
+      addresses = peerDialableAddrs, connectTimeout = self.connectTimeout
     let dialFuts = peerDialableAddrs.mapIt(
       switch.connect(
         stream.peerId,
@@ -105,7 +105,7 @@ proc startSync*(
     raise err
   except AllFuturesFailedError as err:
     trace "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
-      err = err.msg, addresses = peerDialableAddrs.shortLog
+      err = err.msg, addresses = peerDialableAddrs
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
@@ -113,7 +113,7 @@ proc startSync*(
     )
   except AsyncTimeoutError as err:
     trace "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
-      err = err.msg, addresses = peerDialableAddrs.shortLog
+      err = err.msg, addresses = peerDialableAddrs
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",

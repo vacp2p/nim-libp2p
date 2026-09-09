@@ -269,7 +269,7 @@ proc registration*(
     connectionIps: seq[IpAddress] = @[],
 ): Message =
   let serviceId = inMsg.key.valueOr:
-    trace "Key not set: registration", msg = inMsg.shortLog
+    trace "Key not set: registration", msg = inMsg
     return
 
   discard disco.rtable.insert(peerId)
@@ -375,7 +375,7 @@ proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
   let serviceId = msg.key.valueOr:
-    trace "Key not set: getAdvertisements", msg = msg.shortLog
+    trace "Key not set: getAdvertisements", msg
     return
 
   discard disco.rtable.insert(peerId)
