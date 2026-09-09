@@ -225,6 +225,9 @@ chronicles.formatIt(Value):
 chronicles.formatIt(Key):
   it.shortLog
 
+chronicles.formatIt(Value):
+  it.shortLog
+
 type XorDistance* = array[IdLength, byte]
 type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.
   raises: [], nimcall, noSideEffect, gcsafe
