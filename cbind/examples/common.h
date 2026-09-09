@@ -8,6 +8,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(__STDC_NO_ATOMICS__)
@@ -25,12 +26,14 @@ static inline void sleep_ms(unsigned ms) {
 }
 #endif
 
-// Poll up to ~10s for a callback to fire; false means it never did, so the
-// caller can report a stuck call instead of treating it as an empty success.
-static inline bool wait_done(atomic_int *done) {
+// A timeout must not unwind stack waiters that a late callback still owns.
+static inline void wait_done(atomic_int *done) {
   for (int i = 0; i < 1000 && !atomic_load(done); i++)
     sleep_ms(10);
-  return atomic_load(done) != 0;
+  if (!atomic_load(done)) {
+    fprintf(stderr, "Timed out waiting for callback or event\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 // start/stop/connect/mount/subscribe/write/release/close all reply with just a
@@ -52,10 +55,7 @@ static inline void on_bool(int ec, const bool *reply, const char *em,
 }
 
 static inline bool await_bool(BoolWaiter *w, const char *label) {
-  if (!wait_done(&w->done)) {
-    fprintf(stderr, "%s: call did not complete\n", label);
-    return false;
-  }
+  wait_done(&w->done);
   if (w->err_code != 0) {
     fprintf(stderr, "%s: %s\n", label, w->err[0] ? w->err : "unknown");
     return false;
@@ -96,7 +96,8 @@ static inline LibP2PCtx *await_create(const Libp2pConfig *cfg,
   CreateWaiter w;
   memset(&w, 0, sizeof(w));
   libp2p_ctx_create(cfg, on_created, &w);
-  if (!wait_done(&w.done) || w.err_code != 0 || !w.ctx) {
+  wait_done(&w.done);
+  if (w.err_code != 0 || !w.ctx) {
     fprintf(stderr, "create %s: %s\n", label, w.err[0] ? w.err : "unknown");
     return NULL;
   }
@@ -139,7 +140,8 @@ static inline bool await_peerinfo(LibP2PCtx *ctx, PeerInfoWaiter *w,
                                   const char *label) {
   memset(w, 0, sizeof(*w));
   libp2p_ctx_peer_info(ctx, on_peerinfo, w);
-  if (!wait_done(&w->done) || w->err_code != 0) {
+  wait_done(&w->done);
+  if (w->err_code != 0) {
     fprintf(stderr, "%s: %s\n", label, w->err[0] ? w->err : "unknown");
     return false;
   }

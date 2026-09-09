@@ -45,10 +45,7 @@ static void on_read(int ec, const ReadResponse *reply, const char *em,
 
 // Reads the request off the accepted stream, echoes it back and releases it.
 static bool serveEcho(LibP2PCtx *server) {
-  if (!wait_done(&g_have_stream)) {
-    fprintf(stderr, "server: no incoming stream\n");
-    return false;
-  }
+  wait_done(&g_have_stream);
   uint64_t streamId = g_stream_id;
   atomic_store(&g_have_stream, 0);
 
@@ -56,7 +53,8 @@ static bool serveEcho(LibP2PCtx *server) {
   memset(&rw, 0, sizeof(rw));
   StreamReadLpRequest readReq = {streamId, EchoMaxSize};
   libp2p_ctx_stream_read_lp(server, &readReq, on_read, &rw);
-  if (!wait_done(&rw.done) || rw.err_code != 0) {
+  wait_done(&rw.done);
+  if (rw.err_code != 0) {
     fprintf(stderr, "server read: %s\n", rw.err[0] ? rw.err : "unknown");
     return false;
   }
@@ -97,7 +95,8 @@ static bool echoRoundTrip(LibP2PCtx *client, LibP2PCtx *server,
   DialWaiter dw;
   memset(&dw, 0, sizeof(dw));
   libp2p_ctx_dial(client, dialReq, on_dial, &dw);
-  if (!wait_done(&dw.done) || dw.err_code != 0) {
+  wait_done(&dw.done);
+  if (dw.err_code != 0) {
     fprintf(stderr, "dial: %s\n", dw.err[0] ? dw.err : "unknown");
     return false;
   }
@@ -121,7 +120,8 @@ static bool echoRoundTrip(LibP2PCtx *client, LibP2PCtx *server,
   memset(&rw, 0, sizeof(rw));
   StreamReadLpRequest readReq = {streamId, EchoMaxSize};
   libp2p_ctx_stream_read_lp(client, &readReq, on_read, &rw);
-  if (!wait_done(&rw.done) || rw.err_code != 0) {
+  wait_done(&rw.done);
+  if (rw.err_code != 0) {
     fprintf(stderr, "stream_read_lp: %s\n", rw.err[0] ? rw.err : "unknown");
     return false;
   }
