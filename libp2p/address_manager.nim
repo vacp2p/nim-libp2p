@@ -439,6 +439,7 @@ proc notifyReachability(self: AddressManager) {.async: (raises: [CancelledError]
     notified = self.notifiedReachability
   if summary == notified:
     return
+  info "Network reachability changed", previous = notified, current = summary
   if self.onReachabilityChange.isNil():
     self.notifiedReachability = summary
     return
