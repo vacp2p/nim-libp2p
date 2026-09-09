@@ -1,22 +1,51 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-# this module will be further extended in PR
-# https://github.com/status-im/nim-libp2p/pull/107/
-
 import chronos
 import chronicles
 import macros
+import results
+
+export results
+
+{.push raises: [].}
 
 type
   # Base exception type for libp2p
   LPError* = object of CatchableError
+
+  LPErrorObj*[K: enum] = object
+    ## Error value of a `Result`: `kind` to branch on, `msg` for logs.
+    kind*: K
+    msg*: string
+
+  LPResult*[T; K: enum] = Result[T, LPErrorObj[K]]
+
+func lpError*[K: enum](kind: K, msg = ""): LPErrorObj[K] =
+  LPErrorObj[K](kind: kind, msg: msg)
+
+func `$`*[K: enum](e: LPErrorObj[K]): string =
+  if e.msg.len == 0:
+    $e.kind
+  else:
+    $e.kind & ": " & e.msg
 
 func toException*(e: cstring): ref LPError =
   (ref LPError)(msg: $e)
 
 func toException*(e: string): ref LPError =
   (ref LPError)(msg: e)
+
+func toException*[E](e: E, X: typedesc): ref X =
+  (ref X)(msg: $e)
+
+template raiseOr*[T, E](r: Result[T, E], X: typedesc): T =
+  ## Unwrap `r`, or raise `X` carrying the error message.
+  let res = r
+  if res.isErr():
+    raise res.error().toException(X)
+  when T isnot void:
+    res.unsafeGet()
 
 # TODO: could not figure how to make it with a simple template
 # sadly nim needs more love for hygienic templates
