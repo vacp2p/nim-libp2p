@@ -402,9 +402,12 @@ proc republishProvidedKeys(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
-    discard await kad.republishProvidedKeys().withTimeout(
+    if not await kad.republishProvidedKeys().withTimeout(
       kad.config.republishProvidedKeysInterval
-    )
+    ):
+      warn "Provider republishing timed out",
+        timeout = kad.config.republishProvidedKeysInterval,
+        providedKeys = kad.providerManager.providedKeys.provided.len
 
 proc anyExpired(pr: ProviderRecords): bool =
   pr.len() > 0 and pr.records[0] < chronos.Moment.now()
