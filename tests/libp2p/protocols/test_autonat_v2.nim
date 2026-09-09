@@ -234,10 +234,7 @@ suite "AutonatV2":
         addrs: Opt.none(MultiAddress),
       )
 
-  asyncTest "DialRequest with private IPv6 addr succeeds despite allowPrivateAddresses=false":
-    # TODO: nim-libp2p#2710
-    # isPrivate classifies every IPv6 address as non-private
-    # the server therefore dials back the loopback IPv6 addr instead of refusing it
+  asyncTest "DialRequest with private IPv6 addr refused by default":
     let
       dualStackAddrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
       (src, dst, client) =
@@ -251,6 +248,31 @@ suite "AutonatV2":
 
     check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
       AutonatV2Response(
+        reachability: Unknown,
+        dialResp: DialResponse(
+          status: EDialRefused,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.none(DialStatus),
+        ),
+        addrs: Opt.none(MultiAddress),
+      )
+
+  asyncTest "DialRequest with private IPv6 addr accepted with allowPrivateAddresses=true":
+    let
+      dualStackAddrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
+      (src, dst, client) = await setupAutonat(
+        srcAddrs = dualStackAddrs,
+        dstAddrs = dualStackAddrs,
+        config = AutonatV2Config.new(allowPrivateAddresses = true),
+      )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let reqAddrs = src.peerInfo.addrs.filterIt(TCP_IP6.match(it))
+    check reqAddrs.len == 1
+
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
         reachability: Reachable,
         dialResp: DialResponse(
           status: ResponseStatus.Ok,
@@ -258,6 +280,24 @@ suite "AutonatV2":
           addrIdx: Opt.some(0.AddrIdx),
         ),
         addrs: Opt.some(reqAddrs[0]),
+      )
+
+  asyncTest "DialRequest with a DNS addr refused by default":
+    let (src, dst, client) = await setupAutonat()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    # a name has no IP until the server resolves it, so it is never dialed back
+    let reqAddrs = @[ma("/dns4/localhost/tcp/4040")]
+    check (await client.sendDialRequest(dst.peerInfo.peerId, reqAddrs)) ==
+      AutonatV2Response(
+        reachability: Unknown,
+        dialResp: DialResponse(
+          status: EDialRefused,
+          addrIdx: Opt.none(AddrIdx),
+          dialStatus: Opt.none(DialStatus),
+        ),
+        addrs: Opt.none(MultiAddress),
       )
 
   asyncTest "Amplification attack prevention skipped when observed IPv4 addr matches a requested addr":

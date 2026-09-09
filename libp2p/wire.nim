@@ -156,14 +156,18 @@ proc getLocalAddress*(sock: AsyncFD): TransportAddress =
     fromSAddr(addr saddr, slen, ta)
   ta
 
+proc isGlobalMA*(ma: MultiAddress): bool =
+  ## True only for a wire address with a globally routable IP, never for a name.
+  let hostIP = initTAddress(ma).valueOr:
+    return false
+
+  hostIP.isGlobal()
+
 proc isPublicMA*(ma: MultiAddress): bool =
   if DNS.matchPartial(ma):
     return true
 
-  let hostIP = initTAddress(ma).valueOr:
-    return false
-
-  return hostIP.isGlobal()
+  isGlobalMA(ma)
 
 proc isCircuitRelayMA*(ma: MultiAddress): bool =
   if ma.contains(multiCodec("p2p-circuit")).get(false):
