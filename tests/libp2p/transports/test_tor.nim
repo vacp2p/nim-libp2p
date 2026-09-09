@@ -191,7 +191,7 @@ suite "Tor transport":
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()
 
-suite "Tor authentication cleanup":
+suite "Tor authentication":
   teardown:
     checkTrackers()
 
