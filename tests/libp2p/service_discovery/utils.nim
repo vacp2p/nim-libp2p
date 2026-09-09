@@ -219,6 +219,13 @@ proc putAd*(
       ad.ipsFromAd()
   ads.put(serviceId, adv, ad, advertiserIps, now)
 
+proc seedOccupancy*(ads: AdvertisementCache, n: int, now: Moment = Moment.now()) =
+  ## Fills the cache with `n` ads under distinct services, so serviceSim stays 0.
+  for i in 0 ..< n:
+    let sid = makeServiceId(byte(i mod 250 + 1))
+    let ad = makeAdvertisement($sid)
+    ads.put(sid, ad.data.peerId, ad, ad.ipsFromAd(), now)
+
 proc acceptAd*(
     disco: ServiceDiscovery,
     now: Moment,
@@ -234,6 +241,22 @@ proc acceptAd*(
     else:
       ad.ipsFromAd()
   disco.acceptAdvertisement(now, serviceId, adv, ad, advertiserIps)
+
+proc registerAd*(
+    disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
+): RegisterMessage =
+  let inMsg = Message(
+    msgType: MessageType.register,
+    key: serviceId,
+    register: Opt.some(
+      RegisterMessage(
+        advertisement: ad.encode().get(),
+        status: Opt.none(RegistrationStatus),
+        ticket: Opt.none(Ticket),
+      )
+    ),
+  )
+  disco.registration(ad.data.peerId, inMsg).register.get()
 
 proc seedAd*(
     reg: Registrar,
