@@ -314,7 +314,7 @@ proc handleHop*(
       await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
       return
 
-  let msgRcvFromDst = msgRcvFromDstOpt.valueOr:
+  let msgRcvFromDst: RelayMessage = msgRcvFromDstOpt.valueOr:
     trace "error reading stop response", responsePresent = msgRcvFromDstOpt.isOk
     await sendStatus(srcStream, StatusV1.HopCantOpenDstStream)
     return
