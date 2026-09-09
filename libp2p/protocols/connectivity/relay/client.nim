@@ -144,7 +144,7 @@ proc dialPeerV1*(
     dstPeer: Opt.some(RelayPeer(peerId: dstPeerId, addrs: dstAddrs)),
   )
 
-  trace "Dial peer", msgSend = msg.shortLog
+  trace "Dial peer", msgSend = msg
 
   try:
     await stream.writeLp(encode(msg))
@@ -229,7 +229,7 @@ proc handleStopStreamV2(
   let msg = StopMessage.decode(await stream.readLp(RelayClientMsgSize)).valueOr:
     await sendHopStatus(stream, MalformedMessage)
     return
-  trace "client circuit relay v2 handle stream", msg = msg.shortLog
+  trace "client circuit relay v2 handle stream", msg
 
   if msg.msgType.isSome and msg.msgType.get() == StopMessageType.Connect:
     await cl.handleRelayedConnect(stream, msg)
@@ -272,7 +272,7 @@ proc handleStreamV1(
   let msg = RelayMessage.decode(await stream.readLp(RelayClientMsgSize)).valueOr:
     await sendStatus(stream, StatusV1.MalformedMessage)
     return
-  trace "client circuit relay v1 handle stream", msg = msg.shortLog
+  trace "client circuit relay v1 handle stream", msg
 
   let typ = msg.msgType.valueOr:
     trace "Message type not set"

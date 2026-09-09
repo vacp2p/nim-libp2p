@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import results
+import results, chronicles
 import
   protobuf_serialization,
   protobuf_serialization/pkg/results,
@@ -108,6 +108,9 @@ type
 func shortLog*(peer: RelayPeer): auto =
   (peerId: peer.peerId.shortLog, addresses: peer.addrs.shortLog)
 
+chronicles.formatIt(RelayPeer):
+  shortLog(it)
+
 func shortLog*(msg: RelayMessage): auto =
   (
     messageType: msg.msgType,
@@ -115,6 +118,9 @@ func shortLog*(msg: RelayMessage): auto =
     hasDestinationPeer: msg.dstPeer.isSome,
     status: msg.status,
   )
+
+chronicles.formatIt(RelayMessage):
+  shortLog(it)
 
 func shortLog*(msg: HopMessage): auto =
   (
@@ -125,6 +131,9 @@ func shortLog*(msg: HopMessage): auto =
     status: msg.status,
   )
 
+chronicles.formatIt(HopMessage):
+  shortLog(it)
+
 func shortLog*(msg: StopMessage): auto =
   (
     messageType: msg.msgType,
@@ -132,6 +141,9 @@ func shortLog*(msg: StopMessage): auto =
     hasLimit: msg.limit.isSome,
     status: msg.status,
   )
+
+chronicles.formatIt(StopMessage):
+  shortLog(it)
 
 Protobuf.serializerFor([Voucher])
 Protobuf.serializerFor(

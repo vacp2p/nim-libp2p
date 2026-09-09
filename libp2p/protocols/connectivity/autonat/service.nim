@@ -109,6 +109,12 @@ proc handleAnswer(
       self.networkReachability = reachability
       self.confidence = Opt.some(confidence)
 
+  if self.networkReachability != oldNetworkReachability:
+    info "Network reachability changed",
+      previous = oldNetworkReachability,
+      current = self.networkReachability,
+      confidence = self.confidence
+
   debug "Current status",
     currentStats = $self.networkReachability,
     confidence = $self.confidence,
