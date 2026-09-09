@@ -322,7 +322,7 @@ proc expandCandidate(
         address: address,
         hostname: address.getHostname(),
         peerId: addrPeerId,
-        fromName: fromName,
+        fromName: candidate.fromNameLookup(),
       )
     )
 
