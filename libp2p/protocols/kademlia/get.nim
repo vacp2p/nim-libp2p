@@ -77,7 +77,7 @@ proc getValue*(
         expected = key, got = record.key
       return
 
-    let value = record.value.valueOr:
+    let value: Value = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
 
@@ -132,8 +132,8 @@ method handleGetValue*(
       reason = "missingKey", messageType = "getValue", stream
     return
 
-  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
-  # as absent and sends the standard "no record found" response.
+  # Evict the entry eagerly if it has expired so the response below treats it as
+  # absent and sends the standard "no record found" response.
   var entryRecordOpt = kad.dataTable.get(key)
   entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
@@ -141,32 +141,19 @@ method handleGetValue*(
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
-  let entryRecord = entryRecordOpt.valueOr:
-    let response = Message(
-      msgType: Opt.some(MessageType.getValue),
-      key: Opt.some(key),
-      closerPeers: kad.findClosestPeers(key, stream.peerId),
-    )
-    let encoded = response.encode(kad.config.hideConnectionStatus)
-    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
-    try:
-      await stream.writeLp(encoded)
-    except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", err = exc.msg, stream
-    return
-
-  let response = Message(
+  var response = Message(
     msgType: Opt.some(MessageType.getValue),
     key: Opt.some(key),
-    record: Opt.some(
+    closerPeers: kad.findClosestPeers(key, stream.peerId),
+  )
+  entryRecordOpt.withValue(entryRecord):
+    response.record = Opt.some(
       Record(
         key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
-    ),
-    closerPeers: kad.findClosestPeers(key, stream.peerId),
-  )
+    )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:

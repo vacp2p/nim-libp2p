@@ -215,7 +215,8 @@ suite "Peer testing suite":
         $p1 == $p2
         $p1 == $p3
         $p1 == $p4
-        len(shortLog(p1)) <= 10
+        shortLog(p1) == PeerIds[i][0 ..< 6] & "..." & PeerIds[i][^6 .. ^1]
+        len(shortLog(p1)) == 15
       if i in {3, 4, 5}:
         var ekey1, ekey2, ekey3, ekey4: PublicKey
         check:

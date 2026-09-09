@@ -49,7 +49,8 @@ int main(void) {
   MetricsWaiter mw;
   memset(&mw, 0, sizeof(mw));
   libp2p_static_collect_metrics(on_metrics, &mw);
-  if (!wait_done(&mw.done) || mw.err_code != 0) {
+  wait_done(&mw.done);
+  if (mw.err_code != 0) {
     fprintf(stderr, "collect_metrics: %s\n", mw.err[0] ? mw.err : "unknown");
     goto cleanup;
   }

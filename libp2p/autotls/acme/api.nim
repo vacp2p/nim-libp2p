@@ -491,7 +491,7 @@ proc checkChallengeCompleted*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(checkURL, ACMEChallengeCheck, key, kid)
     case checkResponse.chalStatus
-    of ACMEChallengeStatus.PENDING:
+    of ACMEChallengeStatus.PENDING, ACMEChallengeStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     of ACMEChallengeStatus.VALID:
       return true

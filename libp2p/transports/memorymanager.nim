@@ -52,7 +52,6 @@ proc dial*(self: MemoryListener): Future[RawConn] {.gcsafe, raises: [].} =
 
 type memoryConnManager = ref object
   listeners: Table[string, MemoryListener]
-  connections: Table[string, RawConn]
   lock: Lock
 
 proc init(_: type[memoryConnManager]): memoryConnManager =

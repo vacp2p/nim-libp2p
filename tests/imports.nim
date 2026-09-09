@@ -38,6 +38,7 @@ macro importTests*(
   ## Example: `importTests("tests", @[], "quic")` imports only QUIC-related tests
   let imports = newStmtList()
   var matchingFiles: seq[string] = @[]
+  let normMatch = matchPath.replace('\\', '/')
 
   for file in walkDirRec(dir):
     let (path, name, ext) = splitFile(file)
@@ -46,7 +47,6 @@ macro importTests*(
     # walkDirRec uses the host's path separator; normalize so callers can pass
     # forward-slash matchPath values that work on Windows too.
     let normFile = file.replace('\\', '/')
-    let normMatch = matchPath.replace('\\', '/')
     let isMatched = normMatch.len == 0 or normFile.contains(normMatch)
 
     if isTestFile and not isIgnored and isMatched:
@@ -59,11 +59,9 @@ macro importTests*(
       cmp(a.replace('\\', '/'), b.replace('\\', '/')),
   )
 
-  var importedFiles: seq[string] = @[]
   for file in matchingFiles:
     imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
-    importedFiles.add(file)
 
-  printImportSummary(importedFiles, dir)
+  printImportSummary(matchingFiles, dir)
 
   imports

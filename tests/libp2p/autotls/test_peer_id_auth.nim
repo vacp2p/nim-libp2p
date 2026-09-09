@@ -123,30 +123,51 @@ suite "PeerID Auth Client":
     expect PeerIDAuthError:
       discard await client.send(parseUri(ExampleURL), peerInfo, "somepayload")
 
-  asyncTest "bearer expiry is parsed in local time":
-    # TODO: vacp2p/nim-libp2p#2975
+  asyncTest "bearer expiry is parsed in UTC":
     let expires =
       (await requestWithExpires("2026-08-21T12:00:00.000Z")).bearer.expires.get()
+    check expires == dateTime(2026, mAug, 21, 12, zone = utc())
+    check expires.timezone == utc()
 
-    check expires.timezone == local()
-    check expires.format("yyyy-MM-dd'T'HH:mm:ss") == "2026-08-21T12:00:00"
-
-  asyncTest "bearer expiry reads a nanosecond fraction as milliseconds":
-    # TODO: vacp2p/nim-libp2p#2975
-    let expires =
+  asyncTest "bearer expiry preserves fractional seconds":
+    let base = dateTime(2026, mAug, 21, 11, 36, 41, zone = utc())
+    let nanos =
       (await requestWithExpires("2026-08-21T11:36:41.621940726Z")).bearer.expires.get()
+    let tenths =
+      (await requestWithExpires("2026-08-21T11:36:41.1Z")).bearer.expires.get()
+    check nanos - base == initDuration(nanoseconds = 621_940_726)
+    check tenths - base == initDuration(milliseconds = 100)
 
-    check expires - dateTime(2026, mAug, 21, 11, 36, 41, zone = local()) ==
-      initDuration(milliseconds = 621_940_726)
+  asyncTest "bearer expiry accepts whole seconds and timezone offsets":
+    let expected = dateTime(2026, mAug, 21, 12, zone = utc())
+    check (await requestWithExpires("2026-08-21T12:00:00Z")).bearer.expires.get() ==
+      expected
+    check (await requestWithExpires("2026-08-21T14:00:00+02:00")).bearer.expires.get() ==
+      expected
 
-  asyncTest "bearer expiry without a fractional second is dropped":
-    # TODO: vacp2p/nim-libp2p#2975
-    check (await requestWithExpires("2026-08-21T12:00:00Z")).bearer.expires.isNone()
+  asyncTest "malformed bearer expiry is dropped":
+    for expires in ["2026-08-21T12:00:00", "2026-08-21T12:00:00.Z", "invalid"]:
+      check (await requestWithExpires(expires)).bearer.expires.isNone()
 
-  asyncTest "bearer expiry without a zone raises IndexDefect":
-    # TODO: vacp2p/nim-libp2p#2975
-    expect IndexDefect:
-      discard await requestWithExpires("2026-08-21T12:00:00")
+  asyncTest "authentication field without a value is rejected":
+    client.wwwAuthenticate = Opt.some(PeerIDAuthPrefix & " public-key")
+    expect PeerIDAuthError:
+      discard await client.requestAuthentication(parseUri(ExampleURL))
+
+  asyncTest "authentication fields match names rather than substrings":
+    client.authenticationInfo = Opt.some(
+      PeerIDAuthPrefix & " other-sig=\"wrong\", sig=\"right\", bearer=\"somebearer\""
+    )
+    let response = await client.requestAuthorization(
+      peerInfo,
+      parseUri(ExampleURL),
+      "challenge",
+      "challenge",
+      specServerKey.getPublicKey().get(),
+      "opaque",
+      "payload",
+    )
+    check response.sig == "right"
 
   asyncTest "a url the session cannot turn into an address is an http error":
     # The stub overrides post, so this drives the real one.
