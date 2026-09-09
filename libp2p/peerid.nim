@@ -47,7 +47,7 @@ func shortLog*(pid: PeerId): string =
 
   return
     spid[0 ..< ShortPeerIdPrefixLength] & # prefix
-    "..." & # ommited
+    "..." & # omitted
     spid[spid.len - ShortPeerIdSuffixLength .. spid.high] # suffix
 
 chronicles.formatIt(PeerId):
