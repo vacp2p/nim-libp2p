@@ -161,6 +161,7 @@ method handleGetValue*(
   let response = Message(
     msgType: Opt.some(MessageType.getValue),
     key: Opt.some(key.toBytes()),
+    closerPeers: kad.findClosestPeers(key, stream.peerId),
     record: Opt.some(
       Record(
         key: Opt.some(key.toBytes()),
