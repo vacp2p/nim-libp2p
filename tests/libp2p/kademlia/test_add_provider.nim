@@ -254,13 +254,13 @@ suite "KadDHT - Add Provider":
 
     check receiverKad.providerManager.providerRecords.len == 0
 
-    let rawKey = "interop-test-key-0123".toBytes()
-    check not MultiHash.validate(rawKey) # sanity: not a valid multihash
+    let key = Key.fromBytes("interop-test-key-0123".toBytes())
+    check not MultiHash.validate(key.toBytes()) # sanity: not a valid multihash
 
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: rawKey,
+        key: key,
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -268,7 +268,7 @@ suite "KadDHT - Add Provider":
 
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
-      receiverKad.providerManager.knownKeys.hasKey(rawKey)
+      receiverKad.providerManager.knownKeys.hasKey(key)
 
   asyncTest "Add provider rejects an empty key":
     let kads = setupKadSwitches(1)
