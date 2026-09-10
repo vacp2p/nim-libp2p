@@ -832,7 +832,7 @@ proc stopTasks*(p: PubSubPeer) {.async: (raises: []).} =
     pending.add(fut)
 
   # Retain task handles until cancellation finishes, including for repeated stops.
-  await noCancel pending.cancelAndWait()
+  await noCancel chronos.cancelAndWait(pending)
   p.connectFut = nil
   p.sendFuts = @[]
   p.rpcmessagequeue.sendNonHighPriorityTask = nil

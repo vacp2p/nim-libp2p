@@ -217,7 +217,12 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   debug "unsubscribing pubsub peer", peerId
   p.peers.withValue(peerId, peer):
-    p.peerStopFuts.trackFut(peer[].stopTasks())
+    let stopped = peer[].stopTasks()
+    if p.stopping:
+      # Shutdown drains the whole batch; pruning on each removal is quadratic.
+      p.peerStopFuts.add(stopped)
+    else:
+      p.peerStopFuts.trackFut(stopped)
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)

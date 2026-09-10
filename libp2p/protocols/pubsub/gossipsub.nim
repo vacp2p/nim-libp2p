@@ -1186,7 +1186,7 @@ method stop*(g: GossipSub) {.async: (raises: []).} =
   for fut in [g.directPeersLoop, g.scoringHeartbeatFut, g.heartbeatFut]:
     if not fut.isNil:
       pending.add(fut)
-  await noCancel pending.cancelAndWait()
+  await noCancel chronos.cancelAndWait(pending)
   g.pendingTasks = @[]
   g.directPeersLoop = nil
   g.scoringHeartbeatFut = nil
