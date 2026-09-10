@@ -22,11 +22,16 @@ const
   MaxDialDataResponsePayload* = 1024
   DefaultDialBackTimeout* = 5.seconds
 
-type AutonatV2Client* = ref object of LPProtocol
-  dialer*: Dial
-  dialBackTimeout: Duration
-  rng: Rng
-  expectedNonces: Table[Nonce, Opt[MultiAddress]]
+type
+  PendingDialBack = object
+    startedAt: Moment
+    localAddr: Opt[MultiAddress]
+
+  AutonatV2Client* = ref object of LPProtocol
+    dialer*: Dial
+    dialBackTimeout: Duration
+    rng: Rng
+    expectedNonces: Table[Nonce, PendingDialBack]
 
 proc handleDialBack(
     self: AutonatV2Client, stream: Stream, dialBack: DialBack
@@ -38,10 +43,24 @@ proc handleDialBack(
     trace "Not expecting this nonce", nonce = dialBack.nonce
     return
 
+  let pending = self.expectedNonces.getOrDefault(dialBack.nonce)
+  if pending.localAddr.isSome:
+    trace "Already received DialBack", nonce = dialBack.nonce
+    return
+
+  # A new muxed stream is not proof of a new inbound transport connection.
+  let transport = stream.getUnderlying()
+
+  if stream.transportDir != Direction.In or transport.dir != Direction.In or
+      transport.openedAt <= pending.startedAt:
+    trace "DialBack requires a fresh inbound connection", nonce = dialBack.nonce
+    return
+
   stream.localAddr.withValue(localAddr):
     trace "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
-    self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
+    self.expectedNonces[dialBack.nonce] =
+      PendingDialBack(startedAt: pending.startedAt, localAddr: Opt.some(localAddr))
   else:
     debug "Unable to get localAddr from connection"
     return
@@ -60,6 +79,9 @@ proc new*(
   proc handleStream(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
+    defer:
+      await stream.close()
+
     try:
       let dialBack = DialBack.decode(await stream.readLp(DialBackLpSize)).valueOr:
         trace "Unable to decode DialBack", err = error
@@ -123,7 +145,7 @@ proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
 ): bool {.raises: [].} =
   trace "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
-  let dialBackAddrs = self.expectedNonces.getOrDefault(nonce).valueOr:
+  let dialBackAddrs = self.expectedNonces.getOrDefault(nonce).localAddr.valueOr:
     trace "Not expecting this nonce",
       nonce = nonce, expectedNonces = self.expectedNonces
     return false
@@ -149,13 +171,15 @@ method sendDialRequest*(
   ## Dials peer with `pid` and requests that it tries connecting to `testAddrs`
 
   let nonce = self.rng.generate(Nonce)
-  self.expectedNonces[nonce] = Opt.none(MultiAddress)
 
   var dialResp: DialResponse
   try:
     let stream = await self.dialer.dial(pid, @[$AutonatV2Codec.DialRequest])
     defer:
       await stream.close()
+
+    # Dialback identities may differ from pid, and NAT may rewrite IPs and ports.
+    self.expectedNonces[nonce] = PendingDialBack(startedAt: Moment.now())
 
     # send dialRequest
     await stream.writeLp(
