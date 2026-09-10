@@ -273,7 +273,7 @@ suite "KadDHT - Limits":
     let request = Message(
       msgType: MessageType.putValue,
       key: newKey,
-      record: Opt.some(Record(key: newKey, value: Opt.some(newValue))),
+      record: Opt.some(Record(key: newKey, value: Value.init(newValue))),
     )
     let conn = await kads[1].switch.dial(
       kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec

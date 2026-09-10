@@ -40,7 +40,7 @@ proc randomRecords(
     await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
     raise e
 
-  var buffers: seq[seq[byte]]
+  var values: seq[Value]
   for fut in getValFuts:
     let res =
       try:
@@ -56,14 +56,14 @@ proc randomRecords(
     let record = reply.record.valueOr:
       continue
 
-    let buffer = record.value.valueOr:
+    let value = record.value.valueOr:
       continue
 
-    buffers.add(buffer)
+    values.add(value)
 
   var records: HashSet[ExtendedPeerRecord]
-  for buffer in buffers:
-    let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
+  for v in values:
+    let sxpr = SignedExtendedPeerRecord.decode(v.getBytes()).valueOr:
       debug "Cannot decode signed extended peer record", error
       continue
 

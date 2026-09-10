@@ -4,19 +4,17 @@
 import std/[tables, sequtils, sets, heapqueue, hashes]
 from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
-import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
-import ../../utils/shortlog
+import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy, multiaddress]
+import ../../utils/[opt, shortlog]
 import ../protocol
-import ./[protobuf, message_sender]
+import ./[key_value, protobuf, message_sender]
 
-export tables, sets, heapqueue, message_sender
+export tables, sets, heapqueue, key_value, message_sender
 
 logScope:
   topics = "kad-dht types"
 
 const
-  IdLength* = 32 # 256-bit IDs
-
   MaxBucketsLimit* = IdLength * 8
     ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
   MaxRegionBits* = IdLength * 8
@@ -86,67 +84,6 @@ const
 
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
-type
-  Key* = distinct seq[byte]
-    ## A Kademlia routing key. Construct with ``Key.init`` or ``Key.fromBytes``.
-  Value* = distinct seq[byte]
-    ## A Kademlia record value. Construct with ``Value.init`` or ``Value.fromBytes``.
-
-func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
-  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
-  var buf: array[IdLength, byte]
-  discard buf.copyFrom(bytes)
-  Key(@buf)
-
-template fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
-  ## Preserves raw Kademlia key bytes received from a wire message.
-  Key(bytes)
-
-template toBytes*(key: Key): seq[byte] =
-  ## Returns the raw bytes used by Kademlia and its wire protocol.
-  seq[byte](key)
-
-proc len*(key: Key): int {.inline.} =
-  seq[byte](key).len
-
-proc `[]`*(key: Key, index: int): byte {.inline.} =
-  seq[byte](key)[index]
-
-proc `[]=`*(key: var Key, index: int, value: byte) {.inline.} =
-  seq[byte](key)[index] = value
-
-proc `==`*(a, b: Key): bool {.borrow.}
-proc hash*(key: Key): Hash {.borrow.}
-
-proc `$`*(key: Key): string =
-  $seq[byte](key)
-
-template init*(T: typedesc[Value], bytes: openArray[byte]): Value =
-  Value(@bytes)
-
-template fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
-  ## Preserves raw Kademlia value bytes received from a wire message.
-  Value(bytes)
-
-template toBytes*(value: Value): seq[byte] =
-  ## Returns the raw bytes used by Kademlia and its wire protocol.
-  seq[byte](value)
-
-proc len*(value: Value): int {.inline.} =
-  seq[byte](value).len
-
-proc `[]`*(value: Value, index: int): byte {.inline.} =
-  seq[byte](value)[index]
-
-proc `[]=`*(value: var Value, index: int, byte: byte) {.inline.} =
-  seq[byte](value)[index] = byte
-
-proc `==`*(a, b: Value): bool {.borrow.}
-proc hash*(value: Value): Hash {.borrow.}
-
-proc `$`*(value: Value): string =
-  $seq[byte](value)
-
 proc toCid*(k: Key): Cid =
   let cidRes = Cid.init(k.toBytes())
   if cidRes.isOk:
@@ -212,18 +149,6 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
     peerIds.add(pid)
 
   return peerIds
-
-func shortLog*(v: Value): string =
-  v.toBytes().shortLog
-
-func shortLog*(k: Key): string =
-  k.toBytes().shortLog
-
-chronicles.formatIt(Value):
-  it.shortLog
-
-chronicles.formatIt(Key):
-  it.shortLog
 
 type XorDistance* = array[IdLength, byte]
 type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.

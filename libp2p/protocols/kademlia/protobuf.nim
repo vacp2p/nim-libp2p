@@ -12,11 +12,75 @@ import protobuf_serialization
 import protobuf_serialization/pkg/results
 import protobuf_serialization/std/enums
 import ../../utils/[protobuf, protobuf_chronos_sec]
+import ./key_value
+
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
+Protobuf.extensionDefaults(Key, pbytes, defaultSeq = true)
+Protobuf.extensionDefaults(Value, pbytes, defaultSeq = true)
+
+func computeFieldSize*(
+    field: int, value: Key, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  computeFieldSize(field, value.toBytes(), pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: Key,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.toBytes(), pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var Key,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var bytes: seq[byte]
+  if readFieldInto(stream, bytes, header, pbytes):
+    value = Key.fromBytes(bytes)
+    true
+  else:
+    false
+
+func computeFieldSize*(
+    field: int, value: Value, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  computeFieldSize(field, value.toBytes(), pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: Value,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.toBytes(), pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var Value,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var bytes: seq[byte]
+  if readFieldInto(stream, bytes, header, pbytes):
+    value = Value.fromBytes(bytes)
+    true
+  else:
+    false
 
 type
   Record* {.proto2.} = object
-    key* {.fieldNumber: 1.}: Opt[seq[byte]]
-    value* {.fieldNumber: 2.}: Opt[seq[byte]]
+    key* {.fieldNumber: 1, ext.}: Opt[Key]
+    value* {.fieldNumber: 2, ext.}: Opt[Value]
     timeReceived* {.fieldNumber: 5.}: Opt[string]
 
   MessageType* = enum
@@ -83,7 +147,7 @@ type
 
   Message* {.proto2.} = object
     msgType* {.fieldNumber: 1, ext.}: Opt[MessageType]
-    key* {.fieldNumber: 2.}: Opt[seq[byte]]
+    key* {.fieldNumber: 2, ext.}: Opt[Key]
     record* {.fieldNumber: 3.}: Opt[Record]
     closerPeers* {.fieldNumber: 8.}: seq[Peer]
     providerPeers* {.fieldNumber: 9.}: seq[Peer]
@@ -93,8 +157,8 @@ type
 
 func shortLog*(record: Record): auto =
   (
-    key: record.key.get(@[]).shortLog,
-    value: record.value.get(@[]).shortLog,
+    key: record.key.get(Key.fromBytes(@[])).shortLog,
+    value: record.value.get(Value.fromBytes(@[])).shortLog,
     timeReceived: record.timeReceived.get("").shortLog,
   )
 
@@ -114,7 +178,7 @@ chronicles.formatIt(Peer):
 func shortLog*(msg: Message): auto =
   (
     messageType: msg.msgType,
-    key: msg.key.get(@[]).shortLog,
+    key: msg.key.get(Key.fromBytes(@[])).shortLog,
     record: msg.record.get(Record()).shortLog,
     closerPeers: msg.closerPeers.shortLog,
     providerPeers: msg.providerPeers.shortLog,
