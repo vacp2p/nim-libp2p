@@ -249,6 +249,10 @@ suite "AutonatV2":
     for scenario in [
       "existing outbound", "existing inbound", "fresh outbound", "fresh identity"
     ]:
+      # the asyncTest closure cannot capture the lent loop variables
+      let
+        transport = transport
+        scenario = scenario
       asyncTest "DialBack connection binding: " & transport & ", " & scenario:
         dialbackConnectionTest(transport, scenario)
 
