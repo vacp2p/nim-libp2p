@@ -260,7 +260,7 @@ suite "KadDHT - Add Provider":
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: keyBytes,
+        key: Key.fromBytes(keyBytes),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -282,7 +282,7 @@ suite "KadDHT - Add Provider":
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: newSeq[byte](0),
+        key: Key.fromBytes(newSeq[byte](0)),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -304,7 +304,7 @@ suite "KadDHT - Add Provider":
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: newSeq[byte](MaxProviderKeyLen + 1),
+        key: Key.fromBytes(newSeq[byte](MaxProviderKeyLen + 1)),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -805,7 +805,8 @@ suite "KadDHT - ADD_PROVIDER Rejection":
       testKadConfig(providerRejection = true),
       handleAddProviderMessage = Opt.some(
         Message(
-          msgType: MessageType.addProvider, key: newSeq[byte](MaxProviderKeyLen + 1)
+          msgType: MessageType.addProvider,
+          key: Key.fromBytes(newSeq[byte](MaxProviderKeyLen + 1)),
         )
       ),
     )

@@ -228,7 +228,7 @@ suite "Service Discovery Registrar - advertExpiry cap":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -272,7 +272,7 @@ suite "Service Discovery Registrar - advertExpiry cap":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -972,7 +972,7 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBuf,
@@ -1005,7 +1005,7 @@ suite "Service Discovery Registrar - registration rejects invalid tickets":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBuf,
@@ -1048,7 +1048,7 @@ suite "Service Discovery Registrar - registration replaces by advertiser":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: ad2.encode().get(),
@@ -1411,7 +1411,7 @@ suite "Service Discovery Registrar - registration response":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId2.toBytes()),
+      key: serviceId2,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -1449,7 +1449,7 @@ suite "Service Discovery Registrar - registration response":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -1500,7 +1500,7 @@ suite "Service Discovery Registrar - registration response":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
@@ -1571,7 +1571,7 @@ suite "Service Discovery Registrar - connection IPs":
     let connectionIps = @[parseIpAddress("198.51.100.42")]
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,

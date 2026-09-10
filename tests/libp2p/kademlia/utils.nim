@@ -16,6 +16,12 @@ converter toKey*(bytes: seq[byte]): Key =
 converter toValue*(bytes: seq[byte]): Value =
   Value.fromBytes(bytes)
 
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
 proc hash*(x: seq[byte]): Hash {.inline.} =
   hash(x, 0, x.high)
 
