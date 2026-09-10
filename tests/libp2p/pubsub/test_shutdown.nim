@@ -51,7 +51,6 @@ suite "PubSub shutdown":
       gossip.peers.len == 0
     peer.connect()
     check attempts == 1
-    await peer.stop()
 
   asyncTest "FloodSub stop cancels peers and rejects late peer events until restart":
     let
@@ -94,7 +93,6 @@ suite "PubSub shutdown":
     flood.subscribePeer(nextPeer.peerId)
     await flood.stop()
     check cancelled
-    await peer.stop()
     await sw.stop()
 
   asyncTest "closing a send stream during switch shutdown does not redial":
@@ -126,10 +124,11 @@ suite "PubSub shutdown":
     await stream.close()
     await stopped
     check attempts == 1
-    await peer.stop()
 
-  asyncTest "peer stop waits for connector cancellation cleanup":
+  asyncTest "stop waits for cleanup of an already removed peer":
     let
+      sw = makeStandardSwitch()
+      flood = FloodSub.init(sw, rng = rng())
       never = newAsyncEvent()
       cleaningUp = newAsyncEvent()
       releaseCleanup = newAsyncEvent()
@@ -146,12 +145,21 @@ suite "PubSub shutdown":
         cleanupFinished = true
 
     let peer = PubSubPeer.new(
-      randomPeerId(), getStream, nil, GossipSubCodec_12, 1024, voidPeerHandler
+      randomPeerId(), getStream, nil, FloodSubCodec, 1024, voidPeerHandler
     )
+    flood.peers[peer.peerId] = peer
     peer.connect()
-    let stopped = peer.stop()
+    flood.unsubscribePeer(peer.peerId)
+    let
+      peerStopped = peer.stopTasks()
+      stopped = flood.stop()
     await cleaningUp.wait()
-    check not stopped.finished
+    check:
+      flood.peers.len == 0
+      not peerStopped.finished
+      not stopped.finished
     releaseCleanup.fire()
     await stopped
+    await peerStopped
     check cleanupFinished
+    await sw.stop()

@@ -819,51 +819,33 @@ proc startSendNonHighPriorityTask(p: PubSubPeer) =
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
-proc stopTasks*(p: PubSubPeer) =
-  ## Prevents further work and requests cancellation of all peer tasks.
-  ## Use `stop` to wait for teardown to finish.
+proc stopTasks*(p: PubSubPeer) {.async: (raises: []).} =
+  ## Prevents further work, cancels peer tasks, and waits for cleanup to finish.
   p.stopped = true
-  if not p.connectFut.isNil():
-    p.connectFut.cancelSoon()
-    p.connectFut = nil
-  for fut in p.sendFuts:
-    fut.cancelSoon()
-  p.sendFuts = @[]
-  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
-    trace "stopping sendNonHighPriorityTask", peer = p
-    p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
-    p.rpcmessagequeue.sendNonHighPriorityTask = nil
-    for fut in p.rpcmessagequeue.sendPriorityQueue:
-      fut.cancelSoon()
-    p.rpcmessagequeue.sendPriorityQueue.clear()
-    p.rpcmessagequeue.mediumPriorityQueue.clear()
-    p.rpcmessagequeue.lowPriorityQueue.clear()
-
-    when defined(pubsubpeer_queue_metrics):
-      libp2p_gossipsub_high_priority_queue_size.set(
-        labelValues = [$p.peerId], value = 0
-      )
-      libp2p_gossipsub_medium_priority_queue_size.set(
-        labelValues = [$p.peerId], value = 0
-      )
-      libp2p_gossipsub_low_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
-
-proc stop*(p: PubSubPeer) {.async: (raises: []).} =
-  ## Cancels peer tasks and waits for them before closing the send stream.
   var pending = p.sendFuts
   if not p.connectFut.isNil:
     pending.add(p.connectFut)
   if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
+    trace "stopping sendNonHighPriorityTask", peer = p
     pending.add(p.rpcmessagequeue.sendNonHighPriorityTask)
   for fut in p.rpcmessagequeue.sendPriorityQueue:
     pending.add(fut)
 
-  p.stopTasks()
-  await noCancel allFutures(pending)
-  if not p.sendStream.isNil:
-    await p.sendStream.close()
-    p.sendStream = nil
-  p.connectedFut.completeOnce()
+  # Retain task handles until cancellation finishes, including for repeated stops.
+  await noCancel pending.cancelAndWait()
+  p.connectFut = nil
+  p.sendFuts = @[]
+  p.rpcmessagequeue.sendNonHighPriorityTask = nil
+  p.rpcmessagequeue.sendPriorityQueue.clear()
+  p.rpcmessagequeue.mediumPriorityQueue.clear()
+  p.rpcmessagequeue.lowPriorityQueue.clear()
+
+  when defined(pubsubpeer_queue_metrics):
+    libp2p_gossipsub_high_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+    libp2p_gossipsub_medium_priority_queue_size.set(
+      labelValues = [$p.peerId], value = 0
+    )
+    libp2p_gossipsub_low_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(

@@ -165,6 +165,7 @@ type
 
   PubSub* = ref object of LPProtocol
     stopping: bool
+    peerStopFuts: seq[Future[void].Raising([])] # cleanup outlives removal from peers
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -216,7 +217,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
 
   debug "unsubscribing pubsub peer", peerId
   p.peers.withValue(peerId, peer):
-    peer[].stopTasks()
+    p.peerStopFuts.trackFut(peer[].stopTasks())
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -517,11 +518,10 @@ method start*(p: PubSub) {.async: (raises: [CancelledError]).} =
 method stop*(p: PubSub) {.async: (raises: []).} =
   p.stopping = true
   p.started = false
-  var pending: seq[Future[void].Raising([])]
-  for peer in toSeq(p.peers.values):
-    pending.add(peer.stop())
-    p.unsubscribePeer(peer.peerId)
-  await noCancel allFutures(pending)
+  for peerId in toSeq(p.peers.keys):
+    p.unsubscribePeer(peerId)
+  await noCancel allFutures(p.peerStopFuts)
+  p.peerStopFuts = @[]
 
 method handleConn*(
     p: PubSub, stream: Stream, proto: string
