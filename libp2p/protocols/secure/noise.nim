@@ -11,7 +11,7 @@ import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
-import ../../utils/[opt, shortlog, bytesview, protobuf]
+import ../../utils/[opt, shortlog, bytesview, protobuf, redact]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
@@ -88,6 +88,13 @@ type
   NoiseHandshakePayloadMsg* {.proto2.} = object
     identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
     identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
+
+redactType(KeyPair, exported = false)
+redactType(CipherState, exported = false)
+redactType(SymmetricState, exported = false)
+redactType(HandshakeState, exported = false)
+redactType(HandshakeResult, exported = false)
+redactType(Noise)
 
 # Utility
 

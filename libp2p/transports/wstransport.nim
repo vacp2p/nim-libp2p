@@ -17,6 +17,7 @@ import
   ../multistream,
   ../multiaddress,
   ../utils/opt,
+  ../utils/tlsredact,
   ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,
@@ -417,7 +418,7 @@ method start*(
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
 
-  trace "Listening on", addresses = self.addrs.shortLog
+  trace "Listening on", addresses = self.addrs
 
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
@@ -482,8 +483,7 @@ proc connHandler(
       )
     except CatchableError as e:
       trace "WebSocket connection address extraction failed", err = e.msg
-      if not (isNil(stream) and stream.stream.reader.closed):
-        safeClose(stream)
+      safeClose(stream)
       raise e
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))

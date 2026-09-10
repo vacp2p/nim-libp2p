@@ -89,10 +89,7 @@ static bool lookupProvider(LibP2PCtx *seeker, const char *providerId) {
     RecordsWaiter rw;
     memset(&rw, 0, sizeof(rw));
     libp2p_ctx_service_disco_lookup(seeker, &req, on_records, &rw);
-    if (!wait_done(&rw.done)) {
-      fprintf(stderr, "lookup: call did not complete\n");
-      return false;
-    }
+    wait_done(&rw.done);
     if (rw.err_code != 0) {
       fprintf(stderr, "lookup: %s\n", rw.err[0] ? rw.err : "unknown");
       return false;
@@ -119,10 +116,7 @@ static bool rejectsDiscoBeforeStart(LibP2PCtx *ctx) {
   BoolWaiter bw;
   memset(&bw, 0, sizeof(bw));
   libp2p_ctx_service_disco_start(ctx, on_bool, &bw);
-  if (!wait_done(&bw.done)) {
-    fprintf(stderr, "service_disco_start: call did not complete\n");
-    return false;
-  }
+  wait_done(&bw.done);
   if (bw.err_code == 0) {
     fprintf(stderr, "Error: service_disco_start succeeded before ctx_start\n");
     return false;

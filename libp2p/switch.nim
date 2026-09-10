@@ -352,7 +352,10 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Cannot cancel accepts", err = exc.msg
+    warn "Accept loop cancellation failed",
+      err = exc.msg,
+      errType = exc.name,
+      pendingAccepts = s.acceptFuts.countIt(not it.finished())
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]
@@ -364,7 +367,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     await service.stop(s)
 
   # close and cleanup all connections
-  await s.connManager.close()
+  await s.connManager.stop()
 
   for transp in s.transports:
     try:
@@ -391,6 +394,9 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     return
 
   info "Starting switch for peer", peerInfo = s.peerInfo
+
+  if not s.connManager.isRunning():
+    s.connManager.start()
 
   # started first, so that it owns the mapper chain before any service adds one
   doAssert not s.addressManager.isNil(), MissingAddressManager

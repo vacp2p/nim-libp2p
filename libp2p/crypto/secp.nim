@@ -5,6 +5,7 @@
 
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
 import rng as libp2p_rng
+import ../utils/redact
 
 export sha2, results
 
@@ -193,14 +194,13 @@ proc verify*[T: byte | char](
 func clear*(key: var SkPrivateKey) =
   clear(secp256k1.SkSecretKey(key))
 
-func `$`*(key: SkPrivateKey): string =
-  $secp256k1.SkSecretKey(key)
 func `$`*(key: SkPublicKey): string =
   $secp256k1.SkPublicKey(key)
 func `$`*(key: SkSignature): string =
   $secp256k1.SkSignature(key)
-func `$`*(key: SkKeyPair): string =
-  $secp256k1.SkKeyPair(key)
+
+redactType(SkPrivateKey)
+redactType(SkKeyPair)
 
 func `==`*(a, b: SkPrivateKey): bool =
   secp256k1.SkSecretKey(a) == secp256k1.SkSecretKey(b)

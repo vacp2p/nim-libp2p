@@ -142,10 +142,6 @@ proc handle*(
       )
 
     trace "Protocol negotiation request received", stream, protocol = ms
-    if ms.len() <= 0:
-      trace "Protocol negotiation request rejected", stream, reason = "empty protocol"
-      await stream.writeLp(Na)
-
     case ms
     of "ls":
       trace "Protocol list requested", stream
@@ -160,7 +156,7 @@ proc handle*(
       else:
         trace "Duplicate multistream handshake rejected", stream
         await stream.writeLp(Na)
-    elif ms in protos or matchers.anyIt(it(ms)):
+    elif ms.len > 0 and (ms in protos or matchers.anyIt(it(ms))):
       trace "Protocol handler selected", stream, protocol = ms
       await stream.writeLp(ms & "\n")
       stream.protocol = ms

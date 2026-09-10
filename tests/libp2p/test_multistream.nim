@@ -8,6 +8,7 @@ import
   ../../libp2p/[
     multistream,
     stream/bufferstream,
+    stream/bridgestream,
     stream/connection,
     multiaddress,
     transports/transport,
@@ -662,3 +663,15 @@ suite "Multistream :: stream limits":
     await transport2.stop()
     await transport1.stop()
     await handlerWait.cancelAndWait()
+
+  asyncTest "empty proposal produces one rejection before the next proposal":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.handle(server, @[codecs], active = true)
+    defer:
+      await handling.cancelAndWait()
+      await client.close()
+    await client.writeLp("\n")
+    check string.fromBytes(await client.readLp(1024)) == "na\n"
+    await client.writeLp(codecs & "\n")
+    check string.fromBytes(await client.readLp(1024)) == codecs & "\n"
+    check (await handling.wait(1.seconds)) == codecs

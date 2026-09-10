@@ -286,11 +286,10 @@ proc lookupCheck*(
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
-    trace "Kad probe timed out",
-      peerId = peerId.shortLog(), timeout = kad.config.timeout
+    trace "Kad probe timed out", peerId, timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kademlia probe failed", peerId = peerId.shortLog(), err = error
+    trace "Kademlia probe failed", peerId, err = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
@@ -307,7 +306,7 @@ proc admitPeer(
     except CancelledError:
       return
   if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peerId = peerId.shortLog()
+    trace "Kad admission probe failed, not inserting peer", peerId
     kad.probeRecordFailure(peerId, addrs)
     return
   kad.probeClearFailures(peerId)
@@ -316,7 +315,7 @@ proc admitPeer(
 
   # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
   if rtable.detached:
-    trace "Kad admission probe abandoned: table detached", peerId = peerId.shortLog()
+    trace "Kad admission probe abandoned: table detached", peerId
     return
   if rtable.insert(peerId) and not onAdmit.isNil():
     onAdmit(peerId)
@@ -352,12 +351,12 @@ proc scheduleAdmissionProbe(
     return false
 
   if kad.probeBackedOff(peerId, addrs):
-    trace "Kad admission probe backed off", peerId = peerId.shortLog()
+    trace "Kad admission probe backed off", peerId
     kad_admission_probes_backed_off.inc()
     return false
 
   if not kad.admissionSem.tryAcquire():
-    trace "Kad admission probe dropped: no free slot", peerId = peerId.shortLog()
+    trace "Kad admission probe dropped: no free slot", peerId
     kad_admission_probes_dropped.inc()
     return false
 

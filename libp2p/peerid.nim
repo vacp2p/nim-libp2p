@@ -27,6 +27,10 @@ export results, opt, shortlog, collections
 
 const maxInlineKeyLength* = 42
 
+const
+  ShortPeerIdPrefixLength = 6
+  ShortPeerIdSuffixLength = 6
+
 type PeerId* = object
   data*: seq[byte]
 
@@ -37,22 +41,17 @@ func `$`*(pid: PeerId): string =
 
 func shortLog*(pid: PeerId): string =
   ## Returns compact string representation of ``pid``.
-  var spid = $pid
-  if len(spid) > 10:
-    spid[3] = '*'
+  let spid = $pid
+  if spid.len <= ShortPeerIdPrefixLength + 3 + ShortPeerIdSuffixLength:
+    return spid
 
-    spid.delete(4 .. spid.high - 6)
-
-  spid
+  return
+    spid[0 ..< ShortPeerIdPrefixLength] & # prefix
+    "..." & # omitted
+    spid[spid.len - ShortPeerIdSuffixLength .. spid.high] # suffix
 
 chronicles.formatIt(PeerId):
   shortLog(it)
-
-func shortLog*(pid: Opt[PeerId]): string =
-  if pid.isNone:
-    "[none]"
-  else:
-    shortLog(pid.value())
 
 chronicles.formatIt(Opt[PeerId]):
   shortLog(it)
