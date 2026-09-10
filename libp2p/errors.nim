@@ -14,22 +14,6 @@ type
   # Base exception type for libp2p
   LPError* = object of CatchableError
 
-  LPErrorObj*[K: enum] = object
-    ## Error value of a `Result`: `kind` to branch on, `msg` for logs.
-    kind*: K
-    msg*: string
-
-  LPResult*[T; K: enum] = Result[T, LPErrorObj[K]]
-
-func lpError*[K: enum](kind: K, msg = ""): LPErrorObj[K] =
-  LPErrorObj[K](kind: kind, msg: msg)
-
-func `$`*[K: enum](e: LPErrorObj[K]): string =
-  if e.msg.len == 0:
-    $e.kind
-  else:
-    $e.kind & ": " & e.msg
-
 func toException*(e: cstring): ref LPError =
   (ref LPError)(msg: $e)
 

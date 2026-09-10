@@ -109,8 +109,8 @@ proc handleDialDataRequest*(
     trace "Sending DialDataResponse", index = i, messagesToSend = messagesToSend
 
   # get DialResponse
-  msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-    raise newException(AutonatV2Error, error)
+  msg =
+    AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).raiseOr(AutonatV2Error)
 
   trace "Received message", kind = msg.oneof.kind
   if msg.oneof.kind != MsgKind.DialResponse:
@@ -166,8 +166,9 @@ method sendDialRequest*(
         )
       ).encode()
     )
-    let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-      raise newException(AutonatV2Error, error)
+    let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).raiseOr(
+        AutonatV2Error
+      )
 
     dialResp =
       case msg.oneof.kind

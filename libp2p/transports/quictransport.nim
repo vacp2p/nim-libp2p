@@ -443,8 +443,7 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listeners.len == 0, "start() already called"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).raiseOr(TransportStartError)
 
   var listenMAs: seq[MultiAddress]
   var initialized = false
