@@ -247,7 +247,7 @@ method select*(
   var bestIdx: int = -1
 
   for i, rec in records:
-    let spr = SignedExtendedPeerRecord.decode(rec.value).valueOr:
+    let spr = SignedExtendedPeerRecord.decode(rec.value.toBytes()).valueOr:
       continue
 
     let seqNo = spr.data.seqNo
