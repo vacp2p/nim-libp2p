@@ -115,9 +115,8 @@ proc runProvider(
   await kad.addProvider(provideKey(testKey))
   info "Provider announced key"
 
-  let putRes = await kad.putValue(
-    valueKey(testKey), Value.fromBytes(ProviderValue.toBytes())
-  )
+  let putRes =
+    await kad.putValue(valueKey(testKey), Value.fromBytes(ProviderValue.toBytes()))
   if putRes.isErr:
     raise newException(ValueError, "putValue failed: " & putRes.error)
   info "Provider stored value"
