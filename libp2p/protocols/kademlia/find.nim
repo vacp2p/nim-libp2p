@@ -235,7 +235,7 @@ proc dispatchFindNode*(
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg =
-    Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target.toBytes()))
+    Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(target))
   await kad.dispatchRpc(peer, msg, addrs)
 
 proc recordAddrs(
@@ -747,11 +747,10 @@ proc findNodeCloserPeers(kad: KadDHT, target: Key, requester: PeerId): seq[Peer]
 method handleFindNode*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let msgKeyBytes = msg.key.valueOr:
+  let msgKey = msg.key.valueOr:
     trace "Find-node request rejected",
       reason = "missingKey", messageType = "findNode", stream
     return
-  let msgKey = Key.fromBytes(msgKeyBytes)
 
   let response = Message(
     msgType: Opt.some(MessageType.findNode),

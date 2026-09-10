@@ -112,7 +112,7 @@ proc dispatchAddProvider(
 
   let msg = Message(
     msgType: Opt.some(MessageType.addProvider),
-    key: Opt.some(key.toBytes()),
+    key: Opt.some(key),
     providerPeers: @[kad.switch.peerInfo.toPeer()],
   )
   var encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -431,11 +431,10 @@ proc sendAddProviderResponse(
 method handleAddProvider*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let msgKeyBytes = msg.key.valueOr:
+  let msgKey = msg.key.valueOr:
     trace "Add-provider request rejected",
       reason = "missingKey", messageType = "addProvider", stream
     return
-  let msgKey = Key.fromBytes(msgKeyBytes)
 
   if msgKey.len == 0 or msgKey.len > MaxProviderKeyLen:
     trace "Add-provider request rejected",
@@ -497,7 +496,7 @@ proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg =
-    Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key.toBytes()))
+    Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let reply = ?await kad.dispatchRpc(peer, msg)
 
   trace "Get-providers reply received",
@@ -542,11 +541,10 @@ proc getProviders*(
 proc handleGetProviders*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let msgKeyBytes = msg.key.valueOr:
+  let msgKey = msg.key.valueOr:
     trace "Get-providers request rejected",
       reason = "missingKey", messageType = "getProviders", stream
     return
-  let msgKey = Key.fromBytes(msgKeyBytes)
 
   var providers =
     kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
@@ -557,7 +555,7 @@ proc handleGetProviders*(
 
   let response = Message(
     msgType: Opt.some(MessageType.getProviders),
-    key: msg.key,
+    key: Opt.some(msgKey),
     closerPeers: kad.findClosestPeers(msgKey, stream.peerId),
     providerPeers: providers.toSeq(),
   )

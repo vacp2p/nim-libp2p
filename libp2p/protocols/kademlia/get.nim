@@ -15,7 +15,7 @@ proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let msg =
-    Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key.toBytes()))
+    Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
   await kad.dispatchRpc(peer, msg)
 
 proc bestValidRecord(
@@ -73,7 +73,7 @@ proc getValue*(
       trace "Get-value reply has no record", messageType = "getValue"
       return
 
-    if record.key.isNone or record.key.get() != key.toBytes():
+    if record.key.isNone or record.key.get() != key:
       trace "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
@@ -81,7 +81,6 @@ proc getValue*(
     let value = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
-    let value = Value.fromBytes(valueBytes)
 
     if value.len > kad.config.limits.maxValueSize:
       trace "GetValue dropped: value exceeds maxValueSize",
@@ -129,11 +128,10 @@ proc getValue*(
 method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let keyBytes = msg.key.valueOr:
+  let key = msg.key.valueOr:
     trace "Get-value request rejected",
       reason = "missingKey", messageType = "getValue", stream
     return
-  let key = Key.fromBytes(keyBytes)
 
   # Evict the entry eagerly if it has expired so the response below treats it as
   # absent and sends the standard "no record found" response.
@@ -160,12 +158,12 @@ method handleGetValue*(
 
   let response = Message(
     msgType: Opt.some(MessageType.getValue),
-    key: Opt.some(key.toBytes()),
+    key: Opt.some(key),
     closerPeers: kad.findClosestPeers(key, stream.peerId),
     record: Opt.some(
       Record(
-        key: Opt.some(key.toBytes()),
-        value: Opt.some(entryRecord.value.toBytes()),
+        key: Opt.some(key),
+        value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
     ),
