@@ -287,7 +287,7 @@ suite "Service Discovery Component - Error Handling":
 
       let msg = kad_protobuf.Message(
         msgType: kad_protobuf.MessageType.register,
-        key: key,
+        key: Key.fromBytes(key),
         register: Opt.some(
           kad_protobuf.RegisterMessage(
             advertisement: adBytes,
@@ -393,7 +393,9 @@ suite "Service Discovery Component - Error Handling":
     for keyLen in [0, 31, 33, 64]:
       let key = newSeq[byte](keyLen)
 
-      let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.getAds, key: key)
+      let msg = kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: Key.fromBytes(key)
+      )
 
       let response = await clientNode.sendMessage(registrarNode, msg)
       check:
