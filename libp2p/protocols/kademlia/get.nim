@@ -167,7 +167,8 @@ method handleGetValue*(
         value: Opt.some(entryRecord.value.toBytes()),
         timeReceived: Opt.some(entryRecord.time),
       )
-    )
+    ),
+  )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:
