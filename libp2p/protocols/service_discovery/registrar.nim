@@ -259,6 +259,16 @@ proc acceptAdvertisement*(
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
 
+proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
+  ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len == 0:
+    return
+
+  let sender = @[PeerInfo(peerId: peerId, addrs: senderAddrs)]
+  disco.admitPeers(sender)
+  disco.rtManager.admitPeers(disco, serviceId, sender)
+
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
@@ -280,10 +290,7 @@ proc registration*(
     trace "Key not set: registration", msg = inMsg
     return
 
-  discard disco.rtable.insert(peerId)
-  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
-  if senderAddrs.len > 0:
-    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+  disco.seatSender(serviceId, peerId)
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -386,10 +393,7 @@ proc getAdvertisements*(
     trace "Key not set: getAdvertisements", msg
     return
 
-  discard disco.rtable.insert(peerId)
-  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
-  if senderAddrs.len > 0:
-    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+  disco.seatSender(serviceId, peerId)
 
   let cap = disco.discoConfig.fReturn
   let ads = disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)

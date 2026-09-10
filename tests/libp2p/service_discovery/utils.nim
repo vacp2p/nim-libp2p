@@ -136,6 +136,7 @@ proc setupServiceDiscoveryNode*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     kadConfig: KadDHTConfig = testKadDHTConfig(),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],
+    mount: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey, addresses)
   let node = ServiceDiscovery.new(
@@ -148,7 +149,8 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if mount:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -178,6 +180,9 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
   peerKey in rtable
+
+proc hasPeerInMainTable*(disco: ServiceDiscovery, peerId: PeerId): bool =
+  disco.rtable.hasPeer(peerId.toKey())
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:

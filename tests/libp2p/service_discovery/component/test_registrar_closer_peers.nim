@@ -157,9 +157,48 @@ suite "Service Discovery Component - Registrar Closer Peers":
       waitResponse.get().status == kad_protobuf.RegistrationStatus.Wait
 
     let tableAfterWait = registrarNode.rtManager.getTable(serviceId)
-    check:
-      tableAfterWait.isSome()
+    check tableAfterWait.isSome()
+    checkUntilTimeout:
       tableAfterWait.get().hasPeer(waitKey)
+
+  asyncTest "REGISTER from a node without the codec mounted seats it nowhere":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let unmountedNode = setupServiceDiscoveryNode(discoConfig = conf, mount = false)
+    startAndDeferStop(@[registrarNode, unmountedNode])
+
+    # A switch starts and stops the protocols it mounts, so this one needs both by hand.
+    await unmountedNode.start()
+    defer:
+      await unmountedNode.stop()
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let senderId = unmountedNode.switch.peerInfo.peerId
+
+    unmountedNode.switch.peerStore[AddressBook][registrarNode.switch.peerInfo.peerId] =
+      registrarNode.switch.peerInfo.addrs
+    registrarNode.switch.peerStore[AddressBook][senderId] =
+      unmountedNode.switch.peerInfo.addrs
+    discard registrarNode.rtManager.addService(
+      serviceId, registrarNode.rtable, registrarNode.config.replication,
+      conf.bucketsCount, Interest,
+    )
+
+    let adBytes = makeAdvertisement(serviceName).encode().get()
+    let response = await unmountedNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
+    )
+
+    check:
+      response.isOk()
+      response.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    checkUntilTimeout:
+      registrarNode.admissionProbes.len == 0
+    check:
+      not registrarNode.hasPeerInMainTable(senderId)
+      not registrarNode.hasPeerInServiceTable(serviceId, senderId)
 
   asyncTest "GET_ADS adds discoverer to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -198,6 +237,6 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check found.get().len == 1
 
     let tableAfter = registrarNode.rtManager.getTable(serviceId)
-    check:
-      tableAfter.isSome()
+    check tableAfter.isSome()
+    checkUntilTimeout:
       tableAfter.get().hasPeer(discovererKey)
