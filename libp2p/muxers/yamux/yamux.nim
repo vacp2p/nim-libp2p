@@ -611,7 +611,9 @@ proc discardData(
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   # Unknown or reset streams still carry framed payloads; never interpret those
   # bytes as headers or allocate an untrusted frame-sized discard buffer.
-  var buffer: array[8192, byte]
+  # Implementation choice to bound discard memory, not a protocol limit.
+  const bufferSize = 8192
+  var buffer: array[bufferSize, byte]
   var remaining = length
   while remaining > 0:
     let count = min(remaining, uint32(buffer.len)).int
