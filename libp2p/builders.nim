@@ -100,6 +100,7 @@ type
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
+    allowUndialableAddrs: bool
 
 proc new*(T: type[SwitchBuilder]): T =
   ## Creates a SwitchBuilder
@@ -123,6 +124,7 @@ proc new*(T: type[SwitchBuilder]): T =
     identifyPusherEnabled: false,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    allowUndialableAddrs: false,
     addressTtls: AddressConfidenceTtls(),
   )
 
@@ -435,6 +437,11 @@ proc withAddressPolicy*(
   b.addressPolicy = addressPolicy
   b
 
+proc withUndialableAddresses*(b: SwitchBuilder, allow = true): SwitchBuilder =
+  ## Publishes, stores and dials a wildcard host and a port `0`, for a local test only.
+  b.allowUndialableAddrs = allow
+  b
+
 proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Filter private (RFC1918/link-local) addresses from all peer address
   ## announcements and incoming peer address records. When enabled:
@@ -482,6 +489,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     else:
       PeerStore.new(identify, addressTtls = b.addressTtls)
   peerStore.addressPolicy = b.addressPolicy
+  peerStore.allowUndialableAddrs = b.allowUndialableAddrs
 
   var connManager = ConnManager.new(
     maxConnsPerPeer = b.maxConnsPerPeer,
