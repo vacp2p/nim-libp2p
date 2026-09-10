@@ -200,6 +200,38 @@ suite "Service Discovery Component - Registrar Closer Peers":
       not registrarNode.hasPeerInMainTable(senderId)
       not registrarNode.hasPeerInServiceTable(serviceId, senderId)
 
+  asyncTest "REGISTER with an invalid advertisement seats the sender nowhere":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let senderNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, senderNode])
+
+    let serviceId = "service".hashServiceId()
+    let senderId = senderNode.switch.peerInfo.peerId
+
+    senderNode.switch.peerStore[AddressBook][registrarNode.switch.peerInfo.peerId] =
+      registrarNode.switch.peerInfo.addrs
+    registrarNode.switch.peerStore[AddressBook][senderId] =
+      senderNode.switch.peerInfo.addrs
+    discard registrarNode.rtManager.addService(
+      serviceId, registrarNode.rtable, registrarNode.config.replication,
+      conf.bucketsCount, Interest,
+    )
+
+    let response = await senderNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, @[1'u8, 2, 3, 4]
+    )
+
+    check:
+      response.isOk()
+      response.get().status == kad_protobuf.RegistrationStatus.Rejected
+
+    checkUntilTimeout:
+      registrarNode.admissionProbes.len == 0
+    check:
+      not registrarNode.hasPeerInMainTable(senderId)
+      not registrarNode.hasPeerInServiceTable(serviceId, senderId)
+
   asyncTest "GET_ADS adds discoverer to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)

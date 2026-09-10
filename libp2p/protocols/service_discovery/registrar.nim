@@ -291,8 +291,6 @@ proc registration*(
     return
   let serviceId = Key.fromBytes(serviceIdBytes)
 
-  disco.seatSender(serviceId, peerId)
-
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
@@ -340,6 +338,8 @@ proc registration*(
     )
 
     return msg
+
+  disco.seatSender(serviceId, peerId)
 
   let ips = disco.advertiserIps(peerId, connectionIps)
   var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
