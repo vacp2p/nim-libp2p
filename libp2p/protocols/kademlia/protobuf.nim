@@ -14,12 +14,6 @@ import protobuf_serialization/std/enums
 import ../../utils/[protobuf, protobuf_chronos_sec]
 import ./key_value
 
-converter toOptKey*(key: Key): Opt[Key] =
-  Opt.some(key)
-
-converter toOptValue*(value: Value): Opt[Value] =
-  Opt.some(value)
-
 Protobuf.extensionDefaults(Key, pbytes, defaultSeq = true)
 Protobuf.extensionDefaults(Value, pbytes, defaultSeq = true)
 

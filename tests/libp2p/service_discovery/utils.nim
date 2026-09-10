@@ -27,6 +27,12 @@ import ../../tools/crypto as testcrypto
 
 export protobuf, registrar, routing_table_manager, types, testcrypto
 
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
 converter toOptTimestamp*(a: UnixTimestamp): Opt[UnixTimestamp] =
   Opt.some(a)
 
