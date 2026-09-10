@@ -27,6 +27,12 @@ import ../../tools/crypto as testcrypto
 
 export protobuf, registrar, routing_table_manager, types, testcrypto
 
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
 converter toOptTimestamp*(a: UnixTimestamp): Opt[UnixTimestamp] =
   Opt.some(a)
 
@@ -252,7 +258,7 @@ proc registerAd*(
 ): RegisterMessage =
   let inMsg = Message(
     msgType: MessageType.register,
-    key: Opt.some(serviceId.toBytes()),
+    key: serviceId,
     register: Opt.some(
       RegisterMessage(
         advertisement: ad.encode().get(),

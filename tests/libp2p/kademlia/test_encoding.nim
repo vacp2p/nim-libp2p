@@ -19,8 +19,9 @@ suite "KadDHT Protobuffers":
 
     let msg = Message(
       msgType: MessageType.putValue,
-      key: @[1'u8],
-      record: Record(key: @[1'u8], value: @[2'u8], timeReceived: "t"),
+      key: Key.init([1'u8]),
+      record:
+        Record(key: Key.init([1'u8]), value: Value.init([2'u8]), timeReceived: "t"),
       closerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
       providerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
     )
@@ -50,7 +51,7 @@ suite "KadDHT Protobuffers":
   test "Message with empty closer/provider peers":
     let msg = Message(
       msgType: MessageType.ping,
-      key: @[7'u8],
+      key: Key.init([7'u8]),
       record: Opt.none(Record),
       closerPeers: @[],
       providerPeers: @[],
@@ -78,7 +79,7 @@ suite "KadDHT Protobuffers":
     let maddrs = @[ma("/ip4/127.0.0.1/tcp/9000")]
     let msg = Message(
       msgType: MessageType.findNode,
-      key: @[1'u8],
+      key: Key.init([1'u8]),
       closerPeers: @[Peer(id: @[2'u8], addrs: maddrs, connection: connected)],
       providerPeers: @[Peer(id: @[3'u8], addrs: maddrs, connection: canConnect)],
     )

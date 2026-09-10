@@ -286,10 +286,9 @@ proc registration*(
     inMsg: Message,
     connectionIps: seq[IpAddress] = @[],
 ): Message =
-  let serviceIdBytes = inMsg.key.valueOr:
+  let serviceId = inMsg.key.valueOr:
     trace "Key not set: registration", msg = inMsg
     return
-  let serviceId = Key.fromBytes(serviceIdBytes)
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -390,10 +389,9 @@ proc registration*(
 proc getAdvertisements*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Message =
-  let serviceIdBytes = msg.key.valueOr:
+  let serviceId = msg.key.valueOr:
     trace "Key not set: getAdvertisements", msg
     return
-  let serviceId = Key.fromBytes(serviceIdBytes)
 
   disco.seatSender(serviceId, peerId)
 
