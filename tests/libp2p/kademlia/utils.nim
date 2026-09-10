@@ -192,8 +192,8 @@ proc containsData*(kad: KadDHT, key: Key, value: Value): bool =
 
   if record.value != value:
     checkpoint(
-      "containsData: value mismatch for " & $key.shortLog() & " - expected: " &
-        $value & ", got: " & $record.value
+      "containsData: value mismatch for key:" & $key.shortLog & " - expected value: " &
+        $value.shortLog & ", got value: " & $record.value
     )
     return false
 
