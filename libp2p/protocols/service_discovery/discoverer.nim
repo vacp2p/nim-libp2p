@@ -49,7 +49,8 @@ proc dispatchGetAds(
 ): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   debug "Getting adverts", serviceId, registrar = peerId
 
-  let msg = Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId))
+  let msg =
+    Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId.toBytes()))
 
   let replyRes =
     if peerId == disco.switch.peerInfo.peerId:

@@ -11,7 +11,7 @@ import ../../tools/[unittest, crypto]
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return @buf
+  return Key(@buf)
 
 suite "KadDHT PeerRegistry":
   test "new registry is empty":

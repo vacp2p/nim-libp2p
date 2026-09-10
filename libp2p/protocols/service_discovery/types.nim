@@ -15,6 +15,7 @@ export iptree
 export extended_peer_record.MaxServiceDataSize
 export extended_peer_record.MaxXPRSize
 export extended_peer_record.isValid
+export types
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
@@ -187,7 +188,7 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
 
 proc hashServiceId*(serviceStr: string): ServiceId =
   let digest = sha256.digest(serviceStr)
-  @(digest.data)
+  ServiceId.fromBytes(@(digest.data))
 
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
@@ -228,7 +229,7 @@ type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedExtendedPeerRecord.decode(record.value).valueOr:
+  let spr = SignedExtendedPeerRecord.decode(record.value.toBytes()).valueOr:
     return false
 
   let expectedPeerId = key.toPeerId().valueOr:
@@ -247,7 +248,7 @@ method select*(
   var bestIdx: int = -1
 
   for i, rec in records:
-    let spr = SignedExtendedPeerRecord.decode(rec.value).valueOr:
+    let spr = SignedExtendedPeerRecord.decode(rec.value.toBytes()).valueOr:
       continue
 
     let seqNo = spr.data.seqNo
