@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import algorithm, chronos, results, sequtils, sets, tables
+import algorithm, chronos, hashes, results, sequtils, sets, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multihash, stream/connection]
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
@@ -15,6 +15,9 @@ converter toKey*(bytes: seq[byte]): Key =
 
 converter toValue*(bytes: seq[byte]): Value =
   Value.fromBytes(bytes)
+
+proc hash*(x: seq[byte]): Hash {.inline.} =
+  hash(x, 0, x.high)
 
 converter fromKeyToBytes*(k: Key): seq[byte] =
   k.toBytes()
