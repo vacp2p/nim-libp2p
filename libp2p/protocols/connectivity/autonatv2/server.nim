@@ -14,6 +14,7 @@ import
     transports/transport,
     multicodec,
     peerid,
+    wire,
     utils/ipaddr,
   ],
   ../../protocol,
@@ -171,12 +172,12 @@ proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
       return false
     if IP6.match(addrIp) and not ipv6Support:
       return false
-    try:
-      if not self.config.allowPrivateAddresses and isPrivate($addrIp):
-        return false
-    except ValueError:
-      trace "Unable to parse IP address, skipping", address = $addrs
-      return false
+
+  # A name and a relayed address have no global IP, so both are refused here too.
+  if not self.config.allowPrivateAddresses and not addrs.isGlobalMA():
+    trace "Refusing to dial back a non-global address", address = addrs
+    return false
+
   for t in self.switch.transports:
     if t.handles(addrs):
       return true

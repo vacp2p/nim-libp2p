@@ -52,8 +52,9 @@ proc dispatchPutVal*(
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   let msg = Message(
     msgType: Opt.some(MessageType.putValue),
-    key: Opt.some(key),
-    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
+    key: Opt.some(key.toBytes()),
+    record:
+      Opt.some(Record(key: Opt.some(key.toBytes()), value: Opt.some(value.toBytes()))),
   )
   let reply = ?await kad.dispatchRpc(peer, msg)
 
@@ -111,12 +112,13 @@ proc handlePutValue*(
       reason = "missingRecord", messageType = "putValue", stream
     return
 
-  let msgKey = msg.key.valueOr:
+  let msgKeyBytes = msg.key.valueOr:
     trace "Put-value request rejected",
       reason = "missingKey", messageType = "putValue", stream
     return
+  let msgKey = Key.fromBytes(msgKeyBytes)
 
-  if record.key.isNone or record.key.get() != msgKey:
+  if record.key.isNone or record.key.get() != msgKey.toBytes():
     trace "Put-value request rejected",
       reason = "keyMismatch", messageType = "putValue", stream
     return
@@ -125,6 +127,7 @@ proc handlePutValue*(
     trace "Put-value request rejected",
       reason = "missingValue", messageType = "putValue", stream
     return
+  let value = Value.fromBytes(valueBytes)
 
   if value.len > kad.config.limits.maxValueSize:
     trace "PUT_VALUE dropped: value exceeds maxValueSize",

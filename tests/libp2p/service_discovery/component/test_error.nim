@@ -87,7 +87,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await stall.waitAccepted().wait(2.seconds)
@@ -112,7 +113,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await stream.writeStarted.wait(2.seconds)
@@ -145,7 +147,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       registrarNode.switch.peerInfo.peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await received.wait(2.seconds)
@@ -177,7 +180,7 @@ suite "Service Discovery Component - Error Handling":
     let serviceId = makeServiceId()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.none(kad_protobuf.RegisterMessage),
     )
 
@@ -195,7 +198,7 @@ suite "Service Discovery Component - Error Handling":
     let serviceId = makeServiceId()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: @[],
@@ -241,7 +244,7 @@ suite "Service Discovery Component - Error Handling":
       .get()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,
@@ -327,7 +330,7 @@ suite "Service Discovery Component - Error Handling":
 
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,
@@ -367,7 +370,7 @@ suite "Service Discovery Component - Error Handling":
 
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,

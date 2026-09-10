@@ -51,7 +51,9 @@ proc new*(
           addresses = ourAddrs
         return
 
-      peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
+      peerDialableAddrs = switch.peerStore.addressPolicy.filterAddrs(
+        getHolePunchableAddrs(connectMsg.addrs)
+      )
       if peerDialableAddrs.len == 0:
         await stream.send(MsgType.Connect, ourAddrs)
         trace "Dcutr receiver has sent a Connect message back."
