@@ -1588,3 +1588,55 @@ suite "Service Discovery Registrar - connection IPs":
     check slot.ips == connectionIps
     check slot.ips != @[parseIpAddress("10.0.0.1")]
     check slot.ips != @[parseIpAddress("10.0.0.99")]
+
+suite "Service Discovery Registrar - sender admission":
+  test "registration does not insert the sender into the main routing table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    )
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let senderId = ad.data.peerId
+    disco.switch.peerStore[AddressBook][senderId] = @[makeMultiAddress("198.51.100.7")]
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: ad.encode().get(),
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(senderId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed
+    check not disco.hasPeerInMainTable(senderId)
+
+  test "registration does not return the sender among its own closerPeers":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    )
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let senderId = ad.data.peerId
+    disco.switch.peerStore[AddressBook][senderId] = @[makeMultiAddress("198.51.100.10")]
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: ad.encode().get(),
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    check disco.registration(senderId, inMsg).closerPeers.len == 0

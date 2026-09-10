@@ -290,8 +290,6 @@ proc registration*(
     trace "Key not set: registration", msg = inMsg
     return
 
-  disco.seatSender(serviceId, peerId)
-
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
@@ -339,6 +337,8 @@ proc registration*(
     )
 
     return msg
+
+  disco.seatSender(serviceId, peerId)
 
   let ips = disco.advertiserIps(peerId, connectionIps)
   var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
