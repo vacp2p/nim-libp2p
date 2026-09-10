@@ -181,7 +181,7 @@ type
     maxHighPriorityQueueLen*: int
     maxMediumPriorityQueueLen*: int
     maxLowPriorityQueueLen*: int
-    disconnected: bool
+    stopped: bool
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
     connectFut: Future[void]
     sendFuts: seq[Future[void]]
@@ -334,7 +334,7 @@ proc runHandleLoop*(
   defer:
     trace "exiting pubsub read loop", stream, peerId = p, closed = stream.closed
 
-  while not p.disconnected and not stream.atEof:
+  while not p.stopped and not stream.atEof:
     var data =
       try:
         await stream.readLp(p.maxMessageSize)
@@ -345,7 +345,7 @@ proc runHandleLoop*(
           err = e.msg, stream, peer = p, closed = stream.closed
         return
 
-    if p.disconnected:
+    if p.stopped:
       return
 
     trace "read data from peer",
@@ -390,7 +390,7 @@ proc connectOnce(
         await p.getStream().wait(5.seconds)
       except AsyncTimeoutError:
         raise newException(GetStreamDialError, "establishing stream timed out")
-    if p.disconnected:
+    if p.stopped:
       await newStream.close()
       return
 
@@ -428,7 +428,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     # send stream might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new one
     while true:
-      if p.disconnected:
+      if p.stopped:
         p.connectedFut.completeOnce()
         return
       await connectOnce(p)
@@ -438,7 +438,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     trace "Could not establish send stream", err = exc.msg
 
 proc connect*(p: PubSubPeer) =
-  if p.disconnected or p.connected:
+  if p.stopped or p.connected:
     return
   if not p.connectFut.isNil() and not p.connectFut.finished():
     return
@@ -542,8 +542,8 @@ proc sendMsg(
     await sendMsgSlow(p, move(msg))
 
 proc disconnectPeer(p: PubSubPeer): Future[void] =
-  if not p.disconnected:
-    p.disconnected = true
+  if not p.stopped:
+    p.stopped = true
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
     return p.closeSendStream(PubSubPeerEventKind.DisconnectionRequested)
@@ -617,7 +617,7 @@ proc sendEncoded*(
   ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
 
-  if p.disconnected:
+  if p.stopped:
     return newFutureCompleted[void]()
 
   p.clearSendPriorityQueue()
@@ -822,7 +822,7 @@ proc startSendNonHighPriorityTask(p: PubSubPeer) =
 proc stopTasks*(p: PubSubPeer) =
   ## Prevents further work and requests cancellation of all peer tasks.
   ## Use `stop` to wait for teardown to finish.
-  p.disconnected = true
+  p.stopped = true
   if not p.connectFut.isNil():
     p.connectFut.cancelSoon()
     p.connectFut = nil
