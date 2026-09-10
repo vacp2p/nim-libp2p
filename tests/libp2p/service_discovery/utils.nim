@@ -136,6 +136,7 @@ proc setupServiceDiscoveryNode*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     kadConfig: KadDHTConfig = testKadDHTConfig(),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],
+    mount: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey, addresses)
   let node = ServiceDiscovery.new(
@@ -148,7 +149,8 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if mount:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -167,8 +169,14 @@ proc setupServiceDiscoveryNodes*(
     )
   nodes
 
+proc serveCodec*(disco: ServiceDiscovery, peerId: PeerId) =
+  ## Fake the identify result that lists our codec among the peer's protocols.
+  disco.switch.peerStore[ProtoBook][peerId] = @[disco.codec]
+
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   ## Bidirectionally connect two ServiceDiscovery instances.
+  disco1.serveCodec(disco2.switch.peerInfo.peerId)
+  disco2.serveCodec(disco1.switch.peerInfo.peerId)
   discard disco1.rtable.insert(disco2.switch.peerInfo.peerId)
   discard disco2.rtable.insert(disco1.switch.peerInfo.peerId)
   disco1.switch.peerStore[AddressBook][disco2.switch.peerInfo.peerId] =
@@ -178,6 +186,9 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
   peerKey in rtable
+
+proc hasPeerInMainTable*(disco: ServiceDiscovery, peerId: PeerId): bool =
+  disco.rtable.hasPeer(peerId.toKey())
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:

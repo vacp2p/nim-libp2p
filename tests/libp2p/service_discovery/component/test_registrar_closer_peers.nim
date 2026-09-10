@@ -161,6 +161,39 @@ suite "Service Discovery Component - Registrar Closer Peers":
       tableAfterWait.isSome()
       tableAfterWait.get().hasPeer(waitKey)
 
+  asyncTest "REGISTER from a node without the codec mounted seats it nowhere":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let unmountedNode = setupServiceDiscoveryNode(discoConfig = conf, mount = false)
+    startAndDeferStop(@[registrarNode, unmountedNode])
+
+    # A switch starts and stops the protocols it mounts, so this one needs both by hand.
+    await unmountedNode.start()
+    defer:
+      await unmountedNode.stop()
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+
+    unmountedNode.switch.peerStore[AddressBook][registrarNode.switch.peerInfo.peerId] =
+      registrarNode.switch.peerInfo.addrs
+
+    let adBytes = makeAdvertisement(serviceName).encode().get()
+    let response = await unmountedNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
+    )
+
+    check:
+      response.isOk()
+      response.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    let senderId = unmountedNode.switch.peerInfo.peerId
+    check:
+      ExtendedServiceDiscoveryCodec notin
+        registrarNode.switch.peerStore[ProtoBook][senderId]
+      not registrarNode.hasPeerInMainTable(senderId)
+      not registrarNode.hasPeerInServiceTable(serviceId, senderId)
+
   asyncTest "GET_ADS adds discoverer to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
