@@ -187,3 +187,35 @@ proc isPrivateMA*(ma: MultiAddress): bool =
     return false
 
   hostIP.isPrivate() or hostIP.isShared() or hostIP.isLinkLocal()
+
+const
+  AnyAddressV4 = [0'u8, 0, 0, 0]
+  AnyAddressV6 = [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  AnyAddressV4Mapped = [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0, 0]
+    ## ``::ffff:0.0.0.0``, the IPv4-mapped spelling of the wildcard host.
+
+proc portOf(ma: MultiAddress): Opt[Port] =
+  for codec in [multiCodec("tcp"), multiCodec("udp")]:
+    let arg = ma.getProtocolArgument(codec).valueOr:
+      continue
+    if arg.len == 2:
+      return Opt.some(Port(uint16.fromBytesBE(arg)))
+  Opt.none(Port)
+
+proc isDialableMA*(ma: MultiAddress): bool =
+  ## False for a wildcard bind host (``0.0.0.0`` / ``::``) or an unresolved ephemeral port.
+  if isCircuitRelayMA(ma):
+    return true
+
+  ma.portOf().withValue(port):
+    if port == Port(0):
+      return false
+
+  ma.getIp().withValue(ip):
+    case ip.family
+    of IpAddressFamily.IPv4:
+      return ip.address_v4 != AnyAddressV4
+    of IpAddressFamily.IPv6:
+      return ip.address_v6 != AnyAddressV6 and ip.address_v6 != AnyAddressV4Mapped
+
+  true

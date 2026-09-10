@@ -99,6 +99,12 @@ proc getTable*(
 
   return Opt.some(table)
 
+proc removePeer*(manager: ServiceRoutingTableManager, peerId: PeerId, reason: string) =
+  ## The main Kad table is left alone; it runs its own liveness probes.
+  for table in manager.tables.values:
+    discard table.removePeer(peerId, reason)
+  manager.updateServiceTablesMetrics()
+
 proc insertPeer*(
     disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerInfo
 ): bool =
@@ -106,7 +112,9 @@ proc insertPeer*(
     return false
 
   let addressBook = disco.switch.peerStore[AddressBook]
-  let addrs = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
+  let addrs = disco.config.addressPolicy.dialableAddrs(
+    peerInfo.addrs, disco.switch.peerStore.allowUndialableAddrs
+  )
   if addrs.len == 0:
     return false
   if not addressBook.hasIpDiversity(

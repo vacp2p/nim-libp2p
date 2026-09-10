@@ -145,6 +145,10 @@ proc setupServiceDiscoveryNode*(
     mount: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey, addresses)
+  # `peerInfo.addrs` only fills in on `switch.start()`, which most tests skip.
+  if switch.peerInfo.addrs.len == 0:
+    switch.peerInfo.addrs = @[makeMultiAddress("127.0.0.1")]
+
   let node = ServiceDiscovery.new(
     switch,
     bootstrapNodes = bootstrapNodes,
