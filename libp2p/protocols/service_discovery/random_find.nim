@@ -63,7 +63,7 @@ proc randomRecords(
 
   var records: HashSet[ExtendedPeerRecord]
   for v in values:
-    let sxpr = SignedExtendedPeerRecord.decode(v.getBytes()).valueOr:
+    let sxpr = SignedExtendedPeerRecord.decode(v.toBytes()).valueOr:
       debug "Cannot decode signed extended peer record", error
       continue
 
