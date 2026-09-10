@@ -10,6 +10,24 @@ import ./mock_kademlia
 
 export crypto
 
+converter toKey*(bytes: seq[byte]): Key =
+  Key.fromBytes(bytes)
+
+converter toValue*(bytes: seq[byte]): Value =
+  Value.fromBytes(bytes)
+
+converter fromKeyToBytes*(v: Value): seq[byte] =
+  v.toBytes()
+
+converter fromValueToBytes*(k: Key): seq[byte] =
+  k.toBytes()
+
+converter fromKeyToOptBytes*(v: Value): Opt[seq[byte]] =
+  Opt.some(v.toBytes())
+
+converter fromValueToOptBytes*(k: Key): Opt[seq[byte]] =
+  Opt.some(k.toBytes())
+
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)
 
@@ -255,7 +273,7 @@ proc peersWithAddrs*(count: int): seq[PeerInfo] =
 
 proc closerPeer*(id: Key): Peer =
   ## `toPeer` refuses an address-free peer, so no real reply carries one.
-  Peer(id: id.toBytes(), addrs: @[ma("/ip4/127.0.0.1/tcp/1")])
+  Peer(id: id, addrs: @[ma("/ip4/127.0.0.1/tcp/1")])
 
 proc addPeersWithAddrs*(kad: KadDHT, count: int) =
   ## Adds `count` random peers to the routing table, with an address each so they
@@ -352,7 +370,7 @@ proc sendAddProviderAndGetStatus*(
     await stream.close()
   let msg = Message(
     msgType: MessageType.addProvider,
-    key: key.toBytes(),
+    key: key,
     providerPeers: @[sender.switch.peerInfo.toPeer()],
   )
   let writeRes = catch:

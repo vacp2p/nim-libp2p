@@ -26,7 +26,7 @@ suite "KadDHT Put":
       kads[1].dataTable.len == 0
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
+    let value = @[1.byte, 2, 3, 4, 5]
     discard await kads[1].putValue(key, value)
 
     # After putValue, both nodes should have the record
@@ -41,7 +41,7 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
+    let value = @[1.byte, 2, 3, 4, 5]
 
     # Both validators reject -> putValue fails, nothing stored
     check:
@@ -68,7 +68,7 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
+    let value = @[1.byte, 2, 3, 4, 5]
     discard await kads[1].putValue(key, value)
 
     # Parse the stored timestamp
@@ -87,8 +87,8 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
-    let emptyVal = Value.init([])
+    let value = @[1.byte, 2, 3, 4, 5]
+    let emptyVal: seq[byte] = @[]
 
     # Store initial value
     discard await kads[0].putValue(key, value)
@@ -120,8 +120,8 @@ suite "KadDHT Put":
     # Build a malformed PUT_VALUE message with mismatched keys
     let msg = Message(
       msgType: MessageType.putValue,
-      key: msgKey.toBytes(),
-      record: Record(key: recordKey.toBytes(), value: @[1.byte, 2, 3, 4, 5]),
+      key: msgKey,
+      record: Record(key: recordKey, value: @[1.byte, 2, 3, 4, 5]),
     )
 
     # Send directly via handlePutValue to test the validation logic
@@ -149,9 +149,8 @@ suite "KadDHT Put":
     let key = kads[0].rtable.selfId
 
     # PUT_VALUE with no record at all
-    let msgNoRecord = Message(
-      msgType: MessageType.putValue, key: key.toBytes(), record: Opt.none(Record)
-    )
+    let msgNoRecord =
+      Message(msgType: MessageType.putValue, key: key, record: Opt.none(Record))
     await kads[0].handlePutValue(conn, msgNoRecord)
 
     # No data should be stored
@@ -160,8 +159,8 @@ suite "KadDHT Put":
     # PUT_VALUE with record but no value
     let msgNoValue = Message(
       msgType: MessageType.putValue,
-      key: key.toBytes(),
-      record: Record(key: key.toBytes(), value: Opt.none(seq[byte])),
+      key: key,
+      record: Record(key: key, value: Opt.none(seq[byte])),
     )
 
     await kads[0].handlePutValue(conn, msgNoValue)
@@ -176,13 +175,11 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
+    let value = @[1.byte, 2, 3, 4, 5]
 
     # Build the PUT_VALUE request message
     let request = Message(
-      msgType: MessageType.putValue,
-      key: key.toBytes(),
-      record: Record(key: key.toBytes(), value: value.toBytes()),
+      msgType: MessageType.putValue, key: key, record: Record(key: key, value: value)
     )
 
     let conn = await kads[1].switch.dial(
@@ -206,7 +203,7 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([0.byte, 0xFF, 0, 0xFF]) # nulls and high bytes interleaved
+    let value = @[0.byte, 0xFF, 0, 0xFF] # nulls and high bytes interleaved
 
     discard await kads[1].putValue(key, value)
     check kads[0].containsData(key, value)
@@ -225,7 +222,7 @@ suite "KadDHT Put":
     await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
-    let value = Value.init([1.byte, 2, 3, 4, 5])
+    let value = @[1.byte, 2, 3, 4, 5]
     discard await kads[1].putValue(key, value)
 
     # Value is present right after insertion
@@ -243,12 +240,11 @@ suite "KadDHT Put":
     let oneHourAgo = now - times.initDuration(hours = 1)
     let twoDaysAgo = now - times.initDuration(hours = 48)
 
-    let freshRecord =
-      EntryRecord(value: Value.init([1.byte]), time: now.format(TimestampFormat))
+    let freshRecord = EntryRecord(value: @[1.byte], time: now.format(TimestampFormat))
     let oldRecord =
-      EntryRecord(value: Value.init([1.byte]), time: oneHourAgo.format(TimestampFormat))
+      EntryRecord(value: @[1.byte], time: oneHourAgo.format(TimestampFormat))
     let veryOldRecord =
-      EntryRecord(value: Value.init([1.byte]), time: twoDaysAgo.format(TimestampFormat))
+      EntryRecord(value: @[1.byte], time: twoDaysAgo.format(TimestampFormat))
 
     # Fresh record should not be expired even with short intervals
     check not isExpired(freshRecord, 30.minutes)
@@ -263,5 +259,5 @@ suite "KadDHT Put":
     check isExpired(veryOldRecord, 2.hours)
 
     # Record with an unparseable timestamp is treated as expired
-    let badRecord = EntryRecord(value: Value.init([1.byte]), time: "not-a-timestamp")
+    let badRecord = EntryRecord(value: @[1.byte], time: "not-a-timestamp")
     check isExpired(badRecord, 24.hours)
