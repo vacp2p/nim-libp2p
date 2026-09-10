@@ -164,6 +164,7 @@ type
     supportsSendingPartial*: bool
 
   PubSub* = ref object of LPProtocol
+    stopping: bool
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -214,6 +215,8 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ##
 
   debug "unsubscribing pubsub peer", peerId
+  p.peers.withValue(peerId, peer):
+    peer[].stopTasks()
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -507,6 +510,19 @@ template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
   if p.triggerSelf:
     await handleData(p, topic, data)
 
+method start*(p: PubSub) {.async: (raises: [CancelledError]).} =
+  p.stopping = false
+  await procCall LPProtocol(p).start()
+
+method stop*(p: PubSub) {.async: (raises: []).} =
+  p.stopping = true
+  p.started = false
+  var pending: seq[Future[void].Raising([])]
+  for peer in toSeq(p.peers.values):
+    pending.add(peer.stop())
+    p.unsubscribePeer(peer.peerId)
+  await noCancel allFutures(pending)
+
 method handleConn*(
     p: PubSub, stream: Stream, proto: string
 ) {.base, async: (raises: [CancelledError]).} =
@@ -516,6 +532,10 @@ method handleConn*(
   ## 1) register a new PubSubPeer for the connection
   ## 2) handle RPC messages received on this stream
   ##
+
+  if p.stopping:
+    await stream.close()
+    return
 
   let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
@@ -530,6 +550,9 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
+
+  if p.stopping:
+    return
 
   let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)
   pubSubPeer.connect()

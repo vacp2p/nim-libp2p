@@ -397,8 +397,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopTasks()
-
   g.extensionsState.removePeer(peer)
 
   procCall FloodSub(g).unsubscribePeer(peer)
@@ -1165,13 +1163,12 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig,
   )
 
-method start*(
-    g: GossipSub
-): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+method start*(g: GossipSub): Future[void] {.async: (raises: [CancelledError]).} =
   if g.started:
     warn "Starting gossipsub twice"
-    return newFutureCompleted[void]()
+    return
 
+  await procCall PubSub(g).start()
   info "gossipsub start"
 
   g.heartbeatFut = g.heartbeat()
@@ -1180,23 +1177,21 @@ method start*(
   reportBackgroundFailure(g.heartbeatFut, "gossipsub heartbeat")
   reportBackgroundFailure(g.scoringHeartbeatFut, "gossipsub scoring")
   reportBackgroundFailure(g.directPeersLoop, "gossipsub direct peer maintenance")
-  g.started = true
-  newFutureCompleted[void]()
 
-method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
+method stop*(g: GossipSub) {.async: (raises: []).} =
   info "gossipsub stop"
 
-  if not g.started:
-    warn "Stopping gossipsub without starting it"
-    return newFutureCompleted[void]()
-
-  g.started = false
-  g.directPeersLoop.cancelSoon()
-  g.scoringHeartbeatFut.cancelSoon()
-  g.heartbeatFut.cancelSoon()
-  g.pendingTasks.cancelSoon()
+  let peersStopped = procCall PubSub(g).stop()
+  var pending = g.pendingTasks
+  for fut in [g.directPeersLoop, g.scoringHeartbeatFut, g.heartbeatFut]:
+    if not fut.isNil:
+      pending.add(fut)
+  await noCancel pending.cancelAndWait()
   g.pendingTasks = @[]
-  newFutureCompleted[void]()
+  g.directPeersLoop = nil
+  g.scoringHeartbeatFut = nil
+  g.heartbeatFut = nil
+  await peersStopped
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()

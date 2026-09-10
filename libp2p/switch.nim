@@ -346,6 +346,9 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   s.started = false
 
+  # Stop protocol tasks before closing streams can trigger reconnect attempts.
+  await s.ms.stop()
+
   try:
     # Stop accepting incoming connections
     await s.acceptFuts.cancelAndWait().wait(1.seconds)
@@ -376,8 +379,6 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
       raise exc
     except CatchableError as exc:
       warn "Transport cleanup failed", err = exc.msg
-
-  await s.ms.stop()
 
   # stopped last, after every component which can still feed an address
   doAssert not s.addressManager.isNil(), MissingAddressManager
