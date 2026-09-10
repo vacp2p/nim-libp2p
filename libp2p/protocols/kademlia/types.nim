@@ -92,6 +92,20 @@ type
   Value* = distinct seq[byte]
     ## A Kademlia record value. Construct with ``Value.init`` or ``Value.fromBytes``.
 
+func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
+  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
+  var buf: array[IdLength, byte]
+  discard buf.copyFrom(bytes)
+  Key(@buf)
+
+func fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
+  ## Preserves raw Kademlia key bytes received from a wire message.
+  Key(bytes)
+
+func toBytes*(key: Key): seq[byte] {.inline.} =
+  ## Returns the raw bytes used by Kademlia and its wire protocol.
+  seq[byte](key)
+
 proc len*(key: Key): int {.inline.} =
   seq[byte](key).len
 
@@ -106,6 +120,17 @@ proc hash*(key: Key): Hash {.borrow.}
 
 proc `$`*(key: Key): string =
   $seq[byte](key)
+
+func init*(T: typedesc[Value], bytes: openArray[byte]): Value =
+  Value(@bytes)
+
+func fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
+  ## Preserves raw Kademlia value bytes received from a wire message.
+  Value(bytes)
+
+func toBytes*(value: Value): seq[byte] {.inline.} =
+  ## Returns the raw bytes used by Kademlia and its wire protocol.
+  seq[byte](value)
 
 proc len*(value: Value): int {.inline.} =
   seq[byte](value).len
@@ -122,37 +147,12 @@ proc hash*(value: Value): Hash {.borrow.}
 proc `$`*(value: Value): string =
   $seq[byte](value)
 
-func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
-  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
-  var buf: array[IdLength, byte]
-  discard buf.copyFrom(bytes)
-  Key(@buf)
-
-func fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
-  ## Preserves raw Kademlia key bytes received from a wire message.
-  Key(bytes)
-
-func toBytes*(key: Key): seq[byte] {.inline.} =
-  ## Returns the raw bytes used by Kademlia and its wire protocol.
-  seq[byte](key)
-
-func init*(T: typedesc[Value], bytes: openArray[byte]): Value =
-  Value(@bytes)
-
-func fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
-  ## Preserves raw Kademlia value bytes received from a wire message.
-  Value(bytes)
-
-func toBytes*(value: Value): seq[byte] {.inline.} =
-  ## Returns the raw bytes used by Kademlia and its wire protocol.
-  seq[byte](value)
-
 proc toCid*(k: Key): Cid =
   let cidRes = Cid.init(k.toBytes())
   if cidRes.isOk:
     cidRes.get()
   else:
-    debug "Kademlia key wrapped as CID", key = k.toBytes()
+    debug "Kademlia key wrapped as CID", key = k
     Cid
       .init(
         CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k.toBytes()).get()
@@ -223,9 +223,6 @@ chronicles.formatIt(Value):
   it.shortLog
 
 chronicles.formatIt(Key):
-  it.shortLog
-
-chronicles.formatIt(Value):
   it.shortLog
 
 type XorDistance* = array[IdLength, byte]
