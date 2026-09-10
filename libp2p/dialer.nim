@@ -57,6 +57,9 @@ type
   DialReach* = ref object
     ## Shared by every address of one dial, so the peer answers for a real dial only.
     dialed: bool
+    connected: seq[(Muxer, MultiAddress)]
+    deferBackoffSuccess: bool
+      ## The managed connect clears the winning key only after identify succeeds.
 
   DialLock = ref object
     lock: AsyncLock
@@ -96,10 +99,10 @@ proc dialAndUpgrade*(
   let transport = self.transportFor(addrs).valueOr:
     return nil
 
-  let backoffKey = backoffKey(addrs, peerId)
+  let addressKey = backoffKey(addrs, peerId)
   self.dialBackoff.withValue(backoff):
     # `forceDial` already overrides the connection limits, so it overrides the wait too.
-    if not forceDial and backoff.blocked(backoffKey):
+    if not forceDial and backoff.blocked(addressKey):
       return nil
 
   reach.dialed = true
@@ -120,7 +123,7 @@ proc dialAndUpgrade*(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
       )
       self.dialBackoff.withValue(backoff):
-        backoff.recordFailure(backoffKey)
+        backoff.recordFailure(addressKey)
       return nil # Try the next address
 
   libp2p_successful_dials.inc()
@@ -145,7 +148,7 @@ proc dialAndUpgrade*(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["upgrade_failed"]
       )
       self.dialBackoff.withValue(backoff):
-        backoff.recordFailure(backoffKey)
+        backoff.recordFailure(addressKey)
 
       # Try other address
       return nil
@@ -156,8 +159,10 @@ proc dialAndUpgrade*(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
 
-  self.dialBackoff.withValue(backoff):
-    backoff.recordSuccess(backoffKey)
+  reach.connected.add((mux, addressKey))
+  if not reach.deferBackoffSuccess:
+    self.dialBackoff.withValue(backoff):
+      backoff.recordSuccess(addressKey)
 
   let filtered = self.peerStore.addressPolicy.filterAddrs(@[addrs])
   if filtered.len > 0:
@@ -612,6 +617,12 @@ proc finishUpgrade(
       DialFailedError, "failed finishUpgrade in establishConnection: " & e.msg, e
     )
 
+proc connectedKey(reach: DialReach, muxed: Muxer): MultiAddress =
+  for (connected, key) in reach.connected:
+    if connected == muxed:
+      return key
+  raiseAssert "the selected muxer has no dial backoff key"
+
 proc establishConnection(
     self: Dialer,
     peerId: Opt[PeerId],
@@ -642,7 +653,7 @@ proc establishConnection(
 
   let
     dialAddrs = normalizedDialAddrs(peerId, addrs)
-    reach = DialReach()
+    reach = DialReach(deferBackoffSuccess: true)
   let muxed =
     try:
       await self.dialAndUpgrade(
@@ -662,15 +673,23 @@ proc establishConnection(
         shortLog(peerId) & " addrs=" & dialAddrs.shortLog,
     )
 
+  let winningKey = reach.connectedKey(muxed)
+  self.dialBackoff.withValue(backoff):
+    for (connected, key) in reach.connected:
+      if connected != muxed and key != winningKey:
+        backoff.recordSuccess(key)
+
   slot.trackMuxer(muxed)
   try:
     await self.finishUpgrade(muxed, dir)
   except DialFailedError as e:
     self.dialBackoff.withValue(backoff):
+      backoff.recordFailure(winningKey)
       backoff.recordFailure(peerId)
     raise e
 
   self.dialBackoff.withValue(backoff):
+    backoff.recordSuccess(winningKey)
     backoff.recordSuccess(peerId)
   muxed
 
