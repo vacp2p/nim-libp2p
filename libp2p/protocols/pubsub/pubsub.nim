@@ -415,6 +415,8 @@ method getOrCreatePeer*(
   proc getStream(): Future[Stream] {.
       async: (raises: [CancelledError, GetStreamDialError])
   .} =
+    if p.stopping or p.switch.isStopping:
+      raise newException(CancelledError, "pubsub is stopping")
     try:
       return await p.switch.dial(peerId, protos)
     except DialFailedError as e:
@@ -538,7 +540,7 @@ method handleConn*(
   ## 2) handle RPC messages received on this stream
   ##
 
-  if p.stopping:
+  if p.stopping or p.switch.isStopping:
     await stream.close()
     return
 
@@ -556,7 +558,7 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## messages
   ##
 
-  if p.stopping:
+  if p.stopping or p.switch.isStopping:
     return
 
   let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)

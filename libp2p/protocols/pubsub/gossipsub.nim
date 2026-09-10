@@ -1042,6 +1042,8 @@ proc publishPartial*(
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
+  if g.switch.isStopping:
+    return
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peerId = id
     if g.switch.isConnected(id):
@@ -1050,7 +1052,8 @@ proc maintainDirectPeer(
     try:
       await g.switch.connect(id, addrs, forceDial = true)
       # populate the peer after it's connected
-      discard g.getOrCreatePeer(id, g.codecs)
+      if not g.switch.isStopping:
+        discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:
       trace "Direct peer dial canceled"
       raise exc

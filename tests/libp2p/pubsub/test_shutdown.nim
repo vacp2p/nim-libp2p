@@ -7,7 +7,7 @@ import chronos
 import ./utils
 import ../../../libp2p/connmanager
 import ../../../libp2p/protocols/pubsub/[pubsub, pubsubpeer, floodsub, gossipsub]
-import ../../tools/[unittest, switch_builder, bufferstream]
+import ../../tools/[unittest, switch_builder, bufferstream, multiaddress, lifecycle]
 
 suite "PubSub shutdown":
   teardown:
@@ -95,35 +95,51 @@ suite "PubSub shutdown":
     check cancelled
     await sw.stop()
 
-  asyncTest "closing a send stream during switch shutdown does not redial":
+  asyncTest "pubsub refuses new dials while a registered upgrade drains":
     let
-      sw = makeStandardSwitch()
-      gossip = GossipSub.init(sw, rng = rng())
-      stream = TestBufferStream.new(noop)
-    var attempts = 0
+      server = makeStandardSwitch(MemoryAutoAddress())
+      client = makeStandardSwitch(MemoryAutoAddress())
+      gossip = GossipSub.init(server, rng = rng())
+      remoteGossip = GossipSub.init(client, rng = rng())
+      registered = newAsyncEvent()
+      releaseUpgrade = newAsyncEvent()
 
-    proc getStream(): Future[Stream] {.
-        async: (raises: [CancelledError, GetStreamDialError])
-    .} =
-      inc attempts
-      if attempts > 1:
-        raise newException(GetStreamDialError, "unexpected reconnect")
-      return stream
+    proc onConnected(
+        peerId: PeerId, event: ConnEvent
+    ) {.async: (raises: [CancelledError]).} =
+      registered.fire()
+      await releaseUpgrade.wait()
 
-    let peer = PubSubPeer.new(
-      randomPeerId(), getStream, nil, GossipSubCodec_12, 1024, voidPeerHandler
-    )
-    gossip.peers[peer.peerId] = peer
-    sw.mount(gossip)
-    await sw.start()
+    server.addConnEventHandler(onConnected, ConnEventKind.Connected)
+    server.mount(gossip)
+    client.mount(remoteGossip)
+    startAndDeferStop(@[server, client])
+    defer:
+      releaseUpgrade.fire()
+
+    let connecting = client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
+    await registered.wait()
+    await connecting
+    let peer = gossip.getOrCreatePeer(client.peerInfo.peerId, @[GossipSubCodec_12])
     peer.connect()
     checkUntilTimeout:
       peer.connected
+    let stream = peer.sendStream
 
-    let stopped = sw.stop()
+    let stopped = server.stop()
+    let reconnect = peer.getStream()
+    check reconnect.cancelled
+    await noCancel reconnect.cancelAndWait()
+
+    let latePeer = randomPeerId()
+    gossip.subscribePeer(latePeer)
+    check latePeer notin gossip.peers
+    let directDial = gossip.addDirectPeer(latePeer, client.peerInfo.addrs)
+    check directDial.completed
+    await noCancel directDial.cancelAndWait()
+
     await stream.close()
     await stopped
-    check attempts == 1
 
   asyncTest "stop waits for cleanup of an already removed peer":
     let
