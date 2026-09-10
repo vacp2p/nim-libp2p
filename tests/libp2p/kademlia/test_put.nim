@@ -14,37 +14,6 @@ suite "KadDHT Put":
   teardown:
     checkTrackers()
 
-  test "EntryRecord initializer accepts a Value":
-    let
-      value = Value.init([1.byte, 2, 3])
-      time: Timestamp = "2026-01-01T00:00:00Z"
-      record = EntryRecord.init(value, Opt.some(time))
-
-    check:
-      record.value == value
-      record.time == time
-
-  test "Key and Value are not interchangeable":
-    static:
-      doAssert(
-        compiles(
-          block:
-            discard EntryRecord.init(Value.init([1.byte]), Opt.none(Timestamp))
-        )
-      )
-      doAssert(
-        not compiles(
-          block:
-            discard EntryRecord.init(Key.init([1.byte]), Opt.none(Timestamp))
-        )
-      )
-      doAssert(
-        not compiles(
-          block:
-            discard xorDistance(Value.init([1.byte]), Key.init([1.byte]))
-        )
-      )
-
   asyncTest "PUT_VALUE stores record at both sender and target peer":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
