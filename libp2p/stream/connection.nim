@@ -146,6 +146,15 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
 method getWrapped*(s: Connection): Connection {.base, gcsafe.} =
   raiseAssert("[Connection.getWrapped] abstract method not implemented!")
 
+proc getUnderlying*(s: Connection): Connection =
+  ## Returns the innermost connection, stopping at a nil or self wrapper.
+  result = s
+  while result != nil:
+    let wrapped = result.getWrapped()
+    if wrapped == nil or wrapped == result:
+      break
+    result = wrapped
+
 when defined(libp2p_agents_metrics):
   proc setShortAgent*(s: Connection, shortAgent: string) =
     var conn = s

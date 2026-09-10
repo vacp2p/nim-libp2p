@@ -49,12 +49,7 @@ proc handleDialBack(
     return
 
   # A new muxed stream is not proof of a new inbound transport connection.
-  var transport = stream
-  while true:
-    let wrapped = transport.getWrapped()
-    if wrapped == nil or wrapped == transport:
-      break
-    transport = wrapped
+  let transport = stream.getUnderlying()
 
   if stream.transportDir != Direction.In or transport.dir != Direction.In or
       transport.openedAt <= pending.startedAt:
