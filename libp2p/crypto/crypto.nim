@@ -69,7 +69,7 @@ import ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utils/[opt, shortlog, collections]
+import ../utils/[opt, shortlog, collections, redact]
 import rng
 import results
 export results, opt, shortlog, collections
@@ -691,8 +691,8 @@ proc `==`*(key1, key2: PrivateKey): bool =
   else:
     false
 
-proc `$`*(key: PrivateKey | PublicKey): string =
-  ## Get string representation of private/public key ``key``.
+proc `$`*(key: PublicKey): string =
+  ## Get string representation of public key ``key``.
   case key.scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
@@ -715,8 +715,8 @@ proc `$`*(key: PrivateKey | PublicKey): string =
     else:
       "unsupported secp256k1 key"
 
-func shortLog*(key: PrivateKey | PublicKey): string =
-  ## Get short string representation of private/public key ``key``.
+func shortLog*(key: PublicKey): string =
+  ## Get short string representation of public key ``key``.
   case key.scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
@@ -739,11 +739,9 @@ func shortLog*(key: PrivateKey | PublicKey): string =
     else:
       "unsupported secp256k1 key"
 
-chronicles.formatIt(PrivateKey):
-  "[PrivateKey Redacted]"
-
-chronicles.formatIt(PublicKey):
-  shortLog(it)
+redactType(PrivateKey)
+redactType(KeyPair)
+redactType(Secret)
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.

@@ -7,7 +7,10 @@ import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
 import
-  ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
+  ./[
+    types, routing_table_manager, service_discovery_metrics, registrar, connection,
+    discovery_tracker,
+  ]
 import ../../utils/future
 
 logScope:
@@ -91,6 +94,10 @@ proc processResponse(
     limit: int,
 ) =
   disco.admitCloserPeers(serviceId, response.closerPeers)
+
+  # an ad past the caller's limit is still a provider this node found
+  disco.tracker.recordProviders(serviceId, response.ads, FromLookup)
+
   for ad in response.ads:
     if found.len >= limit:
       break
@@ -105,11 +112,16 @@ proc drainCompletedPeers(
     let res = fut.value()
     if res.isOk():
       disco.admitCloserPeers(serviceId, res.value().closerPeers)
+      disco.tracker.recordProviders(serviceId, res.value().ads, FromLookup)
 
 proc collectBucketAds(
-    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    peers: seq[PeerId],
+    known: HashSet[Advertisement],
+    limit: int,
 ): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
-  var found = initHashSet[Advertisement]()
+  var found = known
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
@@ -149,6 +161,8 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
 
   debug "Register interest", service = serviceId, serviceId = serviceHash
 
+  disco.tracker.startInterest(serviceHash)
+
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
@@ -162,6 +176,8 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
 
   debug "Unregister interest", service = serviceId, serviceId = serviceHash
 
+  disco.tracker.stopInterest(serviceHash)
+
   disco.rtManager.removeService(serviceHash, Interest)
 
 proc lookup*(
@@ -169,6 +185,8 @@ proc lookup*(
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   ## Look up providers for a specific service id.
   cd_lookup_requests.inc()
+
+  disco.tracker.startInterest(serviceId)
 
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -179,7 +197,9 @@ proc lookup*(
     return err("service table not found for service id: " & $serviceId)
 
   var found = initHashSet[Advertisement]()
-  var once = true
+  let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
+  local.withValue(response):
+    disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
   let buckets = searchTable.buckets
   for bucket in buckets:
@@ -189,14 +209,10 @@ proc lookup*(
     if bucket.peers.len == 0:
       continue
 
-    var peers = disco.peersToQuery(bucket)
+    let peers = disco.peersToQuery(bucket)
 
-    if once:
-      peers.add(disco.switch.peerInfo.peerId)
-      once = false
-
-    let remaining = disco.discoConfig.fLookup - found.len
-    found.incl(await disco.collectBucketAds(serviceId, peers, remaining))
+    found =
+      await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)

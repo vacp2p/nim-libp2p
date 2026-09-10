@@ -16,6 +16,7 @@ import stew/[bitops2, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import rng
+import ../utils/redact
 
 export Asn1Error, results
 
@@ -633,31 +634,7 @@ proc init*[T: RsaPKI](t: typedesc[T], data: string): T =
   ## string representation ``data`` and return constructed object.
   t.init(ncrutils.fromHex(data))
 
-proc `$`*(key: RsaPrivateKey): string =
-  ## Return string representation of RSA private key.
-  if isNil(key) or len(key.buffer) == 0:
-    return "Empty or uninitialized RSA key"
-  var s = "RSA key ("
-  s.add($key.seck.nBitlen)
-  s.add(" bits)\n")
-  s.add("p   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
-  s.add("\nq   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
-  s.add("\ndp  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dp, key.seck.dplen)))
-  s.add("\ndq  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dq, key.seck.dqlen)))
-  s.add("\niq  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.iq, key.seck.iqlen)))
-  s.add("\npre = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pexp, key.pexplen)))
-  s.add("\nm   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
-  s.add("\npue = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
-  s.add("\n")
-  s
+redactType(RsaPrivateKey)
 
 proc `$`*(key: RsaPublicKey): string =
   ## Return string representation of RSA public key.

@@ -29,6 +29,19 @@ declarePublicCounter cd_register_requests, "registration requests handled", ["st
 declarePublicCounter cd_lookup_requests, "service lookup requests initiated"
 declarePublicCounter cd_lookup_peers_found, "peers found during service lookup"
 
+# Provider discovery latency metrics
+const DiscoveryLatencyBuckets = [
+  50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 30000.0, 60000.0,
+  120000.0, 300000.0,
+]
+
+declarePublicHistogram cd_provider_discovery_ms,
+  "milliseconds between the registration of an interest in a service and the discovery of one of its providers",
+  buckets = DiscoveryLatencyBuckets
+declarePublicHistogram cd_first_provider_discovery_ms,
+  "milliseconds between the registration of an interest in a service and the discovery of its first provider",
+  buckets = DiscoveryLatencyBuckets
+
 # Registrar cache metrics
 declarePublicGauge cd_registrar_cache_ads, "total advertisements in registrar cache"
 declarePublicGauge cd_registrar_cache_services, "number of services in registrar cache"

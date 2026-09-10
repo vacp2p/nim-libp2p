@@ -22,6 +22,7 @@ import
   ../transports/tcptransport,
   ../utils/heartbeat,
   ../utils/ipaddr,
+  ../utils/tlsredact,
   ../wire
 
 logScope:
@@ -29,7 +30,7 @@ logScope:
 
 export
   LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationURL,
-  AutotlsBroker
+  AutotlsBroker, tlsredact
 
 const
   DefaultRenewCheckTime* = 1.hours

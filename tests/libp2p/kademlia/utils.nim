@@ -185,7 +185,7 @@ proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
-proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
+proc containsData*(kad: KadDHT, key: Key, value: Value): bool =
   let record = kad.dataTable.get(key).valueOr:
     checkpoint("containsData: key not found: " & $key.shortLog())
     return false

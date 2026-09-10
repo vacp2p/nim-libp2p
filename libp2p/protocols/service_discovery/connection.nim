@@ -26,10 +26,11 @@ proc send*(
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
 
-  let connRes = catch:
-    await noCancel disco.switch.dial(peerId, addrs, disco.codec)
-  let stream = connRes.valueOr:
-    return err("dialing peer failed: " & error.msg)
+  let stream =
+    try:
+      await disco.switch.dial(peerId, addrs, disco.codec)
+    except DialFailedError as e:
+      return err("dialing peer failed: " & e.msg)
   var replyRead = false
   defer:
     # Closing only half-closes the channel: an abandoned RPC leaves its unread
@@ -45,18 +46,16 @@ proc send*(
   cd_messages_sent.inc(labelValues = [$msg.msgType])
   cd_message_bytes_sent.inc(encodedMsg.len.float64, labelValues = [$msg.msgType])
 
-  var writeRes: Result[void, ref CatchableError]
-  var readRes: Result[seq[byte], ref CatchableError]
+  var replyBuf: seq[byte]
   cd_message_duration_ms.time(labelValues = [$msg.msgType]):
-    writeRes = catch:
+    try:
       await stream.writeLp(encodedMsg)
-    readRes = catch:
-      await stream.readLp(ServiceDiscoveryMaxMsgSize)
-
-  if writeRes.isErr:
-    return err("connection writing failed: " & writeRes.error.msg)
-  let replyBuf = readRes.valueOr:
-    return err("connection reading failed: " & readRes.error.msg)
+    except LPStreamError as e:
+      return err("connection writing failed: " & e.msg)
+    try:
+      replyBuf = await stream.readLp(ServiceDiscoveryMaxMsgSize)
+    except LPStreamError as e:
+      return err("connection reading failed: " & e.msg)
   replyRead = true
 
   cd_messages_received.inc(labelValues = [$msg.msgType])

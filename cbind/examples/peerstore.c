@@ -34,7 +34,8 @@ static void on_peers(int ec, const PeersResponse *reply, const char *em,
 static bool get_peers(LibP2PCtx *ctx, PeersWaiter *w) {
   memset(w, 0, sizeof(*w));
   libp2p_ctx_peerstore_get_peers(ctx, on_peers, w);
-  if (!wait_done(&w->done) || w->err_code != 0) {
+  wait_done(&w->done);
+  if (w->err_code != 0) {
     fprintf(stderr, "get_peers: %s\n", w->err[0] ? w->err : "unknown");
     return false;
   }
@@ -122,7 +123,8 @@ int main(void) {
   memset(&entry, 0, sizeof(entry));
   libp2p_ctx_peerstore_get_peer_info(local, nimffi_str(oi.peerId), on_entry,
                                      &entry);
-  if (!wait_done(&entry.done) || entry.err_code != 0) {
+  wait_done(&entry.done);
+  if (entry.err_code != 0) {
     fprintf(stderr, "get_peer_info: %s\n",
             entry.err[0] ? entry.err : "unknown");
     goto cleanup;
