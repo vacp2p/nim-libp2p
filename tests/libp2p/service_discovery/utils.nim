@@ -169,14 +169,8 @@ proc setupServiceDiscoveryNodes*(
     )
   nodes
 
-proc serveCodec*(disco: ServiceDiscovery, peerId: PeerId) =
-  ## Fake the identify result that lists our codec among the peer's protocols.
-  disco.switch.peerStore[ProtoBook][peerId] = @[disco.codec]
-
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   ## Bidirectionally connect two ServiceDiscovery instances.
-  disco1.serveCodec(disco2.switch.peerInfo.peerId)
-  disco2.serveCodec(disco1.switch.peerInfo.peerId)
   discard disco1.rtable.insert(disco2.switch.peerInfo.peerId)
   discard disco2.rtable.insert(disco1.switch.peerInfo.peerId)
   disco1.switch.peerStore[AddressBook][disco2.switch.peerInfo.peerId] =

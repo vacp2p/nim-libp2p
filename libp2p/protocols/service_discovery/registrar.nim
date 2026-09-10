@@ -260,18 +260,14 @@ proc acceptAdvertisement*(
   disco.registrar.updateRegistrarMetrics()
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
-  ## A querier that does not serve the codec would take a dead registrar seat.
-  if disco.codec notin disco.switch.peerStore[ProtoBook][peerId]:
-    trace "Sender does not serve the discovery codec", peerId
-    return
-
-  discard disco.rtable.insert(peerId)
-
+  ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
   let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
   if senderAddrs.len == 0:
     return
 
-  discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+  let sender = @[PeerInfo(peerId: peerId, addrs: senderAddrs)]
+  disco.admitPeers(sender)
+  disco.rtManager.admitPeers(disco, serviceId, sender)
 
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int

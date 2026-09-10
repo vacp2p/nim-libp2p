@@ -157,8 +157,8 @@ suite "Service Discovery Component - Registrar Closer Peers":
       waitResponse.get().status == kad_protobuf.RegistrationStatus.Wait
 
     let tableAfterWait = registrarNode.rtManager.getTable(serviceId)
-    check:
-      tableAfterWait.isSome()
+    check tableAfterWait.isSome()
+    checkUntilTimeout:
       tableAfterWait.get().hasPeer(waitKey)
 
   asyncTest "REGISTER from a node without the codec mounted seats it nowhere":
@@ -174,9 +174,16 @@ suite "Service Discovery Component - Registrar Closer Peers":
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
+    let senderId = unmountedNode.switch.peerInfo.peerId
 
     unmountedNode.switch.peerStore[AddressBook][registrarNode.switch.peerInfo.peerId] =
       registrarNode.switch.peerInfo.addrs
+    registrarNode.switch.peerStore[AddressBook][senderId] =
+      unmountedNode.switch.peerInfo.addrs
+    discard registrarNode.rtManager.addService(
+      serviceId, registrarNode.rtable, registrarNode.config.replication,
+      conf.bucketsCount, Interest,
+    )
 
     let adBytes = makeAdvertisement(serviceName).encode().get()
     let response = await unmountedNode.sendRegister(
@@ -187,10 +194,9 @@ suite "Service Discovery Component - Registrar Closer Peers":
       response.isOk()
       response.get().status == kad_protobuf.RegistrationStatus.Confirmed
 
-    let senderId = unmountedNode.switch.peerInfo.peerId
+    checkUntilTimeout:
+      registrarNode.admissionProbes.len == 0
     check:
-      ExtendedServiceDiscoveryCodec notin
-        registrarNode.switch.peerStore[ProtoBook][senderId]
       not registrarNode.hasPeerInMainTable(senderId)
       not registrarNode.hasPeerInServiceTable(serviceId, senderId)
 
@@ -231,6 +237,6 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check found.get().len == 1
 
     let tableAfter = registrarNode.rtManager.getTable(serviceId)
-    check:
-      tableAfter.isSome()
+    check tableAfter.isSome()
+    checkUntilTimeout:
       tableAfter.get().hasPeer(discovererKey)

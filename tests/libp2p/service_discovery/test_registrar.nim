@@ -1517,63 +1517,6 @@ suite "Service Discovery Registrar - registration response":
       disco.countAdsInCache(serviceId) == 1
       disco.getAdsInCache(serviceId)[0].data.peerId == advertiserId
 
-suite "Service Discovery Registrar - sender seating":
-  proc setupSender(disco: ServiceDiscovery): PeerId =
-    let senderId = randomPeerId()
-    disco.switch.peerStore[AddressBook][senderId] = @[makeMultiAddress("10.0.0.1")]
-    senderId
-
-  template checkSeatsOnlyWithCodec(
-      disco: ServiceDiscovery, serviceId: ServiceId, senderId: PeerId, query: untyped
-  ) =
-    query
-
-    check:
-      not disco.hasPeerInMainTable(senderId)
-      not disco.hasPeerInServiceTable(serviceId, senderId)
-
-    disco.serveCodec(senderId)
-    query
-
-    check:
-      disco.hasPeerInMainTable(senderId)
-      disco.hasPeerInServiceTable(serviceId, senderId)
-
-  test "registration seats the sender only when it serves the codec":
-    let disco = setupServiceDiscoveryNode(
-      discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    )
-    let serviceId = "service".hashServiceId()
-    disco.populateAdvertisementTable(serviceId)
-
-    let senderId = disco.setupSender()
-    let inMsg = kadprotobuf.Message(
-      msgType: kadprotobuf.MessageType.register,
-      key: serviceId,
-      register: Opt.some(
-        kadprotobuf.RegisterMessage(
-          advertisement: makeAdvertisement("service").encode().get(),
-          status: Opt.none(kadprotobuf.RegistrationStatus),
-          ticket: Opt.none(Ticket),
-        )
-      ),
-    )
-
-    disco.checkSeatsOnlyWithCodec(serviceId, senderId):
-      discard disco.registration(senderId, inMsg)
-
-  test "getAdvertisements seats the sender only when it serves the codec":
-    let disco = setupServiceDiscoveryNode()
-    let serviceId = "service".hashServiceId()
-    disco.populateAdvertisementTable(serviceId)
-
-    let senderId = disco.setupSender()
-    let inMsg =
-      kadprotobuf.Message(msgType: kadprotobuf.MessageType.getAds, key: serviceId)
-
-    disco.checkSeatsOnlyWithCodec(serviceId, senderId):
-      discard disco.getAdvertisements(senderId, inMsg)
-
 suite "Service Discovery Registrar - connection IPs":
   asyncTest "observedIps extracts IP from stream.observedAddr":
     let peerId = randomPeerId()
