@@ -87,7 +87,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await stall.waitAccepted().wait(2.seconds)
@@ -112,7 +113,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await stream.writeStarted.wait(2.seconds)
@@ -145,7 +147,8 @@ suite "Service Discovery Component - Error Handling":
     let pending = clientNode.send(
       registrarNode.switch.peerInfo.peerId,
       kad_protobuf.Message(
-        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+        msgType: kad_protobuf.MessageType.getAds,
+        key: Opt.some(makeServiceId().toBytes()),
       ),
     )
     await received.wait(2.seconds)

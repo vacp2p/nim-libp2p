@@ -50,7 +50,7 @@ proc makePeerInfo*(
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   var buf = newSeq[byte](IdLength)
   buf[0] = id
-  return buf
+  return ServiceId.fromBytes(buf)
 
 proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
   ServiceInfo(id: id, data: @[1'u8, 2, 3, 4])
@@ -247,7 +247,7 @@ proc registerAd*(
 ): RegisterMessage =
   let inMsg = Message(
     msgType: MessageType.register,
-    key: serviceId,
+    key: Opt.some(serviceId.toBytes()),
     register: Opt.some(
       RegisterMessage(
         advertisement: ad.encode().get(),

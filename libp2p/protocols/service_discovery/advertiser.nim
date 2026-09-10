@@ -207,7 +207,7 @@ proc sendRegister*(
 ): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
   let msg = Message(
     msgType: Opt.some(MessageType.register),
-    key: Opt.some(serviceId),
+    key: Opt.some(serviceId.toBytes()),
     register: Opt.some(
       RegisterMessage(
         advertisement: Opt.some(ad),
