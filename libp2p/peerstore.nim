@@ -113,8 +113,7 @@ type
     capacity*: int
     toClean*: seq[PeerId]
     addressPolicy*: PeerAddressPolicy
-      ## When set, inbound peer addresses are filtered through the shared
-      ## policy before they are stored or redistributed.
+      ## Gate on an inbound peer address: storage, redistribution, hole punch, lookup.
     addressTtls*: AddressConfidenceTtls ## Per-confidence TTLs for address expiry.
     pruneHandle*: Future[void]
 
