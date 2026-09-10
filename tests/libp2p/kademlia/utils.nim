@@ -15,18 +15,18 @@ converter toKey*(bytes: seq[byte]): Key =
 
 converter toValue*(bytes: seq[byte]): Value =
   Value.fromBytes(bytes)
-
-converter fromKeyToBytes*(v: Value): seq[byte] =
-  v.toBytes()
-
-converter fromValueToBytes*(k: Key): seq[byte] =
+  
+converter fromKeyToBytes*(k: Key): seq[byte] =
   k.toBytes()
 
-converter fromKeyToOptBytes*(v: Value): Opt[seq[byte]] =
-  Opt.some(v.toBytes())
+converter fromValueToBytes*(v: Value): seq[byte] =
+  v.toBytes()
 
-converter fromValueToOptBytes*(k: Key): Opt[seq[byte]] =
+converter fromKeyToOptBytes*(k: Key): Opt[seq[byte]] =
   Opt.some(k.toBytes())
+
+converter fromValueToOptBytes*(v: Value): Opt[seq[byte]] =
+  Opt.some(v.toBytes())
 
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)
