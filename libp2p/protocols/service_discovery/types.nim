@@ -187,7 +187,7 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
 
 proc hashServiceId*(serviceStr: string): ServiceId =
   let digest = sha256.digest(serviceStr)
-  @(digest.data)
+  ServiceId.fromBytes(@(digest.data))
 
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
