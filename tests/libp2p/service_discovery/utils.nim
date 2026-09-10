@@ -50,7 +50,7 @@ proc makePeerInfo*(
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   var buf = newSeq[byte](IdLength)
   buf[0] = id
-  return buf
+  return ServiceId.fromBytes(buf)
 
 proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
   ServiceInfo(id: id, data: @[1'u8, 2, 3, 4])
@@ -136,6 +136,7 @@ proc setupServiceDiscoveryNode*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     kadConfig: KadDHTConfig = testKadDHTConfig(),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],
+    mount: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey, addresses)
   let node = ServiceDiscovery.new(
@@ -148,7 +149,8 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if mount:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -178,6 +180,9 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
   peerKey in rtable
+
+proc hasPeerInMainTable*(disco: ServiceDiscovery, peerId: PeerId): bool =
+  disco.rtable.hasPeer(peerId.toKey())
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:
@@ -247,7 +252,7 @@ proc registerAd*(
 ): RegisterMessage =
   let inMsg = Message(
     msgType: MessageType.register,
-    key: serviceId,
+    key: Opt.some(serviceId.toBytes()),
     register: Opt.some(
       RegisterMessage(
         advertisement: ad.encode().get(),

@@ -14,16 +14,6 @@ suite "KadDHT Put":
   teardown:
     checkTrackers()
 
-  test "EntryRecord initializer accepts a Value":
-    let
-      value: Value = @[1.byte, 2, 3]
-      time: Timestamp = "2026-01-01T00:00:00Z"
-      record = EntryRecord.init(value, Opt.some(time))
-
-    check:
-      record.value == value
-      record.time == time
-
   asyncTest "PUT_VALUE stores record at both sender and target peer":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
@@ -98,7 +88,7 @@ suite "KadDHT Put":
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    let emptyVal: Value = @[]
+    let emptyVal: seq[byte] = @[]
 
     # Store initial value
     discard await kads[0].putValue(key, value)

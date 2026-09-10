@@ -38,7 +38,7 @@ proc refreshSelfSignedPeerRecord(
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
-  (await disco.putValue(key, encodedSR)).isOkOr:
+  (await disco.putValue(key, Value.fromBytes(encodedSR))).isOkOr:
     debug "Failed to put signed peer record", err = error
 
 proc maintainSelfSignedPeerRecord(

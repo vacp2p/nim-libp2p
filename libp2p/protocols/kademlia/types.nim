@@ -87,25 +87,80 @@ const
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
 type
-  Key* = seq[byte]
-  Value* = seq[byte]
+  Key* = distinct seq[byte]
+    ## A Kademlia routing key. Construct with ``Key.init`` or ``Key.fromBytes``.
+  Value* = distinct seq[byte]
+    ## A Kademlia record value. Construct with ``Value.init`` or ``Value.fromBytes``.
 
 func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
   ## Key of `IdLength` bytes holding `bytes`, zero-padded.
   var buf: array[IdLength, byte]
   discard buf.copyFrom(bytes)
-  @buf
+  Key(@buf)
+
+template fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
+  ## Preserves raw Kademlia key bytes received from a wire message.
+  Key(bytes)
+
+template toBytes*(key: Key): seq[byte] =
+  ## Returns the raw bytes used by Kademlia and its wire protocol.
+  seq[byte](key)
+
+proc len*(key: Key): int {.inline.} =
+  seq[byte](key).len
+
+proc `[]`*(key: Key, index: int): byte {.inline.} =
+  seq[byte](key)[index]
+
+proc `[]=`*(key: var Key, index: int, value: byte) {.inline.} =
+  seq[byte](key)[index] = value
+
+proc `==`*(a, b: Key): bool {.borrow.}
+proc hash*(key: Key): Hash {.borrow.}
+
+proc `$`*(key: Key): string =
+  $seq[byte](key)
+
+template init*(T: typedesc[Value], bytes: openArray[byte]): Value =
+  Value(@bytes)
+
+template fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
+  ## Preserves raw Kademlia value bytes received from a wire message.
+  Value(bytes)
+
+template toBytes*(value: Value): seq[byte] =
+  ## Returns the raw bytes used by Kademlia and its wire protocol.
+  seq[byte](value)
+
+proc len*(value: Value): int {.inline.} =
+  seq[byte](value).len
+
+proc `[]`*(value: Value, index: int): byte {.inline.} =
+  seq[byte](value)[index]
+
+proc `[]=`*(value: var Value, index: int, byte: byte) {.inline.} =
+  seq[byte](value)[index] = byte
+
+proc `==`*(a, b: Value): bool {.borrow.}
+proc hash*(value: Value): Hash {.borrow.}
+
+proc `$`*(value: Value): string =
+  $seq[byte](value)
 
 proc toCid*(k: Key): Cid =
-  let cidRes = Cid.init(k)
+  let cidRes = Cid.init(k.toBytes())
   if cidRes.isOk:
     cidRes.get()
   else:
     debug "Kademlia key wrapped as CID", key = k
-    Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
+    Cid
+      .init(
+        CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k.toBytes()).get()
+      )
+      .get()
 
-proc toKey*(mh: MultiHash): Key =
-  mh.data.buffer
+template toKey*(mh: MultiHash): Key =
+  Key.fromBytes(mh.data.buffer)
 
 proc toKey*(c: Cid): Key =
   c.mhash().get().toKey()
@@ -114,7 +169,7 @@ proc toKey*(p: PeerId): Key =
   MultiHash.init(p.data).get().toKey()
 
 proc toPeerId*(k: Key): Result[PeerId, string] =
-  PeerId.init(k).mapErr(x => $x)
+  PeerId.init(k.toBytes()).mapErr(x => $x)
 
 proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   let peer = ?k.toPeerId()
@@ -158,10 +213,16 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
 
   return peerIds
 
-chronicles.formatIt(Key):
-  it.shortLog
+func shortLog*(v: Value): string =
+  v.toBytes().shortLog
+
+func shortLog*(k: Key): string =
+  k.toBytes().shortLog
 
 chronicles.formatIt(Value):
+  it.shortLog
+
+chronicles.formatIt(Key):
   it.shortLog
 
 type XorDistance* = array[IdLength, byte]
@@ -209,7 +270,7 @@ proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
 proc hashFor*(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
-  return @(hasher.get(defaultHasher)(k))
+  return @(hasher.get(defaultHasher)(k.toBytes()))
 
 proc xorDistance*(a, b: Key): XorDistance =
   doAssert a.len == IdLength and b.len == IdLength,
@@ -221,7 +282,7 @@ proc xorDistance*(a, b: Key): XorDistance =
   return response
 
 proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
-  xorDistance(a.hashFor(hasher), b.hashFor(hasher))
+  xorDistance(Key.fromBytes(a.hashFor(hasher)), Key.fromBytes(b.hashFor(hasher)))
 
 proc xorDistance*(a: PeerId, b: Key, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b, hasher)

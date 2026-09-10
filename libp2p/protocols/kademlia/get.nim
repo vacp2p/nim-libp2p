@@ -14,7 +14,8 @@ logScope:
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let msg = Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key))
+  let msg =
+    Message(msgType: Opt.some(MessageType.getValue), key: Opt.some(key.toBytes()))
   await kad.dispatchRpc(peer, msg)
 
 proc bestValidRecord(
@@ -72,14 +73,15 @@ proc getValue*(
       trace "Get-value reply has no record", messageType = "getValue"
       return
 
-    if record.key.isNone or record.key.get() != key:
+    if record.key.isNone or record.key.get() != key.toBytes():
       trace "GetValue returned record with mismatched key",
         expected = key, got = record.key
       return
 
-    let value: Value = record.value.valueOr:
+    let valueBytes = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
+    let value = Value.fromBytes(valueBytes)
 
     if value.len > kad.config.limits.maxValueSize:
       trace "GetValue dropped: value exceeds maxValueSize",
@@ -127,10 +129,11 @@ proc getValue*(
 method handleGetValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
-  let key = msg.key.valueOr:
+  let keyBytes = msg.key.valueOr:
     trace "Get-value request rejected",
       reason = "missingKey", messageType = "getValue", stream
     return
+  let key = Key.fromBytes(keyBytes)
 
   # Evict the entry eagerly if it has expired so the response below treats it as
   # absent and sends the standard "no record found" response.
@@ -141,19 +144,32 @@ method handleGetValue*(
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
-  var response = Message(
+  let entryRecord = entryRecordOpt.valueOr:
+    let response = Message(
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key.toBytes()),
+      closerPeers: kad.findClosestPeers(key, stream.peerId),
+    )
+    let encoded = response.encode(kad.config.hideConnectionStatus)
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
+    try:
+      await stream.writeLp(encoded)
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", err = exc.msg, stream
+    return
+
+  let response = Message(
     msgType: Opt.some(MessageType.getValue),
-    key: Opt.some(key),
+    key: Opt.some(key.toBytes()),
     closerPeers: kad.findClosestPeers(key, stream.peerId),
-  )
-  entryRecordOpt.withValue(entryRecord):
-    response.record = Opt.some(
+    record: Opt.some(
       Record(
-        key: Opt.some(key),
-        value: Opt.some(entryRecord.value),
+        key: Opt.some(key.toBytes()),
+        value: Opt.some(entryRecord.value.toBytes()),
         timeReceived: Opt.some(entryRecord.time),
       )
-    )
+    ),
+  )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:
