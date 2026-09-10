@@ -17,6 +17,7 @@ import
   ../multistream,
   ../multiaddress,
   ../utils/opt,
+  ../utils/tlsredact,
   ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,

@@ -40,17 +40,27 @@ macro importTests*(
   var matchingFiles: seq[string] = @[]
   let normMatch = matchPath.replace('\\', '/')
 
-  for file in walkDirRec(dir):
-    let (path, name, ext) = splitFile(file)
-    let isTestFile = name.startsWith("test_") and name != "test_all" and ext == ".nim"
-    let isIgnored = ignorePaths.len > 0 and ignorePaths.anyIt(path.contains(it))
-    # walkDirRec uses the host's path separator; normalize so callers can pass
-    # forward-slash matchPath values that work on Windows too.
-    let normFile = file.replace('\\', '/')
-    let isMatched = normMatch.len == 0 or normFile.contains(normMatch)
+  var pendingDirs = @[dir]
+  while pendingDirs.len > 0:
+    for kind, file in walkDir(pendingDirs.pop()):
+      if kind == pcDir:
+        # Local dependencies and compiler output are not project tests.
+        if lastPathPart(file) notin ["nimbledeps", "nimcache"]:
+          pendingDirs.add(file)
+        continue
+      if kind notin {pcFile, pcLinkToFile}:
+        continue
 
-    if isTestFile and not isIgnored and isMatched:
-      matchingFiles.add(file)
+      let (path, name, ext) = splitFile(file)
+      if not name.startsWith("test_") or name == "test_all" or ext != ".nim":
+        continue
+      let isIgnored = ignorePaths.len > 0 and ignorePaths.anyIt(path.contains(it))
+      # Normalize host paths so forward-slash filters also work on Windows.
+      let normFile = file.replace('\\', '/')
+      let isMatched = normMatch.len == 0 or normFile.contains(normMatch)
+
+      if not isIgnored and isMatched:
+        matchingFiles.add(file)
 
   # Deterministic order keeps the generated imports stable across runs and platforms.
   sort(

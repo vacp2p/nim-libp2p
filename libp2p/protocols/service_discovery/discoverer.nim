@@ -115,9 +115,13 @@ proc drainCompletedPeers(
       disco.tracker.recordProviders(serviceId, res.value().ads, FromLookup)
 
 proc collectBucketAds(
-    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    peers: seq[PeerId],
+    known: HashSet[Advertisement],
+    limit: int,
 ): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
-  var found = initHashSet[Advertisement]()
+  var found = known
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
@@ -193,7 +197,9 @@ proc lookup*(
     return err("service table not found for service id: " & $serviceId)
 
   var found = initHashSet[Advertisement]()
-  var once = true
+  let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
+  local.withValue(response):
+    disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
   let buckets = searchTable.buckets
   for bucket in buckets:
@@ -203,14 +209,10 @@ proc lookup*(
     if bucket.peers.len == 0:
       continue
 
-    var peers = disco.peersToQuery(bucket)
+    let peers = disco.peersToQuery(bucket)
 
-    if once:
-      peers.add(disco.switch.peerInfo.peerId)
-      once = false
-
-    let remaining = disco.discoConfig.fLookup - found.len
-    found.incl(await disco.collectBucketAds(serviceId, peers, remaining))
+    found =
+      await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)

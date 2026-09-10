@@ -150,7 +150,7 @@ proc handleDialDataResponses(
 
 proc amplificationAttackPrevention(
     self: AutonatV2, stream: Stream, addrIdx: AddrIdx
-): Future[bool] {.async: (raises: [CancelledError, LPStreamError]).} =
+) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   # send DialDataRequest
   await stream.writeLp(
     AutonatV2Msg(
@@ -162,14 +162,7 @@ proc amplificationAttackPrevention(
     ).encode()
   )
 
-  # recieve DialDataResponses until we're satisfied
-  try:
-    await self.handleDialDataResponses(stream)
-  except AutonatV2Error as exc:
-    debug "Amplification attack prevention failed", err = exc.msg
-    return false
-
-  return true
+  await self.handleDialDataResponses(stream)
 
 proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
   let (ipv4Support, ipv6Support) = self.switch.peerInfo.listenAddrs.ipSupport()
@@ -194,8 +187,9 @@ proc forceNewConnection(
 ): Future[Opt[DialBackConn]] {.async: (raises: [CancelledError]).} =
   ## Bypasses connManager to force a new connection to ``pid``
   ## instead of reusing a preexistent one
+  var mux: Muxer
   try:
-    let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
+    mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
     if mux.isNil():
       return Opt.none(DialBackConn)
     return Opt.some(
@@ -207,8 +201,12 @@ proc forceNewConnection(
       )
     )
   except CancelledError as exc:
+    if mux != nil:
+      await mux.close()
     raise exc
-  except CatchableError:
+  except LPError:
+    if mux != nil:
+      await mux.close()
     return Opt.none(DialBackConn)
 
 proc selectDialAddr(self: AutonatV2, addrs: seq[MultiAddress]): Opt[AddrIdx] =
@@ -255,12 +253,18 @@ proc handleDialRequest(
   if not ipAddrMatches(observedIPAddr, [req.addrs[addrIdx]]):
     debug "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
-    # send DialDataRequest and wait until dataReceived is enough
-    if not await self.amplificationAttackPrevention(stream, addrIdx).withTimeout(
-      self.config.amplificationAttackTimeout
-    ):
-      debug "Amplification attack prevention timeout",
-        timeout = self.config.amplificationAttackTimeout, peer = stream.peerId
+    try:
+      await self.amplificationAttackPrevention(stream, addrIdx).wait(
+        self.config.amplificationAttackTimeout
+      )
+    except AsyncTimeoutError:
+      warn "Amplification attack prevention timed out",
+        peer = stream.peerId, timeout = self.config.amplificationAttackTimeout
+      await stream.sendDialResponse(ResponseStatus.EDialRefused)
+      return
+    except AutonatV2Error as exc:
+      debug "Amplification attack prevention failed",
+        peer = stream.peerId, err = exc.msg
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 

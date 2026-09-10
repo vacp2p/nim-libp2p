@@ -1276,3 +1276,18 @@ suite "Switch :: IdentifyPusher Service":
     # switch1 should receive new address
     checkUntilTimeout:
       extra in switch1.peerStore[AddressBook][switch2.peerInfo.peerId]
+
+  asyncTest "restarted switch accepts identified connections":
+    let listener = makeStandardSwitch(TcpAutoAddress)
+    let dialer = makeStandardSwitch(TcpAutoAddress)
+    await listener.start()
+    await listener.stop()
+    await listener.start()
+    await dialer.start()
+    defer:
+      await allFutures(listener.stop(), dialer.stop())
+    await dialer.connect(listener.peerInfo.peerId, listener.peerInfo.addrs).wait(
+      2.seconds
+    )
+    check listener.isConnected(dialer.peerInfo.peerId)
+    check (await listener.connManager.waitForPeerReady(dialer.peerInfo.peerId))

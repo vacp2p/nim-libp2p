@@ -410,7 +410,7 @@ proc setupHolePunching(
       hp.maxNumRelays, RelayClient.new(), hp.onReservation, self.rng
     )
     hpService = HPService.new(autonatService, autoRelayService)
-  # Share before setup: HPService subscribes its own handler there.
+  # Share observers before constructing the hole-punching service.
   autonatService.reachabilityObservers = self.observers
   hpService.setup(switch)
   self.reachability = hpService

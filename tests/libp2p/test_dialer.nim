@@ -10,6 +10,7 @@ import
     muxers/muxer,
     nameresolving/mockresolver,
     peerstore,
+    stream/bridgestream,
     switch,
     transports/transport,
     upgrademngrs/upgrade,
@@ -721,3 +722,29 @@ suite "Dialer":
         fail()
         return
       await dial
+
+  asyncTest "Cancelled negotiation resets its stream":
+    let (stream, remote) = bridgedConnections()
+    let dialer = Dialer.new(default(PeerId), nil, nil, @[], MultistreamSelect.new())
+    let negotiation = dialer.negotiateStream(stream, @["/test/1.0.0"])
+    defer:
+      await stream.close()
+      await remote.close()
+    discard await remote.readLp(1024)
+    discard await remote.readLp(1024)
+    await negotiation.cancelAndWait()
+    check stream.wasResetLocally
+
+  asyncTest "Malformed negotiation resets its stream":
+    let (stream, remote) = bridgedConnections()
+    let dialer = Dialer.new(default(PeerId), nil, nil, @[], MultistreamSelect.new())
+    let negotiation = dialer.negotiateStream(stream, @["/test/1.0.0"])
+    defer:
+      await stream.close()
+      await remote.close()
+    discard await remote.readLp(1024)
+    discard await remote.readLp(1024)
+    await remote.writeLp("bad handshake")
+    expect MultiStreamError:
+      discard await negotiation
+    check stream.wasResetLocally
