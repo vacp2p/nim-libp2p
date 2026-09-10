@@ -331,6 +331,62 @@ suite "AutonatV2":
 
     check src.connManager.connCount(dst.peerInfo.peerId) == 1
 
+  asyncTest "Failed dial-back negotiation closes the new connection":
+    let
+      src = makeStandardSwitchBuilder(@[TcpAutoAddress]).build()
+      dst = makeStandardSwitchBuilder(@[TcpAutoAddress])
+        .withAutonatV2Server(AutonatV2Config.new(allowPrivateAddresses = true))
+        .build()
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+    await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
+    let stream =
+      await src.dialer.dial(dst.peerInfo.peerId, @[$AutonatV2Codec.DialRequest])
+    defer:
+      await stream.close()
+    await stream.writeLp(
+      AutonatV2Msg(
+        oneof: AutonatV2MsgOneof(
+          kind: MsgKind.DialRequest,
+          dialRequest: DialRequest(addrs: src.peerInfo.addrs, nonce: 0.Nonce),
+        )
+      ).encode()
+    )
+    let response = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).get()
+    check response.oneof.dialResponse.dialStatus == Opt.some(DialStatus.EDialError)
+    checkUntilTimeout:
+      src.connManager.connCount(dst.peerInfo.peerId) == 1
+
+  asyncTest "Malformed dial data refuses the dial back":
+    let (src, dst, client) = await setupAutonat(
+      config =
+        AutonatV2Config.new(allowPrivateAddresses = true, dialTimeout = 50.milliseconds)
+    )
+    defer:
+      await allFutures(src.stop(), dst.stop())
+    let stream =
+      await src.dialer.dial(dst.peerInfo.peerId, @[$AutonatV2Codec.DialRequest])
+    defer:
+      await stream.close()
+    let request = AutonatV2Msg(
+      oneof: AutonatV2MsgOneof(
+        kind: MsgKind.DialRequest,
+        dialRequest: DialRequest(addrs: @[ma("/ip4/127.0.0.2/tcp/1")], nonce: 0.Nonce),
+      )
+    ).encode()
+    await stream.writeLp(request)
+    let challenge = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).get()
+    check challenge.oneof.kind == MsgKind.DialDataRequest
+    # A second request does not satisfy the dial-data challenge.
+    await stream.writeLp(request)
+    let response = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).get()
+    check:
+      response.oneof.kind == MsgKind.DialResponse
+      response.oneof.dialResponse.status == EDialRefused
+      response.oneof.dialResponse.dialStatus.isNone
+
   asyncTest "DialRequest refused when every dial back permit is taken":
     let (src, dst, client) = await setupAutonat(
       config = AutonatV2Config.new(

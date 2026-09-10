@@ -38,22 +38,9 @@ proc asNetworkReachability*(self: DialResponse): NetworkReachability =
 proc asAutonatV2Response*(
     self: DialResponse, testAddrs: seq[MultiAddress]
 ): AutonatV2Response =
-  let addrIdx = self.addrIdx.valueOr:
-    return AutonatV2Response(
-      reachability: self.asNetworkReachability(),
-      dialResp: self,
-      addrs: Opt.none(MultiAddress),
-    )
-
-  if addrIdx.uint64 >= testAddrs.len.uint64:
-    return AutonatV2Response(
-      reachability: self.asNetworkReachability(),
-      dialResp: self,
-      addrs: Opt.none(MultiAddress),
-    )
-
-  AutonatV2Response(
-    reachability: self.asNetworkReachability(),
-    dialResp: self,
-    addrs: Opt.some(testAddrs[addrIdx.int]),
-  )
+  var response =
+    AutonatV2Response(reachability: self.asNetworkReachability(), dialResp: self)
+  self.addrIdx.withValue(addrIdx):
+    if addrIdx.uint64 < testAddrs.len.uint64:
+      response.addrs = Opt.some(testAddrs[addrIdx.int])
+  return response
