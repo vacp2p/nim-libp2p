@@ -140,7 +140,10 @@ suite "AutonatV2":
         ma("/ip4/" & checkedGetIPAddress() & "/tcp/4040"), ma("/ip4/127.0.0.1/tcp/4040")
       ]
       reqAddrs = @[listenAddrs[0]]
-      (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
+      (src, dst, client) = await setupAutonat(
+        srcAddrs = listenAddrs,
+        config = AutonatV2Config.new(allowPrivateAddresses = true),
+      )
     defer:
       await allFutures(src.stop(), dst.stop())
 
@@ -360,8 +363,10 @@ suite "AutonatV2":
       reqAddrs = @[listenAddrs[0]]
       (src, dst, client) = await setupAutonat(
         srcAddrs = listenAddrs,
-        config =
-          AutonatV2Config.new(dialDataSize = (MaxAcceptedDialDataRequest + 1).uint64),
+        config = AutonatV2Config.new(
+          dialDataSize = (MaxAcceptedDialDataRequest + 1).uint64,
+          allowPrivateAddresses = true,
+        ),
       )
     defer:
       await allFutures(src.stop(), dst.stop())
