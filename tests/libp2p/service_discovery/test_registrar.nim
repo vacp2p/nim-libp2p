@@ -1411,7 +1411,7 @@ suite "Service Discovery Registrar - registration response":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId2.toBytes()),
+      key: serviceId2,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: adBytes,
