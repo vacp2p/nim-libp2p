@@ -187,28 +187,26 @@ proc forceNewConnection(
 ): Future[Opt[DialBackConn]] {.async: (raises: [CancelledError]).} =
   ## Bypasses connManager to force a new connection to ``pid``
   ## instead of reusing a preexistent one
+  var mux: Muxer
   try:
-    let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
+    mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
     if mux.isNil():
       return Opt.none(DialBackConn)
-    try:
-      return Opt.some(
-        DialBackConn(
-          mux: mux,
-          stream: await self.switch.dialer.negotiateStream(
-            await mux.newStream(), @[$AutonatV2Codec.DialBack]
-          ),
-        )
+    return Opt.some(
+      DialBackConn(
+        mux: mux,
+        stream: await self.switch.dialer.negotiateStream(
+          await mux.newStream(), @[$AutonatV2Codec.DialBack]
+        ),
       )
-    except CancelledError as exc:
-      await mux.close()
-      raise exc
-    except LPError as exc:
-      await mux.close()
-      raise exc
+    )
   except CancelledError as exc:
+    if mux != nil:
+      await mux.close()
     raise exc
   except LPError:
+    if mux != nil:
+      await mux.close()
     return Opt.none(DialBackConn)
 
 proc selectDialAddr(self: AutonatV2, addrs: seq[MultiAddress]): Opt[AddrIdx] =
@@ -259,8 +257,14 @@ proc handleDialRequest(
       await self.amplificationAttackPrevention(stream, addrIdx).wait(
         self.config.amplificationAttackTimeout
       )
-    except AutonatV2Error, AsyncTimeoutError:
-      debug "Amplification attack prevention failed", peer = stream.peerId
+    except AsyncTimeoutError:
+      warn "Amplification attack prevention timed out",
+        peer = stream.peerId, timeout = self.config.amplificationAttackTimeout
+      await stream.sendDialResponse(ResponseStatus.EDialRefused)
+      return
+    except AutonatV2Error as exc:
+      debug "Amplification attack prevention failed",
+        peer = stream.peerId, err = exc.msg
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
