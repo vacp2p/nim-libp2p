@@ -245,10 +245,12 @@ suite "AutonatV2":
         addrs: Opt.some(src.peerInfo.addrs[0]),
       )
 
-  for transport in ["mplex", "yamux", "quic"]:
-    for scenario in [
+  for transportValue in ["mplex", "yamux", "quic"]:
+    let transport = transportValue
+    for scenarioValue in [
       "existing outbound", "existing inbound", "fresh outbound", "fresh identity"
     ]:
+      let scenario = scenarioValue
       asyncTest "DialBack connection binding: " & transport & ", " & scenario:
         dialbackConnectionTest(transport, scenario)
 
