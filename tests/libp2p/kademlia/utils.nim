@@ -15,7 +15,7 @@ converter toKey*(bytes: seq[byte]): Key =
 
 converter toValue*(bytes: seq[byte]): Value =
   Value.fromBytes(bytes)
-  
+
 converter fromKeyToBytes*(k: Key): seq[byte] =
   k.toBytes()
 
