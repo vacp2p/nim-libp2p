@@ -98,11 +98,11 @@ func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
   discard buf.copyFrom(bytes)
   Key(@buf)
 
-func fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
+template fromBytes*(T: typedesc[Key], bytes: sink seq[byte]): Key =
   ## Preserves raw Kademlia key bytes received from a wire message.
   Key(bytes)
 
-func toBytes*(key: Key): seq[byte] {.inline.} =
+template toBytes*(key: Key): seq[byte] =
   ## Returns the raw bytes used by Kademlia and its wire protocol.
   seq[byte](key)
 
@@ -121,14 +121,14 @@ proc hash*(key: Key): Hash {.borrow.}
 proc `$`*(key: Key): string =
   $seq[byte](key)
 
-func init*(T: typedesc[Value], bytes: openArray[byte]): Value =
+template init*(T: typedesc[Value], bytes: openArray[byte]): Value =
   Value(@bytes)
 
-func fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
+template fromBytes*(T: typedesc[Value], bytes: sink seq[byte]): Value =
   ## Preserves raw Kademlia value bytes received from a wire message.
   Value(bytes)
 
-func toBytes*(value: Value): seq[byte] {.inline.} =
+template toBytes*(value: Value): seq[byte] =
   ## Returns the raw bytes used by Kademlia and its wire protocol.
   seq[byte](value)
 
@@ -159,7 +159,7 @@ proc toCid*(k: Key): Cid =
       )
       .get()
 
-proc toKey*(mh: MultiHash): Key =
+template toKey*(mh: MultiHash): Key =
   Key.fromBytes(mh.data.buffer)
 
 proc toKey*(c: Cid): Key =
