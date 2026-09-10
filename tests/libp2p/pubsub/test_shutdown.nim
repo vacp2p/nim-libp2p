@@ -179,3 +179,36 @@ suite "PubSub shutdown":
     await peerStopped
     check cleanupFinished
     await sw.stop()
+
+  asyncTest "overlapping GossipSub stops wait for pending cleanup, even before start":
+    for started in [false, true]:
+      let
+        sw = makeStandardSwitch()
+        gossip = GossipSub.init(sw, rng = rng())
+        never = newAsyncEvent()
+        cleaningUp = newAsyncEvent()
+        releaseCleanup = newAsyncEvent()
+      var cleanupFinished = false
+
+      proc pendingTask() {.async: (raises: [CancelledError]).} =
+        try:
+          await never.wait()
+        finally:
+          cleaningUp.fire()
+          await noCancel releaseCleanup.wait()
+          cleanupFinished = true
+
+      if started:
+        await gossip.start()
+      gossip.pendingTasks.add(pendingTask())
+      let firstStop = gossip.stop()
+      await cleaningUp.wait()
+      let secondStop = gossip.stop()
+      check:
+        not firstStop.finished
+        not secondStop.finished
+      releaseCleanup.fire()
+      await firstStop
+      await secondStop
+      check cleanupFinished
+      await sw.stop()

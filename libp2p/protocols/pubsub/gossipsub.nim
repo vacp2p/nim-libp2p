@@ -1181,20 +1181,20 @@ method start*(g: GossipSub): Future[void] {.async: (raises: [CancelledError]).} 
   reportBackgroundFailure(g.scoringHeartbeatFut, "gossipsub scoring")
   reportBackgroundFailure(g.directPeersLoop, "gossipsub direct peer maintenance")
 
-method stop*(g: GossipSub) {.async: (raises: []).} =
-  info "gossipsub stop"
+method stop*(g: GossipSub): Future[void] {.async: (raw: true, raises: []).} =
+  if not g.started:
+    warn "Stopping gossipsub without starting it"
+  if not g.stopFut.isNil and not g.stopFut.finished:
+    return g.stopFut
 
+  info "gossipsub stop"
   let peersStopped = procCall PubSub(g).stop()
-  var pending = g.pendingTasks
-  for fut in [g.directPeersLoop, g.scoringHeartbeatFut, g.heartbeatFut]:
+  var pending = move g.pendingTasks
+  for fut in [move g.directPeersLoop, move g.scoringHeartbeatFut, move g.heartbeatFut]:
     if not fut.isNil:
       pending.add(fut)
-  await noCancel chronos.cancelAndWait(pending)
-  g.pendingTasks = @[]
-  g.directPeersLoop = nil
-  g.scoringHeartbeatFut = nil
-  g.heartbeatFut = nil
-  await peersStopped
+  g.stopFut = noCancel allFutures(peersStopped, chronos.cancelAndWait(pending))
+  return g.stopFut
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()
