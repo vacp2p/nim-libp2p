@@ -1602,7 +1602,7 @@ suite "Service Discovery Registrar - sender admission":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: ad.encode().get(),
@@ -1629,7 +1629,7 @@ suite "Service Discovery Registrar - sender admission":
 
     let inMsg = kadprotobuf.Message(
       msgType: kadprotobuf.MessageType.register,
-      key: Opt.some(serviceId.toBytes()),
+      key: serviceId,
       register: Opt.some(
         kadprotobuf.RegisterMessage(
           advertisement: ad.encode().get(),
