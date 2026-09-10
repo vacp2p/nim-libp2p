@@ -15,6 +15,7 @@ export iptree
 export extended_peer_record.MaxServiceDataSize
 export extended_peer_record.MaxXPRSize
 export extended_peer_record.isValid
+export types
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
