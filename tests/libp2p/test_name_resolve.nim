@@ -251,6 +251,31 @@ suite "Name resolving":
         "/p2p-circuit/ip4/192.0.2.1/tcp/4001/p2p/" & peerId,
       )
 
+    asyncTest "dnsaddr record limit counts only applicable records":
+      const peerId = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+      var
+        records: seq[string]
+        expected: seq[string]
+
+      for i in 1 .. MaxDnsaddrRecords:
+        records.add("unrelated-txt-record-" & $i)
+        records.add("dnsaddr=not-a-multiaddress")
+        records.add(
+          "dnsaddr=/ip4/198.51.100." & $i & "/tcp/4002/p2p/" & peerId
+        )
+
+      for i in 1 .. (MaxDnsaddrRecords + 4):
+        let address = "/ip4/192.0.2." & $i & "/tcp/4001/p2p/" & peerId
+        records.add("dnsaddr=" & address)
+        if i <= MaxDnsaddrRecords:
+          expected.add(address)
+
+      resolver.txtResponses["_dnsaddr.applicable-limit.test"] = records
+
+      await testOne(
+        "/dnsaddr/applicable-limit.test/tcp/4001/p2p/" & peerId, expected
+      )
+
     asyncTest "dnsaddr bounds records and removes duplicate outputs":
       var records: seq[string]
       var expected: seq[string]

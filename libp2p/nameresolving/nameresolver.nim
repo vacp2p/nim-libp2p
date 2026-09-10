@@ -225,11 +225,11 @@ proc resolveDnsAddrImpl(
   for i in (component.index + 1) ..< maParts.len:
     suffix.add(maParts[i])
 
-  for i in 0 ..< min(txt.len, MaxDnsaddrRecords):
+  var applicableRecords = 0
+  for entry in txt:
     if state.emitted >= MaxResolvedAddresses:
       break
 
-    let entry = txt[i]
     if not entry.startsWith("dnsaddr=") or entry.len <= "dnsaddr=".len:
       continue
 
@@ -241,6 +241,12 @@ proc resolveDnsAddrImpl(
     let entryValue = parsed.get()
     if not entryValue.endsWith(suffix):
       continue
+
+    if applicableRecords >= MaxDnsaddrRecords:
+      debug "Dropping applicable DNSADDR TXT entries over the record limit",
+        limit = MaxDnsaddrRecords
+      break
+    inc applicableRecords
 
     let expanded = prepend(prefix, entryValue)
     for resolved in await self.resolveDnsAddrImpl(expanded, depth + 1, state):
