@@ -495,8 +495,7 @@ method handleAddProvider*(
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let msg =
-    Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
+  let msg = Message(msgType: Opt.some(MessageType.getProviders), key: Opt.some(key))
   let reply = ?await kad.dispatchRpc(peer, msg)
 
   trace "Get-providers reply received",

@@ -53,8 +53,7 @@ proc dispatchPutVal*(
   let msg = Message(
     msgType: Opt.some(MessageType.putValue),
     key: Opt.some(key),
-    record:
-      Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
+    record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
   let reply = ?await kad.dispatchRpc(peer, msg)
 

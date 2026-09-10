@@ -258,7 +258,7 @@ proc registerAd*(
 ): RegisterMessage =
   let inMsg = Message(
     msgType: MessageType.register,
-    key: Opt.some(serviceId.toBytes()),
+    key: serviceId,
     register: Opt.some(
       RegisterMessage(
         advertisement: ad.encode().get(),
