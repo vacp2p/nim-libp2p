@@ -78,10 +78,10 @@ proc buildSwitch(config: KadConfig): Switch =
   buildBaseSwitch(base).build()
 
 proc provideKey(testKey: string): Key =
-  ("interop-test-key-" & testKey).toBytes()
+  Key.fromBytes(("interop-test-key-" & testKey).toBytes())
 
 proc valueKey(testKey: string): Key =
-  ("/example/data/" & testKey).toBytes()
+  Key.fromBytes(("/example/data/" & testKey).toBytes())
 
 proc newKad(switch: Switch): KadDHT =
   KadDHT.new(
@@ -115,7 +115,9 @@ proc runProvider(
   await kad.addProvider(provideKey(testKey))
   info "Provider announced key"
 
-  let putRes = await kad.putValue(valueKey(testKey), ProviderValue.toBytes())
+  let putRes = await kad.putValue(
+    valueKey(testKey), Value.fromBytes(ProviderValue.toBytes())
+  )
   if putRes.isErr:
     raise newException(ValueError, "putValue failed: " & putRes.error)
   info "Provider stored value"
@@ -155,7 +157,7 @@ proc runQuerier(
   for attempt in 0 ..< LookupAttempts:
     let getRes = await kad.getValue(vkey)
     if getRes.isOk:
-      value = string.fromBytes(getRes.get().value)
+      value = string.fromBytes(getRes.get().value.toBytes())
       break
     else:
       debug "getValue attempt failed", attempt = attempt, err = getRes.error
