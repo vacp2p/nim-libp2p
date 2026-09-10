@@ -180,7 +180,7 @@ suite "Service Discovery Component - Error Handling":
     let serviceId = makeServiceId()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.none(kad_protobuf.RegisterMessage),
     )
 
@@ -198,7 +198,7 @@ suite "Service Discovery Component - Error Handling":
     let serviceId = makeServiceId()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: @[],
@@ -244,7 +244,7 @@ suite "Service Discovery Component - Error Handling":
       .get()
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,
@@ -303,7 +303,7 @@ suite "Service Discovery Component - Error Handling":
       let response = await clientNode.sendMessage(registrarNode, msg)
       check:
         response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
-        registrarNode.countAdsInCache(key) == 0
+        registrarNode.countAdsInCache(Key.fromBytes(key)) == 0
 
   asyncTest "REGISTER with ticket that has mismatched advertisement returns Rejected":
     # A ticket whose embedded advertisement does not match the registration's
@@ -330,7 +330,7 @@ suite "Service Discovery Component - Error Handling":
 
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,
@@ -370,7 +370,7 @@ suite "Service Discovery Component - Error Handling":
 
     let msg = kad_protobuf.Message(
       msgType: kad_protobuf.MessageType.register,
-      key: serviceId,
+      key: Opt.some(serviceId.toBytes()),
       register: Opt.some(
         kad_protobuf.RegisterMessage(
           advertisement: adBytes,
