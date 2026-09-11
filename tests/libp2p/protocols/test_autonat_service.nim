@@ -203,6 +203,7 @@ suite "Autonat Service":
 
     let notReachableAwaiter = newFuture[void]()
     let reachableAwaiter = newFuture[void]()
+    var notReachableConfidence = Opt.none(float)
     var reachableConfidence = Opt.none(float)
 
     proc reachabilityHandler(
@@ -211,6 +212,7 @@ suite "Autonat Service":
         dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if settled(networkReachability, NetworkReachability.NotReachable, confidence):
+        notReachableConfidence = confidence
         autonatClientStub.answer = Reachable
         notReachableAwaiter.completeOnce()
       elif settled(networkReachability, NetworkReachability.Reachable, confidence) and
@@ -233,8 +235,8 @@ suite "Autonat Service":
 
     await notReachableAwaiter
 
-    check autonatService.networkReachability == NetworkReachability.NotReachable
-    check reachabilityConfidence(NetworkReachability.NotReachable) == 0.3
+    # The stub now answers Reachable, so the live state can already be Reachable.
+    check notReachableConfidence == Opt.some(0.3)
 
     await autonatClientStub.finished
     await reachableAwaiter
