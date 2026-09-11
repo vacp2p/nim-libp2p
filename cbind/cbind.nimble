@@ -11,11 +11,13 @@ import os, strutils
 requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
 proc sanitizer(): string =
-  ## Sanitizer the `examples` task builds under, from LIBP2P_SAN.
-  let san = getEnv("LIBP2P_SAN", "asan")
-  if san notin ["asan", "tsan"]:
+  ## Sanitizer the examples build under: LIBP2P_SAN=asan|tsan|none. Empty means none.
+  # mingw gcc ships no sanitizer runtime, so Windows defaults to none.
+  let default = when defined(windows): "none" else: "asan"
+  let san = getEnv("LIBP2P_SAN", default)
+  if san notin ["asan", "tsan", "none"]:
     raise newException(ValueError, "unknown LIBP2P_SAN: " & san)
-  san
+  if san == "none": "" else: san
 
 proc nimSanFlags(san: string): string =
   # orc, not the shipped refc: refc's conservative stack scan reads past its
@@ -32,6 +34,8 @@ proc ccSanFlags(san: string): string =
   # -O1 for tsan: -O2 inlines away the frames its reports need.
   let common = " -g -fno-omit-frame-pointer"
   case san
+  of "":
+    " -O2"
   of "tsan":
     " -O1" & common & " -fsanitize=thread"
   else:
@@ -40,6 +44,8 @@ proc ccSanFlags(san: string): string =
 proc sanRunEnv(san: string): string =
   # ASan needs LSan off: orc frees at collection time, so live objects look like leaks.
   case san
+  of "":
+    ""
   of "tsan":
     "TSAN_OPTIONS=suppressions=" & thisDir() / "tsan.supp" & " "
   else:
