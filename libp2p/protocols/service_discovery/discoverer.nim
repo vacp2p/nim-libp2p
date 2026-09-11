@@ -20,6 +20,10 @@ type GetAdsResult = object
   ads: seq[Advertisement]
   closerPeers: seq[PeerInfo]
 
+type BucketAds = object
+  found: HashSet[Advertisement]
+  closerPeers: seq[PeerInfo]
+
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   var validAds: seq[Advertisement] = @[]
   for adBuf in ads:
@@ -73,9 +77,9 @@ proc dispatchGetAds(
     )
   )
 
-proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
-  let peersToPick = min(disco.discoConfig.kLookup, bucket.peers.len)
-  disco.rng.pick(bucket.peers, peersToPick).ifValue(picked):
+proc peersToQuery(disco: ServiceDiscovery, peers: seq[Key]): seq[PeerId] =
+  let peersToPick = min(disco.discoConfig.kLookup, peers.len)
+  disco.rng.pick(peers, peersToPick).ifValue(picked):
     return picked.toPeerIds()
   else:
     return @[]
@@ -120,8 +124,8 @@ proc collectBucketAds(
     peers: seq[PeerId],
     known: HashSet[Advertisement],
     limit: int,
-): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
-  var found = known
+): Future[BucketAds] {.async: (raises: [CancelledError]).} =
+  var bucketAds = BucketAds(found: known)
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
@@ -144,13 +148,15 @@ proc collectBucketAds(
     if completedFut.completed():
       let res = completedFut.value()
       if res.isOk():
-        disco.processResponse(serviceId, res.value(), found, limit)
+        let reply = res.value()
+        bucketAds.closerPeers.add(reply.closerPeers)
+        disco.processResponse(serviceId, reply, bucketAds.found, limit)
 
-    if found.len >= limit:
+    if bucketAds.found.len >= limit:
       disco.drainCompletedPeers(serviceId, pending)
       break
 
-  return found
+  return bucketAds
 
 proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## Register interest in a service so its routing table is created and kept
@@ -201,18 +207,36 @@ proc lookup*(
   local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
-  let buckets = searchTable.buckets
-  for bucket in buckets:
+  # Admission into the table waits on a background probe, so closer peers from a
+  # reply are also kept here, by bucket, and queried when the walk reaches them.
+  # The walk covers every bucket the table can have, as it allocates them lazily.
+  var learned = newSeq[seq[Key]](bucketCount(searchTable.config.maxBuckets))
+  for bucketIdx in 0 ..< learned.len:
     if found.len >= disco.discoConfig.fLookup:
       break
 
-    if bucket.peers.len == 0:
+    var candidates = learned[bucketIdx]
+    if bucketIdx < searchTable.buckets.len:
+      candidates.add(searchTable.buckets[bucketIdx].peers)
+    candidates = candidates.deduplicate()
+    if candidates.len == 0:
       continue
 
-    let peers = disco.peersToQuery(bucket)
-
-    found =
+    let peers = disco.peersToQuery(candidates)
+    let bucketAds =
       await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
+    found = bucketAds.found
+
+    for peer in bucketAds.closerPeers:
+      # Admission records addresses only for peers it would seat, so a peer
+      # without one could not be dialed.
+      if peer.peerId == disco.switch.peerInfo.peerId or
+          disco.switch.peerStore[AddressBook][peer.peerId].len == 0:
+        continue
+      let key = peer.peerId.toKey()
+      let peerIdx = searchTable.bucketIndex(key)
+      if peerIdx > bucketIdx:
+        learned[peerIdx].add(key)
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)
