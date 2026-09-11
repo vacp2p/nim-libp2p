@@ -8,13 +8,10 @@ export results
 
 func getOpt*[K, V](t: Table[K, V], key: K): Opt[V] =
   ## `Opt.some` of the value at `key`, `Opt.none` when `t` has no such key.
-  if key notin t:
-    return Opt.none(V)
-
   try:
     Opt.some(t[key])
   except KeyError:
-    raiseAssert "key presence checked above"
+    Opt.none(V)
 
 func toOpt*[T](v: Opt[T] | T): Opt[T] =
   when v is T:
@@ -70,7 +67,10 @@ template withValue*[T](self: Opt[T], value, body: untyped): untyped =
     body
 
 template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
-  self.toOpt().withValue(value, body)
+  let temp = (self)
+  if temp.isOk:
+    let value {.inject, used.} = temp.unsafeGet()
+    body
 
 macro withValue*[T](self: Opt[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
