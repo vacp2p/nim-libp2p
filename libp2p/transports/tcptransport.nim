@@ -120,8 +120,7 @@ method start*(
 
   self.flags.incl(ServerFlags.ReusePort)
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   var supported: seq[MultiAddress]
   var initialized = false
