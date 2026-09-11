@@ -15,6 +15,19 @@ else
 VERBOSITY_FLAG =
 endif
 
+# Off by default: mingw gcc ships no ASan runtime.
+ASAN ?= 0
+ifeq ($(ASAN),1)
+ASAN_FLAGS = \
+  --mm:orc \
+  -d:useMalloc \
+  --debugger:native \
+  --passC:-fno-omit-frame-pointer \
+  --passC:-fsanitize=address \
+  --passL:-fsanitize=address
+export ASAN_OPTIONS = detect_leaks=0
+endif
+
 NIM_FLAGS = \
   --styleCheck:usages --styleCheck:error \
   $(VERBOSITY_FLAG) \
@@ -22,6 +35,7 @@ NIM_FLAGS = \
   -f \
   --threads:on \
   --opt:speed \
+  $(ASAN_FLAGS) \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console

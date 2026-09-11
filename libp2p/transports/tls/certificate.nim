@@ -228,7 +228,7 @@ proc parse*(
 
 proc verifiedIdentityKey*(self: P2pCertificate): Opt[PublicKey] =
   ## Returns the embedded identity public key when the certificate is valid.
-  let currentTime = now().utc().toTime()
+  let currentTime = getTime()
   if not (currentTime >= self.validFrom and currentTime < self.validTo):
     return Opt.none(PublicKey)
 

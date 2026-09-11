@@ -17,9 +17,11 @@ permissions:
 
 jobs:
   c-bindings:
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
+      matrix:
+        san: [asan, tsan]
     env:
       NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
@@ -27,7 +29,7 @@ jobs:
       run:
         shell: bash
 
-    name: "Build C bindings"
+    name: "Build C bindings (${{ matrix.san }})"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -52,7 +54,7 @@ jobs:
           cc: gcc
           nim_ref: v2.2.10
 
-      - name: Build FFI library and generate C/CDDL bindings
+      - name: Generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
@@ -61,11 +63,19 @@ jobs:
           nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
           nimble -l setup -y
-          nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl
 
+      # The only linux build of the shipped refc library; `examples` builds orc.
+      - name: Build FFI library
+        if: matrix.san == 'asan'
+        run: |
+          cd cbind
+          nimble buildffi
+
       - name: Build and run C bindings examples
+        env:
+          LIBP2P_SAN: ${{ matrix.san }}
         run: |
           cd cbind
           nimble examples
