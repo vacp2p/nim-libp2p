@@ -596,7 +596,6 @@ proc listenerEndpointFor(
 proc dialOnlyEndpointFor(
     self: QuicTransport, family: AddressFamily
 ): QuicEndpoint {.raises: [TLSCertificateError, QuicError, TransportOsError].} =
-  # Construct before caching: an exception must not leave a partially written Opt.
   case family
   of AddressFamily.IPv4:
     if self.dialEndpoint4.isNone():
