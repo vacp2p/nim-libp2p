@@ -42,7 +42,7 @@ func noneWhenEmpty*[T](O: type Opt, v: seq[T]): Opt[seq[T]] =
   else:
     Opt.some(v)
 
-template withValue*[T](self: Opt[T], value, body: untyped): untyped =
+template withValue*[T: not void](self: Opt[T], value, body: untyped): untyped =
   ## This template provides a convenient way to work with `Opt` types in Nim.
   ## It allows you to execute a block of code (`body`) only when the `Opt` is not empty.
   ##
@@ -66,13 +66,13 @@ template withValue*[T](self: Opt[T], value, body: untyped): untyped =
     let value {.inject, used.} = temp.get()
     body
 
-template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
+template withValue*[T: not void, E](self: Result[T, E], value, body: untyped): untyped =
   let temp = (self)
   if temp.isOk:
     let value {.inject, used.} = temp.unsafeGet()
     body
 
-macro withValue*[T](self: Opt[T], value, body, elseStmt: untyped): untyped =
+macro withValue*[T: not void](self: Opt[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
   quote:
     let temp = (`self`)
