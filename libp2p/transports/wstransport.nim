@@ -348,8 +348,7 @@ method start*(
 
   info "Starting WS transport"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   if not self.secure and self.autotls.isSome():
     self.autotls.ifValue(autotls):

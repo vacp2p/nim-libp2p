@@ -443,8 +443,7 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listeners.len == 0, "start() already called"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   var listenMAs: seq[MultiAddress]
   var initialized = false
@@ -599,11 +598,13 @@ proc dialOnlyEndpointFor(
   case family
   of AddressFamily.IPv4:
     if self.dialEndpoint4.isNone():
-      self.dialEndpoint4 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+      let endpoint = QuicEndpoint.new(self.makeConfig(), family)
+      self.dialEndpoint4 = Opt.some(endpoint)
     self.dialEndpoint4.get()
   of AddressFamily.IPv6:
     if self.dialEndpoint6.isNone():
-      self.dialEndpoint6 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+      let endpoint = QuicEndpoint.new(self.makeConfig(), family)
+      self.dialEndpoint6 = Opt.some(endpoint)
     self.dialEndpoint6.get()
   else:
     raise newException(QuicError, "client supports only IPv4/IPv6 address")

@@ -5,7 +5,9 @@
 from std/strutils import toUpper
 import std/[sequtils, algorithm]
 import bearssl/[hash, rand], nimcrypto/utils
+import chronicles, json_serialization
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+import ../../../libp2p/utils/redact
 import ../../tools/[unittest, crypto]
 
 ## Test vectors was made using Go implementation
@@ -661,6 +663,13 @@ suite "Key interface test suite":
     hmacDrbgGenerate(expectedCtx, addr expected[0], uint expected.len)
 
     check got == expected
+
+  test "Rng is redacted via `$`, Chronicles and Json.encode":
+    let random = rng()
+    check:
+      $random == Redacted
+      chroniclesFormatItIMPL(random) == Redacted
+      Json.encode(random) == Json.encode(Redacted)
 
   test "pickOne returns none for empty sequence":
     let x: seq[int] = @[]

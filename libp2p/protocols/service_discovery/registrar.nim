@@ -251,9 +251,10 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  discard disco.insertPeer(
+  disco.rtManager.admitPeers(
+    disco,
     serviceId,
-    PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
+    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
   )
 
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
