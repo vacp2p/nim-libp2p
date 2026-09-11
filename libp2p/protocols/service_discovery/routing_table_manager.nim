@@ -144,6 +144,14 @@ proc admitPeers*(
 
   kad.admitPeers(table, peerInfos, onAdmit)
 
+proc removePeer*(disco: ServiceDiscovery, peerId: PeerId, reason: string): int =
+  var removed = ord(disco.rtable.removePeer(peerId, reason))
+  for table in disco.rtManager.tables.values:
+    removed += ord(table.removePeer(peerId, reason))
+  if removed > 0:
+    disco.rtManager.updateServiceTablesMetrics()
+  removed
+
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service
   serviceId in manager.tables
