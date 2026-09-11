@@ -103,7 +103,7 @@ proc toCsv*(tracker: DiscoveryTracker): string {.raises: [].} =
   ## Raw data dump: one row per discovered provider.
   var rows = @["service_id,provider,rank,elapsed_ms,source"]
   for serviceId, interest in tracker.interests:
-    let service = serviceId.toHex()
+    let service = serviceId.toBytes().toHex()
     for d in interest.found:
       rows.add(
         service & "," & $d.provider & "," & $d.rank & "," & $d.elapsed.milliseconds & "," &

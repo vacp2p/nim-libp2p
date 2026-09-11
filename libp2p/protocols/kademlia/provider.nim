@@ -554,7 +554,7 @@ proc handleGetProviders*(
 
   let response = Message(
     msgType: Opt.some(MessageType.getProviders),
-    key: msg.key,
+    key: Opt.some(msgKey),
     closerPeers: kad.findClosestPeers(msgKey, stream.peerId),
     providerPeers: providers.toSeq(),
   )

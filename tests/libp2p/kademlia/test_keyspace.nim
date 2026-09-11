@@ -21,7 +21,7 @@ proc makeKeyInBucket(bucket: int, tag: byte): Key =
   var buf: array[IdLength, byte]
   buf[bucket div 8] = 0x80'u8 shr (bucket mod 8)
   buf[IdLength - 1] = tag
-  @buf
+  Key.fromBytes(@buf)
 
 proc makeEmptyTable(replication: int): RoutingTable =
   RoutingTable.new(

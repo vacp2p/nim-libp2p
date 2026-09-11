@@ -65,10 +65,11 @@ func selfHash(rtable: RoutingTable): Key =
   if rtable.config.selfIdPreHashed:
     rtable.selfId
   else:
-    rtable.selfId.hashFor(rtable.config.hasher)
+    Key.fromBytes(rtable.selfId.hashFor(rtable.config.hasher))
 
 func bucketIndexFor(rtable: RoutingTable, selfHash: Key, key: Key): int =
-  let lz = xorDistance(selfHash, key.hashFor(rtable.config.hasher)).leadingZeros()
+  let lz = xorDistance(selfHash, Key.fromBytes(key.hashFor(rtable.config.hasher)))
+    .leadingZeros()
 
   min(lz, bucketCount(rtable.config.maxBuckets) - 1)
 
@@ -77,7 +78,8 @@ func bucketIndex*(rtable: RoutingTable, key: Key): int =
 
 func commonPrefixLen*(rtable: RoutingTable, key: Key): int =
   ## Leading bits `key` shares with self: the bucket index before clamping.
-  xorDistance(rtable.selfHash(), key.hashFor(rtable.config.hasher)).leadingZeros()
+  xorDistance(rtable.selfHash(), Key.fromBytes(key.hashFor(rtable.config.hasher)))
+    .leadingZeros()
 
 func nPeersForCpl*(rtable: RoutingTable, cpl: int): int =
   ## Fullness of the bucket holding the peers that share `cpl` bits with self.
@@ -293,13 +295,13 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
       allNodes.add(p)
 
   let hasher = rtable.config.hasher
-  let targetHash = targetId.hashFor(hasher)
+  let targetHash = Key.fromBytes(targetId.hashFor(hasher))
 
   allNodes.sort(
     proc(a, b: Key): int =
       cmp(
-        xorDistance(a.hashFor(hasher), targetHash),
-        xorDistance(b.hashFor(hasher), targetHash),
+        xorDistance(Key.fromBytes(a.hashFor(hasher)), targetHash),
+        xorDistance(Key.fromBytes(b.hashFor(hasher)), targetHash),
       )
   )
 
@@ -375,8 +377,8 @@ proc randomKeyInBucket*(rtable: RoutingTable, bucketIndex: int, rng: Rng): Opt[K
 
   for _ in 0 ..< maxAttempts:
     rng.generate(key)
-    if rtable.bucketIndexFor(selfHash, key) == lz:
-      return Opt.some(key)
+    if rtable.bucketIndexFor(selfHash, Key.fromBytes(key)) == lz:
+      return Opt.some(Key.fromBytes(key))
 
   Opt.none(Key)
 
@@ -398,9 +400,10 @@ proc nearestToCenter*(
 
   let selfHash = rtable.selfHash()
   var nearest = candidates[0]
-  var nearestDist = xorDistance(selfHash, nearest.hashFor(rtable.config.hasher))
+  var nearestDist =
+    xorDistance(selfHash, Key.fromBytes(nearest.hashFor(rtable.config.hasher)))
   for key in candidates.toOpenArray(1, candidates.high):
-    let dist = xorDistance(selfHash, key.hashFor(rtable.config.hasher))
+    let dist = xorDistance(selfHash, Key.fromBytes(key.hashFor(rtable.config.hasher)))
     if dist < nearestDist:
       nearest = key
       nearestDist = dist

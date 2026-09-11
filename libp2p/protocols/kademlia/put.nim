@@ -121,7 +121,7 @@ proc handlePutValue*(
       reason = "keyMismatch", messageType = "putValue", stream
     return
 
-  let value: Value = record.value.valueOr:
+  let value = record.value.valueOr:
     trace "Put-value request rejected",
       reason = "missingValue", messageType = "putValue", stream
     return

@@ -9,7 +9,7 @@ import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, multiaddress, unittest]
 import ../kademlia/[mock_kademlia, utils]
 import ./utils
 
@@ -304,6 +304,20 @@ suite "ServiceRoutingTableManager":
     let peerInfo = makePeerInfo()
     check not disco.insertPeer(serviceId, peerInfo)
     check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+  test "insertPeer rejects an undialable address unless the switch allows it":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let peerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60000")])
+    check not disco.insertPeer(serviceId, peerInfo)
+
+    disco.switch.peerStore.allowUndialableAddrs = true
+    check disco.insertPeer(serviceId, peerInfo)
+    check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
   test "insertPeer on non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()

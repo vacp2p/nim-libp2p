@@ -77,7 +77,7 @@ proc getValue*(
         expected = key, got = record.key
       return
 
-    let value: Value = record.value.valueOr:
+    let value = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
 
@@ -141,19 +141,32 @@ method handleGetValue*(
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
-  var response = Message(
+  let entryRecord = entryRecordOpt.valueOr:
+    let response = Message(
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key),
+      closerPeers: kad.findClosestPeers(key, stream.peerId),
+    )
+    let encoded = response.encode(kad.config.hideConnectionStatus)
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
+    try:
+      await stream.writeLp(encoded)
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", err = exc.msg, stream
+    return
+
+  let response = Message(
     msgType: Opt.some(MessageType.getValue),
     key: Opt.some(key),
     closerPeers: kad.findClosestPeers(key, stream.peerId),
-  )
-  entryRecordOpt.withValue(entryRecord):
-    response.record = Opt.some(
+    record: Opt.some(
       Record(
         key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
-    )
+    ),
+  )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:

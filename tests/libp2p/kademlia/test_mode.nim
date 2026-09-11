@@ -23,9 +23,7 @@ proc dialFindNode(
   defer:
     await stream.close()
 
-  let msg = Message(
-    msgType: Opt.some(MessageType.findNode), key: Opt.some(target.rtable.selfId)
-  )
+  let msg = Message(msgType: Opt.some(MessageType.findNode), key: target.rtable.selfId)
   try:
     await stream.writeLp(msg.encode(querier.config.hideConnectionStatus))
     let replyBuf = await stream.readLp(MaxMsgSize).wait(1.seconds)
@@ -96,9 +94,8 @@ suite "KadDHT dynamic mode":
 
     # One round-trip parks the server handler on the next read, so the stream is
     # held open and tracked as a server stream.
-    let msg = Message(
-      msgType: Opt.some(MessageType.findNode), key: Opt.some(server.rtable.selfId)
-    )
+    let msg =
+      Message(msgType: Opt.some(MessageType.findNode), key: server.rtable.selfId)
     await stream.writeLp(msg.encode(querier.config.hideConnectionStatus))
     discard await stream.readLp(MaxMsgSize).wait(1.seconds)
 

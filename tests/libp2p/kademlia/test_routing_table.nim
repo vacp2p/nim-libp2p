@@ -10,12 +10,12 @@ import ../../tools/[unittest, crypto]
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return @buf
+  return Key(@buf)
 
 proc randomTestKey(): Key =
   var buf = newSeqUninit[byte](IdLength)
   rng().generate(buf)
-  buf
+  Key(buf)
 
 proc keyWithLeadingZeros(n: int): Key =
   ## Key whose XOR distance to an all-zero selfId under `noOpHasher` has
@@ -23,7 +23,7 @@ proc keyWithLeadingZeros(n: int): Key =
   doAssert n < IdLength * 8, "an all-zero key has no first set bit"
   var buf: array[IdLength, byte]
   buf[n div 8] = 0x80'u8 shr (n mod 8)
-  return @buf
+  return Key(@buf)
 
 suite "KadDHT Routing Table":
   const TargetBucket = 6
@@ -201,8 +201,12 @@ suite "KadDHT Routing Table":
     expected.sort(
       proc(a, b: Key): int =
         cmp(
-          xorDistance(a.hashFor(hasher), target.hashFor(hasher)),
-          xorDistance(b.hashFor(hasher), target.hashFor(hasher)),
+          xorDistance(
+            Key.fromBytes(a.hashFor(hasher)), Key.fromBytes(target.hashFor(hasher))
+          ),
+          xorDistance(
+            Key.fromBytes(b.hashFor(hasher)), Key.fromBytes(target.hashFor(hasher))
+          ),
         )
     )
     check res == expected
@@ -472,9 +476,11 @@ suite "KadDHT Routing Table":
       rt.bucketIndex(target) == TargetBucket
 
   proc checkNearestToCenter(rt: RoutingTable, target: Key, candidates: seq[Key]) =
-    let targetDist = xorDistance(rt.selfId, target.hashFor(rt.config.hasher))
+    let targetDist =
+      xorDistance(rt.selfId, Key.fromBytes(target.hashFor(rt.config.hasher)))
     for candidate in candidates:
-      check targetDist <= xorDistance(rt.selfId, candidate.hashFor(rt.config.hasher))
+      check targetDist <=
+        xorDistance(rt.selfId, Key.fromBytes(candidate.hashFor(rt.config.hasher)))
 
   test "refreshSelfTarget is selfId when the table centers on a raw key":
     let selfId = testKey(0)

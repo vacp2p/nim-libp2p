@@ -46,10 +46,12 @@ proc startSync*(
     await stream.send(MsgType.Connect, addrs)
     trace "Dcutr initiator has sent a Connect message."
     let rttStart = Moment.now()
-    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
-      raise newException(DcutrError, error)
+    let connectAnswer =
+      DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
 
-    peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
+    peerDialableAddrs = switch.peerStore.addressPolicy.filterAddrs(
+      getHolePunchableAddrs(connectAnswer.addrs)
+    )
     if peerDialableAddrs.len == 0:
       trace "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
         addresses = connectAnswer.addrs

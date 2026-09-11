@@ -6,7 +6,8 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
-import ./[types, service_discovery_metrics, registrar]
+import
+  ./[types, service_discovery_metrics, registrar, dial_backoff, routing_table_manager]
 
 logScope:
   topics = "service-disco connection"
@@ -19,6 +20,19 @@ proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
       ips.add(ip)
   ips
 
+func isRemoteReset(e: ref CatchableError): bool =
+  ## A reset during the negotiate arrives as the parent of `DialFailedError`.
+  e of LPStreamResetError or (not e.parent.isNil() and e.parent of LPStreamResetError)
+
+proc evictOnReset(disco: ServiceDiscovery, peerId: PeerId, e: ref CatchableError) =
+  ## A peer that resets a fresh stream mounts the codec but does not serve it.
+  if not e.isRemoteReset():
+    return
+
+  let tables = disco.removePeer(peerId, reason = "reset")
+  if tables > 0:
+    trace "Evicted peer that reset a discovery request", peerId, tables, err = e.msg
+
 proc send*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
@@ -26,11 +40,17 @@ proc send*(
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
 
+  if disco.dialBackedOff(peerId, addrs):
+    return err("peer is in dial backoff: " & $peerId)
+
   let stream =
     try:
       await disco.switch.dial(peerId, addrs, disco.codec)
     except DialFailedError as e:
+      disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("dialing peer failed: " & e.msg)
+
   var replyRead = false
   defer:
     # Closing only half-closes the channel: an abandoned RPC leaves its unread
@@ -51,10 +71,14 @@ proc send*(
     try:
       await stream.writeLp(encodedMsg)
     except LPStreamError as e:
+      disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("connection writing failed: " & e.msg)
     try:
       replyBuf = await stream.readLp(ServiceDiscoveryMaxMsgSize)
     except LPStreamError as e:
+      disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("connection reading failed: " & e.msg)
   replyRead = true
 
@@ -62,8 +86,10 @@ proc send*(
   cd_message_bytes_received.inc(replyBuf.len.float64, labelValues = [$msg.msgType])
 
   let reply = Message.decode(replyBuf).valueOr:
+    disco.recordDialFailure(peerId, addrs)
     return err("failed to decode message response: " & $error)
 
+  disco.clearDialFailures(peerId)
   return ok(reply)
 
 proc handleMessage*(

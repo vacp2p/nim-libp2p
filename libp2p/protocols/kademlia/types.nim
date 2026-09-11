@@ -4,19 +4,17 @@
 import std/[tables, sequtils, sets, heapqueue, hashes]
 from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
-import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
-import ../../utils/shortlog
+import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy, multiaddress]
+import ../../utils/[opt, shortlog]
 import ../protocol
-import ./[protobuf, message_sender]
+import ./[key_value, protobuf, message_sender]
 
-export tables, sets, heapqueue, message_sender
+export tables, sets, heapqueue, key_value, message_sender
 
 logScope:
   topics = "kad-dht types"
 
 const
-  IdLength* = 32 # 256-bit IDs
-
   MaxBucketsLimit* = IdLength * 8
     ## a bucket per shared prefix bit; deeper prefixes than the key is long cannot exist
   MaxRegionBits* = IdLength * 8
@@ -86,26 +84,20 @@ const
 
   MaxProviderKeyLen* = 80 ## Upper bound (bytes) on an ADD_PROVIDER key
 
-type
-  Key* = seq[byte]
-  Value* = seq[byte]
-
-func init*(T: typedesc[Key], bytes: openArray[byte]): Key =
-  ## Key of `IdLength` bytes holding `bytes`, zero-padded.
-  var buf: array[IdLength, byte]
-  discard buf.copyFrom(bytes)
-  @buf
-
 proc toCid*(k: Key): Cid =
-  let cidRes = Cid.init(k)
+  let cidRes = Cid.init(k.toBytes())
   if cidRes.isOk:
     cidRes.get()
   else:
     debug "Kademlia key wrapped as CID", key = k
-    Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
+    Cid
+      .init(
+        CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k.toBytes()).get()
+      )
+      .get()
 
-proc toKey*(mh: MultiHash): Key =
-  mh.data.buffer
+template toKey*(mh: MultiHash): Key =
+  Key.fromBytes(mh.data.buffer)
 
 proc toKey*(c: Cid): Key =
   c.mhash().get().toKey()
@@ -114,7 +106,7 @@ proc toKey*(p: PeerId): Key =
   MultiHash.init(p.data).get().toKey()
 
 proc toPeerId*(k: Key): Result[PeerId, string] =
-  PeerId.init(k).mapErr(x => $x)
+  PeerId.init(k.toBytes()).mapErr(x => $x)
 
 proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   let peer = ?k.toPeerId()
@@ -157,12 +149,6 @@ proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
     peerIds.add(pid)
 
   return peerIds
-
-chronicles.formatIt(Key):
-  it.shortLog
-
-chronicles.formatIt(Value):
-  it.shortLog
 
 type XorDistance* = array[IdLength, byte]
 type XorDHasher* = proc(input: seq[byte]): array[IdLength, byte] {.
@@ -209,7 +195,7 @@ proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
 proc hashFor*(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
-  return @(hasher.get(defaultHasher)(k))
+  return @(hasher.get(defaultHasher)(k.toBytes()))
 
 proc xorDistance*(a, b: Key): XorDistance =
   doAssert a.len == IdLength and b.len == IdLength,
@@ -221,7 +207,7 @@ proc xorDistance*(a, b: Key): XorDistance =
   return response
 
 proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
-  xorDistance(a.hashFor(hasher), b.hashFor(hasher))
+  xorDistance(Key.fromBytes(a.hashFor(hasher)), Key.fromBytes(b.hashFor(hasher)))
 
 proc xorDistance*(a: PeerId, b: Key, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b, hasher)

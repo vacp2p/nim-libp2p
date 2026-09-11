@@ -290,8 +290,7 @@ method getOrCreatePeer*(
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
 
-  f.validateOverheadRateLimit().isOkOr:
-    raise newException(InitializationError, $error)
+  f.validateOverheadRateLimit().onErrorRaise(InitializationError)
 
   f.seen = TimedCache[SaltedId].init(2.minutes, maxSize = FloodSubSeenMaxSize)
   f.rng.generate(f.seenSalt)

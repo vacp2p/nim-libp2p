@@ -303,10 +303,16 @@ proc awaitLookup(
   debug "Address lookup stopped at candidate limit"
   @[]
 
+func fromNameLookup(candidate: DialCandidate): bool =
+  ## Named directly, or reached through the dnsaddr chain that named it.
+  candidate.fromName or DNS.matchPartial(candidate.address)
+
 proc expandCandidate(
     self: Dialer, candidate: DialCandidate, deadline: Moment
 ): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
   ## The addresses one dnsaddr record stands for, each of them still unresolved.
+
+  let fromName = candidate.fromNameLookup()
 
   var expanded: seq[DialCandidate]
   for (address, addrPeerId) in await self.tryExpandDnsAddr(
@@ -314,7 +320,10 @@ proc expandCandidate(
   ):
     expanded.add(
       DialCandidate(
-        address: address, hostname: address.getHostname(), peerId: addrPeerId
+        address: address,
+        hostname: address.getHostname(),
+        peerId: addrPeerId,
+        fromName: fromName,
       )
     )
 
@@ -332,6 +341,9 @@ proc resolveCandidate(
     hostname = candidate.hostname,
     resolvedAddresses = resolved
 
+  # The policy passes a name on sight, so the answer it stands for is checked here.
+  let fromName = candidate.fromNameLookup()
+
   var candidates: seq[DialCandidate]
   for address in resolved:
     if self.transportFor(address).isNone():
@@ -339,9 +351,17 @@ proc resolveCandidate(
         peerId = candidate.peerId, address
       continue
 
+    if fromName and not self.peerStore.addressPolicy.accepts(address):
+      trace "Resolved address skipped by the address policy",
+        peerId = candidate.peerId, name = candidate.address, address
+      continue
+
     candidates.add(
       DialCandidate(
-        address: address, hostname: candidate.hostname, peerId: candidate.peerId
+        address: address,
+        hostname: candidate.hostname,
+        peerId: candidate.peerId,
+        fromName: fromName,
       )
     )
 
