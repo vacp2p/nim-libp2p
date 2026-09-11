@@ -314,10 +314,16 @@ suite "ServiceRoutingTableManager":
 
     let peerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60000")])
     check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
     disco.switch.peerStore.allowUndialableAddrs = true
     check disco.insertPeer(serviceId, peerInfo)
     check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = false
+    let otherPeerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60001")])
+    check not disco.insertPeer(serviceId, otherPeerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, otherPeerInfo.peerId)
 
   test "insertPeer on non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
