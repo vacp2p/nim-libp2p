@@ -204,7 +204,7 @@ proc resolveDnsAddrImpl(
     return @[ma]
 
   if depth >= MaxDnsaddrRecursion or state.lookups >= MaxDnsLookups:
-    info "Stopping DNSADDR recursion at the resolution limit", ma
+    debug "Stopping DNSADDR recursion at the resolution limit", ma
     return @[]
 
   if state.seen.containsOrIncl(ma):
