@@ -177,7 +177,7 @@ proc parseIpTcp(
       raise newException(LPError, "IP address not supported")
   let
     dstAddr = address[codec].tryGet().protoArgument().tryGet()
-    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
+    dstPort = address[TcpMultiCodec].tryGet().protoArgument().tryGet()
   (atyp, dstAddr, dstPort)
 
 proc parseDnsTcp(
@@ -188,7 +188,7 @@ proc parseDnsTcp(
     raise newException(LPError, "DNS address exceeds SOCKS5 domain length limit")
   let
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
-    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
+    dstPort = address[TcpMultiCodec].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
 proc dialPeer(

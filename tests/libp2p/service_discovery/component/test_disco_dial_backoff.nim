@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/strutils
 import chronos, results
 import
   ../../../../libp2p/[
@@ -34,30 +33,32 @@ suite "Service Discovery Component - Dial Backoff":
     check disco.addProvidedService(service).isOk()
     let table = disco.rtManager.getTable(service.id.hashServiceId()).get()
 
-    let dead = randomPeerId()
+    let deadPeerId = randomPeerId()
     let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/1")]
-    disco.switch.peerStore[AddressBook].set(dead, deadAddrs, AddressConfidence.Low)
-    check table.insert(dead)
+    disco.switch.peerStore[AddressBook].set(
+      deadPeerId, deadAddrs, AddressConfidence.Low
+    )
+    check table.insert(deadPeerId)
 
     let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.ping)
 
-    check (await disco.send(dead, msg)).isErr()
+    check (await disco.send(deadPeerId, msg)).isErr()
 
-    let backedOff = await disco.send(dead, msg)
+    let backedOff = await disco.send(deadPeerId, msg)
     check:
       backedOff.isErr()
-      strutils.contains(backedOff.error, "backoff")
-      table.contains(dead.toKey())
+      backedOff.error == makeDialBackoffError(deadPeerId)
+      table.contains(deadPeerId.toKey())
 
     # The gate blocks further dials, so the rest is recorded without a wait.
     for _ in 1 .. 2:
-      disco.recordDialFailure(dead, deadAddrs)
+      disco.recordDialFailure(deadPeerId, deadAddrs)
 
-    check not table.contains(dead.toKey())
+    check not table.contains(deadPeerId.toKey())
 
     # A re-admitted peer must stay backed off, or the eviction only restarts the loop.
-    check table.insert(dead)
-    let reAdmitted = await disco.send(dead, msg)
+    check table.insert(deadPeerId)
+    let reAdmitted = await disco.send(deadPeerId, msg)
     check:
       reAdmitted.isErr()
-      strutils.contains(reAdmitted.error, "backoff")
+      reAdmitted.error == makeDialBackoffError(deadPeerId)

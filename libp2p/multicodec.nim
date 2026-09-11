@@ -69,6 +69,10 @@ proc multiCodec*(code: int): MultiCodec {.compileTime.} =
   doAssert(name != "")
   MultiCodec(code)
 
+const
+  TcpMultiCodec* = multiCodec("tcp")
+  UdpMultiCodec* = multiCodec("udp")
+
 proc `$`*(mc: MultiCodec): string =
   ## Returns string representation of MultiCodec ``mc``.
   let name = CodeCodecs.getOrDefault(int(mc), "")

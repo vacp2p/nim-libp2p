@@ -27,7 +27,7 @@ proc send*(
     return err("no address found for peer: " & $peerId)
 
   if disco.dialBackedOff(peerId, addrs):
-    return err("peer is in dial backoff: " & $peerId)
+    return err(makeDialBackoffError(peerId))
 
   let stream =
     try:
