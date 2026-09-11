@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables]
+import std/[algorithm, sequtils, sets, tables]
 
 import pkg/[chronos, chronicles, metrics, results]
 
@@ -25,7 +25,7 @@ import
   utils/future,
   errors
 
-export dial, dial_backoff, errors, results
+export dial, dial_backoff, dialcandidate, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -71,7 +71,8 @@ type
     peerStore: PeerStore
     nameResolver: NameResolver
     ms: MultistreamSelect
-    dialRanking: bool ## overlap the name lookups with the dials
+    dialRanking: bool ## overlap the name lookups with the dials, and rank the dials
+    dialRankingConfig: DialRankingConfig
     dialBackoff: Opt[DialBackoff] ## none unless the switch opted in
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
@@ -430,83 +431,157 @@ proc dropLosers(attempts: seq[DialAttempt]) {.async: (raises: []).} =
       if not isNil(mux):
         await mux.close()
 
-proc firstConnected(
-    attempts: seq[DialAttempt]
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## The first attempt that connects. Nil when none of them does.
+type RankedDial = ref object
+  ## One ranked peer dial: what waits, what is in flight, and what lookups can still add.
+  plan: DialPlan
+  maxParallel: int
+  started: Moment
+  deadline: Moment
+  dir: Direction
+  forceDial: bool
+  reach: DialReach
+  dialable: DialBudget
+  unresolved: DialBudget
+  queued: seq[DialCandidate]
+  pending: seq[DialAttempt]
+  lookups: int ## advertised names whose lookups can still queue candidates
+  changed: Future[void] ## completes when a candidate is queued or a name lookup ends
 
-  var pending = attempts
-  defer:
-    await dropLosers(pending)
+proc wake(dial: RankedDial) =
+  if not dial.changed.finished():
+    dial.changed.complete()
 
-  while pending.len > 0:
-    let done =
-      try:
-        await one(pending)
-      except ValueError as e:
-        raiseAssert "one() over a non-empty seq: " & e.msg
-    pending.del(pending.find(done))
+proc dueAt(dial: RankedDial, candidate: DialCandidate): Moment =
+  dial.started + dial.plan.dialDelay(candidate)
 
-    if not done.completed():
+proc queue(dial: RankedDial, candidates: seq[DialCandidate]) =
+  ## Queue the fresh candidates, within the candidate limit of the dial.
+  for candidate in dial.dialable.take(candidates):
+    dial.plan.add(candidate)
+    dial.queued.add(candidate)
+
+  dial.queued.sort(
+    proc(a, b: DialCandidate): int =
+      let byDue = cmp(dial.dueAt(a), dial.dueAt(b))
+      if byDue != 0:
+        byDue
+      else:
+        cmp(a.dialGroup(), b.dialGroup())
+  )
+  dial.wake()
+
+proc openDue(self: Dialer, dial: RankedDial) =
+  ## Start the due candidates up to the parallel limit. With nothing in flight, the next ones are due.
+
+  if dial.queued.len == 0 or dial.deadline.timeLeft().isZero():
+    return
+
+  let openUntil =
+    if dial.pending.len == 0:
+      max(Moment.now(), dial.dueAt(dial.queued[0]))
+    else:
+      Moment.now()
+
+  while dial.queued.len > 0 and dial.pending.len < dial.maxParallel:
+    let candidate = dial.queued[0]
+    if dial.dueAt(candidate) > openUntil:
+      return
+
+    dial.queued.delete(0)
+    trace "Ranked dial attempt opened",
+      peerId = candidate.peerId,
+      address = candidate.address,
+      group = candidate.dialGroup(),
+      elapsed = Moment.now() - dial.started
+    dial.pending.add(
+      self.dialAndUpgrade(
+        candidate.peerId, candidate.hostname, candidate.address, dial.dir,
+        dial.deadline, dial.forceDial, dial.reach,
+      )
+    )
+
+proc takeWinner(dial: RankedDial): Muxer =
+  ## Drop the attempts that ended, and hand over one that connected.
+
+  var i = 0
+  while i < dial.pending.len:
+    let attempt = dial.pending[i]
+    if not attempt.finished():
+      i.inc()
       continue
 
-    let mux = done.value()
+    dial.pending.del(i)
+    if attempt.completed() and not isNil(attempt.value()):
+      return attempt.value()
+
+  nil
+
+proc nextWake(dial: RankedDial): Moment =
+  if dial.queued.len == 0 or dial.pending.len >= dial.maxParallel:
+    return dial.deadline
+
+  min(dial.dueAt(dial.queued[0]), dial.deadline)
+
+proc firstOf(events: seq[FutureBase]) {.async: (raises: [CancelledError]).} =
+  try:
+    discard await race(events)
+  except ValueError as e:
+    raiseAssert "race() over a non-empty seq: " & e.msg
+
+proc nextEvent(dial: RankedDial) {.async: (raises: [CancelledError]).} =
+  let events = dial.pending.mapIt(FutureBase(it)) & FutureBase(dial.changed)
+  if dial.deadline.timeLeft().isZero():
+    await firstOf(events)
+    return
+
+  let timer = sleepAsync(dial.nextWake().timeLeft())
+  defer:
+    await noCancel timer.cancelAndWait()
+
+  await firstOf(events & FutureBase(timer))
+
+proc run(
+    self: Dialer, dial: RankedDial
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## The first attempt that connects. Nil once nothing waits, runs, or can still arrive.
+
+  defer:
+    await dropLosers(dial.pending)
+
+  while true:
+    if dial.changed.finished():
+      dial.changed = newFuture[void]("libp2p.dialer.changed")
+
+    let mux = dial.takeWinner()
     if not isNil(mux):
       return mux
 
-proc dialAll(
-    self: Dialer,
-    candidates: seq[DialCandidate],
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial every candidate at once. Nil when none of them connects.
+    self.openDue(dial)
+    let nothingToOpen = dial.queued.len == 0 or dial.deadline.timeLeft().isZero()
+    if nothingToOpen and dial.pending.len == 0 and dial.lookups == 0:
+      return nil
 
-  await firstConnected(
-    candidates.mapIt(
-      self.dialAndUpgrade(
-        it.peerId, it.hostname, it.address, dir, deadline, forceDial, reach
-      )
-    )
-  )
+    await dial.nextEvent()
 
-proc dialResolved(
+proc queueResolved(
     self: Dialer,
+    dial: RankedDial,
     lookup: Future[seq[DialCandidate]].Raising([CancelledError]),
-    budget: DialBudget,
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial one name's addresses the moment that name answers.
+) {.async: (raises: [CancelledError]).} =
+  dial.queue(await dial.dialable.awaitLookup(lookup))
 
-  await self.dialAll(
-    budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial, reach
+proc queueName(
+    self: Dialer, dial: RankedDial, candidate: DialCandidate
+) {.async: (raises: [CancelledError]).} =
+  defer:
+    dial.lookups.dec()
+    dial.wake()
+
+  let expanded = dial.unresolved.take(
+    await dial.dialable.awaitLookup(self.expandCandidate(candidate, dial.deadline))
   )
-
-proc dialName(
-    self: Dialer,
-    candidate: DialCandidate,
-    expandedBudget: DialBudget,
-    dialBudget: DialBudget,
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial each address from one advertised name as soon as it resolves.
-
-  let expanded = expandedBudget.take(
-    await dialBudget.awaitLookup(self.expandCandidate(candidate, deadline))
-  )
-  let lookups = expanded.mapIt(self.resolveCandidate(it, deadline))
-
-  await firstConnected(
-    lookups.mapIt(self.dialResolved(it, dialBudget, dir, deadline, forceDial, reach))
-  )
+  let lookups = expanded.mapIt(self.resolveCandidate(it, dial.deadline))
+  await allOrCancel(lookups.mapIt(self.queueResolved(dial, it)))
 
 proc dialRanked(
     self: Dialer,
@@ -517,20 +592,29 @@ proc dialRanked(
     forceDial: bool,
     reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial the wire addresses at once, and each name's as soon as it resolves.
+  ## Queue the wire addresses at once and each name's as soon as it resolves, and dial them by rank.
 
-  let
-    dialable = newBudget(MaxDialCandidates)
-    names = newBudget(MaxDialCandidates)
-    unresolved = newBudget(MaxExpandedAddresses)
-    direct = dialable.take(self.directCandidates(peerId, addrs))
-    nameDials = names.take(dnsCandidates(peerId, addrs)).mapIt(
-        self.dialName(it, unresolved, dialable, dir, deadline, forceDial, reach)
-      )
-
-  await firstConnected(
-    @[self.dialAll(direct, dir, deadline, forceDial, reach)] & nameDials
+  let dial = RankedDial(
+    plan: DialPlan.init(self.dialRankingConfig),
+    maxParallel: max(self.dialRankingConfig.maxParallelDials, 1),
+    started: Moment.now(),
+    deadline: deadline,
+    dir: dir,
+    forceDial: forceDial,
+    reach: reach,
+    dialable: newBudget(MaxDialCandidates),
+    unresolved: newBudget(MaxExpandedAddresses),
+    changed: newFuture[void]("libp2p.dialer.changed"),
   )
+  dial.queue(self.directCandidates(peerId, addrs))
+
+  let names = newBudget(MaxDialCandidates).take(dnsCandidates(peerId, addrs))
+  dial.lookups = names.len
+  let lookups = names.mapIt(self.queueName(dial, it))
+  defer:
+    await noCancel lookups.cancelAndWait()
+
+  await self.run(dial)
 
 proc dialAndUpgrade*(
     self: Dialer,
@@ -877,6 +961,7 @@ proc new*(
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
     dialRanking = false,
+    dialRankingConfig = DefaultDialRanking,
     dialBackoff = Opt.none(DialBackoffConfig),
 ): Dialer {.raises: [].} =
   var backoff = Opt.none(DialBackoff)
@@ -892,5 +977,6 @@ proc new*(
     ms: ms,
     dialTimeout: dialTimeout,
     dialRanking: dialRanking,
+    dialRankingConfig: dialRankingConfig,
     dialBackoff: backoff,
   )

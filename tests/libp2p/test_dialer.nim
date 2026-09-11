@@ -12,6 +12,7 @@ import
     peerstore,
     stream/bridgestream,
     switch,
+    transports/quictransport,
     transports/transport,
     upgrademngrs/upgrade,
   ]
@@ -43,6 +44,25 @@ proc stallAfterIdentify(sw: Switch) =
     await stream.join()
 
   sw.replaceIdentifyHandler(hold)
+
+const PlanRanking = DialRankingConfig(
+  quicHeadStart: 1.seconds,
+  privateQuicHeadStart: 10.milliseconds,
+  relayDelay: 2.seconds,
+  maxParallelDials: 8,
+)
+
+proc relayAddr(relay: string): MultiAddress =
+  ma(relay & "/p2p/" & $PeerId.random(rng()).tryGet() & "/p2p-circuit")
+
+proc planOf(addrs: varargs[MultiAddress]): DialPlan =
+  var plan = DialPlan.init(PlanRanking)
+  for address in addrs:
+    plan.add(DialCandidate(address: address))
+  plan
+
+proc delayOf(plan: DialPlan, address: MultiAddress): Duration =
+  plan.dialDelay(DialCandidate(address: address))
 
 suite "Dialer":
   teardown:
@@ -453,6 +473,87 @@ suite "Dialer":
       await dialer.connect(PeerId.random(rng()).tryGet(), @[wss])
 
     check transport.dialedHosts == @["1.2.3.4"]
+
+  test "A dial plan ranks QUIC, then the other direct transports, then relays":
+    let
+      relay = relayAddr("/ip4/5.6.7.8/tcp/4001")
+      tcp = ma("/ip4/1.2.3.4/tcp/4001")
+      quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
+      ws = ma("/ip4/1.2.3.4/tcp/4002/ws")
+      plan = planOf(relay, tcp, quic, ws)
+
+    check plan.delayOf(quic) == ZeroDuration
+    check plan.delayOf(tcp) == 1.seconds
+    check plan.delayOf(ws) == 1.seconds
+    check plan.delayOf(relay) == 2.seconds
+
+  test "A dial plan dials TCP right away when the peer has no QUIC address":
+    let
+      relay = relayAddr("/ip4/5.6.7.8/tcp/4001")
+      tcp = ma("/ip4/1.2.3.4/tcp/4001")
+      plan = planOf(relay, tcp)
+
+    check plan.delayOf(tcp) == ZeroDuration
+    check plan.delayOf(relay) == 2.seconds
+
+  test "A dial plan dials a relay right away when the peer has no direct address":
+    let
+      quicRelay = relayAddr("/ip4/5.6.7.8/udp/4001/quic-v1")
+      tcpRelay = relayAddr("/ip4/5.6.7.8/tcp/4001")
+      plan = planOf(quicRelay, tcpRelay)
+
+    check plan.delayOf(quicRelay) == ZeroDuration
+    check plan.delayOf(tcpRelay) == ZeroDuration
+
+  test "A dial plan gives private addresses their own QUIC head start":
+    let
+      privateQuic = ma("/ip4/192.168.1.2/udp/4001/quic-v1")
+      privateTcp = ma("/ip4/192.168.1.2/tcp/4001")
+      loopbackTcp = ma("/ip4/127.0.0.1/tcp/4001")
+      publicTcp = ma("/ip4/1.2.3.4/tcp/4001")
+      plan = planOf(privateQuic, privateTcp, loopbackTcp, publicTcp)
+
+    check plan.delayOf(privateTcp) == 10.milliseconds
+    check plan.delayOf(loopbackTcp) == 10.milliseconds
+    check plan.delayOf(publicTcp) == ZeroDuration
+
+  test "A dial plan holds back a waiting TCP address once a QUIC address arrives":
+    let
+      tcp = ma("/ip4/1.2.3.4/tcp/4001")
+      quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
+    var plan = planOf(tcp)
+    check plan.delayOf(tcp) == ZeroDuration
+
+    plan.add(DialCandidate(address: quic))
+    check plan.delayOf(tcp) == 1.seconds
+
+  asyncTest "Ranked dialing connects over QUIC when the peer also listens on TCP":
+    let
+      src = makeStandardSwitchBuilder(@[QuicAutoAddress, TcpAutoAddress])
+        .withDialRanking(
+          DialRankingConfig(
+            quicHeadStart: 10.seconds,
+            privateQuicHeadStart: 10.seconds,
+            relayDelay: 10.seconds,
+            maxParallelDials: 8,
+          )
+        )
+        .build()
+      dst = makeStandardSwitch(@[QuicAutoAddress, TcpAutoAddress])
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let
+      tcpAddrs = dst.peerInfo.addrs.filterIt(TCP.match(it))
+      quicAddrs = dst.peerInfo.addrs.filterIt(QUIC_V1.match(it))
+    check tcpAddrs.len > 0
+    check quicAddrs.len > 0
+
+    await src.connect(dst.peerInfo.peerId, tcpAddrs & quicAddrs).wait(5.seconds)
+
+    check src.connManager.selectMuxer(dst.peerInfo.peerId) of QuicMuxer
 
   asyncTest "Dialing skips an address that fails to resolve":
     let src = makeStandardSwitch()

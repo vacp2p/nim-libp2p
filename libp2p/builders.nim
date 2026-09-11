@@ -89,7 +89,7 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
-    dialRanking: bool
+    dialRanking: Opt[DialRankingConfig]
     dialBackoff: Opt[DialBackoffConfig]
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
@@ -359,7 +359,16 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b
 
 proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
-  b.dialRanking = enabled
+  b.dialRanking =
+    if enabled:
+      Opt.some(DefaultDialRanking)
+    else:
+      Opt.none(DialRankingConfig)
+  b
+
+proc withDialRanking*(b: SwitchBuilder, config: DialRankingConfig): SwitchBuilder =
+  ## Rank and race the dials: QUIC first, the other direct transports next, relays last.
+  b.dialRanking = Opt.some(config)
   b
 
 proc withDialBackoff*(b: SwitchBuilder, config = DefaultDialBackoff): SwitchBuilder =
@@ -548,7 +557,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     transports,
     ms,
     b.nameResolver,
-    dialRanking = b.dialRanking,
+    dialRanking = b.dialRanking.isSome(),
+    dialRankingConfig = b.dialRanking.get(DefaultDialRanking),
     dialBackoff = b.dialBackoff,
   )
 
