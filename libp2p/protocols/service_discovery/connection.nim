@@ -6,7 +6,8 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
-import ./[types, service_discovery_metrics, registrar, dial_backoff]
+import
+  ./[types, service_discovery_metrics, registrar, dial_backoff, routing_table_manager]
 
 logScope:
   topics = "service-disco connection"
@@ -18,6 +19,19 @@ proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
     ma.getIp().withValue(ip):
       ips.add(ip)
   ips
+
+func isRemoteReset(e: ref CatchableError): bool =
+  ## A reset during the negotiate arrives as the parent of `DialFailedError`.
+  e of LPStreamResetError or (not e.parent.isNil() and e.parent of LPStreamResetError)
+
+proc evictOnReset(disco: ServiceDiscovery, peerId: PeerId, e: ref CatchableError) =
+  ## A peer that resets a fresh stream mounts the codec but does not serve it.
+  if not e.isRemoteReset():
+    return
+
+  let tables = disco.removePeer(peerId, reason = "reset")
+  if tables > 0:
+    trace "Evicted peer that reset a discovery request", peerId, tables, err = e.msg
 
 proc send*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
@@ -34,6 +48,7 @@ proc send*(
       await disco.switch.dial(peerId, addrs, disco.codec)
     except DialFailedError as e:
       disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("dialing peer failed: " & e.msg)
 
   var replyRead = false
@@ -57,11 +72,13 @@ proc send*(
       await stream.writeLp(encodedMsg)
     except LPStreamError as e:
       disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("connection writing failed: " & e.msg)
     try:
       replyBuf = await stream.readLp(ServiceDiscoveryMaxMsgSize)
     except LPStreamError as e:
       disco.recordDialFailure(peerId, addrs)
+      disco.evictOnReset(peerId, e)
       return err("connection reading failed: " & e.msg)
   replyRead = true
 
