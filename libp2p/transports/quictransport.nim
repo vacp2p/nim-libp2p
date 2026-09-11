@@ -486,9 +486,9 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   transport.closeFuts = @[]
 
   var endpointStops: seq[Future[void]]
-  transport.dialEndpoint4.withValue(endpoint):
+  transport.dialEndpoint4.ifValue(endpoint):
     endpointStops.add(endpoint.stop())
-  transport.dialEndpoint6.withValue(endpoint):
+  transport.dialEndpoint6.ifValue(endpoint):
     endpointStops.add(endpoint.stop())
   await noCancel allFutures(endpointStops)
 
@@ -685,7 +685,7 @@ method upgrade*(
     trace "QUIC stream handler started", stream
     try:
       let quicUpgrader = QuicUpgrade(self.upgrader)
-      quicUpgrader.connManager.withValue(connManager):
+      quicUpgrader.connManager.ifValue(connManager):
         let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
           debug "Timed out waiting for peer ready before handling stream", stream

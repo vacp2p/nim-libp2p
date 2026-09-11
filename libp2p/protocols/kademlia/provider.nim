@@ -245,7 +245,7 @@ proc maybeTrackNetsize(kad: KadDHT, key: Key, closest: seq[PeerId]) =
   ## provides bootstrap the estimate that optimistic provide needs. `track`
   ## rejects a short list on its own.
   discard kad.nsEstimator.track(kad.rtable, key, closest.take(kad.config.replication))
-  kad.nsEstimator.networkSize().withValue(ns):
+  kad.nsEstimator.networkSize().ifValue(ns):
     kad_network_size_estimate.set(ns.float64)
 
 proc optimisticStop(
@@ -302,7 +302,7 @@ proc optimisticProvide(
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   if kad.config.optimisticProvide:
-    kad.nsEstimator.networkSize().withValue(ns):
+    kad.nsEstimator.networkSize().ifValue(ns):
       await kad.optimisticProvide(key, ns)
       return
 
@@ -456,7 +456,7 @@ method handleAddProvider*(
   # Per-key cap is enforced regardless of providerRejection: when rejection is
   # disabled the receiver still drops over-cap providers, just silently.
   var atCap = false
-  kad.config.limits.maxProvidersPerKey.withValue(limit):
+  kad.config.limits.maxProvidersPerKey.ifValue(limit):
     let existingProviders =
       kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
     let senderIsKnown =

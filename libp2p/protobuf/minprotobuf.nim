@@ -187,7 +187,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: bool) =
   pb.write(field, uint64(value))
 
 proc write*(pb: var ProtoBuffer, field: int, value: Opt[bool]) =
-  value.withValue(boolValue):
+  value.ifValue(boolValue):
     pb.write(field, uint64(boolValue))
 
 proc writePacked*[T: ProtoScalar](

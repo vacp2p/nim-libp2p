@@ -231,7 +231,7 @@ method start*(
     switch.addressManager.addMapper(self.addressMapper, AddrSource.Autonat)
     await switch.peerInfo.update()
 
-  self.scheduleInterval.withValue(interval):
+  self.scheduleInterval.ifValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)
 

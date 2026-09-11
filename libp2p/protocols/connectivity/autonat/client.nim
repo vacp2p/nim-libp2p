@@ -36,7 +36,7 @@ method dialMe*(
       msg: AutonatMsg
   ): AutonatDialResponse {.raises: [AutonatError].} =
     if msg.msgType.get(MsgType.Dial) == MsgType.DialResponse:
-      msg.response.withValue(res):
+      msg.response.ifValue(res):
         if not (res.status.get(Ok) == Ok and res.ma.isNone()):
           return res
     raise newException(AutonatError, "Unexpected response")

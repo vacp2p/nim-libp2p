@@ -448,7 +448,7 @@ suite "GossipSub Component - Extensions":
     nodes[0].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          msg.pingpongExtension.withValue(ppe):
+          msg.pingpongExtension.ifValue(ppe):
             if ppe.pong.isSome:
               receivedPongFut.complete(ppe.pong.get())
       )
@@ -482,7 +482,7 @@ suite "GossipSub Component - Extensions":
     nodes[1].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
-          msgs.preambleExtension.withValue(pe):
+          msgs.preambleExtension.ifValue(pe):
             for ir in pe.imreceiving:
               receivedImReceiving.add(ir)
       )

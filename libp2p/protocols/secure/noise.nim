@@ -570,7 +570,7 @@ method handshake*(
 
       trace "Remote Noise peer identified", peerId = pid
 
-      peerId.withValue(targetPid):
+      peerId.ifValue(targetPid):
         if not targetPid.validate():
           raise (ref NoiseHandshakeError)(msg: "Failed to validate expected peerId.")
 

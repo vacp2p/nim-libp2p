@@ -85,7 +85,7 @@ proc tryDial(
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(stream.peerId, @[it]))
     let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
     let ma = await fut
-    ma.withValue(maddr):
+    ma.ifValue(maddr):
       await stream.sendResponseOk(maddr)
     else:
       await stream.sendResponseError(DialError, "Missing observed address")
@@ -109,7 +109,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
     return stream.sendResponseError(BadRequest, "Missing Dial")
   let peerInfo = dial.peerInfo.valueOr:
     return stream.sendResponseError(BadRequest, "Missing Peer Info")
-  peerInfo.id.withValue(id):
+  peerInfo.id.ifValue(id):
     if id != stream.peerId:
       return stream.sendResponseError(BadRequest, "PeerId mismatch")
 

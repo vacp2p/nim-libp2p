@@ -36,6 +36,6 @@ method sendDialRequest*(
 
   var ans = self.response
 
-  ans.dialResp.addrIdx.withValue(addrIdx):
+  ans.dialResp.addrIdx.ifValue(addrIdx):
     ans.addrs = Opt.some(testAddrs[addrIdx])
   ans

@@ -97,7 +97,7 @@ proc new*(
   upgrader.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
     trace "Protocol stream handler started", stream
     try:
-      upgrader.connManager.withValue(connManager):
+      upgrader.connManager.ifValue(connManager):
         let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
           debug "Timed out waiting for peer ready before handling stream", stream

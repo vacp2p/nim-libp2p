@@ -211,10 +211,10 @@ proc handleIHave*(ext: PreambleExtension, peerId: PeerId, messageId: MessageId):
 method onHandleRPC*(
     ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
-  rpc.preambleExtension.withValue(v):
+  rpc.preambleExtension.ifValue(v):
     ext.handlePreamble(peerId, v.preamble)
     ext.handleIMReceiving(peerId, v.imreceiving)
-  rpc.control.withValue(v):
+  rpc.control.ifValue(v):
     ext.handleIDontWant(peerId, v.idontwant)
 
 func filterOutMessagesBelowThreshold(msg: RPCMsg): RPCMsg =

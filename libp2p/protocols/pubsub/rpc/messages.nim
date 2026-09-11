@@ -350,7 +350,7 @@ proc byteSize(rpc: PingPongExtensionRPC): int =
   rpc.ping.len + rpc.pong.len
 
 proc byteSize(controlExtensions: Opt[ControlExtensions]): int =
-  controlExtensions.withValue(ce):
+  controlExtensions.ifValue(ce):
     ce.byteSize()
   else:
     0
@@ -392,15 +392,15 @@ static:
   )
 proc byteSize*(rpc: RPCMsg): int =
   var size = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages)
-  rpc.control.withValue(v):
+  rpc.control.ifValue(v):
     size += v.byteSize
-  rpc.partialMessageExtension.withValue(v):
+  rpc.partialMessageExtension.ifValue(v):
     size += v.byteSize
-  rpc.testExtension.withValue(v):
+  rpc.testExtension.ifValue(v):
     size += v.byteSize
-  rpc.pingpongExtension.withValue(v):
+  rpc.pingpongExtension.ifValue(v):
     size += v.byteSize
-  rpc.preambleExtension.withValue(v):
+  rpc.preambleExtension.ifValue(v):
     size += v.byteSize
   size
 
