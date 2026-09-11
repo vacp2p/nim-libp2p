@@ -269,10 +269,34 @@ proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   disco.admitPeers(sender)
   disco.rtManager.admitPeers(disco, serviceId, sender)
 
+proc serviceView(disco: ServiceDiscovery, serviceId: ServiceId): RoutingTable =
+  ## Main-table peers bucketed by distance to ``serviceId``: the spec's GETPEERS
+  ## ``RegT(service_id_hash) <- KadDHT(peerID)``. Built directly rather than via
+  ## ``insert`` so it touches neither the shared registry nor the Kad metrics.
+  let view = RoutingTable.new(
+    serviceId,
+    config = RoutingTableConfig.new(
+      hasher = disco.rtable.config.hasher,
+      maxBuckets = disco.discoConfig.bucketsCount,
+      selfIdPreHashed = true,
+    ),
+    localNodeId = Opt.some(disco.rtable.localNodeId),
+  )
+  for bucket in disco.rtable.buckets:
+    for nodeId in bucket.peers:
+      let idx = view.bucketIndex(nodeId)
+      if idx >= view.buckets.len:
+        view.buckets.setLen(idx + 1)
+      view.buckets[idx].peers.add(nodeId)
+  view
+
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
-  let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
+  # Without a table for this service, the main table is centred on this node,
+  # so bucketing it as-is would suggest peers near us rather than the service.
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    disco.serviceView(serviceId)
 
   let keys = table.randomPeersClosestFirst(
     disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
