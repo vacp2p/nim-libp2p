@@ -7,9 +7,11 @@ import
   ../../../../libp2p/[
     peerid,
     peerinfo,
+    protocols/kademlia/routing_table,
     protocols/kademlia/types,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
+    protocols/service_discovery/registrar,
     protocols/service_discovery/routing_table_manager,
     protocols/service_discovery/types,
     switch,
@@ -106,6 +108,44 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check found.isOk()
     checkUntilTimeout:
       discovererNode.rtable.hasPeer(serviceOnlyKey)
+
+  asyncTest "GET_ADS closerPeers are centred on the service when there is no RegT":
+    # kRegister = fReturn = 1: the reply is one peer from the bucket nearest the
+    # service. Unclamped buckets keep that bucket to the target alone.
+    let conf = ServiceDiscoveryConfig.new(
+      safetyParam = 0.0, kRegister = 1, fReturn = 1, bucketsCount = MaxBucketsLimit
+    )
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    var others: seq[ServiceDiscovery]
+    for _ in 0 ..< 12:
+      others.add(setupServiceDiscoveryNode(discoConfig = conf))
+
+    startAndDeferStop(@[registrarNode] & others)
+    for node in others:
+      await connect(registrarNode, node)
+
+    let rtable = registrarNode.rtable
+    let keys = others.mapIt(it.switch.peerInfo.peerId.toKey())
+    checkUntilTimeout:
+      keys.allIt(rtable.hasPeer(it))
+
+    # Centre the service on a peer in the registrar's farthest bucket, so the
+    # peer nearest the service is not in the registrar's own nearest bucket.
+    let buckets = keys.mapIt(rtable.bucketIndex(it))
+    let targetIdx = buckets.minIndex()
+    check buckets[targetIdx] < buckets.max()
+
+    let serviceId = Key.init(keys[targetIdx].hashFor(rtable.config.hasher))
+    check registrarNode.rtManager.getTable(serviceId).isNone()
+
+    let response = registrarNode.getAdvertisements(
+      others[0].switch.peerInfo.peerId,
+      Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId)),
+    )
+
+    check response.closerPeers.toPeerIds() == @[
+      others[targetIdx].switch.peerInfo.peerId
+    ]
 
   asyncTest "REGISTER with Wait adds advertiser to RegT":
     # Use safetyParam = 0 so the first registration is Confirmed, and
