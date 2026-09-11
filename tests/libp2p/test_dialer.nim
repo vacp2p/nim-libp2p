@@ -7,6 +7,7 @@ import chronos, sequtils, results
 import
   ../../libp2p/[
     builders,
+    dialcandidate,
     muxers/muxer,
     nameresolving/mockresolver,
     peerstore,
@@ -43,6 +44,25 @@ proc stallAfterIdentify(sw: Switch) =
     await stream.join()
 
   sw.replaceIdentifyHandler(hold)
+
+proc relayAddr(relay: string): MultiAddress =
+  ma(relay & "/p2p/" & $PeerId.random(rng()).tryGet() & "/p2p-circuit")
+
+proc rankOf(address: MultiAddress): DialRank =
+  DialCandidate(address: address).dialRank()
+
+proc tcpAddrs(count: int): seq[MultiAddress] =
+  (0 ..< count).mapIt(ma("/ip4/1.2.3.4/tcp/" & $(4001 + it)))
+
+proc rankedDialer(src: Switch, transports: seq[Transport]): Dialer =
+  Dialer.new(
+    src.peerInfo.peerId,
+    src.connManager,
+    src.peerStore,
+    transports,
+    src.ms,
+    dialRanking = true,
+  )
 
 suite "Dialer":
   teardown:
@@ -453,6 +473,96 @@ suite "Dialer":
       await dialer.connect(PeerId.random(rng()).tryGet(), @[wss])
 
     check transport.dialedHosts == @["1.2.3.4"]
+
+  test "Dial ranks put direct before relay, and QUIC before TCP within each":
+    check rankOf(ma("/ip4/1.2.3.4/udp/4001/quic-v1")) == DialRank.DirectQuic
+    check rankOf(ma("/ip4/1.2.3.4/udp/4001/quic")) == DialRank.DirectQuic
+    check rankOf(ma("/ip4/1.2.3.4/tcp/4001")) == DialRank.Direct
+    check rankOf(ma("/ip4/1.2.3.4/tcp/4002/ws")) == DialRank.Direct
+    check rankOf(relayAddr("/ip4/5.6.7.8/udp/4001/quic-v1")) == DialRank.RelayQuic
+    check rankOf(relayAddr("/ip4/5.6.7.8/tcp/4001")) == DialRank.Relay
+
+  asyncTest "Ranked dialing opens the attempts in rank order":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let
+      transport = FailingDialTransport.new(Upgrade(), rng(), handlesAny = true)
+      dialer = src.rankedDialer(@[Transport(transport)])
+      relayTcp = relayAddr("/ip4/5.6.7.8/tcp/4001")
+      tcp = ma("/ip4/1.2.3.4/tcp/4001")
+      relayQuic = relayAddr("/ip4/5.6.7.8/udp/4001/quic-v1")
+      quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
+    expect DialFailedError:
+      await dialer.connect(
+        PeerId.random(rng()).tryGet(), @[relayTcp, tcp, relayQuic, quic]
+      )
+
+    check transport.dialedAddrs == @[quic, tcp, relayQuic, relayTcp]
+
+  asyncTest "Ranked dialing fills its parallel limit with the best ranked candidates":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let
+      tcps = tcpAddrs(MaxParallelDials)
+      quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
+      transport = ScriptedDialTransport.new(Upgrade(), rng(), handled = tcps & @[quic])
+      dialer = src.rankedDialer(@[Transport(transport)])
+      dialing = dialer.connect(PeerId.random(rng()).tryGet(), tcps & @[quic])
+
+    checkUntilTimeout:
+      transport.dialedAddrs.len == MaxParallelDials
+    await dialing.cancelAndWait()
+
+    check transport.dialedAddrs == @[quic] & tcps[0 ..< MaxParallelDials - 1]
+    check transport.cancelledAddrs.len == MaxParallelDials
+
+  asyncTest "Ranked dialing gives a failed attempt's slot to the next candidate":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let
+      tcps = tcpAddrs(MaxParallelDials)
+      quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
+      transport = ScriptedDialTransport.new(
+        Upgrade(), rng(), handled = tcps & @[quic], failing = @[quic]
+      )
+      dialer = src.rankedDialer(@[Transport(transport)])
+      dialing = dialer.connect(PeerId.random(rng()).tryGet(), tcps & @[quic])
+    defer:
+      await dialing.cancelAndWait()
+
+    checkUntilTimeout:
+      transport.dialedAddrs == @[quic] & tcps
+
+  asyncTest "Ranked dialing cancels a stalled QUIC attempt once TCP connects":
+    let
+      src = makeStandardSwitch(TcpAutoAddress)
+      dst = makeStandardSwitch(TcpAutoAddress)
+    await src.start()
+    await dst.start()
+    defer:
+      await allFutures(src.stop(), dst.stop())
+
+    let
+      quic = ma("/ip4/127.0.0.1/udp/1/quic-v1")
+      stalling = ScriptedDialTransport.new(Upgrade(), rng(), handled = @[quic])
+      dialer = src.rankedDialer(@[Transport(stalling)] & src.transports)
+
+    await dialer.connect(dst.peerInfo.peerId, @[quic] & dst.peerInfo.addrs).wait(
+      5.seconds
+    )
+
+    check src.connManager.connCount(dst.peerInfo.peerId) == 1
+    check stalling.dialedAddrs == @[quic]
+    check stalling.cancelledAddrs == @[quic]
 
   asyncTest "Dialing skips an address that fails to resolve":
     let src = makeStandardSwitch()
