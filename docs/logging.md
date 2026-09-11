@@ -1,21 +1,10 @@
 # Logging policy
 
-This is the authoritative guide for Chronicles log levels in nim-libp2p.
-Severity represents operational impact and the action required from the library
-user. It does not follow the wording of a message, whether code is in an
-`except` branch, or whether an operation returned an error.
+Read this guide before adding or changing logs: useful logs let people diagnose runtime behavior without reading the source. Choose levels mindfully, describe actions and outcomes clearly, and use readable field names. Sensitive data must be omitted or redacted, and large field values must be bounded.
 
 ## Choose a level
 
-1. Did an enabled component or background operation become unusable? Use
-   `error`.
-2. Is the library still operating, but the user should correct configuration,
-   API use, a callback, or a resource constraint? Use `warn`.
-3. Is this a low-frequency normal lifecycle milestone? Use `info`.
-4. Is it a bounded summary of why an operation failed, was skipped, or selected
-   a fallback? Use `debug`.
-5. Is it an individual peer, message, stream, packet, retry, cancellation, or
-   expected network event? Use `trace` or omit the log.
+Severity represents operational impact and the action required from the library user, not the wording of a message or the presence of an `except` branch.
 
 | Level | Audience and frequency | Meaning |
 | --- | --- | --- |
@@ -25,10 +14,25 @@ user. It does not follow the wording of a message, whether code is in an
 | `debug` | Developers troubleshooting one operation | A bounded result or fallback summary. |
 | `trace` | Developers diagnosing traffic; potentially high frequency | Per-peer, per-message, per-stream, packet, retry, cancellation, and expected network detail. |
 
+Malformed input, handshake failures, timeouts, and rejected peer requests are expected on a public P2P network. Use `trace`, or `debug` for a bounded summary of a whole operation; peers must not be able to create `warn`/`error` noise merely by sending invalid input. Local API misuse or an application callback exception can warrant `warn` because the library user can correct it.
+
+Normal cancellation and handled exceptions may need no log. When returning or re-raising a failure, let the caller report it rather than duplicating the event. Individual retries use `trace` or `debug`; exhaustion warrants `error` only when it leaves an enabled component or requested feature unavailable. A cancellation contract violation can warrant `warn`; an internal invariant violation warrants `error`, or `debug` if recovered locally.
+
+## Choose a log message
+
+Describe the runtime action and its outcome so a reader understands what happened. Avoid vague text such as "Processing failed" and source-code narration such as "Entered handler". Keep event messages stable and put variable values in structured fields so events remain easy to search and compare.
+
+```nim
+# Vague message and opaque field name
+debug "Processing failed", p = peerId
+
+# At the end of an unsuccessful dial operation
+debug "Dial failed after all addresses were tried", peerId, err = exc.msg
+```
+
 ## Structured fields
 
-Chronicle messages are stable, concise event descriptions. Put variable data in
-structured fields rather than interpolating it into a message string.
+Choose fields that explain the event. Names are for people reading logs, so prefer `peerId` over a local variable name such as `p`. Names must have at least three characters, except for `id` and `ip`; one-character names are never allowed.
 
 | Field | Use |
 | --- | --- |
@@ -43,48 +47,28 @@ structured fields rather than interpolating it into a message string.
 | `messageSize` | Encoded or payload size in bytes. |
 | `reason` | A bounded validation, rejection, or decision reason when no exception or error result exists. |
 
-Do not use `description`, `error`, `message`, or `msg` for exception text. Do
-not log complete peer-controlled messages, buffers, records, advertisements,
-keys, certificates, or tickets; log bounded metadata such as `messageType`,
-`messageSize`, `peerId`, and `reason` instead.
+Use `err`, not `description`, `error`, `message`, or `msg`, for exception text.
 
-Use field names of at least three characters. `id` and `ip` are the only
-accepted abbreviations; never use a one-character field name in logs. Log
-fields are operator-facing data, not local code variables.
+### Safe, bounded values
 
-## Network, exceptions, cancellation, and retries
+Sensitive data **must be omitted or redacted before logging**, at every level. This includes private keys, credentials, tokens, and sensitive payload contents; check exception text too. Truncation is not redaction: `shortLog` can still expose sensitive leading and trailing bytes or characters.
 
-Remote-controlled events must not produce `warn` or `error` merely because the
-input is invalid. Malformed, incompatible, rejected, and adversarial peer input
-is expected on a public P2P network; elevated logs would let peers create
-production log noise. Log it at `trace`, or at `debug` only when a bounded
-operation-level summary is useful.
+Prefer metadata such as counts, `messageType`, `messageSize`, and `reason` over complete peer-controlled messages, buffers, records, certificates, or tickets. When a preview is useful, use an appropriate `shortLog` for long strings, bytes, messages, and collections. Keep payload previews out of `warn` and `error`. Shortened identifiers help diagnosis but are not guaranteed unique.
 
-An `except` block does not determine severity. Expected handled exceptions are
-`trace` or unlogged. A recovered operation summary is `debug`; actionable
-degradation is `warn`; and terminal component failure is `error`. When a failure
-is returned or re-raised, reporting normally belongs to the caller, so do not
-log it again at a higher level.
+### Type formatters
 
-Normal cancellation is control flow: omit it or use `trace`. A real violation
-of a cancellation contract can be `warn`. Individual retry failures are
-`debug` or `trace`; emit one final `error` only when retry exhaustion leaves a
-requested feature unavailable.
+Every project-defined type used as a log field must provide `shortLog` and a `chronicles.formatIt` registration that delegates to it. Define them beside the type. `shortLog` selects a safe, bounded representation; `formatIt` applies it automatically when the value is logged:
 
-## Common cases
+```nim
+func shortLog*(value: MyType): auto =
+  (itemCount: value.items.len)
 
-| Case | Level | Why; when to change it |
-| --- | --- | --- |
-| Malformed peer message | `trace` | Remote input is expected; use `debug` only for a bounded aggregate result. |
-| Handshake or negotiation failure | `trace` | A peer/stream outcome; use `debug` for a final operation summary. |
-| Dial or DNS attempt | `trace` | Per-address network flow; use `debug` after the whole requested operation fails. |
-| Stream reset or timeout | `trace` | Expected per-stream network outcome; use `debug` for a bounded result. |
-| Lifecycle start or stop | `info` | Normal, low-frequency milestone. |
-| Repeated lifecycle call | `warn` | The caller can correct the API use. |
-| Invalid local configuration | `warn` | The user can correct configuration; use `error` only if an enabled component cannot run. |
-| Application callback exception | `warn` | The library survives, but application code needs attention. |
-| Rejected caller-supplied publish operation | `warn` | The caller can reduce message size or correct inputs. |
-| Resource limit or degraded optional feature | `warn` | User attention may restore desired behaviour; use `trace` for a per-peer enforcement event. |
-| Fallback selection | `debug` | A bounded explanation of the selected path. |
-| Background-loop termination | `error` | The enabled operation is no longer working. |
-| Internal invariant violation | `error` | It indicates a library defect requiring investigation; use `debug` if recovered locally. |
+chronicles.formatIt(MyType):
+  shortLog(it)
+```
+
+Reuse [the shared utilities](../libp2p/utils/shortlog.nim) for collections and `Opt[T]`. Collections preview at most five items by default; absent options use `<unset>`. Both helpers prefer the inner value's `shortLog` and otherwise use `$`, so check that each inner representation is safe and bounded. The collection `averageItemLength` argument is only an allocation hint, not an output limit.
+
+Where the audit needs an explicit concrete overload, keep a thin wrapper that delegates to the generic helper, as in [the Rendezvous formatters](../libp2p/protocols/rendezvous/protobuf.nim).
+
+Before submitting changes, run `python3 tools/audit_log_fields.py` from the repository root. It checks naming and selected payload/formatter patterns; passing it does not replace reviewing field contents for sensitive data or unbounded output.

@@ -196,13 +196,14 @@ These flags are used in CI and tests:
 - Example: use `let ma = maResult.valueOr: return err(...)` not `let ma = maResult.tryGet()`
 
 ### Logging
-- Use **chronicles**: `logScope`, `trace`, `debug`, `info`, `warn`, `error`
-- Example:
-  ```nim
-  logScope:
-    topics = "switch"
-  debug "Connecting to peer", peerId
-  ```
+- Choose log levels by operational impact and the action required from the library user:
+  - `error`: an enabled component or background operation has stopped working and requires investigation.
+  - `warn`: the library remains usable, but the user should correct configuration, API use, a callback, or a resource constraint.
+  - `info`: a low-frequency normal lifecycle milestone, such as a component starting or stopping.
+- Do not use `warn` or `error` for expected peer-controlled failures such as malformed input, handshake failures, or timeouts. Use `trace`, or `debug` for a bounded operation-level summary.
+- Every project-defined type used as a log field must define `shortLog` and register `chronicles.formatIt` to delegate to it. `shortLog` must return a safe, bounded representation for large strings, byte sequences, messages, collections, and other potentially large types.
+- Always define `logScope` in files
+- Never log secrets or sensitive information at any log level. Omit or redact private keys, credentials, tokens, sensitive payloads, and sensitive exception text
 
 ### Memory Management
 - Memory model: `--mm:refc` (reference counting)

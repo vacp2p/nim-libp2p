@@ -168,15 +168,14 @@ proc identify*(
     trace "identify: Empty message received!", stream
     raise newException(IdentityInvalidMsgError, "Empty message received")
 
-  var identifyMsg = IdentifyMsg.decode(move message).valueOr:
-    raise newException(IdentityInvalidMsgError, error)
+  var identifyMsg =
+    IdentifyMsg.decode(move message).valueOrRaise(IdentityInvalidMsgError)
 
   trace "identify: info received", stream, identifyMsg
 
   var peer: PeerId
   identifyMsg.publicKey.withValue(pubkey):
-    peer = PeerId.init(pubkey).valueOr:
-      raise newException(IdentityInvalidMsgError, $error)
+    peer = PeerId.init(pubkey).valueOrRaise(IdentityInvalidMsgError)
     if peer != remotePeerId:
       trace "Peer ids don't match", remote = peer, local = remotePeerId
       raise newException(IdentityNoMatchError, "Peer ids don't match")
