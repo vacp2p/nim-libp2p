@@ -293,6 +293,11 @@ proc serviceView(disco: ServiceDiscovery, serviceId: ServiceId): RoutingTable =
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
+  # A key of the wrong length is not a service ID, so no peer is closer to it,
+  # and bucketing around it would trip `xorDistance`'s length assert.
+  if serviceId.len != IdLength:
+    return @[]
+
   # Without a table for this service, the main table is centred on this node,
   # so bucketing it as-is would suggest peers near us rather than the service.
   let table = disco.rtManager.getTable(serviceId).valueOr:
