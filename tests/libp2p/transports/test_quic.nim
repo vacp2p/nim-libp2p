@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     transports/transport,
     transports/quictransport,
+    transports/tls/certificate,
     upgrademngrs/upgrade,
     utils/future,
     muxers/muxer,
@@ -59,6 +60,43 @@ suite "Quic transport":
     Opt.some(MultiAddress.init(addressIP6).get()),
     streamProvider,
   )
+
+  asyncTest "dial retries after endpoint construction fails":
+    for address in [addressIP4, "/ip6/::1/udp/0/quic-v1"]:
+      let server = await createQuicTransport(
+        isServer = true, addresses = @[MultiAddress.init(address).tryGet()]
+      )
+      defer:
+        await server.stop()
+
+      var failNext = true
+      proc flakyCertGenerator(
+          kp: KeyPair
+      ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+        if failNext:
+          failNext = false
+          raise newException(TLSCertificateError, "simulated endpoint creation failure")
+        generateX509(kp, encodingFormat = EncodingFormat.PEM)
+
+      let client = QuicTransport.new(
+        Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet(), rng(), flakyCertGenerator
+      )
+      defer:
+        await client.stop()
+
+      expect QuicTransportDialError:
+        discard await client.dial("", server.addrs[0])
+      check not failNext
+
+      let acceptFut = server.accept()
+      defer:
+        await acceptFut.cancelAndWait()
+      let clientConn = await client.dial("", server.addrs[0])
+      let serverConn = await acceptFut
+      check:
+        not clientConn.closed()
+        not serverConn.closed()
+      await allFutures(clientConn.close(), serverConn.close())
 
   asyncTest "listener-role dial sends UDP hole-punch packets":
     let packetReceived =
