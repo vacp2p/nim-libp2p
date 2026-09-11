@@ -166,7 +166,7 @@ proc new*(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let msg = AutonatMsg.decode(await stream.readLp(1024)).raiseOr(AutonatError)
+      let msg = AutonatMsg.decode(await stream.readLp(1024)).valueOrRaise(AutonatError)
       if msg.msgType.get(MsgType.Dial) != MsgType.Dial:
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(stream, msg)

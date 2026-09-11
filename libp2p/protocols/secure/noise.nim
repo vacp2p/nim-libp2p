@@ -534,9 +534,9 @@ method handshake*(
         remotePubKey: PublicKey
         remoteSig: Signature
 
-      remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).raiseOr(
-          NoiseHandshakeError
-        )
+      remoteMsg = NoiseHandshakePayloadMsg
+        .decode(handshakeRes.remoteP2psecret)
+        .valueOrRaise(NoiseHandshakeError)
 
       if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
         raise newException(

@@ -23,13 +23,15 @@ func toException*(e: string): ref LPError =
 func toException*[E](e: E, X: typedesc): ref X =
   (ref X)(msg: $e)
 
-template raiseOr*[T, E](r: Result[T, E], X: typedesc): T =
+template valueOrRaise*[T: not void, E](r: Result[T, E], X: typedesc): T =
   ## Unwrap `r`, or raise `X` carrying the error message.
-  let res = r
-  if res.isErr():
-    raise res.error().toException(X)
-  when T isnot void:
-    res.unsafeGet()
+  r.valueOr:
+    raise error.toException(X)
+
+template onErrorRaise*[E](r: Result[void, E], X: typedesc) =
+  ## Raise `X` carrying the error message when `r` is an error.
+  r.isOkOr:
+    raise error.toException(X)
 
 # TODO: could not figure how to make it with a simple template
 # sadly nim needs more love for hygienic templates

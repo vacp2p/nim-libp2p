@@ -134,9 +134,9 @@ proc handleDialDataResponses(
   var dataReceived: uint64 = 0
 
   while dataReceived < self.config.dialDataSize:
-    let msg = AutonatV2Msg.decode(await stream.readLp(DialDataResponseLpSize)).raiseOr(
-        AutonatV2Error
-      )
+    let msg = AutonatV2Msg
+      .decode(await stream.readLp(DialDataResponseLpSize))
+      .valueOrRaise(AutonatV2Error)
     trace "Received message"
 
     if msg.oneof.kind != MsgKind.DialDataResponse:

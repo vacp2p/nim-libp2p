@@ -20,35 +20,58 @@ suite "Errors":
       e of ref DemoError
       e.msg == "Malformed"
 
-  test "raiseOr returns the value":
+  test "valueOrRaise returns the value":
     let r = Result[int, string].ok(7)
-    check r.raiseOr(DemoError) == 7
+    check r.valueOrRaise(DemoError) == 7
 
-  test "raiseOr raises the requested exception with the message":
+  test "valueOrRaise raises the requested exception with the message":
     let r = Result[int, string].err("bad address")
     try:
-      discard r.raiseOr(DemoError)
-      check false
+      discard r.valueOrRaise(DemoError)
+      raiseAssert "should not get here"
     except DemoError as e:
       check e.msg == "bad address"
 
-  test "raiseOr evaluates its argument once":
+  test "valueOrRaise evaluates its argument once":
     var calls = 0
 
     proc make(): Result[int, string] =
       inc calls
       Result[int, string].ok(1)
 
-    discard make().raiseOr(DemoError)
+    discard make().valueOrRaise(DemoError)
     check calls == 1
 
-  test "raiseOr accepts a void result":
-    let ok = Result[void, cstring].ok()
-    ok.raiseOr(DemoError)
+  test "onErrorRaise passes an ok result":
+    Result[void, cstring].ok().onErrorRaise(DemoError)
 
-    let bad = Result[void, cstring].err("invalid parameters")
+  test "onErrorRaise raises the requested exception with the message":
+    let r = Result[void, cstring].err("invalid parameters")
     try:
-      bad.raiseOr(DemoError)
-      check false
+      r.onErrorRaise(DemoError)
+      raiseAssert "should not get here"
     except DemoError as e:
       check e.msg == "invalid parameters"
+
+  test "onErrorRaise evaluates its argument once":
+    var calls = 0
+
+    proc make(): Result[void, string] =
+      inc calls
+      Result[void, string].ok()
+
+    make().onErrorRaise(DemoError)
+    check calls == 1
+
+  test "each template can be called twice in the same scope":
+    let
+      a = Result[int, string].ok(1).valueOrRaise(DemoError)
+      b = Result[int, string].ok(2).valueOrRaise(DemoError)
+    Result[void, string].ok().onErrorRaise(DemoError)
+    Result[void, string].ok().onErrorRaise(DemoError)
+    check a + b == 3
+
+  test "each template accepts only its kind of result":
+    check:
+      not compiles(Result[void, string].ok().valueOrRaise(DemoError))
+      not compiles(Result[int, string].ok(1).onErrorRaise(DemoError))
