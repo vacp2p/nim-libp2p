@@ -87,10 +87,10 @@ proc init*(
   var msg = Message(data: move(data), topic: topic)
 
   # order matters, we want to include seqno in the signature
-  seqno.withValue(seqn):
+  seqno.ifValue(seqn):
     msg.seqno = @(seqn.toBytesBE())
 
-  peer.withValue(peer):
+  peer.ifValue(peer):
     msg.fromPeer = peer.peerId
     if sign:
       msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
@@ -111,6 +111,6 @@ proc init*(
 ): Message {.gcsafe, raises: [].} =
   var msg = Message(fromPeer: peerId, data: move(data), topic: topic)
 
-  seqno.withValue(seqn):
+  seqno.ifValue(seqn):
     msg.seqno = @(seqn.toBytesBE())
   msg

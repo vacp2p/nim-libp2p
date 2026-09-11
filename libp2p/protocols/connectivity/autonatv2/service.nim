@@ -103,7 +103,7 @@ method start*(
   info "Running AutonatV2Service"
 
   let manager = switch.addressManager
-  self.config.scheduleInterval.withValue(interval):
+  self.config.scheduleInterval.ifValue(interval):
     manager.verifyInterval = interval
   manager.deriveIdentifyCandidates = self.config.enableDialableCandidates
   manager.onReachabilityChange = proc(

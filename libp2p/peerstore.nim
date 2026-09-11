@@ -124,7 +124,7 @@ proc new*(
     capacity = 1000,
     addressTtls = AddressConfidenceTtls(),
 ): PeerStore =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   Self(
     identify: identify,
     capacity: capacity,
@@ -499,23 +499,23 @@ proc updatePeerInfo*(
   peerStore[LastSeenBook][info.peerId] = observedAddr
 
   # Update LastSeenOutboundBook only for outbound connections
-  direction.withValue(dir):
+  direction.ifValue(dir):
     if dir == Direction.Out:
       peerStore[LastSeenOutboundBook][info.peerId] = observedAddr
 
-  info.pubkey.withValue(pubkey):
+  info.pubkey.ifValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
 
-  info.agentVersion.withValue(agentVersion):
+  info.agentVersion.ifValue(agentVersion):
     peerStore[AgentBook][info.peerId] = agentVersion
 
-  info.protoVersion.withValue(protoVersion):
+  info.protoVersion.ifValue(protoVersion):
     peerStore[ProtoVersionBook][info.peerId] = protoVersion
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
 
-  info.signedPeerRecord.withValue(signedPeerRecord):
+  info.signedPeerRecord.ifValue(signedPeerRecord):
     let sprBook = peerStore[SPRBook]
     if sprBook.shouldStoreSignedPeerRecord(info.peerId, signedPeerRecord):
       sprBook[info.peerId] = signedPeerRecord

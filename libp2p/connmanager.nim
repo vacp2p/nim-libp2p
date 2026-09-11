@@ -794,10 +794,10 @@ proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].} =
     # trim is ongoing
     return
 
-  c.watermark.withValue(wm):
+  c.watermark.ifValue(wm):
     if c.muxerStore.countPeers() <= wm.highWater:
       return
-    c.lastTrim.withValue(lastTrim):
+    c.lastTrim.ifValue(lastTrim):
       if Moment.now() - lastTrim < wm.silencePeriod:
         return
     c.trimFut = c.trimConnections()

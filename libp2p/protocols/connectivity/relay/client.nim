@@ -118,7 +118,7 @@ proc reserve*(
   rsvp.expire = expire
   rsvp.addrs = reservation.addrs
 
-  reservation.svoucher.withValue(sv):
+  reservation.svoucher.ifValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
       if error == EnvelopeFieldMissing:
         raise newException(ReservationError, "Missing voucher field")

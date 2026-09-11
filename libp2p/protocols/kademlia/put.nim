@@ -15,8 +15,8 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally
   ## Always returns `true` if we don't have the value locally
 
-  kad.dataTable.get(key).withValue(existing):
-    kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
+  kad.dataTable.get(key).ifValue(existing):
+    kad.config.selector.select(key, @[record, existing]).ifValue(selectedIdx):
       return selectedIdx == 0
   return true
 
@@ -69,7 +69,7 @@ proc dispatchPutVal*(
 proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
   if kad.dataTable.hasKey(key):
     return true
-  kad.config.limits.maxLocalRecords.withValue(limit):
+  kad.config.limits.maxLocalRecords.ifValue(limit):
     return kad.dataTable.len < limit
   true
 

@@ -42,7 +42,7 @@ suite "Utility":
       not a.removeFirstIfIt(it == 2)
       a == @[1, 3]
 
-suite "withValue and valueOr templates":
+suite "ifValue and valueOr templates":
   type TestObj = ref object
     x: int
 
@@ -50,44 +50,44 @@ suite "withValue and valueOr templates":
     self.x.inc()
     return Opt.some(self)
 
-  test "withValue calls right branch when Opt is none":
+  test "ifValue calls right branch when Opt is none":
     var counter = 0
-    # check Opt withValue with else
-    Opt.none(TestObj).withValue(v):
+    # check Opt ifValue with else
+    Opt.none(TestObj).ifValue(v):
       fail()
     else:
       counter.inc()
     check counter == 1
 
-    # check Opt withValue without else
-    Opt.none(TestObj).withValue(v):
+    # check Opt ifValue without else
+    Opt.none(TestObj).ifValue(v):
       fail()
     check counter == 1
 
-  test "withValue calls right branch when Opt is some":
+  test "ifValue calls right branch when Opt is some":
     var counter = 1
-    # check Opt withValue with else
-    Opt.some(counter).withValue(v):
+    # check Opt ifValue with else
+    Opt.some(counter).ifValue(v):
       counter.inc(v)
     else:
       fail()
 
-    # check Opt withValue without else
-    Opt.some(counter).withValue(v):
+    # check Opt ifValue without else
+    Opt.some(counter).ifValue(v):
       counter.inc(v)
 
     check counter == 4
 
-  test "withValue calls right branch when Opt is some with proc call":
+  test "ifValue calls right branch when Opt is some with proc call":
     var obj = TestObj(x: 0)
-    # check Opt withValue with else
-    objIncAndOpt(obj).withValue(v):
+    # check Opt ifValue with else
+    objIncAndOpt(obj).ifValue(v):
       v.x.inc()
     else:
       fail()
 
-    # check Opt withValue without else
-    objIncAndOpt(obj).withValue(v):
+    # check Opt ifValue without else
+    objIncAndOpt(obj).ifValue(v):
       v.x.inc()
 
     check obj.x == 4
