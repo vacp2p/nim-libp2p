@@ -58,7 +58,7 @@ proc new*(
     registry: registry,
   )
 
-func bucketCount(maxBuckets: int): int =
+func bucketCount*(maxBuckets: int): int {.raises: [].} =
   clamp(maxBuckets, 1, MaxBucketsLimit)
 
 func selfHash(rtable: RoutingTable): Key =
