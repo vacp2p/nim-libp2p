@@ -21,7 +21,9 @@ import
     muxers/muxer,
     muxers/mplex/lpchannel,
     stream/lpstream,
+    nameresolving/nameresolver,
     nameresolving/mockresolver,
+    nameresolving/systemresolver,
     stream/chronosstream,
     transports/tcptransport,
     transports/wstransport,
@@ -230,6 +232,44 @@ suite "Switch":
     await switch2.disconnect(switch1.peerInfo.peerId)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
+
+  test "switch builder owns a SystemResolver by default":
+    let switch = makeStandardSwitch()
+    check:
+      switch.nameResolver of SystemResolver
+      switch.ownsNameResolver
+
+  test "switch builder name resolver opt-out":
+    let switch = makeStandardSwitchBuilder().withoutNameResolver().build()
+    check:
+      switch.nameResolver.isNil
+      not switch.ownsNameResolver
+
+  test "explicit name resolver takes precedence over the default":
+    let resolver = MockResolver.new()
+    let switch = makeStandardSwitchBuilder().withNameResolver(resolver).build()
+    check:
+      switch.nameResolver == NameResolver(resolver)
+      not switch.ownsNameResolver
+
+  asyncTest "switch stop closes only its owned name resolver":
+    let ownedSwitch = makeStandardSwitch()
+    let ownedResolver = SystemResolver(ownedSwitch.nameResolver)
+    check (await ownedResolver.resolveIp("localhost", 4001.Port)).len > 0
+    await ownedSwitch.stop()
+    check (await ownedResolver.resolveIp("localhost", 4001.Port)).len == 0
+    check ownedSwitch.ownsNameResolver
+
+    await ownedSwitch.start()
+    check (await ownedResolver.resolveIp("localhost", 4001.Port)).len > 0
+    await ownedSwitch.stop()
+
+    let externalResolver = SystemResolver.new(rng())
+    let externalSwitch =
+      makeStandardSwitchBuilder().withNameResolver(externalResolver).build()
+    await externalSwitch.stop()
+    check (await externalResolver.resolveIp("localhost", 4001.Port)).len > 0
+    await externalResolver.close()
 
   asyncTest "e2e connect to peer with known PeerId":
     let switch1 = makeStandardSwitch()
@@ -1054,6 +1094,23 @@ suite "Switch":
     await destSwitch.stop()
     await srcSwitch.stop()
 
+  asyncTest "e2e default resolver dials localhost dns4 address":
+    let
+      srcSwitch = makeStandardSwitch(TcpAutoAddress)
+      destSwitch = makeStandardSwitch(TcpAutoAddress)
+
+    await destSwitch.start()
+    await srcSwitch.start()
+
+    let testAddr =
+      MultiAddress.init("/dns4/localhost/").tryGet() &
+      destSwitch.peerInfo.addrs[0][1].tryGet()
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, @[testAddr])
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    await destSwitch.stop()
+    await srcSwitch.stop()
+
   asyncTest "e2e dial dnsaddr with multiple transports":
     let resolver = MockResolver.new()
 
@@ -1068,6 +1125,8 @@ suite "Switch":
     await srcWsSwitch.start()
 
     resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
+        "/p2p/" & $srcTcpSwitch.peerInfo.peerId,
       "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
         "/p2p/" & $destSwitch.peerInfo.peerId,
       "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1 ..^ 1].tryGet(),

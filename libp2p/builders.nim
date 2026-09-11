@@ -29,9 +29,12 @@ import
   upgrademngrs/muxedupgrade,
   address_manager,
   autotls/service,
-  nameresolving/nameresolver,
+  nameresolving/[nameresolver, dnsresolver],
   errors,
   utils/[opt, tlsredact]
+
+when compileOption("threads"):
+  import nameresolving/systemresolver
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
@@ -89,6 +92,7 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    dnsResolutionEnabled: bool
     dialRanking: bool
     dialBackoff: Opt[DialBackoffConfig]
     peerStoreCapacity: Opt[int]
@@ -120,6 +124,7 @@ proc new*(T: type[SwitchBuilder]): T =
     scoring: PeerScoring(),
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
+    dnsResolutionEnabled: true,
     autonatV2ServerConfig: Opt.none(AutonatV2Config),
     natConfig: Opt.none(NATConfig),
     autotlsConfig: Opt.none(AutotlsConfig),
@@ -358,6 +363,12 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withoutNameResolver*(b: SwitchBuilder): SwitchBuilder =
+  ## Opt out of the default name resolver: the dialer will skip
+  ## dns/dns4/dns6/dnsaddr multiaddrs instead of resolving them.
+  b.dnsResolutionEnabled = false
+  b
+
 proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.dialRanking = enabled
   b
@@ -541,13 +552,27 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
       )
     )
 
+  var
+    nameResolver = b.nameResolver
+    ownsNameResolver = false
+  if nameResolver.isNil and b.dnsResolutionEnabled:
+    # Without a name resolver the dialer silently skips
+    # dns/dns4/dns6/dnsaddr multiaddrs. Prefer the OS resolver so hosts files,
+    # search domains, scoped resolvers and the OS cache behave like other
+    # libp2p implementations. Threadless builds retain the async UDP resolver.
+    when compileOption("threads"):
+      nameResolver = SystemResolver.new(rng = b.rng)
+    else:
+      nameResolver = DnsResolver.new(getSystemNameServers(), b.rng)
+    ownsNameResolver = true
+
   let dialer = Dialer.new(
     peerInfo.peerId,
     connManager,
     peerStore,
     transports,
     ms,
-    b.nameResolver,
+    nameResolver,
     dialRanking = b.dialRanking,
     dialBackoff = b.dialBackoff,
   )
@@ -559,7 +584,8 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     connManager: connManager,
     peerStore: peerStore,
     dialer: dialer,
-    nameResolver: b.nameResolver,
+    nameResolver: nameResolver,
+    ownsNameResolver: ownsNameResolver,
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
     services: services,
