@@ -382,6 +382,37 @@ suite "Quic transport":
     expect QuicTransportAcceptStopped:
       discard await server.accept()
 
+  asyncTest "remote connection close closes the dialer's session":
+    let server = await createQuicTransport(isServer = true)
+    let client = await createQuicTransport()
+    defer:
+      await client.stop()
+      await server.stop()
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+
+    # what the switch does when the incoming connection limit is reached
+    await serverConn.close()
+
+    let muxer = await client.upgrade(clientConn, Opt.none(PeerId))
+    defer:
+      await muxer.close()
+
+    let stream = await muxer.newStream()
+    await stream.write("client")
+
+    var response: array[1, byte]
+    let readFut = stream.readOnce(addr response[0], response.len)
+    defer:
+      await readFut.cancelAndWait()
+
+    check:
+      await readFut.withTimeout(1.seconds)
+      serverConn.closed
+      clientConn.closed
+
   asyncTest "stream idle timeout resets only the idle stream":
     let server = await createQuicTransport(
       isServer = true, inTimeout = 2.seconds, outTimeout = 3.seconds
