@@ -50,3 +50,4 @@ tests/**/test*[^.]*
 result
 
 /interop/autonatv2/go-peer/testautonatv2
+/interop/autonatv2/nim-peer/src/nim_peer

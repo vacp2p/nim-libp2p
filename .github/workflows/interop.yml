@@ -86,14 +86,18 @@ jobs:
         working-directory: interop/autonatv2/go-peer
         run: go build -mod=readonly -o testautonatv2 .
 
-      - name: Run Go and Nim together
+      - name: Build the Nim peer
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
+          nim c -d:chronicles_log_level=DEBUG interop/autonatv2/nim-peer/src/nim_peer.nim
+
+      - name: Run Go and Nim together
+        run: |
           cd interop/autonatv2/go-peer
           ./testautonatv2 &
           cd ../nim-peer
-          nim r -d:chronicles_log_level=DEBUG src/nim_peer.nim $(cat ../go-peer/peer.id)
+          ./src/nim_peer "$(cat ../go-peer/peer.id)"
 
   run-kad-interop:
     name: Run Kademlia DHT interoperability tests
@@ -116,15 +120,22 @@ jobs:
           shell: bash
           nim_ref: v2.2.10
 
-      - name: Run Nim and Rust together
+      - name: Build the Rust peer
+        working-directory: interop/kad/rust-peer
+        run: cargo build
+
+      - name: Build the Nim peer
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
-          cd interop/kad/rust-peer
-          cargo run &
+          nim c -d:chronicles_log_level=DEBUG interop/kad/nim-peer/src/nim_peer.nim
 
+      - name: Run Rust and Nim together
+        run: |
+          cd interop/kad/rust-peer
+          ./target/debug/rust-peer &
           cd ../nim-peer
-          nim r -d:chronicles_log_level=DEBUG src/nim_peer.nim
+          ./src/nim_peer
 
   run-partial-message-interop:
     name: Run Partial Message interoperability tests
@@ -147,13 +158,18 @@ jobs:
           shell: bash
           nim_ref: v2.2.10
 
-      # build go and nim clients first to prevent one from waiting on the other to finish building.
-      # the go peer runs in the background because the interop test logic is implemented in the nim peer.
-      - name: Run Interop
+      - name: Build the Go peer
+        working-directory: interop/partial-message/go-peer
+        run: go build -o peer ./peer.go
+
+      - name: Build the Nim peer
         run: |
           NIM_VERSION=$(nim --version | sed -n 's/^Nim Compiler Version \([^ ]*\).*/\1/p')
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
-          cd interop/partial-message
-          nim c -d:chronicles_log_level=DEBUG ./nim-peer/src/peer.nim
-          go build -C ./go-peer -o peer ./peer.go
-          ./go-peer/peer & ./nim-peer/src/peer
+          nim c -d:chronicles_log_level=DEBUG interop/partial-message/nim-peer/src/peer.nim
+
+      - name: Run Go and Nim together
+        working-directory: interop/partial-message
+        run: |
+          ./go-peer/peer &
+          ./nim-peer/src/peer
