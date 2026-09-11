@@ -42,6 +42,8 @@ jobs:
         run: |
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
           sudo update-alternatives --set gcc /usr/bin/gcc-14
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 14
+          sudo update-alternatives --set g++ /usr/bin/g++-14
 
       - name: Restore dependencies from cache
         uses: "./.github/actions/install_test_deps"
@@ -73,7 +75,8 @@ jobs:
       # Nim attributes generated C code to non-code lines and to lines past the end of the file.
       - name: Run coverage
         run: |
-          lcov --capture --directory nimcache --gcov-tool gcov-14 --ignore-errors mismatch --output-file coverage/coverage.info
+          lcov --capture --directory nimcache --gcov-tool gcov-14 --ignore-errors mismatch \
+            --include "${PWD}/libp2p/*" --output-file coverage/coverage.info
           lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info \
             --rc c_file_extensions=nim --filter range,blank \
             --omit-lines '^\s*#' \
