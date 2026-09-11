@@ -204,7 +204,7 @@ proc expandDnsAddr(
         raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " & e.msg
 
       let addrPeerId = PeerId.init(peerIdBytes).tryGet()
-      peerId.withValue(expectedPeerId):
+      peerId.ifValue(expectedPeerId):
         if addrPeerId != expectedPeerId:
           debug "Skipping DNSADDR record for a different peer",
             expectedPeerId, recordPeerId = addrPeerId
