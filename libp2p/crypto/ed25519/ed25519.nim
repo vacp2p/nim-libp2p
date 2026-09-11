@@ -16,6 +16,7 @@ import results
 import stew/ctops
 
 import ../../utils/conversion
+import ../../utils/redact
 
 export results
 
@@ -2305,9 +2306,8 @@ proc `==`*(eda, edb: EdSignature): bool =
   ## Compare ED25519 `signature` objects for equality.
   CT.isEqual(eda.data, edb.data)
 
-proc `$`*(key: EdPrivateKey): string =
-  ## Return string representation of ED25519 `private key`.
-  ncrutils.toHex(key.data)
+redactType(EdPrivateKey)
+redactType(EdKeyPair)
 
 proc `$`*(key: EdPublicKey): string =
   ## Return string representation of ED25519 `private key`.

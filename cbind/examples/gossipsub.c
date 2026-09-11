@@ -109,18 +109,16 @@ int main(void) {
   PublishWaiter pubw;
   memset(&pubw, 0, sizeof(pubw));
   libp2p_ctx_gossipsub_publish(publisher, &pubReq, on_publish, &pubw);
-  if (!wait_done(&pubw.done) || pubw.err_code != 0) {
+  wait_done(&pubw.done);
+  if (pubw.err_code != 0) {
     fprintf(stderr, "publish: %s\n", pubw.err[0] ? pubw.err : "unknown");
     goto cleanup;
   }
   printf("Published to %lld peer(s)\n", (long long)pubw.peerCount);
 
-  if (wait_done(&g_got)) {
-    printf("Subscriber received: %s\n", g_received);
-    status = strcmp(g_received, message) == 0 ? 0 : 1;
-  } else {
-    fprintf(stderr, "Error: timed out waiting for the message\n");
-  }
+  wait_done(&g_got);
+  printf("Subscriber received: %s\n", g_received);
+  status = strcmp(g_received, message) == 0 ? 0 : 1;
 
 cleanup:
   AWAIT_BOOL(bw, libp2p_ctx_stop(publisher, on_bool, &bw), "stop publisher");

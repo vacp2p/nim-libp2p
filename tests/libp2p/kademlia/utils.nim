@@ -2,13 +2,40 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import algorithm, chronos, results, sequtils, sets, tables
+import algorithm, chronos, hashes, results, sequtils, sets, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multihash, stream/connection]
 import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
 export crypto
+
+converter toKey*(bytes: seq[byte]): Key =
+  Key.fromBytes(bytes)
+
+converter toValue*(bytes: seq[byte]): Value =
+  Value.fromBytes(bytes)
+
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
+proc hash*(x: seq[byte]): Hash {.inline.} =
+  hash(x, 0, x.high)
+
+converter fromKeyToBytes*(k: Key): seq[byte] =
+  k.toBytes()
+
+converter fromValueToBytes*(v: Value): seq[byte] =
+  v.toBytes()
+
+converter fromKeyToOptBytes*(k: Key): Opt[seq[byte]] =
+  Opt.some(k.toBytes())
+
+converter fromValueToOptBytes*(v: Value): Opt[seq[byte]] =
+  Opt.some(v.toBytes())
 
 converter toOptSeqByte*(a: seq[byte]): Opt[seq[byte]] =
   Opt.some(a)
@@ -185,15 +212,15 @@ proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
-proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
+proc containsData*(kad: KadDHT, key: Key, value: Value): bool =
   let record = kad.dataTable.get(key).valueOr:
     checkpoint("containsData: key not found: " & $key.shortLog())
     return false
 
   if record.value != value:
     checkpoint(
-      "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
-        ", got: " & $record.value
+      "containsData: value mismatch for key:" & $key.shortLog & " - expected value: " &
+        $value.shortLog & ", got value: " & $record.value
     )
     return false
 
@@ -216,7 +243,7 @@ proc randomServiceId*(): Key =
   ## Stands in for a `hashServiceId()` result, a key already in the id space.
   var buf = newSeqUninit[byte](IdLength)
   rng().generate(buf)
-  buf
+  Key.fromBytes(buf)
 
 proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:

@@ -17,6 +17,7 @@ import
   ../multistream,
   ../multiaddress,
   ../utils/opt,
+  ../utils/tlsredact,
   ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,
@@ -347,8 +348,7 @@ method start*(
 
   info "Starting WS transport"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   if not self.secure and self.autotls.isSome():
     self.autotls.withValue(autotls):
@@ -482,8 +482,7 @@ proc connHandler(
       )
     except CatchableError as e:
       trace "WebSocket connection address extraction failed", err = e.msg
-      if not (isNil(stream) and stream.stream.reader.closed):
-        safeClose(stream)
+      safeClose(stream)
       raise e
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))

@@ -74,6 +74,8 @@ proc findInstalledPkgDir(prefix: string): string =
   )
 
 proc ffiDepPaths(): string =
+  if fileExists("nimble.paths"):
+    return ""
   # A global install writes no nimble.paths; point the compiler at the installed
   # copies.
   " --path:" & findInstalledPkgDir("ffi-") & " --path:" &

@@ -60,6 +60,29 @@ suite "Service Discovery Component - Lookup Get Ads":
     check found.get().len == 1
     check found.containsPeer(advertiserNode)
 
+  asyncTest "local duplicates do not consume the remaining lookup quota":
+    let conf = ServiceDiscoveryConfig.new(fLookup = 2, fReturn = 2)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, discovererNode])
+    await connect(registrarNode, discovererNode)
+
+    let serviceName = "overlapping-service"
+    let serviceId = serviceName.hashServiceId()
+    let ads = @[makeAdvertisement(serviceName), makeAdvertisement(serviceName)]
+    registrarNode.registrar.seedAds(serviceId, ads)
+
+    # Duplicate the first remote result so it precedes the unseen advertisement.
+    let firstAd = registrarNode.getAdsInCache(serviceId)[0]
+    discovererNode.registrar.seedAd(serviceId, firstAd)
+
+    let found = await discovererNode.lookup(serviceId)
+    require found.isOk()
+    check:
+      found.get().len == 2
+      ads[0] in found.get()
+      ads[1] in found.get()
+
   asyncTest "GET_ADS respects F_return limit":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, fReturn = 2)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)

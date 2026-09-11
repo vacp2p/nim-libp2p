@@ -146,7 +146,7 @@ suite "Priority queue behavior":
     )
     let conn = createPendingConnection()
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -187,7 +187,7 @@ suite "Priority queue behavior":
     )
     let conn = createRecorderConnection()
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -224,7 +224,7 @@ suite "Priority queue behavior":
     )
     let conn = createRecorderConnection()
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -259,8 +259,8 @@ suite "Priority queue behavior":
     let mediumConn = createPendingConnection()
     let lowConn = createPendingConnection()
     defer:
-      mediumPeer.stopTasks()
-      lowPeer.stopTasks()
+      await mediumPeer.stopTasks()
+      await lowPeer.stopTasks()
 
     # This is required so we can test the send path
     mediumPeer.sendStream = mediumConn
@@ -298,7 +298,7 @@ suite "Priority queue behavior":
     let conn = createPendingConnection()
     defer:
       await conn.close()
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendStream = conn
 
@@ -457,7 +457,7 @@ suite "PubSubPeer sendResponse":
     let conn = createRecorderConnection()
     peer.sendStream = conn
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     let msg = RPCMsg(
       control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: topic)])),
@@ -486,7 +486,7 @@ suite "PubSubPeer sendResponse":
     let conn = createRecorderConnection()
     peer.sendStream = conn
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendResponse(msg, true, MessagePriority.High)
 
@@ -511,7 +511,7 @@ suite "PubSubPeer sendResponse":
     let conn = createRecorderConnection()
     peer.sendStream = conn
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendResponse(fullMsg, false, MessagePriority.High)
 
@@ -533,7 +533,7 @@ suite "PubSubPeer sendResponse":
     let conn = createRecorderConnection()
     peer.sendStream = conn
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendResponse(fullMsg, false, MessagePriority.High)
 
@@ -557,7 +557,7 @@ suite "PubSubPeer sendResponse":
     let conn = createRecorderConnection()
     peer.sendStream = conn
     defer:
-      peer.stopTasks()
+      await peer.stopTasks()
 
     peer.sendResponse(msg, false, MessagePriority.High)
 

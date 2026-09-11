@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import net, chronicles, strutils, results
+import net, chronicles, results
 import chronos
 
 import ../multiaddress, ../multicodec
@@ -17,26 +17,8 @@ proc isIPv4*(ip: IpAddress): bool =
 proc isIPv6*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv6
 
-proc isPrivate*(ip: string): bool {.raises: [].} =
-  try:
-    return
-      ip.startsWith("10.") or
-      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
-  except ValueError:
-    return false
-
-proc isPrivate*(ip: IpAddress): bool {.raises: [].} =
-  isPrivate($ip)
-
-proc isPublic*(ip: string): bool {.raises: [].} =
-  not isPrivate(ip)
-
-proc isPublic*(ip: IpAddress): bool {.raises: [].} =
-  isPublic($ip)
-
 proc isGlobalIP*(ip: IpAddress): bool {.raises: [].} =
-  ## Unlike ``isPublic``, this is family-aware and also rejects private IPv6.
+  ## Globally routable address of either family, so an IPv6 ULA is not global.
   initTAddress(ip, Port(0)).isGlobal()
 
 proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =

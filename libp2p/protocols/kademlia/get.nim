@@ -132,8 +132,8 @@ method handleGetValue*(
       reason = "missingKey", messageType = "getValue", stream
     return
 
-  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
-  # as absent and sends the standard "no record found" response.
+  # Evict the entry eagerly if it has expired so the response below treats it as
+  # absent and sends the standard "no record found" response.
   var entryRecordOpt = kad.dataTable.get(key)
   entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
@@ -158,6 +158,7 @@ method handleGetValue*(
   let response = Message(
     msgType: Opt.some(MessageType.getValue),
     key: Opt.some(key),
+    closerPeers: kad.findClosestPeers(key, stream.peerId),
     record: Opt.some(
       Record(
         key: Opt.some(key),
@@ -165,7 +166,6 @@ method handleGetValue*(
         timeReceived: Opt.some(entryRecord.time),
       )
     ),
-    closerPeers: kad.findClosestPeers(key, stream.peerId),
   )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])

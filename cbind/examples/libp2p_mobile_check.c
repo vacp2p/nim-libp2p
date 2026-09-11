@@ -89,7 +89,7 @@ static int wait_for_callback(CallbackWait *wait, const char *op) {
   struct timespec deadline;
   if (clock_gettime(CLOCK_REALTIME, &deadline) != 0) {
     fprintf(stderr, "%s: clock_gettime failed: %s\n", op, strerror(errno));
-    return 1;
+    exit(EXIT_FAILURE);
   }
   deadline.tv_sec += CALLBACK_TIMEOUT_SECONDS;
 
@@ -107,12 +107,14 @@ static int wait_for_callback(CallbackWait *wait, const char *op) {
   if (rc == ETIMEDOUT) {
     fprintf(stderr, "%s: timed out after %d seconds\n", op,
             CALLBACK_TIMEOUT_SECONDS);
-    return 1;
+    // A late callback still owns the stack waiter and its synchronization
+    // state.
+    exit(EXIT_FAILURE);
   }
   if (rc != 0) {
     fprintf(stderr, "%s: pthread_cond_timedwait failed: %s\n", op,
             strerror(rc));
-    return 1;
+    exit(EXIT_FAILURE);
   }
   if (err_code != NIMFFI_RET_OK) {
     fprintf(stderr, "%s: %s\n", op,

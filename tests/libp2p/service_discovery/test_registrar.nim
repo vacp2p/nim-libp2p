@@ -21,6 +21,7 @@ import
     stream/connection,
   ]
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
+import ../../../libp2p/utils/future
 import ../../tools/[crypto, unittest, multiaddress]
 import ./utils
 
@@ -1065,6 +1066,9 @@ suite "Service Discovery Registrar - registration replaces by advertiser":
       ad2.envelope.signature.data
 
 suite "Service Discovery Registrar - acceptAdvertisement":
+  teardown:
+    checkTrackers()
+
   test "new peer ad is added to cache":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
@@ -1077,6 +1081,21 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
     check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.peerId ==
       ad.data.peerId
+
+  asyncTest "advertised peer is not seated when its admission probe fails":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId()
+    let ad = makeAdvertisement($serviceId, addrs = @[ma("/ip4/127.0.0.1/tcp/59997")])
+
+    disco.acceptAd(Moment.now(), serviceId, ad)
+    check not disco.hasPeerInServiceTable(serviceId, ad.data.peerId)
+
+    checkUntilTimeout:
+      disco.admissionProbes.len == 0
+    check:
+      disco.probeFailures.getOrDefault(ad.data.peerId).count == 1
+      not disco.hasPeerInServiceTable(serviceId, ad.data.peerId)
+      disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
 
   test "same advertiser higher seqNo replaces existing ad":
     let disco =
@@ -1128,7 +1147,7 @@ suite "Service Discovery Registrar - acceptAdvertisement":
 
     check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 2
 
-  test "replace updates IP tree without doubling":
+  asyncTest "replace updates IP tree without doubling":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceName = "service"
@@ -1157,6 +1176,9 @@ suite "Service Discovery Registrar - acceptAdvertisement":
 
     check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
     check disco.registrar.ads.ipTree.ipsLen == counterAfterFirst
+
+    let probes = move disco.admissionProbes
+    await noCancel probes.values.toSeq().cancelAndWait()
 
 suite "Service Discovery Registrar - waitingTime never negative":
   test "waitingTime returns non-negative with stale high service lower bound":
@@ -1588,3 +1610,55 @@ suite "Service Discovery Registrar - connection IPs":
     check slot.ips == connectionIps
     check slot.ips != @[parseIpAddress("10.0.0.1")]
     check slot.ips != @[parseIpAddress("10.0.0.99")]
+
+suite "Service Discovery Registrar - sender admission":
+  test "registration does not insert the sender into the main routing table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    )
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let senderId = ad.data.peerId
+    disco.switch.peerStore[AddressBook][senderId] = @[makeMultiAddress("198.51.100.7")]
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: ad.encode().get(),
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(senderId, inMsg).register.get()
+
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed
+    check not disco.hasPeerInMainTable(senderId)
+
+  test "registration does not return the sender among its own closerPeers":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    )
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let ad = makeAdvertisement(serviceName)
+    let senderId = ad.data.peerId
+    disco.switch.peerStore[AddressBook][senderId] = @[makeMultiAddress("198.51.100.10")]
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: ad.encode().get(),
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    check disco.registration(senderId, inMsg).closerPeers.len == 0

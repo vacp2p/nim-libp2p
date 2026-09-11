@@ -696,6 +696,82 @@ suite "RendezVous":
     await peerRdv.advertise(namespace)
     check rendezvousNode.registered.s.len == RegistrationLimitPerPeer
 
+  asyncTest "Registration in a new namespace is ignored if the namespace limit is reached":
+    let
+      rendezvousNode = createSwitch(RendezVousConfig.new(maxNamespaces = 2))
+      peerNode = createSwitch(RendezVousConfig.new())
+    startAndDeferStop(@[rendezvousNode, peerNode])
+
+    await connect(peerNode, rendezvousNode)
+
+    await peerNode.advertise("foo0")
+    await peerNode.advertise("foo1")
+    check:
+      rendezvousNode.namespaces.len == 2
+      rendezvousNode.registered.s.len == 2
+
+    await peerNode.advertise("foo2")
+    check:
+      rendezvousNode.namespaces.len == 2
+      rendezvousNode.registered.s.len == 2
+
+    # A namespace already in the table still accepts registrations
+    await peerNode.advertise("foo0")
+    check:
+      rendezvousNode.namespaces.len == 2
+      rendezvousNode.registered.s.len == 3
+
+  test "A config built with an object literal keeps the default namespace limit":
+    check RendezVousConfig(minTTL: 60, maxTTL: 3600).namespaceLimit() ==
+      MaximumNamespaces
+
+  asyncTest "Namespace with no live registration is deleted and frees a slot":
+    let
+      rendezvousNode = createSwitch(RendezVousConfig.new(maxNamespaces = 1))
+      peerNode = createSwitch(RendezVousConfig.new())
+    startAndDeferStop(@[rendezvousNode, peerNode])
+
+    await connect(peerNode, rendezvousNode)
+
+    await peerNode.advertise("foo0")
+    check rendezvousNode.namespaces.len == 1
+
+    # Overwrite register timeout loop interval
+    discard rendezvousNode.deletesRegister(100.milliseconds)
+
+    let now = Moment.now()
+    for reg in rendezvousNode.registered.s.mitems:
+      reg.expiration = now
+
+    checkUntilTimeout:
+      rendezvousNode.namespaces.len == 0
+
+    await peerNode.advertise("foo1")
+    check:
+      rendezvousNode.namespaces.len == 1
+      rendezvousNode.registered.s.len == 1
+
+  asyncTest "Namespace expired behind a live registration is deleted":
+    let
+      rendezvousNode = createSwitch(RendezVousConfig.new())
+      peerNode = createSwitch(RendezVousConfig.new())
+    startAndDeferStop(@[rendezvousNode, peerNode])
+
+    await connect(peerNode, rendezvousNode)
+
+    await peerNode.advertise("foo0")
+    await peerNode.advertise("foo1")
+    check rendezvousNode.namespaces.len == 2
+
+    # Overwrite register timeout loop interval
+    discard rendezvousNode.deletesRegister(100.milliseconds)
+
+    # Only the second entry expires, so the leading flush cannot reach it
+    rendezvousNode.registered[1].expiration = Moment.now()
+
+    checkUntilTimeout:
+      rendezvousNode.namespaces.len == 1
+    check rendezvousNode.registered.s.len == 2
   asyncTest "Registration count follows the registrations held for a peer":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startAndDeferStop(rendezvousNode & peerNodes)

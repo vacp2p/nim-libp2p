@@ -118,17 +118,17 @@ suite "KadDHT - Limits":
     # Use the no-op hasher so XOR distance is a function of the key bytes
     # directly, making "close" peers easy to construct.
     kad.rtable.config.hasher = Opt.some(noOpHasher)
-    proc peerKey(digest: Key): Key =
-      MultiHash.init("sha2-256", digest).expect("valid SHA-256 digest").data.buffer
+    proc peerKey(digest: seq[byte]): Key =
+      MultiHash.init("sha2-256", digest).expect("valid SHA-256 digest").toKey()
 
-    var targetDigest: Key = newSeq[byte](32)
+    var targetDigest = newSeq[byte](32)
     let target = peerKey(targetDigest)
     var state = LookupState.init(kad, target)
     # Drop any peers pre-seeded from the routing table.
     state.shortlist.clear()
 
     # Insert a far peer first
-    var farDigest: Key = newSeq[byte](32)
+    var farDigest = newSeq[byte](32)
     farDigest[0] = 0xFF
     let farMsg = Message(
       msgType: MessageType.findNode, closerPeers: @[closerPeer(peerKey(farDigest))]
@@ -138,7 +138,7 @@ suite "KadDHT - Limits":
     # Now insert 5 close peers — they should evict the far one
     var closePeers: seq[Peer]
     for i in 1 .. 5:
-      var digest: Key = newSeq[byte](32)
+      var digest = newSeq[byte](32)
       digest[31] = byte(i)
       closePeers.add(closerPeer(peerKey(digest)))
     let closeMsg = Message(msgType: MessageType.findNode, closerPeers: closePeers)
@@ -273,7 +273,7 @@ suite "KadDHT - Limits":
     let request = Message(
       msgType: MessageType.putValue,
       key: newKey,
-      record: Opt.some(Record(key: newKey, value: Opt.some(newValue))),
+      record: Opt.some(Record(key: newKey, value: Value.init(newValue))),
     )
     let conn = await kads[1].switch.dial(
       kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec

@@ -251,13 +251,24 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  discard disco.insertPeer(
+  disco.rtManager.admitPeers(
+    disco,
     serviceId,
-    PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
+    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
   )
 
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
+
+proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
+  ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
+  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
+  if senderAddrs.len == 0:
+    return
+
+  let sender = @[PeerInfo(peerId: peerId, addrs: senderAddrs)]
+  disco.admitPeers(sender)
+  disco.rtManager.admitPeers(disco, serviceId, sender)
 
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
@@ -279,11 +290,6 @@ proc registration*(
   let serviceId = inMsg.key.valueOr:
     trace "Key not set: registration", msg = inMsg
     return
-
-  discard disco.rtable.insert(peerId)
-  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
-  if senderAddrs.len > 0:
-    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -332,6 +338,8 @@ proc registration*(
     )
 
     return msg
+
+  disco.seatSender(serviceId, peerId)
 
   let ips = disco.advertiserIps(peerId, connectionIps)
   var tWait = disco.registrar.waitingTime(disco.discoConfig, serviceId, ips, now)
@@ -386,10 +394,7 @@ proc getAdvertisements*(
     trace "Key not set: getAdvertisements", msg
     return
 
-  discard disco.rtable.insert(peerId)
-  let senderAddrs = disco.switch.peerStore[AddressBook][peerId]
-  if senderAddrs.len > 0:
-    discard disco.insertPeer(serviceId, PeerInfo(peerId: peerId, addrs: senderAddrs))
+  disco.seatSender(serviceId, peerId)
 
   let cap = disco.discoConfig.fReturn
   let ads = disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)

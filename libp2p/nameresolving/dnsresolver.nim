@@ -6,7 +6,7 @@
 import std/[sets, sequtils], chronos, chronicles, ./dnsmessage
 
 import nameresolver
-import ../crypto/rng
+import ../crypto/rng, ../utils/future
 
 logScope:
   topics = "libp2p dnsresolver"
@@ -77,6 +77,9 @@ method resolveIp*(
         responseFutures.insert(fut)
       else:
         responseFutures.add(fut)
+
+    defer:
+      await noCancel responseFutures.cancelAndWait()
 
     var
       resolvedAddresses: OrderedSet[string]

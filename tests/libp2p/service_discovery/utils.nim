@@ -27,6 +27,12 @@ import ../../tools/crypto as testcrypto
 
 export protobuf, registrar, routing_table_manager, types, testcrypto
 
+converter toOptKey*(key: Key): Opt[Key] =
+  Opt.some(key)
+
+converter toOptValue*(value: Value): Opt[Value] =
+  Opt.some(value)
+
 converter toOptTimestamp*(a: UnixTimestamp): Opt[UnixTimestamp] =
   Opt.some(a)
 
@@ -50,7 +56,7 @@ proc makePeerInfo*(
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   var buf = newSeq[byte](IdLength)
   buf[0] = id
-  return buf
+  return ServiceId.fromBytes(buf)
 
 proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
   ServiceInfo(id: id, data: @[1'u8, 2, 3, 4])
@@ -136,8 +142,13 @@ proc setupServiceDiscoveryNode*(
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     kadConfig: KadDHTConfig = testKadDHTConfig(),
     addresses: seq[MultiAddress] = @[TcpAutoAddress()],
+    mount: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch(privateKey, addresses)
+  # `peerInfo.addrs` only fills in on `switch.start()`, which most tests skip.
+  if switch.peerInfo.addrs.len == 0:
+    switch.peerInfo.addrs = @[makeMultiAddress("127.0.0.1")]
+
   let node = ServiceDiscovery.new(
     switch,
     bootstrapNodes = bootstrapNodes,
@@ -148,7 +159,8 @@ proc setupServiceDiscoveryNode*(
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if mount:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -178,6 +190,9 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
 
 proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
   peerKey in rtable
+
+proc hasPeerInMainTable*(disco: ServiceDiscovery, peerId: PeerId): bool =
+  disco.rtable.hasPeer(peerId.toKey())
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:

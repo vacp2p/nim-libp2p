@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-# this module will be further extended in PR
-# https://github.com/status-im/nim-libp2p/pull/107/
-
 import chronos
 import chronicles
 import macros
+import results
+
+export results
+
+{.push raises: [].}
 
 type
   # Base exception type for libp2p
@@ -17,6 +19,19 @@ func toException*(e: cstring): ref LPError =
 
 func toException*(e: string): ref LPError =
   (ref LPError)(msg: e)
+
+func toException*[E](e: E, X: typedesc): ref X =
+  (ref X)(msg: $e)
+
+template valueOrRaise*[T: not void, E](r: Result[T, E], X: typedesc): T =
+  ## Unwrap `r`, or raise `X` carrying the error message.
+  r.valueOr:
+    raise error.toException(X)
+
+template onErrorRaise*[E](r: Result[void, E], X: typedesc) =
+  ## Raise `X` carrying the error message when `r` is an error.
+  r.isOkOr:
+    raise error.toException(X)
 
 # TODO: could not figure how to make it with a simple template
 # sadly nim needs more love for hygienic templates

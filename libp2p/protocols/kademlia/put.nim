@@ -48,7 +48,7 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       trace "Expired record removed", key
 
 proc dispatchPutVal*(
-    kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
+    kad: KadDHT, peer: PeerId, key: Key, value: Value
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   let msg = Message(
     msgType: Opt.some(MessageType.putValue),
@@ -74,7 +74,7 @@ proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
   true
 
 proc putValue*(
-    kad: KadDHT, key: Key, value: seq[byte]
+    kad: KadDHT, key: Key, value: Value
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   if value.len > kad.config.limits.maxValueSize:
     return err(

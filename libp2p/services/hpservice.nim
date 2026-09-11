@@ -124,10 +124,6 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   ) {.async: (raises: [CancelledError]).} =
     await newConnectedPeerHandler(self, switch, peerId, event)
 
-  switch.connManager.addPeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
-  )
-
   self.onNewStatusHandler = proc(
       networkReachability: NetworkReachability,
       confidence: Opt[float],
@@ -144,16 +140,19 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  discard self.reachabilityObservers.add(self.onNewStatusHandler)
-
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  switch.connManager.addPeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Joined
+  )
+
+  discard self.reachabilityObservers.add(self.onNewStatusHandler)
   await self.autonatService.start(switch)
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  switch.connManager.removePeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Joined
+  )
+  discard self.reachabilityObservers.remove(self.onNewStatusHandler)
   await self.autonatService.stop(switch)
   if self.autoRelayService.isRunning():
     await self.autoRelayService.stop(switch)
-  if not isNil(self.newConnectedPeerHandler):
-    switch.connManager.removePeerEventHandler(
-      self.newConnectedPeerHandler, PeerEventKind.Joined
-    )

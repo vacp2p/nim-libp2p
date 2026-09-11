@@ -81,6 +81,14 @@ suite "AutoTLS ACME API":
       completed == true
       api.requestedUris == @[parseUri(ChallengeURL), parseUri(ChallengeURL)]
 
+  asyncTest "challenge processing is polled until valid":
+    api.queueStatus("processing")
+    api.queueStatus("valid")
+    check await api.checkChallengeCompleted(
+      parseUri(ChallengeURL), key, "kid", retries = 1
+    )
+    check api.requestedUris == @[parseUri(ChallengeURL), parseUri(ChallengeURL)]
+
   asyncTest "challenge completed max retries reached":
     api.queueChallengeCompleted()
     discard await api.sendChallengeCompleted(parseUri(ChallengeURL), key, "kid")
