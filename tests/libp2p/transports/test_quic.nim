@@ -381,8 +381,7 @@ suite "Quic transport":
     expect QuicTransportAcceptStopped:
       discard await server.accept()
 
-  asyncTest "remote connection close leaves the dialer with a live session":
-    # TODO: vacp2p/nim-lsquic#162
+  asyncTest "remote connection close closes the dialer's session":
     let server = await createQuicTransport(isServer = true)
     let client = await createQuicTransport()
     defer:
@@ -408,12 +407,10 @@ suite "Quic transport":
     defer:
       await readFut.cancelAndWait()
 
-    # a CONNECTION_CLOSE crosses loopback in well under a millisecond
-    # the dialer instead waits out lsquic's 30s idle timeout
     check:
-      not (await readFut.withTimeout(1.seconds))
+      await readFut.withTimeout(1.seconds)
       serverConn.closed
-      not clientConn.closed
+      clientConn.closed
 
   asyncTest "stream idle timeout resets only the idle stream":
     let server = await createQuicTransport(
