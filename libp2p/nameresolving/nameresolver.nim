@@ -55,6 +55,12 @@ method resolveIp*(
   ## Resolve the specified address
   raiseAssert "[NameResolver.resolveIp] abstract method not implemented!"
 
+method start*(self: NameResolver) {.base, gcsafe.} =
+  ## Prepare a resolver for use after it has been closed.
+  ##
+  ## Most resolvers do not own any resources and need no restart handling.
+  discard
+
 method close*(self: NameResolver) {.base, async: (raises: []).} =
   ## Release resources owned by the resolver.
   ##
@@ -208,7 +214,7 @@ proc resolveDnsAddrImpl(
     return @[]
 
   if state.seen.containsOrIncl(ma):
-    info "Stopping cyclic DNSADDR resolution", ma
+    debug "Stopping cyclic DNSADDR resolution", ma
     return @[]
 
   inc state.lookups

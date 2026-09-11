@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[sequtils, tables]
-import chronos
+import chronos, chronos/threadsync
 import
   ../../libp2p/[
     stream/connection,
@@ -16,7 +16,7 @@ import
     nameresolving/mockresolver,
     nameresolving/systemresolver,
   ]
-import ../tools/[unittest, multiaddress]
+import ../tools/[unittest, crypto, multiaddress]
 
 suite "System nameserver discovery":
   test "nameserver entries are parsed in order":
@@ -55,7 +55,7 @@ nameserver 10.0.0.2
       parseNameServers("search example.com\noptions ndots:5\n").len == 0
 
   test "system name servers are never empty":
-    # Either parsed from /etc/resolv.conf or the default public resolvers
+    # Either discovered from platform configuration or the public fallback.
     check getSystemNameServers().len > 0
 
 suite "System Resolving":
@@ -65,7 +65,7 @@ suite "System Resolving":
   asyncTest "resolves localhost via the OS resolver":
     # localhost is in /etc/hosts (or equivalent) everywhere, so this works
     # without network access - and is something DnsResolver cannot do.
-    let resolver = SystemResolver.new()
+    let resolver = SystemResolver.new(rng())
     let addrs = await resolver.resolveIp("localhost", 4001.Port)
     check:
       addrs.len > 0
@@ -73,7 +73,7 @@ suite "System Resolving":
     await resolver.close()
 
   asyncTest "AF_INET filter returns only IPv4 addresses":
-    let resolver = SystemResolver.new()
+    let resolver = SystemResolver.new(rng())
     let addrs = await resolver.resolveIp("localhost", 0.Port, Domain.AF_INET)
     check:
       addrs.len > 0
@@ -81,34 +81,64 @@ suite "System Resolving":
     await resolver.close()
 
   asyncTest "unresolvable name yields an empty result":
-    let resolver = SystemResolver.new()
+    let resolver = SystemResolver.new(rng())
     check (await resolver.resolveIp("thisdomain.doesnot.exist", 0.Port)).len == 0
     await resolver.close()
 
   asyncTest "TXT queries are delegated to the fallback resolver":
     let fallback = MockResolver.new()
     fallback.txtResponses["_dnsaddr.test.io"] = @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
-    let resolver = SystemResolver.new(txtResolver = fallback)
+    let resolver = SystemResolver.new(rng(), txtResolver = fallback)
     check await(resolver.resolveTxt("_dnsaddr.test.io")) ==
       @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
     await resolver.close()
 
   asyncTest "concurrent resolutions all complete":
-    let resolver = SystemResolver.new()
+    let resolver = SystemResolver.new(rng())
     # all submitted before awaiting any, so they resolve concurrently
     let futs = (0 ..< 8).mapIt(resolver.resolveIp("localhost", Port(4001 + it)))
     for fut in futs:
       check (await fut).len > 0
     await resolver.close()
 
+  asyncTest "close stays async and leaves queued resolutions unprocessed":
+    let
+      workerEntered = ThreadSignalPtr.new().expect("create worker-entered signal")
+      workerRelease = ThreadSignalPtr.new().expect("create worker-release signal")
+      resolver = SystemResolver.new(rng(), workers = 1)
+    resolver.setWorkerTestGate(workerEntered, workerRelease)
+    defer:
+      discard workerRelease.fireSync()
+      await resolver.close()
+      discard workerEntered.close()
+      discard workerRelease.close()
+
+    let inFlight = resolver.resolveIp("localhost", 4001.Port)
+    await workerEntered.wait()
+
+    let queued = (0 ..< 2).mapIt(resolver.resolveIp("localhost", Port(4002 + it)))
+    proc releaseWorker() {.async: (raises: [CancelledError]).} =
+      await sleepAsync(10.milliseconds)
+      discard workerRelease.fireSync()
+
+    let releaseFut = releaseWorker()
+    await resolver.close()
+    await releaseFut
+
+    check:
+      resolver.workerTestGateReleased()
+      (await queued[0]).len == 0
+      (await queued[1]).len == 0
+    discard await inFlight
+
   asyncTest "close without any resolution":
-    let resolver = SystemResolver.new()
+    let resolver = SystemResolver.new(rng())
     await resolver.close()
     check (await resolver.resolveIp("localhost", 4001.Port)).len == 0
     await resolver.close() # idempotent
 
   asyncTest "cancelled queued resolutions do not poison the worker pool":
-    let resolver = SystemResolver.new(workers = 1)
+    let resolver = SystemResolver.new(rng(), workers = 1)
     let resolutions =
       (0 ..< 16).mapIt(resolver.resolveIp("cancel-" & $it & ".invalid", 0.Port))
     for i in 1 ..< resolutions.len:

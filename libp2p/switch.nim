@@ -393,7 +393,6 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   if s.ownsNameResolver and not s.nameResolver.isNil:
     await s.nameResolver.close()
-    s.ownsNameResolver = false
 
   s.peerStore.close()
 
@@ -407,6 +406,9 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   info "Starting switch for peer", peerInfo = s.peerInfo
   s.stopping = false
+
+  if s.ownsNameResolver and not s.nameResolver.isNil:
+    s.nameResolver.start()
 
   if not s.connManager.isRunning():
     s.connManager.start()

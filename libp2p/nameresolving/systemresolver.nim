@@ -49,7 +49,11 @@ type
     queueHead, queueTail: ptr SharedRequest
     completedHead: ptr SharedRequest # singly-linked via `next`
     running: Atomic[bool]
+    workersRunning: Atomic[int]
     requestSignal, responseSignal: ThreadSignalPtr
+    when defined(libp2p_testing):
+      workerEntered, workerRelease: ThreadSignalPtr
+      workerGateReleased: Atomic[bool]
 
   SystemResolver* = ref object of NameResolver
     ## Resolves names through the OS resolver (getaddrinfo), offloaded to
@@ -61,32 +65,40 @@ type
     pending: seq[
       tuple[req: ptr SharedRequest, fut: Future[seq[TransportAddress]].Raising([CancelledError])]
     ]
-    dispatcherStarted: bool
-    dispatcherDone: Future[void].Raising([CancelledError])
+    dispatcherFut: Future[void].Raising([])
     closed: bool
+    when defined(libp2p_testing):
+      workerEntered, workerRelease: ThreadSignalPtr
+      workerGateReleased: bool
 
 proc workerLoop(shared: ptr SharedState) {.thread.} =
   {.cast(gcsafe).}:
-    while true:
+    while shared[].running.load():
       discard shared[].requestSignal.waitSync()
-      if not shared[].running.load():
-        # cascade the shutdown wakeup to any siblings still blocked in
-        # waitSync, then exit
-        discard shared[].requestSignal.fireSync()
-        break
       while true:
+        var req: ptr SharedRequest
         shared[].lock.acquire()
-        let req = shared[].queueHead
-        if not req.isNil:
-          shared[].queueHead = req.next
-          if shared[].queueHead.isNil:
-            shared[].queueTail = nil
+        if shared[].running.load():
+          req = shared[].queueHead
+          if not req.isNil:
+            shared[].queueHead = req.next
+            if shared[].queueHead.isNil:
+              shared[].queueTail = nil
         shared[].lock.release()
         if req.isNil:
           break
 
         if RequestState(req.state.load()) == RequestState.Pending:
           let host = $cast[cstring](addr req.host[0])
+          when defined(libp2p_testing):
+            let workerRelease = shared[].workerRelease
+            if not workerRelease.isNil:
+              shared[].workerRelease = nil
+              discard shared[].workerEntered.fireSync()
+              let waitResult = workerRelease.waitSync(2.seconds)
+              shared[].workerGateReleased.store(
+                waitResult.isOk and waitResult.get()
+              )
           try:
             let resolved = resolveTAddress(host, Port(req.port), req.domain)
             req.resultsLen = min(resolved.len, MaxResolvedAddresses)
@@ -103,6 +115,12 @@ proc workerLoop(shared: ptr SharedState) {.thread.} =
         shared[].completedHead = req
         shared[].lock.release()
         discard shared[].responseSignal.fireSync()
+
+    # Wake another idle worker during shutdown, then notify the event-loop
+    # thread that this worker no longer touches shared state.
+    discard shared[].requestSignal.fireSync()
+    discard shared[].workersRunning.fetchSub(1)
+    discard shared[].responseSignal.fireSync()
 
 proc finishRequest(self: SystemResolver, req: ptr SharedRequest, withResults: bool) =
   ## Complete (or skip, when cancelled) the future waiting on `req` and
@@ -143,8 +161,6 @@ proc dispatchLoop(self: SystemResolver) {.async: (raises: []).} =
     except AsyncError, CancelledError:
       continue
     self.drainCompleted()
-  if not self.dispatcherDone.isNil and not self.dispatcherDone.finished():
-    self.dispatcherDone.complete()
 
 proc startWorkers(self: SystemResolver) {.raises: [TransportAddressError].} =
   ## Allocate the shared state and worker pool on first use. Most switches never
@@ -155,6 +171,11 @@ proc startWorkers(self: SystemResolver) {.raises: [TransportAddressError].} =
   let shared = cast[ptr SharedState](allocShared0(sizeof(SharedState)))
   initLock(shared[].lock)
   shared[].running.store(true)
+  shared[].workersRunning.store(0)
+  when defined(libp2p_testing):
+    shared[].workerEntered = self.workerEntered
+    shared[].workerRelease = self.workerRelease
+    shared[].workerGateReleased.store(false)
   shared[].requestSignal = ThreadSignalPtr.new().valueOr:
     deinitLock(shared[].lock)
     deallocShared(shared)
@@ -172,6 +193,7 @@ proc startWorkers(self: SystemResolver) {.raises: [TransportAddressError].} =
   try:
     for i in 0 ..< workers.len:
       createThread(workers[i], workerLoop, shared)
+      discard shared[].workersRunning.fetchAdd(1)
       inc started
   except ResourceExhaustedError as exc:
     workers.setLen(started)
@@ -188,15 +210,12 @@ proc startWorkers(self: SystemResolver) {.raises: [TransportAddressError].} =
 
   self.shared = shared
   self.workers = workers
-  self.dispatcherDone =
-    Future[void].Raising([CancelledError]).init("systemresolver.dispatcherDone")
-  self.dispatcherStarted = true
-  asyncSpawn self.dispatchLoop()
+  self.dispatcherFut = self.dispatchLoop()
 
 proc new*(
     T: type SystemResolver,
+    rng: Rng,
     txtResolver: NameResolver = nil,
-    rng: Rng = newRng(),
     workers: int = 2,
 ): T =
   ## Create a SystemResolver which starts `workers` worker threads on first use.
@@ -212,6 +231,20 @@ proc new*(
         txtResolver,
     workerCount: workers,
   )
+
+when defined(libp2p_testing):
+  proc setWorkerTestGate*(
+      self: SystemResolver, entered, release: ThreadSignalPtr
+  ) =
+    ## Delay the first worker lookup so shutdown behavior can be tested.
+    doAssert self.shared.isNil
+    doAssert not entered.isNil and not release.isNil
+    self.workerEntered = entered
+    self.workerRelease = release
+    self.workerGateReleased = false
+
+  proc workerTestGateReleased*(self: SystemResolver): bool =
+    self.workerGateReleased
 
 method resolveIp*(
     self: SystemResolver, address: string, port: Port, domain: Domain = Domain.AF_UNSPEC
@@ -261,6 +294,11 @@ method resolveTxt*(
     return @[]
   return await self.txtResolver.resolveTxt(address)
 
+method start*(self: SystemResolver) {.gcsafe.} =
+  ## Worker resources are created lazily by the next IP resolution.
+  if self.shared.isNil:
+    self.closed = false
+
 method close*(self: SystemResolver) {.async: (raises: []).} =
   ## Stop the worker threads and release all resources. Resolutions still
   ## in flight are completed with empty results.
@@ -272,11 +310,30 @@ method close*(self: SystemResolver) {.async: (raises: []).} =
     return
 
   let shared = self.shared
+  shared[].lock.acquire()
   shared[].running.store(false)
+  shared[].lock.release()
   discard shared[].requestSignal.fireSync()
-  # Workers only block on the request signal or inside getaddrinfo, so
-  # this returns once the in-flight resolution (if any) finishes.
+
+  # Stop the dispatcher before using its signal to await worker exits.
+  if not self.dispatcherFut.isNil:
+    discard shared[].responseSignal.fireSync()
+    await noCancel self.dispatcherFut
+    self.dispatcherFut = nil
+
+  # A worker may still be inside getaddrinfo, but waiting for it must not
+  # block the event loop. Every worker signals after decrementing this count.
+  while shared[].workersRunning.load() > 0:
+    try:
+      await shared[].responseSignal.wait()
+    except AsyncError, CancelledError:
+      continue
+    self.drainCompleted()
+
+  # All workers have exited, so joining only releases their thread handles.
   joinThreads(self.workers)
+  when defined(libp2p_testing):
+    self.workerGateReleased = shared[].workerGateReleased.load()
 
   # No worker can touch the shared state anymore: complete whatever is
   # left, with results where the worker managed to produce them.
@@ -286,10 +343,6 @@ method close*(self: SystemResolver) {.async: (raises: []).} =
     let req = cur
     cur = req.next
     self.finishRequest(req, withResults = false)
-
-  if self.dispatcherStarted:
-    discard shared[].responseSignal.fireSync()
-    await noCancel self.dispatcherDone
 
   discard shared[].requestSignal.close()
   discard shared[].responseSignal.close()

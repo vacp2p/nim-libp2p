@@ -258,8 +258,13 @@ suite "Switch":
     check (await ownedResolver.resolveIp("localhost", 4001.Port)).len > 0
     await ownedSwitch.stop()
     check (await ownedResolver.resolveIp("localhost", 4001.Port)).len == 0
+    check ownedSwitch.ownsNameResolver
 
-    let externalResolver = SystemResolver.new()
+    await ownedSwitch.start()
+    check (await ownedResolver.resolveIp("localhost", 4001.Port)).len > 0
+    await ownedSwitch.stop()
+
+    let externalResolver = SystemResolver.new(rng())
     let externalSwitch =
       makeStandardSwitchBuilder().withNameResolver(externalResolver).build()
     await externalSwitch.stop()

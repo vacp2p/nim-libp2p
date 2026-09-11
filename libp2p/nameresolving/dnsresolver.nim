@@ -17,6 +17,61 @@ const DefaultDnsServers* = @[
   initTAddress("[2606:4700:4700::1111]:53"),
 ]
 
+when defined(windows):
+  const
+    ErrorSuccess = 0'u32
+    ErrorBufferOverflow = 111'u32
+    AfUnspec = 0'u32
+    AfInet = 2'u16
+    AfInet6 = 23'u16
+
+  type
+    RawSockaddr = object
+      family: uint16
+
+    RawSockaddrIn = object
+      family, port: uint16
+      address: array[4, uint8]
+      padding: array[8, uint8]
+
+    RawSockaddrIn6 = object
+      family, port: uint16
+      flowInfo: uint32
+      address: array[16, uint8]
+      scopeId: uint32
+
+    SocketAddress {.importc: "SOCKET_ADDRESS", header: "<iphlpapi.h>", bycopy.} =
+      object
+        sockAddr {.importc: "lpSockaddr".}: pointer
+        length {.importc: "iSockaddrLength".}: int32
+
+    IpAdapterDnsServerAddress {.
+      importc: "IP_ADAPTER_DNS_SERVER_ADDRESS", header: "<iphlpapi.h>", bycopy
+    .} = object
+      next {.importc: "Next".}: ptr IpAdapterDnsServerAddress
+      address {.importc: "Address".}: SocketAddress
+
+    IpAdapterAddresses {.
+      importc: "IP_ADAPTER_ADDRESSES", header: "<iphlpapi.h>", bycopy
+    .} = object
+      next {.importc: "Next".}: ptr IpAdapterAddresses
+      firstDnsServerAddress {.
+        importc: "FirstDnsServerAddress"
+      .}: ptr IpAdapterDnsServerAddress
+
+  static:
+    doAssert sizeof(RawSockaddrIn) == 16
+    doAssert sizeof(RawSockaddrIn6) == 28
+
+  proc getAdaptersAddresses(
+      family, flags: uint32,
+      reserved: pointer,
+      addresses: ptr IpAdapterAddresses,
+      size: ptr uint32,
+  ): uint32 {.
+    stdcall, importc: "GetAdaptersAddresses", dynlib: "iphlpapi.dll"
+  .}
+
 proc parseNameServers*(conf: string): seq[TransportAddress] =
   ## Extracts nameserver addresses from resolv.conf-formatted content.
   ## resolv.conf(5): at most 3 nameservers are used.
@@ -33,16 +88,76 @@ proc parseNameServers*(conf: string): seq[TransportAddress] =
     if result.len >= 3:
       break
 
+when defined(windows):
+  proc addWindowsNameServer(
+      result: var seq[TransportAddress], address: SocketAddress
+  ) =
+    if address.sockAddr.isNil:
+      return
+
+    let family = cast[ptr RawSockaddr](address.sockAddr)[].family
+    var server: TransportAddress
+    case family
+    of AfInet:
+      if address.length < int32(sizeof(RawSockaddrIn)):
+        return
+      let raw = cast[ptr RawSockaddrIn](address.sockAddr)
+      server = TransportAddress(
+        family: AddressFamily.IPv4, address_v4: raw[].address, port: Port(53)
+      )
+    of AfInet6:
+      if address.length < int32(sizeof(RawSockaddrIn6)):
+        return
+      let raw = cast[ptr RawSockaddrIn6](address.sockAddr)
+      # TransportAddress cannot carry an IPv6 interface scope. Prefer another
+      # configured server over turning a scoped link-local address into an
+      # unusable unscoped destination.
+      if raw[].scopeId != 0:
+        return
+      server = TransportAddress(
+        family: AddressFamily.IPv6, address_v6: raw[].address, port: Port(53)
+      )
+    else:
+      return
+
+    if server notin result:
+      result.add(server)
+
+  proc getWindowsNameServers(): seq[TransportAddress] =
+    var size = 0'u32
+    if getAdaptersAddresses(AfUnspec, 0, nil, nil, addr size) !=
+        ErrorBufferOverflow or size == 0:
+      return
+
+    let addresses = cast[ptr IpAdapterAddresses](alloc0(int(size)))
+    if addresses.isNil:
+      return
+    defer:
+      dealloc(addresses)
+
+    if getAdaptersAddresses(AfUnspec, 0, nil, addresses, addr size) != ErrorSuccess:
+      return
+
+    var adapter = addresses
+    while not adapter.isNil:
+      var server = adapter[].firstDnsServerAddress
+      while not server.isNil:
+        result.addWindowsNameServer(server[].address)
+        server = server[].next
+      adapter = adapter[].next
+
 proc getSystemNameServers*(): seq[TransportAddress] =
   ## Best-effort system nameserver discovery, falling back to
-  ## `DefaultDnsServers` when /etc/resolv.conf is missing or has no usable
-  ## entries (e.g. on Windows).
-  var conf: string
-  try:
-    conf = readFile("/etc/resolv.conf")
-  except IOError, OSError:
-    discard
-  result = parseNameServers(conf)
+  ## `DefaultDnsServers` when the platform configuration has no usable entries.
+  when defined(windows):
+    result = getWindowsNameServers()
+  else:
+    var conf: string
+    try:
+      conf = readFile("/etc/resolv.conf")
+    except IOError, OSError:
+      discard
+    result = parseNameServers(conf)
   if result.len == 0:
     result = DefaultDnsServers
 
