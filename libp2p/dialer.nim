@@ -25,7 +25,7 @@ import
   utils/future,
   errors
 
-export dial, dial_backoff, dialcandidate, errors, results
+export dial, dial_backoff, errors, results
 
 logScope:
   topics = "libp2p dialer"
@@ -41,6 +41,8 @@ declarePublicHistogram libp2p_dial_duration_ms,
 
 const MaxDialCandidates* = 32
   ## A peer names as many addresses as it likes, and each dnsaddr fans out further.
+
+const MaxParallelDials* = 8 ## Attempts one ranked peer dial holds open at once.
 
 const MaxExpandedAddresses = MaxDialCandidates * 8
   ## Ceiling on what one peer's dnsaddr chain holds in flight before the filter.
@@ -72,7 +74,6 @@ type
     nameResolver: NameResolver
     ms: MultistreamSelect
     dialRanking: bool ## overlap the name lookups with the dials, and rank the dials
-    dialRankingConfig: DialRankingConfig
     dialBackoff: Opt[DialBackoff] ## none unless the switch opted in
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
@@ -432,17 +433,13 @@ proc dropLosers(attempts: seq[DialAttempt]) {.async: (raises: []).} =
         await mux.close()
 
 type RankedDial = ref object
-  ## One ranked peer dial: what waits, what is in flight, and what lookups can still add.
-  plan: DialPlan
-  maxParallel: int
-  started: Moment
   deadline: Moment
   dir: Direction
   forceDial: bool
   reach: DialReach
   dialable: DialBudget
   unresolved: DialBudget
-  queued: seq[DialCandidate]
+  queued: seq[DialCandidate] ## best rank first, in arrival order within a rank
   pending: seq[DialAttempt]
   lookups: int ## advertised names whose lookups can still queue candidates
   changed: Future[void] ## completes when a candidate is queued or a name lookup ends
@@ -451,48 +448,25 @@ proc wake(dial: RankedDial) =
   if not dial.changed.finished():
     dial.changed.complete()
 
-proc dueAt(dial: RankedDial, candidate: DialCandidate): Moment =
-  dial.started + dial.plan.dialDelay(candidate)
+func byRank(a, b: DialCandidate): int =
+  cmp(a.dialRank(), b.dialRank())
 
 proc queue(dial: RankedDial, candidates: seq[DialCandidate]) =
-  ## Queue the fresh candidates, within the candidate limit of the dial.
   for candidate in dial.dialable.take(candidates):
-    dial.plan.add(candidate)
-    dial.queued.add(candidate)
-
-  dial.queued.sort(
-    proc(a, b: DialCandidate): int =
-      let byDue = cmp(dial.dueAt(a), dial.dueAt(b))
-      if byDue != 0:
-        byDue
-      else:
-        cmp(a.dialGroup(), b.dialGroup())
-  )
+    dial.queued.insert(candidate, dial.queued.upperBound(candidate, byRank))
   dial.wake()
 
-proc openDue(self: Dialer, dial: RankedDial) =
-  ## Start the due candidates up to the parallel limit. With nothing in flight, the next ones are due.
-
-  if dial.queued.len == 0 or dial.deadline.timeLeft().isZero():
+proc openSlots(self: Dialer, dial: RankedDial) =
+  if dial.deadline.timeLeft().isZero():
     return
 
-  let openUntil =
-    if dial.pending.len == 0:
-      max(Moment.now(), dial.dueAt(dial.queued[0]))
-    else:
-      Moment.now()
-
-  while dial.queued.len > 0 and dial.pending.len < dial.maxParallel:
+  while dial.queued.len > 0 and dial.pending.len < MaxParallelDials:
     let candidate = dial.queued[0]
-    if dial.dueAt(candidate) > openUntil:
-      return
-
     dial.queued.delete(0)
     trace "Ranked dial attempt opened",
       peerId = candidate.peerId,
       address = candidate.address,
-      group = candidate.dialGroup(),
-      elapsed = Moment.now() - dial.started
+      rank = candidate.dialRank()
     dial.pending.add(
       self.dialAndUpgrade(
         candidate.peerId, candidate.hostname, candidate.address, dial.dir,
@@ -516,29 +490,12 @@ proc takeWinner(dial: RankedDial): Muxer =
 
   nil
 
-proc nextWake(dial: RankedDial): Moment =
-  if dial.queued.len == 0 or dial.pending.len >= dial.maxParallel:
-    return dial.deadline
-
-  min(dial.dueAt(dial.queued[0]), dial.deadline)
-
-proc firstOf(events: seq[FutureBase]) {.async: (raises: [CancelledError]).} =
+proc nextEvent(dial: RankedDial) {.async: (raises: [CancelledError]).} =
+  ## Every attempt and lookup ends by the dial deadline, so no timer wakes the loop.
   try:
-    discard await race(events)
+    discard await race(dial.pending.mapIt(FutureBase(it)) & FutureBase(dial.changed))
   except ValueError as e:
     raiseAssert "race() over a non-empty seq: " & e.msg
-
-proc nextEvent(dial: RankedDial) {.async: (raises: [CancelledError]).} =
-  let events = dial.pending.mapIt(FutureBase(it)) & FutureBase(dial.changed)
-  if dial.deadline.timeLeft().isZero():
-    await firstOf(events)
-    return
-
-  let timer = sleepAsync(dial.nextWake().timeLeft())
-  defer:
-    await noCancel timer.cancelAndWait()
-
-  await firstOf(events & FutureBase(timer))
 
 proc run(
     self: Dialer, dial: RankedDial
@@ -556,9 +513,8 @@ proc run(
     if not isNil(mux):
       return mux
 
-    self.openDue(dial)
-    let nothingToOpen = dial.queued.len == 0 or dial.deadline.timeLeft().isZero()
-    if nothingToOpen and dial.pending.len == 0 and dial.lookups == 0:
+    self.openSlots(dial)
+    if dial.pending.len == 0 and dial.lookups == 0:
       return nil
 
     await dial.nextEvent()
@@ -592,12 +548,9 @@ proc dialRanked(
     forceDial: bool,
     reach: DialReach,
 ): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Queue the wire addresses at once and each name's as soon as it resolves, and dial them by rank.
+  ## Dial the wire addresses at once and each name's addresses as it resolves, best rank first.
 
   let dial = RankedDial(
-    plan: DialPlan.init(self.dialRankingConfig),
-    maxParallel: max(self.dialRankingConfig.maxParallelDials, 1),
-    started: Moment.now(),
     deadline: deadline,
     dir: dir,
     forceDial: forceDial,
@@ -961,7 +914,6 @@ proc new*(
     nameResolver: NameResolver = nil,
     dialTimeout = DefaultDialerTimeout,
     dialRanking = false,
-    dialRankingConfig = DefaultDialRanking,
     dialBackoff = Opt.none(DialBackoffConfig),
 ): Dialer {.raises: [].} =
   var backoff = Opt.none(DialBackoff)
@@ -977,6 +929,5 @@ proc new*(
     ms: ms,
     dialTimeout: dialTimeout,
     dialRanking: dialRanking,
-    dialRankingConfig: dialRankingConfig,
     dialBackoff: backoff,
   )
