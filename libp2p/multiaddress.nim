@@ -1327,7 +1327,7 @@ proc getIPs*(addrs: seq[MultiAddress]): seq[IpAddress] =
   ## Multiaddresses without an IP4/IP6 component are skipped.
   var ips = newSeqOfCap[IpAddress](addrs.len)
   for ma in addrs:
-    ma.getIp().withValue(ip):
+    ma.getIp().ifValue(ip):
       ips.add(ip)
   ips
 

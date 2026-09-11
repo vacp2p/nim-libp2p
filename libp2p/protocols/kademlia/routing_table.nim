@@ -109,7 +109,7 @@ proc oldestPeer*(bucket: Bucket, registry: PeerRegistry): (Key, int) =
   var found = false
   for i, p in bucket.peers:
     var seen = Moment.low
-    registry.get(p).withValue(record):
+    registry.get(p).ifValue(record):
       seen = record.lastSeen
     if not found or seen < oldestSeen:
       oldestKey = p
@@ -157,7 +157,7 @@ proc replaceableCandidate(
     if not rtable.registry.isReplaceable(nodeId, rtable.selfId, gracePeriod, now):
       continue
     var seen = Moment.low
-    rtable.registry.get(nodeId).withValue(record):
+    rtable.registry.get(nodeId).ifValue(record):
       seen = record.lastSeen
     if candidateIdx == -1 or seen < oldestSeen:
       candidateIdx = i

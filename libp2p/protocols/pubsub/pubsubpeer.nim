@@ -207,7 +207,7 @@ proc getAgent*(peer: PubSubPeer): string =
       "unknown"
 
 proc newOverheadBucket*(overheadRateLimit: Opt[RateLimit]): Opt[TokenBucket] =
-  overheadRateLimit.withValue(limit):
+  overheadRateLimit.ifValue(limit):
     if limit.bytes <= 0 or limit.interval <= ZeroDuration:
       # such a bucket refuses every charge, which would disconnect every peer
       warn "ignoring an unusable overhead rate limit", limit
@@ -222,7 +222,7 @@ proc tryCharge*(peer: PubSubPeer, overhead: int): bool =
   if overhead <= 0:
     return true
 
-  peer.overheadRateLimitOpt.withValue(overheadRateLimit):
+  peer.overheadRateLimitOpt.ifValue(overheadRateLimit):
     return overheadRateLimit.tryConsume(overhead)
 
   true

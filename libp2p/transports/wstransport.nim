@@ -352,7 +352,7 @@ method start*(
     raise newException(TransportStartError, $error)
 
   if not self.secure and self.autotls.isSome():
-    self.autotls.withValue(autotls):
+    self.autotls.ifValue(autotls):
       if not await autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
         error "Unable to upgrade, autotls not running"
         await self.stop()

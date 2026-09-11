@@ -262,7 +262,7 @@ method start*(
         if self.cert.isNone():
           await self.tryIssueCertificate()
 
-        self.cert.withValue(cert):
+        self.cert.ifValue(cert):
           let timeUntilExpiry = seconds(cert.expiry.toTime.toUnix - now().toTime.toUnix)
           if timeUntilExpiry <= self.config.renewBufferTime:
             await self.tryIssueCertificate()

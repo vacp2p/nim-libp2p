@@ -106,8 +106,8 @@ proc makeIdentifyMsg(
 
 proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
   var spr = Opt.none(Envelope)
-  msg.signedPeerRecord.withValue(sprBytes):
-    SignedPeerRecord.decode(sprBytes).toOpt().withValue(signedPeerRecord):
+  msg.signedPeerRecord.ifValue(sprBytes):
+    SignedPeerRecord.decode(sprBytes).toOpt().ifValue(signedPeerRecord):
       if signedPeerRecord.data.peerId == peer:
         spr = Opt.some(signedPeerRecord.envelope)
 
@@ -174,7 +174,7 @@ proc identify*(
   trace "identify: info received", stream, identifyMsg
 
   var peer: PeerId
-  identifyMsg.publicKey.withValue(pubkey):
+  identifyMsg.publicKey.ifValue(pubkey):
     peer = PeerId.init(pubkey).valueOr:
       raise newException(IdentityInvalidMsgError, $error)
     if peer != remotePeerId:
@@ -183,7 +183,7 @@ proc identify*(
   else:
     peer = remotePeerId
 
-  identifyMsg.observedAddr.withValue(observed):
+  identifyMsg.observedAddr.ifValue(observed):
     if not self.addressManager.addObservation(peer, observed):
       trace "Observed address is not valid.", observedAddr = observed
 
@@ -216,7 +216,7 @@ proc init*(p: IdentifyPush) =
     trace "identify push: info received", stream, identifyMsg
 
     var peerId: PeerId
-    identifyMsg.publicKey.withValue(pubkey):
+    identifyMsg.publicKey.ifValue(pubkey):
       let receivedPeerId = PeerId.init(pubkey).valueOr:
         trace "could not create PeerId from pubkey", stream
         return

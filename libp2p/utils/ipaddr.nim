@@ -58,7 +58,7 @@ func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool 
       return false
 
   for ma in addrs:
-    ma[0].withValue(ipAddr):
+    ma[0].ifValue(ipAddr):
       if ipAddr == lookupIp:
         return true
   false
@@ -70,7 +70,7 @@ proc ipSupport*(addrs: seq[MultiAddress]): (bool, bool) =
   var ipv6 = false
 
   for ma in addrs:
-    ma[0].withValue(addrIp):
+    ma[0].ifValue(addrIp):
       if IP4.match(addrIp):
         ipv4 = true
       elif IP6.match(addrIp):

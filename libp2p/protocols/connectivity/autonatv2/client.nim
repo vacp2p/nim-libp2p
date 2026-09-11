@@ -56,7 +56,7 @@ proc handleDialBack(
     trace "DialBack requires a fresh inbound connection", nonce = dialBack.nonce
     return
 
-  stream.localAddr.withValue(localAddr):
+  stream.localAddr.ifValue(localAddr):
     trace "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
     self.expectedNonces[dialBack.nonce] =
@@ -207,7 +207,7 @@ method sendDialRequest*(
 
     trace "Received DialResponse", dialResp = dialResp
 
-    dialResp.dialStatus.withValue(dialStatus):
+    dialResp.dialStatus.ifValue(dialStatus):
       if dialStatus == DialStatus.Ok:
         let addrIdx = dialResp.addrIdx.valueOr(0.AddrIdx)
         if not self.checkAddrIdx(addrIdx, testAddrs, nonce):

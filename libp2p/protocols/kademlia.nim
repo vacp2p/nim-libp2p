@@ -33,7 +33,7 @@ proc peersPastGracePeriod(
     for nodeId in bucket.peers:
       if not rtable.registry.isReplaceable(nodeId, rtable.selfId, gracePeriod, now):
         continue
-      nodeId.toPeerId().withValue(pid):
+      nodeId.toPeerId().ifValue(pid):
         peers.add(pid)
   peers
 
@@ -211,7 +211,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
 proc centerTarget(kad: KadDHT, rtable: RoutingTable): Opt[Key] {.raises: [].} =
   ## A table with no peers of its own borrows the main table's peers to start the walk.
-  rtable.refreshSelfTarget().withValue(own):
+  rtable.refreshSelfTarget().ifValue(own):
     return Opt.some(own)
   rtable.nearestToCenter(kad.rtable.allKeys())
 
@@ -373,8 +373,8 @@ proc initKadBase*(
   kad.bootstrapNodes = bootstrapNodes.toPeerInfos()
   kad.updatePeers(kad.bootstrapNodes)
 
-# K instead of T to avoid clashing with the T type param in withValue[T] when
-# called inside a withValue block, which causes a compiler error under --lineDir:on
+# K instead of T to avoid clashing with the T type param in ifValue[T] when
+# called inside a ifValue block, which causes a compiler error under --lineDir:on
 proc new*(
     K: typedesc[KadDHT],
     switch: Switch,

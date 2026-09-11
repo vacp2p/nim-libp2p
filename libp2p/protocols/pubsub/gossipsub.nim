@@ -374,7 +374,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     return
 
   # remove from peer IPs collection too
-  pubSubPeer.address.withValue(address):
+  pubSubPeer.address.ifValue(address):
     g.peersInIP.withValue(address, s):
       s[].excl(pubSubPeer.peerId)
       if s[].len == 0:
@@ -641,7 +641,7 @@ proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
         byteSize(msg.messages)
       else:
         dataAndTopicsIdSize(msg.messages)
-    controlSize = msg.control.withValue(control):
+    controlSize = msg.control.ifValue(control):
       byteSize(control.ihave) + byteSize(control.iwant)
     do:
       0
@@ -1085,7 +1085,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
   # these params are not set. they can be set with non default behaviour in
   # unit tests.
 
-  g.parameters.testExtensionConfig.withValue(c):
+  g.parameters.testExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.onNegotiated.isNil:
@@ -1099,7 +1099,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.testExtensionConfig = Opt.some(cfg)
 
-  g.parameters.partialMessageExtensionConfig.withValue(c):
+  g.parameters.partialMessageExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.sendRPC.isNil:
@@ -1127,7 +1127,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.partialMessageExtensionConfig = Opt.some(cfg)
 
-  g.parameters.pingpongExtensionConfig.withValue(c):
+  g.parameters.pingpongExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.sendPong.isNil:
@@ -1137,7 +1137,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
-  g.parameters.preambleExtensionConfig.withValue(c):
+  g.parameters.preambleExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.broadcastRPC.isNil:
