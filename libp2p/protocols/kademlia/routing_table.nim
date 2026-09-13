@@ -310,6 +310,25 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   findClosest(rtable, targetId, count).toPeerIds()
 
+proc pickClosestFirst(
+    buckets: openArray[seq[Key]], rng: Rng, count: int, maxPerBucket: int
+): seq[Key] =
+  ## Up to `count` keys sampled randomly per bucket, closest bucket (highest
+  ## index) first, at most `maxPerBucket` from each.
+  var selected: seq[Key] = @[]
+  var remaining = count
+
+  for i in countdown(buckets.high, 0):
+    if remaining <= 0:
+      break
+
+    let take = min(remaining, min(maxPerBucket, buckets[i].len))
+    for nodeId in rng.pick(buckets[i], take).valueOr(@[]):
+      selected.add(nodeId)
+      remaining.dec
+
+  return selected
+
 proc randomPeersClosestFirst*(
     rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
 ): seq[Key] =
@@ -320,25 +339,31 @@ proc randomPeersClosestFirst*(
   if count <= 0:
     return @[]
 
-  var selected: seq[Key] = @[]
-  var remaining = count
+  pickClosestFirst(rtable.buckets.mapIt(it.peers), rng, count, maxPerBucket)
 
-  for i in countdown(rtable.buckets.high, 0):
-    if remaining <= 0:
-      break
-    let bucket = rtable.buckets[i]
-    if bucket.peers.len == 0:
-      continue
+proc randomPeersClosestFirst*(
+    rtable: RoutingTable,
+    target: Key,
+    rng: Rng,
+    count: int,
+    maxPerBucket = high(int),
+    maxBuckets = rtable.config.maxBuckets,
+): seq[Key] =
+  ## Same sampling, but with the table's peers viewed by distance to the
+  ## pre-hashed ``target`` (which must be ``IdLength`` bytes) instead of to
+  ## ``selfId``. Read-only: nothing is inserted and neither the registry nor
+  ## the metrics are touched.
+  if count <= 0:
+    return @[]
 
-    let take = min(remaining, min(maxPerBucket, bucket.peers.len))
-    let picked = rng.pick(bucket.peers, take).valueOr(@[])
-    for nodeId in picked:
-      selected.add(nodeId)
-      remaining.dec
-      if remaining <= 0:
-        break
+  var view = newSeq[seq[Key]](bucketCount(maxBuckets))
+  for bucket in rtable.buckets:
+    for nodeId in bucket.peers:
+      let lz = xorDistance(target, Key.fromBytes(nodeId.hashFor(rtable.config.hasher)))
+        .leadingZeros()
+      view[min(lz, view.high)].add(nodeId)
 
-  return selected
+  pickClosestFirst(view, rng, count, maxPerBucket)
 
 proc randomPeersClosestFirstPeerIds*(
     rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
