@@ -138,8 +138,10 @@ suite "Service Discovery Component - Registrar Closer Peers":
     let serviceId = Key.init(keys[targetIdx].hashFor(rtable.config.hasher))
     check registrarNode.rtManager.getTable(serviceId).isNone()
 
+    # Ask as a peer other than the target, which `targetIdx == 0` would make it.
+    let requester = others[(targetIdx + 1) mod others.len]
     let response = registrarNode.getAdvertisements(
-      others[0].switch.peerInfo.peerId,
+      requester.switch.peerInfo.peerId,
       Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId)),
     )
 

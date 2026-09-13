@@ -270,43 +270,20 @@ proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   disco.admitPeers(sender)
   disco.rtManager.admitPeers(disco, serviceId, sender)
 
-proc serviceView(disco: ServiceDiscovery, serviceId: ServiceId): RoutingTable =
-  ## Main-table peers bucketed by distance to ``serviceId``: the spec's GETPEERS
-  ## ``RegT(service_id_hash) <- KadDHT(peerID)``. Built directly rather than via
-  ## ``insert`` so it touches neither the shared registry nor the Kad metrics.
-  let view = RoutingTable.new(
-    serviceId,
-    config = RoutingTableConfig.new(
-      hasher = disco.rtable.config.hasher,
-      maxBuckets = disco.discoConfig.bucketsCount,
-      selfIdPreHashed = true,
-    ),
-    localNodeId = Opt.some(disco.rtable.localNodeId),
-  )
-  for bucket in disco.rtable.buckets:
-    for nodeId in bucket.peers:
-      let idx = view.bucketIndex(nodeId)
-      if idx >= view.buckets.len:
-        view.buckets.setLen(idx + 1)
-      view.buckets[idx].peers.add(nodeId)
-  view
-
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
-  # A key of the wrong length is not a service ID, so no peer is closer to it,
-  # and bucketing around it would trip `xorDistance`'s length assert.
-  if serviceId.len != IdLength:
-    return @[]
-
-  # Without a table for this service, the main table is centred on this node,
-  # so bucketing it as-is would suggest peers near us rather than the service.
-  let table = disco.rtManager.getTable(serviceId).valueOr:
-    disco.serviceView(serviceId)
-
-  let keys = table.randomPeersClosestFirst(
-    disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
-  )
+  let maxPerBucket = disco.discoConfig.kRegister
+  let table = disco.rtManager.getTable(serviceId)
+  let keys =
+    if table.isSome():
+      table.get().randomPeersClosestFirst(disco.rng, count, maxPerBucket)
+    else:
+      # No table for this service: view the main table by distance to the
+      # service (the spec's GETPEERS), not by distance to this node.
+      disco.rtable.randomPeersClosestFirst(
+        serviceId, disco.rng, count, maxPerBucket, disco.discoConfig.bucketsCount
+      )
 
   return disco.switch.toPeers(keys)
 
@@ -319,6 +296,24 @@ proc registration*(
   let serviceId = inMsg.key.valueOr:
     trace "Key not set: registration", msg = inMsg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key is not a service id: registration", msg = inMsg
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return Message(
+      msgType: Opt.some(MessageType.register),
+      register: Opt.some(
+        RegisterMessage(
+          advertisement: Opt.none(seq[byte]),
+          status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -422,6 +417,13 @@ proc getAdvertisements*(
   let serviceId = msg.key.valueOr:
     trace "Key not set: getAdvertisements", msg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key is not a service id: getAdvertisements", msg
+    return Message(
+      msgType: Opt.some(MessageType.getAds),
+      getAds: Opt.some(GetAdsMessage(advertisements: @[])),
+    )
 
   disco.seatSender(serviceId, peerId)
 

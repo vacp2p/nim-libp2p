@@ -61,6 +61,21 @@ suite "KadDHT Routing Table":
 
     check not rt.insert(selfId)
 
+  test "samples peers closest to a target instead of closest to self":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [1, 3, TargetBucket]:
+      discard rt.insert(rt.keyInBucket(bucket))
+
+    # With `noOpHasher` a key is its own hash, so a peer is at distance 0 from
+    # itself and lands in the last bucket of a view centred on it.
+    let target = rt.buckets[1].peers[0]
+    check rt.randomPeersClosestFirst(target, rng(), 1) == @[target]
+
+    # Centred on self, the same table starts from its own closest bucket.
+    check rt.randomPeersClosestFirst(rng(), 1) == @[rt.buckets[TargetBucket].peers[0]]
+
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
