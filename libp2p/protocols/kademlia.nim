@@ -19,7 +19,7 @@ export
   provider, ping, kademlia_metrics, netsize, probe_backoff, ip_diversity
 
 logScope:
-  topics = "libp2p kad-dht"
+  topics = "libp2p kademlia"
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 

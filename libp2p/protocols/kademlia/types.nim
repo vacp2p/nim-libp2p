@@ -12,7 +12,7 @@ import ./[key_value, protobuf, message_sender]
 export tables, sets, heapqueue, key_value, message_sender
 
 logScope:
-  topics = "libp2p kad-dht"
+  topics = "libp2p kademlia"
 
 const
   MaxBucketsLimit* = IdLength * 8

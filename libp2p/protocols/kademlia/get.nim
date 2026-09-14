@@ -9,7 +9,7 @@ import ../protocol
 import ./[protobuf, types, find, put, rpc, kademlia_metrics]
 
 logScope:
-  topics = "libp2p kad-dht"
+  topics = "libp2p kademlia"
 
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key

@@ -24,7 +24,7 @@ import
   websock/websock
 
 logScope:
-  topics = "libp2p ws-transport"
+  topics = "libp2p websocket"
 
 export transport, websock, results
 

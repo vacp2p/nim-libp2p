@@ -7,7 +7,7 @@ import ../protocol
 import ./[protobuf, types, kademlia_metrics]
 
 logScope:
-  topics = "libp2p kad-dht"
+  topics = "libp2p kademlia"
 
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]

@@ -8,7 +8,7 @@ import chronos, chronicles, stew/endians2
 import ../[multiaddress, multicodec]
 
 logScope:
-  topics = "libp2p name-resolver"
+  topics = "libp2p name-resolution"
 
 type NameResolver* = ref object of RootObj
 

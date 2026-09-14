@@ -9,7 +9,7 @@ import nameresolver
 import ../crypto/rng, ../utils/future
 
 logScope:
-  topics = "libp2p name-resolver"
+  topics = "libp2p name-resolution"
 
 const DefaultDnsServers* = @[
   initTAddress("1.1.1.1:53"),

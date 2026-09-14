@@ -10,7 +10,7 @@ import nameresolver
 export tables
 
 logScope:
-  topics = "libp2p name-resolver"
+  topics = "libp2p name-resolution"
 
 type MockResolver* = ref object of NameResolver
   txtResponses*: Table[string, seq[string]]
