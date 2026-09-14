@@ -18,7 +18,7 @@ export portmapper, reachabilityobservers
 export OnReservationHandler, AutonatV2ServiceConfig, AutonatV2Service
 
 logScope:
-  topics = "libp2p natservice"
+  topics = "libp2p nat-service"
 
 type
   AutonatVersion* = enum

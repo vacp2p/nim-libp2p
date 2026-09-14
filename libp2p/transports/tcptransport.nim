@@ -18,7 +18,7 @@ import
   ../utils/future
 
 logScope:
-  topics = "libp2p tcptransport"
+  topics = "libp2p tcp-transport"
 
 export transport, connection, upgrade
 

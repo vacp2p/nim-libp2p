@@ -19,7 +19,7 @@ import
 export peerid, connection, deques
 
 logScope:
-  topics = "libp2p pubsubpeer"
+  topics = "libp2p pubsub"
 
 when defined(libp2p_expensive_metrics):
   declareCounter(

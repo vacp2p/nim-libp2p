@@ -16,7 +16,7 @@ import
   ../../../transports/transport
 
 logScope:
-  topics = "libp2p relay relay-transport"
+  topics = "libp2p relay"
 
 type RelayTransport* = ref object of Transport
   client*: RelayClient

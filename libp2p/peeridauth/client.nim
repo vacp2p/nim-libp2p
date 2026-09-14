@@ -8,7 +8,7 @@ import chronos, chronos/apps/http/httpclient, results, chronicles
 import ../peerinfo, ../crypto/crypto, ../varint.nim
 
 logScope:
-  topics = "libp2p peeridauth"
+  topics = "libp2p peer-id-auth"
 
 const
   NimLibp2pUserAgent = "nim-libp2p"

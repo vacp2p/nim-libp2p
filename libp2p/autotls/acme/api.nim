@@ -13,7 +13,7 @@ import ../../utils/opt
 export ACMEError, ACMENetworkError
 
 logScope:
-  topics = "libp2p acme api"
+  topics = "libp2p auto-tls"
 
 const
   LetsEncryptDirectoryURL* = parseUri("https://acme-v02.api.letsencrypt.org/directory")

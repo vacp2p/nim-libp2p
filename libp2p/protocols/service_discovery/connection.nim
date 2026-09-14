@@ -10,7 +10,7 @@ import
   ./[types, service_discovery_metrics, registrar, dial_backoff, routing_table_manager]
 
 logScope:
-  topics = "service-disco connection"
+  topics = "libp2p service-discovery"
 
 proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
   ## Remote endpoint IP(s) from the transport connection, if known.

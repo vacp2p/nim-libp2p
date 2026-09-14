@@ -12,7 +12,7 @@ import ../utils/shortlog
 export results
 
 logScope:
-  topics = "libp2p chronosstream"
+  topics = "libp2p chronos-stream"
 
 const
   DefaultChronosStreamTimeout = 10.minutes

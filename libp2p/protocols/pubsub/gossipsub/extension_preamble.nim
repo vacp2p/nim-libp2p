@@ -8,7 +8,7 @@ import ../rpc/messages
 import ./[extensions_types, preamblestore, bandwidth]
 
 logScope:
-  topics = "libp2p preamble"
+  topics = "libp2p gossipsub"
 
 const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
 

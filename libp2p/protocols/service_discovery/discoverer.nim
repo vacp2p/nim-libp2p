@@ -14,7 +14,7 @@ import
 import ../../utils/future
 
 logScope:
-  topics = "service-disco discoverer"
+  topics = "libp2p service-discovery"
 
 type GetAdsResult = object
   ads: seq[Advertisement]

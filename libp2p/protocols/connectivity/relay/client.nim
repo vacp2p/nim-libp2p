@@ -17,7 +17,7 @@ import
   ../../../signed_envelope
 
 logScope:
-  topics = "libp2p relay relay-client"
+  topics = "libp2p relay"
 
 const RelayClientMsgSize = 4096
 

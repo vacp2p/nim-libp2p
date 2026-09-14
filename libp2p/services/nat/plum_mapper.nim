@@ -18,7 +18,7 @@ import ./portmapper
 export ProtocolFilter
 
 logScope:
-  topics = "libp2p natservice plum"
+  topics = "libp2p nat-service"
 
 const
   # Private defaults for new(); the public NAT knobs live in natservice.

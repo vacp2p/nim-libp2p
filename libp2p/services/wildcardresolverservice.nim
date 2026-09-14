@@ -9,7 +9,7 @@ import ../switch
 export NetworkInterfaceProvider, getAddresses
 
 logScope:
-  topics = "libp2p wildcardresolverservice"
+  topics = "libp2p wildcard-resolver-service"
 
 type WildcardAddressResolverService* = ref object of Service
   ## Hands the `AddressManager` the interfaces it expands a wildcard listen

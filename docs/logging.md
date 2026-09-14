@@ -2,6 +2,34 @@
 
 Read this guide before adding or changing logs: useful logs let people diagnose runtime behavior without reading the source. Choose levels mindfully, describe actions and outcomes clearly, and use readable field names. Sensitive data must be omitted or redacted, and large field values must be bounded.
 
+## Topics and component filtering
+
+Use exactly two space-separated topics in library logging scopes: `libp2p`
+and one stable component name. Use kebab case for multiword names
+(for example, `address-manager`, `peer-id-auth`, and `quic-transport`). Keep
+established protocol names such as `autonat`, `gossipsub`, and `multistream` intact. Reuse the component name across its
+implementation and helper modules:
+
+```nim
+logScope:
+  topics = "libp2p autonat"
+```
+
+Both AutoNAT versions, including clients, servers, services, and verifiers, use
+`autonat`. Topics are independent tags, not a hierarchy: `libp2p autonat v2 client`
+creates four separate filters. Version, role, operation, and helper filenames do
+not need their own topics. Include such details in structured fields when useful,
+or compile with `-d:chronicles_line_numbers:on` to identify the source module.
+Nested scopes should normally add context fields and inherit the module topics.
+Code-generating macros must scope their emitted logs without changing caller logs.
+
+Choose the component by ownership, rather than giving every file a new filter.
+For example, AutoTLS's ACME helpers use `auto-tls`, Mplex's coder and channels use
+`mplex`, and all service discovery modules use `service-discovery`. Distinct
+implementations retain distinct filters: `gossipsub`, `floodsub`, and shared
+`pubsub` infrastructure; likewise individual transports and muxers. A `pubsub`
+filter alone therefore does not select `gossipsub` or `floodsub`.
+
 ## Choose a level
 
 Severity represents operational impact and the action required from the library user, not the wording of a message or the presence of an `except` branch.

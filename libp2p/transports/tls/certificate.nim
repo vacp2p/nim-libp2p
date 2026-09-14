@@ -12,7 +12,7 @@ import ./certificate_ffi
 import ../../../libp2p/peerid
 
 logScope:
-  topics = "libp2p tls certificate"
+  topics = "libp2p tls"
 
 # Exception types for TLS certificate errors
 type
