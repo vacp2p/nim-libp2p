@@ -115,7 +115,7 @@ where `chronicles_log_level` can have following values: `none`, `error`, `warn`,
 
 If you are overwhelmed with logs, you can disable topics that aren’t relevant and increase the logging level for the ones that matter most:
 
-`-d:chronicles_enabled_topics:switch:TRACE,quic-transport:INFO`
+`-d:chronicles_enabled_topics:switch:TRACE,quic:INFO`
 
 ---
 

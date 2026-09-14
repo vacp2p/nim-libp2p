@@ -4,19 +4,26 @@ Read this guide before adding or changing logs: useful logs let people diagnose 
 
 ## Topics and component filtering
 
+- Use exactly two space-separated topics in every library logging scope: `libp2p` and one stable component name.
 
-- Use exactly two space-separated topics in library logging scopes: `libp2p` and one stable component name. 
+- Name the component after its capability or protocol, using kebab case for multiword names, for example `address-manager`, `peer-id-auth`, and `hole-punching`.
 
-- Name the component after its capability or protocol, using kebab case for multiword names (for example `address-manager`, `peer-id-auth`, and `hole-punching`). 
+- Prefer full words over implementation abbreviations, such as `connection-manager` and `ip-address`.
 
-- Prefer full words over implementation abbreviations, such as `connection-manager` and `ip-address`. 
 - Reuse the component name across its implementation and helper modules.
-- Choose the component by ownership, rather than giving every file a new filter.
-  - For example, AutoTLS's ACME helpers use `auto-tls`, Mplex's coder and channels use `mplex`, and all service discovery modules use `service-discovery`.
-- Version, role, operation, and helper filenames do not need their own topics.
-- Distinct implementations retain distinct filters: `gossipsub`, `floodsub`, and shared `pubsub` infrastructure; likewise individual transports and muxers. A `pubsub` filter alone therefore does not select `gossipsub` or `floodsub`.
 
+- Choose the component by ownership, rather than giving every file a new filter. For example, AutoTLS's ACME helpers use `auto-tls`, Mplex's coder and channels use `mplex`, and all service discovery modules use `service-discovery`.
 
+- Do not create topics for a version, role, operation, or helper filename. Put that detail in structured fields when useful, or compile with `-d:chronicles_line_numbers:on` to identify the source module.
+
+- Keep distinct implementations in distinct components: `gossipsub`, `floodsub`, and shared `pubsub` infrastructure; likewise individual transports and muxers. A `pubsub` filter alone therefore does not select `gossipsub` or `floodsub`.
+
+- Remember that topics are independent tags, not a hierarchy: `libp2p autonat v2 client` creates four separate filters.
+
+```nim
+logScope:
+  topics = "libp2p autonat"
+```
 
 
 ## Choose a level
