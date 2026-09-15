@@ -48,15 +48,15 @@ proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
       continue
     trace "Primary IP address", ip, global = ip.isGlobalIP()
     candidates.add(ip)
-  
+
   let address = firstGlobalIP(candidates)
-  
+
   debug "Public IP address lookup finished",
     probes = RouteProbes.len,
     resolved = candidates.len,
     failed = RouteProbes.len - candidates.len,
     address
-  
+
   return address
 
 func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool =

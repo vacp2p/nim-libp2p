@@ -376,7 +376,7 @@ type
 proc insert*(
     self: var LocalTable, key: Key, value: sink Value, time: Timestamp
 ) {.raises: [].} =
-  debug "Local Kademlia record stored", key, value
+  trace "Local Kademlia record stored", key, value
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =

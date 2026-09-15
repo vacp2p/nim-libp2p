@@ -71,7 +71,7 @@ proc recordProvider*(
   if discovery.rank == 1:
     cd_first_provider_discovery_ms.observe(elapsedMs)
 
-  debug "Provider found",
+  trace "Provider found",
     serviceId, provider, rank = discovery.rank, elapsedMs = elapsed.milliseconds, source
 
 proc recordProviders*(

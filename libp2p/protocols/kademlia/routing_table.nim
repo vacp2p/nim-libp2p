@@ -196,10 +196,10 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
 
 proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   if rtable.detached:
-    debug "Cannot insert into detached routing table", nodeId = nodeId
+    trace "Cannot insert into detached routing table", nodeId = nodeId
     return false
   if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
-    debug "Cannot insert self in routing table", nodeId = nodeId
+    trace "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
   let idx = rtable.bucketIndex(nodeId)
@@ -222,7 +222,7 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     # Full bucket with no replaceable peer: reject rather than evict a useful one.
     # Leave any pre-existing registry row alone; do not create a row without membership.
     if not rtable.tryReplaceStalePeer(bucket, nodeId):
-      debug "Cannot insert, no replaceable peer in bucket",
+      trace "Cannot insert, no replaceable peer in bucket",
         bucket = idx, nodeId = nodeId
       return false
     discard rtable.registry.upsert(nodeId)

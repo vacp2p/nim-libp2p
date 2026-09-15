@@ -116,7 +116,7 @@ proc blockedIn[K](
     return false
 
   libp2p_dial_backoff_skips.inc(labelValues = [scope])
-  debug "Skipping the dial, it is on backoff",
+  trace "Skipping the dial, it is on backoff",
     scope, key, backoffMs = (entry.until - now).milliseconds
   true
 
@@ -153,7 +153,7 @@ proc countFailure[K](
     return
 
   libp2p_dial_backoffs.inc(labelValues = [scope])
-  debug "Backing the dial off",
+  trace "Backing the dial off",
     scope, key, failures = entry.failures, backoffMs = (entry.until - now).milliseconds
 
 proc blocked*(self: DialBackoff, peerId: PeerId, now = Moment.now()): bool =
