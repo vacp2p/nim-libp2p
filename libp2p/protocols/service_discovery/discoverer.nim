@@ -16,6 +16,9 @@ import ../../utils/future
 logScope:
   topics = "libp2p service-discovery"
 
+type LookupLog = ref object
+  queried, succeeded, failed, pending: int
+
 type GetAdsResult = object
   ads: seq[Advertisement]
   closerPeers: seq[PeerInfo]
@@ -47,7 +50,7 @@ proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string]
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
 ): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  debug "Getting adverts", serviceId, registrar = peerId
+  trace "Getting adverts", serviceId, registrar = peerId
 
   let msg = Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId))
 
@@ -63,7 +66,7 @@ proc dispatchGetAds(
   let getAdsMsg = reply.getAds.valueOr:
     return err("get ads message response not found")
 
-  debug "Adverts found",
+  trace "Adverts found",
     serviceId, remote = peerId, count = getAdsMsg.advertisements.len
 
   return ok(
@@ -120,12 +123,22 @@ proc collectBucketAds(
     peers: seq[PeerId],
     known: HashSet[Advertisement],
     limit: int,
+    stats: LookupLog,
 ): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
   var found = known
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
+  let queries = pending
+  stats.queried += queries.len
   defer:
+    for fut in queries:
+      if not fut.finished():
+        stats.pending.inc()
+      elif fut.completed() and fut.value().isOk():
+        stats.succeeded.inc()
+      else:
+        stats.failed.inc()
     pending.cancelSoon()
 
   let deadline = Moment.fromNow(disco.config.timeout)
@@ -197,6 +210,18 @@ proc lookup*(
     return err("service table not found for service id: " & $serviceId)
 
   var found = initHashSet[Advertisement]()
+  let stats = LookupLog()
+  var outcome = "cancelled"
+  defer:
+    debug "Service provider lookup finished",
+      serviceId,
+      outcome,
+      advertisements = found.len,
+      queried = stats.queried,
+      succeeded = stats.succeeded,
+      failed = stats.failed,
+      pending = stats.pending
+
   let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
   local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
@@ -211,8 +236,10 @@ proc lookup*(
 
     let peers = disco.peersToQuery(bucket)
 
-    found =
-      await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
+    found = await disco.collectBucketAds(
+      serviceId, peers, found, disco.discoConfig.fLookup, stats
+    )
 
+  outcome = if found.len >= disco.discoConfig.fLookup: "limitReached" else: "completed"
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)
