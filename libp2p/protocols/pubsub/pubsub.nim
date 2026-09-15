@@ -490,8 +490,13 @@ proc handleData*(
 
   var futs = newSeq[Future[void]]()
   var handlers = 0
+  let handleData =
+    try:
+      p.topics[topic]
+    except KeyError:
+      raiseAssert "checked with if"
 
-  for handler in p.topics[topic].handlers:
+  for handler in handleData.handlers:
     if handler != nil: # allow nil handlers
       handlers.inc()
       let fut = handler(topic, data)
