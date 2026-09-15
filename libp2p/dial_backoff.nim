@@ -10,7 +10,7 @@ import pkg/[chronos, chronicles, metrics]
 import multiaddress, multicodec, peerid, utils/opt
 
 logScope:
-  topics = "libp2p dialbackoff"
+  topics = "libp2p dial-backoff"
 
 declareCounter libp2p_dial_backoffs,
   "failures that started or raised a backoff", ["scope"]

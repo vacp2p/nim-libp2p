@@ -11,7 +11,7 @@ import ../utils/zeroqueue
 export connection
 
 logScope:
-  topics = "libp2p bufferstream"
+  topics = "libp2p buffer-stream"
 
 const BufferStreamTrackerName* = "BufferStream"
 

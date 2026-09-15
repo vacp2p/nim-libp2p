@@ -8,7 +8,7 @@ import ../logging
 import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
-  topics = "libp2p autorelay"
+  topics = "libp2p auto-relay"
 
 type
   OnReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}

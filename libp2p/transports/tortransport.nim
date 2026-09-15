@@ -18,7 +18,7 @@ import
   ../upgrademngrs/upgrade
 
 logScope:
-  topics = "libp2p tortransport"
+  topics = "libp2p tor"
 
 const
   IPTcp = mapAnd(IP, mapEq("tcp"))

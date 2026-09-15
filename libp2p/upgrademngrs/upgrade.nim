@@ -27,7 +27,7 @@ declarePublicCounter(
 )
 
 logScope:
-  topics = "libp2p upgrade"
+  topics = "libp2p connection-upgrade"
 
 type
   UpgradeFailedError* = object of LPError

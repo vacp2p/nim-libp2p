@@ -20,7 +20,7 @@ import ./kademlia_metrics
 export results
 
 logScope:
-  topics = "kad-dht message-sender"
+  topics = "libp2p kademlia"
 
 const DefaultMaxStreamReuseFailures* = 3
   ## Once reuse has broken this many times for a peer, treat it as unable to

@@ -43,7 +43,7 @@ import
 export identify
 
 logScope:
-  topics = "libp2p identifypusher"
+  topics = "libp2p identify"
 
 type
   PushSendFut = Future[void].Raising([CancelledError])

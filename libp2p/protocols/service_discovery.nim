@@ -15,7 +15,7 @@ export chronicles, random_find, types, discoverer, advertiser, advertisement_cac
 export discovery_tracker
 
 logScope:
-  topics = "service-discovery"
+  topics = "libp2p service-discovery"
 
 method maintainableTables*(
     disco: ServiceDiscovery

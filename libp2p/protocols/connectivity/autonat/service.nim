@@ -16,7 +16,7 @@ import ../../../crypto/crypto
 export reachabilityobservers
 
 logScope:
-  topics = "libp2p autonatservice"
+  topics = "libp2p autonat"
 
 declarePublicGauge(
   libp2p_autonat_reachability_confidence,

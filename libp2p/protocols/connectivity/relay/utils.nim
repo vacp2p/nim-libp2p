@@ -7,7 +7,7 @@ import chronos, chronicles
 import ./messages, ./relay_metrics, ../../../stream/connection
 
 logScope:
-  topics = "libp2p relay relay-utils"
+  topics = "libp2p relay"
 
 const
   RelayV1Codec* = "/libp2p/circuit/relay/0.1.0"

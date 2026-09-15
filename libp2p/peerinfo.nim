@@ -18,7 +18,7 @@ import
 export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 
 logScope:
-  topics = "libp2p peerinfo"
+  topics = "libp2p peer-info"
 
 const p2pMultiCodec = multiCodec("p2p")
 

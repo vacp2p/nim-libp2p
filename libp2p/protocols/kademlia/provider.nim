@@ -17,7 +17,7 @@ import ../protocol
 import ./[protobuf, types, find, rpc, keyspace, netsize, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht provider"
+  topics = "libp2p kademlia"
 
 proc `==`*(a, b: ProviderRecord): bool =
   a.provider.id == b.provider.id and a.key == b.key

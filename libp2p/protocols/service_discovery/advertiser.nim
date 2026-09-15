@@ -13,7 +13,7 @@ import
   ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
 
 logScope:
-  topics = "service-disco advertiser"
+  topics = "libp2p service-discovery"
 
 type RegistrationResponse* = object
   status*: kademlia_protobuf.RegistrationStatus

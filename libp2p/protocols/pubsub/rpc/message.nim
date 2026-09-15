@@ -15,7 +15,7 @@ import
 export errors, messages
 
 logScope:
-  topics = "pubsubmessage"
+  topics = "libp2p pubsub"
 
 const PubSubPrefix = toBytes("libp2p-pubsub:")
 

@@ -19,7 +19,7 @@ type DcutrClient* = ref object
   maxDialableAddrs: int
 
 logScope:
-  topics = "libp2p dcutrclient"
+  topics = "libp2p hole-punching"
 
 proc new*(
     T: typedesc[DcutrClient], connectTimeout = 15.seconds, maxDialableAddrs = 8

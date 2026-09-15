@@ -100,7 +100,7 @@ nimble format               # Format all code
 ### Logging / Debug
 ```sh
 nim c -r -d:chronicles_log_level=debug examples/helloworld.nim
-nim c -r -d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO examples/helloworld.nim
+nim c -r -d:chronicles_enabled_topics:switch:TRACE,quic:INFO examples/helloworld.nim
 ```
 
 ---
