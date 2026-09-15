@@ -369,7 +369,7 @@ proc setupMappings*(
       mapFailed = stats.mapFailed,
       unmapped = stats.unmapped,
       unmapFailed = stats.unmapFailed
- 
+
   if self.mapper.isNil:
     outcome = "noMapper"
     trace "No port mapper available; skipping NAT port mapping"

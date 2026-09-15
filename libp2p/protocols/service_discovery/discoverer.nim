@@ -221,7 +221,7 @@ proc lookup*(
       succeeded = stats.succeeded,
       failed = stats.failed,
       pending = stats.pending
-  
+
   let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
   local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
