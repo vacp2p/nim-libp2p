@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables]
+import std/[sequtils, tables]
 
 import pkg/[chronos, chronicles, metrics, results]
 
@@ -20,12 +20,12 @@ import
   stream/connection,
   transports/transport,
   nameresolving/nameresolver,
+  rankeddial,
   upgrademngrs/upgrade,
-  utils/collections,
   utils/future,
   errors
 
-export dial, dial_backoff, errors, results
+export dial, dial_backoff, errors, results, MaxDialCandidates, MaxParallelDials
 
 logScope:
   topics = "libp2p dialer"
@@ -39,12 +39,6 @@ declarePublicHistogram libp2p_dial_duration_ms,
   buckets =
     [10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 30000.0]
 
-const MaxDialCandidates* = 32
-  ## A peer names as many addresses as it likes, and each dnsaddr fans out further.
-
-const MaxExpandedAddresses = MaxDialCandidates * 8
-  ## Ceiling on what one peer's dnsaddr chain holds in flight before the filter.
-
 const DefaultDialerTimeout* = 30.seconds
   ## Budget for reaching one peer. Every address it advertises shares it, and
   ## identify gets the same budget again once a connection stands. The transport
@@ -52,8 +46,6 @@ const DefaultDialerTimeout* = 30.seconds
   ## that goes quiet mid-handshake holds the peer's dial lock forever.
 
 type
-  DialAttempt = Future[Muxer].Raising([CancelledError])
-
   DialReach* = ref object
     ## Shared by every address of one dial, so the peer answers for a real dial only.
     dialed: bool
@@ -71,7 +63,7 @@ type
     peerStore: PeerStore
     nameResolver: NameResolver
     ms: MultistreamSelect
-    dialRanking: bool ## overlap the name lookups with the dials
+    dialRanking: bool ## overlap the name lookups with the dials, and rank the dials
     dialBackoff: Opt[DialBackoff] ## none unless the switch opted in
     ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
@@ -259,49 +251,6 @@ proc normalizedDialAddrs(
   else:
     addrs
 
-type DialBudget = ref object
-  ## One cap and one seen set shared by every holder of the same dial.
-  left: int
-  seen: HashSet[string]
-  exhausted: AsyncEvent
-
-proc newBudget(limit: int): DialBudget =
-  let budget = DialBudget(left: max(limit, 0), exhausted: newAsyncEvent())
-  if budget.left == 0:
-    budget.exhausted.fire()
-  budget
-
-proc take(budget: DialBudget, candidates: seq[DialCandidate]): seq[DialCandidate] =
-  var fresh: seq[DialCandidate]
-  for candidate in candidates:
-    if not budget.seen.containsOrIncl(candidate.key()):
-      fresh.add(candidate)
-
-  if fresh.len > budget.left:
-    debug "Dial candidates truncated", limit = budget.left
-
-  let taken = fresh.take(budget.left)
-  budget.left -= taken.len
-  if budget.left == 0:
-    budget.exhausted.fire()
-  taken
-
-proc awaitLookup(
-    budget: DialBudget, lookup: Future[seq[DialCandidate]].Raising([CancelledError])
-): Future[seq[DialCandidate]] {.async: (raises: [CancelledError]).} =
-  ## Empty once the budget leaves no room for the answer, so a stalling name ends here.
-
-  let exhausted = budget.exhausted.wait()
-  defer:
-    await noCancel allFutures(exhausted.cancelAndWait(), lookup.cancelAndWait())
-
-  discard await race(lookup, exhausted)
-  if lookup.completed():
-    return lookup.value()
-
-  debug "Address lookup stopped at candidate limit"
-  @[]
-
 func fromNameLookup(candidate: DialCandidate): bool =
   ## Named directly, or reached through the dnsaddr chain that named it.
   candidate.fromName or DNS.matchPartial(candidate.address)
@@ -420,94 +369,6 @@ proc dialInOrder(
         if not isNil(mux):
           return mux
 
-proc dropLosers(attempts: seq[DialAttempt]) {.async: (raises: []).} =
-  ## Give up every attempt that did not win, and close a muxer that landed anyway.
-
-  await noCancel attempts.cancelAndWait()
-  for attempt in attempts:
-    if attempt.completed():
-      let mux = attempt.value()
-      if not isNil(mux):
-        await mux.close()
-
-proc firstConnected(
-    attempts: seq[DialAttempt]
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## The first attempt that connects. Nil when none of them does.
-
-  var pending = attempts
-  defer:
-    await dropLosers(pending)
-
-  while pending.len > 0:
-    let done =
-      try:
-        await one(pending)
-      except ValueError as e:
-        raiseAssert "one() over a non-empty seq: " & e.msg
-    pending.del(pending.find(done))
-
-    if not done.completed():
-      continue
-
-    let mux = done.value()
-    if not isNil(mux):
-      return mux
-
-proc dialAll(
-    self: Dialer,
-    candidates: seq[DialCandidate],
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial every candidate at once. Nil when none of them connects.
-
-  await firstConnected(
-    candidates.mapIt(
-      self.dialAndUpgrade(
-        it.peerId, it.hostname, it.address, dir, deadline, forceDial, reach
-      )
-    )
-  )
-
-proc dialResolved(
-    self: Dialer,
-    lookup: Future[seq[DialCandidate]].Raising([CancelledError]),
-    budget: DialBudget,
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial one name's addresses the moment that name answers.
-
-  await self.dialAll(
-    budget.take(await budget.awaitLookup(lookup)), dir, deadline, forceDial, reach
-  )
-
-proc dialName(
-    self: Dialer,
-    candidate: DialCandidate,
-    expandedBudget: DialBudget,
-    dialBudget: DialBudget,
-    dir: Direction,
-    deadline: Moment,
-    forceDial: bool,
-    reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial each address from one advertised name as soon as it resolves.
-
-  let expanded = expandedBudget.take(
-    await dialBudget.awaitLookup(self.expandCandidate(candidate, deadline))
-  )
-  let lookups = expanded.mapIt(self.resolveCandidate(it, deadline))
-
-  await firstConnected(
-    lookups.mapIt(self.dialResolved(it, dialBudget, dir, deadline, forceDial, reach))
-  )
-
 proc dialRanked(
     self: Dialer,
     peerId: Opt[PeerId],
@@ -516,21 +377,22 @@ proc dialRanked(
     deadline: Moment,
     forceDial: bool,
     reach: DialReach,
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial the wire addresses at once, and each name's as soon as it resolves.
+): DialAttempt =
+  ## Dial the wire addresses at once and each name's addresses as it resolves, best rank first.
 
-  let
-    dialable = newBudget(MaxDialCandidates)
-    names = newBudget(MaxDialCandidates)
-    unresolved = newBudget(MaxExpandedAddresses)
-    direct = dialable.take(self.directCandidates(peerId, addrs))
-    nameDials = names.take(dnsCandidates(peerId, addrs)).mapIt(
-        self.dialName(it, unresolved, dialable, dir, deadline, forceDial, reach)
-      )
-
-  await firstConnected(
-    @[self.dialAll(direct, dir, deadline, forceDial, reach)] & nameDials
+  let dial = RankedDial.new(
+    deadline,
+    attempt = proc(candidate: DialCandidate): DialAttempt =
+      self.dialAndUpgrade(
+        candidate.peerId, candidate.hostname, candidate.address, dir, deadline,
+        forceDial, reach,
+      ),
+    expand = proc(candidate: DialCandidate): CandidateLookup =
+      self.expandCandidate(candidate, deadline),
+    resolve = proc(candidate: DialCandidate): CandidateLookup =
+      self.resolveCandidate(candidate, deadline),
   )
+  dial.run(self.directCandidates(peerId, addrs), dnsCandidates(peerId, addrs))
 
 proc dialAndUpgrade*(
     self: Dialer,
