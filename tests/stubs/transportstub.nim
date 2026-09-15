@@ -94,6 +94,47 @@ method dial*(
   self.dialedHosts.add(hostname)
   raise newException(MemoryTransportError, "stub dial always fails")
 
+type ScriptedDialTransport* = ref object of MemoryTransport
+  ## Handles the `handled` addresses: a dial of a `failing` one fails, any other stalls.
+  handled: seq[MultiAddress]
+  failing: seq[MultiAddress]
+  dialedAddrs*: seq[MultiAddress]
+  cancelledAddrs*: seq[MultiAddress]
+
+proc new*(
+    T: typedesc[ScriptedDialTransport],
+    upgrade: Upgrade,
+    rng: Rng,
+    handled: seq[MultiAddress],
+    failing: seq[MultiAddress] = @[],
+): T =
+  let self = T(upgrader: upgrade, rng: rng, handled: handled, failing: failing)
+  procCall Transport(self).initialize()
+  self
+
+method handles*(
+    self: ScriptedDialTransport, ma: MultiAddress
+): bool {.gcsafe, raises: [].} =
+  ma in self.handled
+
+method dial*(
+    self: ScriptedDialTransport,
+    hostname: string,
+    ma: MultiAddress,
+    peerId: Opt[PeerId] = Opt.none(PeerId),
+    dir: Direction = Direction.Out,
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
+  self.dialedAddrs.add(ma)
+  if ma in self.failing:
+    raise newException(MemoryTransportError, "stub dial fails as scripted")
+
+  try:
+    await sleepAsync(1.hours)
+  except CancelledError as e:
+    self.cancelledAddrs.add(ma)
+    raise e
+  raise newException(MemoryTransportError, "stub dial stalled past its hour")
+
 method accept*(
     self: MemoryTransportStub
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
