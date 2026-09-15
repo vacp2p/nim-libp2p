@@ -92,15 +92,42 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  if kad.canStoreLocalRecord(key):
+  let storedLocally = kad.canStoreLocalRecord(key)
+  if storedLocally:
     kad.dataTable.insert(key, value, Timestamp.now())
   else:
-    debug "PutValue: local record limit reached", current = kad.dataTable.len
+    trace "PutValue: local record limit reached", current = kad.dataTable.len
+
+  var attempted, succeeded, failed, cancelled, pending: int
+  var outcome = "cancelled"
+  defer:
+    debug "Put-value replication finished",
+      key,
+      outcome,
+      storedLocally,
+      peers = peers.len,
+      attempted,
+      succeeded,
+      failed,
+      cancelled,
+      pending
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
-    await batch.allFuturesWaitOrTimeout(kad.config.timeout)
-
+    attempted += batch.len
+    try:
+      await batch.allFuturesWaitOrTimeout(kad.config.timeout)
+    finally:
+      for fut in batch:
+        if not fut.finished():
+          pending.inc()
+        elif fut.cancelled():
+          cancelled.inc()
+        elif fut.completed() and fut.value().isOk():
+          succeeded.inc()
+        else:
+          failed.inc()
+  outcome = "completed"
   ok()
 
 proc handlePutValue*(
