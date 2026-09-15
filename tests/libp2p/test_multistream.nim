@@ -695,7 +695,8 @@ suite "Multistream :: result API":
     discard await server.readLp(1024)
     discard await server.readLp(1024)
     await server.writeLp(header)
-    await selecting.wait(1.seconds)
+    let res = await selecting.wait(1.seconds)
+    res
 
   asyncTest "trySelect returns HandshakeFailed on a wrong header":
     check (await selectAgainstHeader("/other/1.0.0\n")).error ==
