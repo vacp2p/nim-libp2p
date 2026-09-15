@@ -9,7 +9,24 @@ import chronos, chronicles
 logScope:
   topics = "libp2p futures"
 
-type AllFuturesFailedError* = object of CatchableError
+type
+  AllFuturesFailedError* = object of CatchableError
+
+  FutureOutcomeCounts* = object ## Completed futures grouped by their terminal outcome.
+    succeeded*, failed*, cancelled*: int
+
+proc countFutureOutcomes*[Fut](
+    futs: openArray[Fut]
+): FutureOutcomeCounts {.raises: [].} =
+  ## Counts completed futures by terminal outcome. Futures that have not
+  ## finished are omitted from the result.
+  for fut in futs:
+    if fut.cancelled():
+      result.cancelled.inc()
+    elif fut.failed():
+      result.failed.inc()
+    elif fut.completed():
+      result.succeeded.inc()
 
 proc anyCompleted*[T](
     futs: seq[T]

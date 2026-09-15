@@ -96,6 +96,22 @@ suite "Future":
     check f1.completed()
     check f2.failed()
 
+  asyncTest "countFutureOutcomes groups terminal future states":
+    var succeeded = newFuture[void]()
+    var failed = newFuture[void]()
+    var cancelled = newFuture[void]()
+    var pending = newFuture[void]()
+    succeeded.complete()
+    failed.fail(newException(CatchableError, "error"))
+    await cancelled.cancelAndWait()
+
+    let results = countFutureOutcomes(@[succeeded, failed, cancelled, pending])
+
+    check results.succeeded == 1
+    check results.failed == 1
+    check results.cancelled == 1
+    check results.succeeded + results.failed + results.cancelled == 3
+
   asyncTest "cancelAndWait cancels pending futures":
     var f1 = newFuture[void]()
     var f2 = newFuture[void]()
