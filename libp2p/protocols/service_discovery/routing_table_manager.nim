@@ -49,7 +49,10 @@ proc addService*(
   var rtable = RoutingTable.new(
     serviceId,
     config = RoutingTableConfig.new(
-      replication = replication, maxBuckets = bucketsCount, selfIdPreHashed = true
+      replication = replication,
+      hasher = mainRoutingTable.config.hasher,
+      maxBuckets = bucketsCount,
+      selfIdPreHashed = true,
     ),
     localNodeId = Opt.some(mainRoutingTable.localNodeId),
     registry = mainRoutingTable.registry,

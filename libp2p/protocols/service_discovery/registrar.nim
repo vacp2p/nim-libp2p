@@ -273,11 +273,17 @@ proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
-  let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
-
-  let keys = table.randomPeersClosestFirst(
-    disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
-  )
+  let maxPerBucket = disco.discoConfig.kRegister
+  let table = disco.rtManager.getTable(serviceId)
+  let keys =
+    if table.isSome():
+      table.get().randomPeersClosestFirst(disco.rng, count, maxPerBucket)
+    else:
+      # No table for this service: view the main table by distance to the
+      # service (the spec's GETPEERS), not by distance to this node.
+      disco.rtable.randomPeersClosestFirst(
+        serviceId, disco.rng, count, maxPerBucket, disco.discoConfig.bucketsCount
+      )
 
   return disco.switch.toPeers(keys)
 
@@ -290,6 +296,24 @@ proc registration*(
   let serviceId = inMsg.key.valueOr:
     trace "Key not set: registration", msg = inMsg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key does not have service id length: registration", msg = inMsg
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return Message(
+      msgType: Opt.some(MessageType.register),
+      register: Opt.some(
+        RegisterMessage(
+          advertisement: Opt.none(seq[byte]),
+          status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -393,6 +417,13 @@ proc getAdvertisements*(
   let serviceId = msg.key.valueOr:
     trace "Key not set: getAdvertisements", msg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key does not have service id length: getAdvertisements", msg
+    return Message(
+      msgType: Opt.some(MessageType.getAds),
+      getAds: Opt.some(GetAdsMessage(advertisements: @[])),
+    )
 
   disco.seatSender(serviceId, peerId)
 
