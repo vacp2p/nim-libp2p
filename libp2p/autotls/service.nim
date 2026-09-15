@@ -219,29 +219,36 @@ proc hasTcpStarted(switch: Switch): bool =
 proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
   var lastError: ref CatchableError
   let operation = if self.cert.isSome(): "renewal" else: "initial issuance"
+  var attempts = 0
+  var outcome = ""
+  defer:
+    debug "Certificate issuance finished",
+      operation, outcome, attempts, hasCertificate = self.cert.isSome()
+
   for attempt in 0 .. self.config.issueRetries:
     if attempt > 0:
       await sleepAsync(self.config.issueRetryTime)
+    attempts.inc()
     try:
+      outcome = "issued"
       await self.issueCertificate()
       return
     except CancelledError as exc:
+      outcome = "cancelled"
       raise exc
     except CatchableError as exc:
+      outcome = "failed"
       lastError = exc
-      debug "Certificate issuance failed", err = exc.msg, errType = exc.name
-  let expiry =
-    if self.cert.isSome():
-      $self.cert.get().expiry
-    else:
-      "none"
+      trace "Certificate issuance failed",
+        err = exc.msg, errType = exc.name, attempt = attempt + 1
+
   error "Failed to issue certificate",
     err = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
     errType = (if lastError.isNil: "" else: $lastError.name),
     operation,
     maxAttempts = self.config.issueRetries + 1,
     hasCertificate = self.cert.isSome(),
-    expiry
+    expiry = (if self.cert.isSome: $self.cert.get().expiry else: "none")
 
 method start*(
     self: AutotlsService, switch: Switch
