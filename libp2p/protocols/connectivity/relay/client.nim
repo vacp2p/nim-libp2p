@@ -112,7 +112,7 @@ proc reserve*(
   let expire = reservation.expire.valueOr:
     raise newException(ReservationError, "Missing expire")
 
-  if expire > int64.high().uint64 or now().utc > expire.int64.fromUnix.utc:
+  if expire > int64.high().uint64 or getTime().utc > expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   var rsvp: Rsvp
   rsvp.expire = expire
