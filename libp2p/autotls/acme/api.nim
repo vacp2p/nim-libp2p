@@ -409,7 +409,7 @@ proc requestAuthorizations*(
       try:
         challenges.add(challenge.to(ACMEChallenge))
       except ValueError, JsonKindError:
-        debug "Could not parse challenge", err = getCurrentExceptionMsg()
+        trace "Could not parse challenge", err = getCurrentExceptionMsg()
 
     if challenges.len == 0:
       raise newException(ACMEError, "No challenges received")
@@ -545,7 +545,7 @@ proc checkCertFinalized*(
     of ACMEOrderStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     else:
-      debug "Failed certificate finalization",
+      trace "Failed certificate finalization",
         description = "expected 'valid', got '" & $checkResponse.orderStatus & "'"
       return false # do not try again
 
