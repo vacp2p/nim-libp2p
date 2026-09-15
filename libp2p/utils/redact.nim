@@ -30,7 +30,7 @@ macro redactType*(T: typedesc, exported: static bool = true): untyped =
       else:
         ident("writeValue")
 
-  result = quote:
+  quote:
     proc `dollarName`(value: `T`): string =
       Redacted
 
