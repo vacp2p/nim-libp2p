@@ -26,12 +26,12 @@ proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
   try:
     Opt.some(getPrimaryIPAddr(probe))
   except CatchableError as e:
-    debug "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
   except Defect as e:
     raise e
   except Exception as e: # on windows getPrimaryIPAddr has untracked effects
-    debug "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
 
 func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =
@@ -46,9 +46,18 @@ proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
   for probe in RouteProbes:
     let ip = primaryIPAddrTo(probe).valueOr:
       continue
-    debug "Primary IP address", ip, global = ip.isGlobalIP()
+    trace "Primary IP address", ip, global = ip.isGlobalIP()
     candidates.add(ip)
-  firstGlobalIP(candidates)
+  
+  let address = firstGlobalIP(candidates)
+  
+  debug "Public IP address lookup finished",
+    probes = RouteProbes.len,
+    resolved = candidates.len,
+    failed = RouteProbes.len - candidates.len,
+    address
+  
+  return address
 
 func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool =
   ## Returns true when the ip4 or ip6 component of ``lookup`` equals that of any addr
