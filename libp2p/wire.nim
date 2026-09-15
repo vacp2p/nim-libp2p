@@ -195,7 +195,7 @@ const
     ## ``::ffff:0.0.0.0``, the IPv4-mapped spelling of the wildcard host.
 
 proc portOf(ma: MultiAddress): Opt[Port] =
-  for codec in [multiCodec("tcp"), multiCodec("udp")]:
+  for codec in [TcpMultiCodec, UdpMultiCodec]:
     let arg = ma.getProtocolArgument(codec).valueOr:
       continue
     if arg.len == 2:

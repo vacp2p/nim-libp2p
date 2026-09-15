@@ -77,13 +77,12 @@ proc runTestWithException(server: Switch, client: Switch) {.async.} =
   let perfClient = PerfClient.new()
   let perfFut = perfClient.perf(conn, bytesToUpload, bytesToDownload)
 
-  # after some time upload should be finished and download should be ongoing
-  await sleepAsync(200.milliseconds)
+  checkUntilTimeout:
+    perfClient.currentStats().downloadBytes > 0
   var stats = perfClient.currentStats()
   check:
     stats.isFinal == false
     stats.uploadBytes == bytesToUpload
-    stats.downloadBytes > 0
 
   await perfFut.cancelAndWait() # cancelling future will raise exception in perfClient
 
