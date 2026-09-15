@@ -130,6 +130,9 @@ proc new*(
 
     disco.serviceBootstrapFuts[serviceId] = disco.bootstrapServiceTable(serviceId)
 
+  disco.registrar.ads.onServiceRemoved = proc(serviceId: ServiceId) =
+    disco.rtManager.removeService(serviceId, Registered)
+
   disco.rtManager.onServiceTableRemoved = proc(serviceId: ServiceId) =
     disco.serviceBootstrapFuts.withValue(serviceId, fut):
       fut[].cancelSoon()

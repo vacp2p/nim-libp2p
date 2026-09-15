@@ -23,7 +23,7 @@ proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [
 proc new*(T: typedesc[ServiceRoutingTableManager]): T =
   T(
     tables: initTable[ServiceId, RoutingTable](),
-    serviceStatus: initTable[ServiceId, ServiceStatus](),
+    serviceStatus: initTable[ServiceId, set[ServiceStatus]](),
   )
 
 proc addService*(
@@ -34,15 +34,11 @@ proc addService*(
     bucketsCount: int,
     status: ServiceStatus,
 ): bool =
-  # Fast path: service already exists
   manager.serviceStatus.withValue(serviceId, currentStatus):
-    # No change needed
-    if currentStatus[] == status or currentStatus[] == Both:
+    if status in currentStatus[]:
       return false
 
-    # Merge states
-    manager.serviceStatus[serviceId] = Both
-    manager.updateServiceTablesMetrics()
+    currentStatus[].incl(status)
     return true
 
   # Create new routing table as an index over the same peer registry.
@@ -60,7 +56,7 @@ proc addService*(
     discard rtable.insert(nodeId)
 
   manager.tables[serviceId] = rtable
-  manager.serviceStatus[serviceId] = status
+  manager.serviceStatus[serviceId] = {status}
 
   manager.updateServiceTablesMetrics()
 
@@ -73,21 +69,18 @@ proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
 ) =
   manager.serviceStatus.withValue(serviceId, currentStatus):
-    if currentStatus[] == status:
-      manager.tables.withValue(serviceId, table):
-        # Drop reverse memberships so the shared registry does not leak rows.
-        table[].detachAll()
-      manager.tables.del(serviceId)
-      manager.serviceStatus.del(serviceId)
-      manager.updateServiceTablesMetrics()
-      if not manager.onServiceTableRemoved.isNil():
-        manager.onServiceTableRemoved(serviceId)
+    currentStatus[].excl(status)
+    if currentStatus[].card > 0:
       return
 
-    if (currentStatus[], status) == (Both, Interest):
-      currentStatus[] = Provided
-    elif (currentStatus[], status) == (Both, Provided):
-      currentStatus[] = Interest
+    manager.tables.withValue(serviceId, table):
+      # Drop reverse memberships so the shared registry does not leak rows.
+      table[].detachAll()
+    manager.tables.del(serviceId)
+    manager.serviceStatus.del(serviceId)
+    manager.updateServiceTablesMetrics()
+    if not manager.onServiceTableRemoved.isNil():
+      manager.onServiceTableRemoved(serviceId)
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId

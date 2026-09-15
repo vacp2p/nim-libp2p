@@ -370,7 +370,7 @@ suite "Advertiser - removeProvidedService":
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
     discard disco.registerInterest(service.id)
-    check disco.rtManager.serviceStatus[sid] == Both
+    check disco.rtManager.serviceStatus[sid] == {Interest, Provided}
 
     let bootstrapFut = newFuture[void]("test service bootstrap")
     disco.serviceBootstrapFuts[sid] = bootstrapFut
