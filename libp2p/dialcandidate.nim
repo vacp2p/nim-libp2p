@@ -3,6 +3,7 @@
 
 {.push raises: [].}
 
+import chronicles
 import multiaddress, multicodec, peerid
 
 type
@@ -36,3 +37,10 @@ func dialRank*(candidate: DialCandidate): DialRank =
     if quic: DialRank.RelayQuic else: DialRank.Relay
   else:
     if quic: DialRank.DirectQuic else: DialRank.Direct
+
+func shortLog*(candidate: DialCandidate): string =
+  $candidate.address & " peerId=" & shortLog(candidate.peerId) & " rank=" &
+    $candidate.dialRank()
+
+chronicles.formatIt(DialCandidate):
+  shortLog(it)

@@ -46,15 +46,15 @@ proc stallAfterIdentify(sw: Switch) =
   sw.replaceIdentifyHandler(hold)
 
 proc relayAddr(relay: string): MultiAddress =
-  ma(relay & "/p2p/" & $PeerId.random(rng()).tryGet() & "/p2p-circuit")
+  ma(relay & "/p2p/" & $randomPeerId() & "/p2p-circuit")
 
 proc rankOf(address: MultiAddress): DialRank =
   DialCandidate(address: address).dialRank()
 
-proc tcpAddrs(count: int): seq[MultiAddress] =
+proc makeTcpAddrs(count: int): seq[MultiAddress] =
   (0 ..< count).mapIt(ma("/ip4/1.2.3.4/tcp/" & $(4001 + it)))
 
-proc rankedDialer(src: Switch, transports: seq[Transport]): Dialer =
+proc makeRankedDialer(src: Switch, transports: seq[Transport]): Dialer =
   Dialer.new(
     src.peerInfo.peerId,
     src.connManager,
@@ -128,7 +128,7 @@ suite "Dialer":
       src.ms,
       dialTimeout = 1.seconds,
     )
-    let peerId = PeerId.random(rng()).tryGet()
+    let peerId = randomPeerId()
 
     # Twice: the second dial only gets its turn if the first freed the peer's
     # dial lock, which a dial that hangs never does.
@@ -189,7 +189,7 @@ suite "Dialer":
       addrs.add(ma("/memorytransport/addr-" & $i))
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+      await dialer.connect(randomPeerId(), addrs)
 
     check transport.dialedAddrs.len == MaxDialCandidates
 
@@ -213,7 +213,7 @@ suite "Dialer":
       addrs.add(ma("/memorytransport/addr-" & $i))
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+      await dialer.connect(randomPeerId(), addrs)
 
     check transport.dialedAddrs.len == addrs.len
 
@@ -240,7 +240,7 @@ suite "Dialer":
     addrs.add(handled)
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+      await dialer.connect(randomPeerId(), addrs)
 
     check transport.dialedAddrs == @[handled]
 
@@ -418,7 +418,7 @@ suite "Dialer":
     addrs.add(ma("/dnsaddr/stalls.example"))
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs).wait(1.seconds)
+      await dialer.connect(randomPeerId(), addrs).wait(1.seconds)
 
     check resolver.cancelled
 
@@ -446,9 +446,7 @@ suite "Dialer":
 
     let name = ma("/dnsaddr/good.example")
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), @[wire, wire, name]).wait(
-        5.seconds
-      )
+      await dialer.connect(randomPeerId(), @[wire, wire, name]).wait(5.seconds)
 
     check transport.dialedAddrs == @[wire]
 
@@ -470,7 +468,7 @@ suite "Dialer":
 
     let wss = ma("/ip4/1.2.3.4/tcp/443/wss")
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), @[wss])
+      await dialer.connect(randomPeerId(), @[wss])
 
     check transport.dialedHosts == @["1.2.3.4"]
 
@@ -490,17 +488,16 @@ suite "Dialer":
 
     let
       transport = FailingDialTransport.new(Upgrade(), rng(), handlesAny = true)
-      dialer = src.rankedDialer(@[Transport(transport)])
+      dialer = src.makeRankedDialer(@[Transport(transport)])
       relayTcp = relayAddr("/ip4/5.6.7.8/tcp/4001")
       tcp = ma("/ip4/1.2.3.4/tcp/4001")
+      ws = ma("/ip4/1.2.3.4/tcp/4002/ws")
       relayQuic = relayAddr("/ip4/5.6.7.8/udp/4001/quic-v1")
       quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
     expect DialFailedError:
-      await dialer.connect(
-        PeerId.random(rng()).tryGet(), @[relayTcp, tcp, relayQuic, quic]
-      )
+      await dialer.connect(randomPeerId(), @[relayTcp, tcp, ws, relayQuic, quic])
 
-    check transport.dialedAddrs == @[quic, tcp, relayQuic, relayTcp]
+    check transport.dialedAddrs == @[quic, tcp, ws, relayQuic, relayTcp]
 
   asyncTest "Ranked dialing fills its parallel limit with the best ranked candidates":
     let src = makeStandardSwitch()
@@ -509,11 +506,11 @@ suite "Dialer":
       await src.stop()
 
     let
-      tcps = tcpAddrs(MaxParallelDials)
+      tcps = makeTcpAddrs(MaxParallelDials)
       quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
       transport = ScriptedDialTransport.new(Upgrade(), rng(), handled = tcps & @[quic])
-      dialer = src.rankedDialer(@[Transport(transport)])
-      dialing = dialer.connect(PeerId.random(rng()).tryGet(), tcps & @[quic])
+      dialer = src.makeRankedDialer(@[Transport(transport)])
+      dialing = dialer.connect(randomPeerId(), tcps & @[quic])
 
     checkUntilTimeout:
       transport.dialedAddrs.len == MaxParallelDials
@@ -529,13 +526,13 @@ suite "Dialer":
       await src.stop()
 
     let
-      tcps = tcpAddrs(MaxParallelDials)
+      tcps = makeTcpAddrs(MaxParallelDials)
       quic = ma("/ip4/1.2.3.4/udp/4001/quic-v1")
       transport = ScriptedDialTransport.new(
         Upgrade(), rng(), handled = tcps & @[quic], failing = @[quic]
       )
-      dialer = src.rankedDialer(@[Transport(transport)])
-      dialing = dialer.connect(PeerId.random(rng()).tryGet(), tcps & @[quic])
+      dialer = src.makeRankedDialer(@[Transport(transport)])
+      dialing = dialer.connect(randomPeerId(), tcps & @[quic])
     defer:
       await dialing.cancelAndWait()
 
@@ -554,7 +551,7 @@ suite "Dialer":
     let
       quic = ma("/ip4/127.0.0.1/udp/1/quic-v1")
       stalling = ScriptedDialTransport.new(Upgrade(), rng(), handled = @[quic])
-      dialer = src.rankedDialer(@[Transport(stalling)] & src.transports)
+      dialer = src.makeRankedDialer(@[Transport(stalling)] & src.transports)
 
     await dialer.connect(dst.peerInfo.peerId, @[quic] & dst.peerInfo.addrs).wait(
       5.seconds
@@ -588,7 +585,7 @@ suite "Dialer":
       handled = ma("/memorytransport/addr-0")
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), @[unresolvable, handled])
+      await dialer.connect(randomPeerId(), @[unresolvable, handled])
 
     check transport.dialedAddrs == @[handled]
 
@@ -641,11 +638,11 @@ suite "Dialer":
 
     let addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+      await dialer.connect(randomPeerId(), addrs)
     check transport.dialedAddrs.len == 1
 
     expect DialFailedError:
-      await dialer.connect(PeerId.random(rng()).tryGet(), addrs)
+      await dialer.connect(randomPeerId(), addrs)
     check transport.dialedAddrs.len == 2
 
   asyncTest "A dial that every address backoff skipped does not fail the peer":
@@ -667,7 +664,7 @@ suite "Dialer":
     )
 
     let
-      peerId = PeerId.random(rng()).tryGet()
+      peerId = randomPeerId()
       addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
 
     # tryDial backs the address off without ever failing the peer
@@ -703,7 +700,7 @@ suite "Dialer":
     )
 
     let
-      peerId = PeerId.random(rng()).tryGet()
+      peerId = randomPeerId()
       addrs = @[MultiAddress.init("/memorytransport/addr-0").tryGet()]
 
     expect DialFailedError:
