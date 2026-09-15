@@ -21,6 +21,15 @@ suite "PeerInfo":
     check peerId == peerInfo.peerId
     check seckey.getPublicKey().get() == peerInfo.publicKey
 
+  test "init returns the peer info without raising":
+    let seckey = PrivateKey.random(Ed25519, rng()).get()
+    let peerInfo = PeerInfo.init(seckey, protocols = ["/test/1.0.0"]).get()
+
+    check:
+      peerInfo.peerId == PeerId.init(seckey).get()
+      peerInfo.publicKey == seckey.getPublicKey().get()
+      peerInfo.protocols == @["/test/1.0.0"]
+
   test "Signed peer record":
     const
       ExpectedDomain = $multiCodec("libp2p-peer-record")

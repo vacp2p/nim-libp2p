@@ -22,6 +22,13 @@ type
 
   MultiStreamError* = object of LPError
 
+  MultiStreamFailure* {.pure.} = enum
+    MalformedMessage = "MultistreamSelect failed, malformed message"
+    HandshakeFailed = "MultistreamSelect handshake failed"
+    InvalidFirstMessage = "MultistreamSelect handling failed, invalid first message"
+
+  MultiStreamResult*[T] = Result[T, MultiStreamFailure]
+
   HandlerHolder* = ref object
     protos*: seq[string]
     protocol*: LPProtocol
@@ -34,58 +41,62 @@ type
 proc new*(T: typedesc[MultistreamSelect]): T =
   T(codec: Codec)
 
-template validateSuffix(str: string): untyped =
-  if str.endsWith("\n"):
-    str.removeSuffix("\n")
-  else:
-    raise (ref MultiStreamError)(msg: "MultistreamSelect failed, malformed message")
+func decodeMessage(data: openArray[byte]): MultiStreamResult[string] =
+  if data.len == 0 or data[^1] != byte('\n'):
+    return err(MultiStreamFailure.MalformedMessage)
+
+  ok(string.fromBytes(data.toOpenArray(0, data.high - 1)))
+
+proc readMessage(
+    stream: Stream
+): Future[MultiStreamResult[string]] {.
+    async: (raises: [CancelledError, LPStreamError])
+.} =
+  decodeMessage(await stream.readLp(MsgSize))
+
+proc trySelect*(
+    _: MultistreamSelect | type MultistreamSelect, stream: Stream, proto: seq[string]
+): Future[MultiStreamResult[string]] {.
+    async: (raises: [CancelledError, LPStreamError])
+.} =
+  ## Returns "" when the remote supports none of `proto`.
+  trace "Multistream handshake started", stream, protocol = Codec
+  await stream.writeLp(Codec & "\n")
+  if proto.len() > 0:
+    trace "Protocol negotiation started", stream, protocol = proto[0]
+    await stream.writeLp(proto[0] & "\n")
+
+  let header = ?(await stream.readMessage())
+  if header != Codec:
+    trace "Multistream handshake failed", stream, protocol = header
+    return err(MultiStreamFailure.HandshakeFailed)
+
+  trace "Multistream handshake completed", stream
+  if proto.len() == 0:
+    return ok(Codec)
+
+  let response = ?(await stream.readMessage())
+  trace "Protocol negotiation response received", stream, protocol = response
+  if response == proto[0]:
+    trace "Protocol negotiation completed", stream, protocol = proto[0]
+    stream.protocol = proto[0]
+    return ok(proto[0])
+
+  for p in proto.toOpenArray(1, proto.high):
+    trace "Protocol negotiation retrying", stream, protocol = p
+    await stream.writeLp(p & "\n")
+    let alternative = ?(await stream.readMessage())
+    if alternative == p:
+      trace "Protocol negotiation completed", stream, protocol = p
+      stream.protocol = p
+      return ok(p)
+
+  ok("")
 
 proc select*(
     _: MultistreamSelect | type MultistreamSelect, stream: Stream, proto: seq[string]
 ): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
-  trace "Multistream handshake started", stream, protocol = Codec
-  ## select a remote protocol
-  await stream.writeLp(Codec & "\n") # write handshake
-  if proto.len() > 0:
-    trace "Protocol negotiation started", stream, protocol = proto[0]
-    await stream.writeLp((proto[0] & "\n")) # select proto
-
-  var s = string.fromBytes((await stream.readLp(MsgSize))) # read ms header
-  validateSuffix(s)
-
-  if s != Codec:
-    trace "Multistream handshake failed", stream, protocol = s
-    raise (ref MultiStreamError)(msg: "MultistreamSelect handshake failed")
-  else:
-    trace "Multistream handshake completed", stream
-
-  if proto.len() == 0: # no protocols, must be a handshake call
-    return Codec
-  else:
-    s = string.fromBytes(await stream.readLp(MsgSize)) # read the first proto
-    validateSuffix(s)
-    trace "Protocol negotiation response received", stream, protocol = s
-    if s == proto[0]:
-      trace "Protocol negotiation completed", stream, protocol = proto[0]
-      stream.protocol = proto[0]
-      return proto[0]
-    elif proto.len > 1:
-      # Try to negotiate alternatives
-      let protos = proto[1 ..< proto.len()]
-      trace "Protocol alternatives available", stream, protocols = protos
-      for p in protos:
-        trace "Protocol negotiation retrying", stream, protocol = p
-        await stream.writeLp((p & "\n")) # select proto
-        s = string.fromBytes(await stream.readLp(MsgSize)) # read the first proto
-        validateSuffix(s)
-        if s == p:
-          trace "Protocol negotiation completed", stream, protocol = s
-          stream.protocol = s
-          return s
-      return ""
-    else:
-      # No alternatives, fail
-      return ""
+  (await MultistreamSelect.trySelect(stream, proto)).valueOrRaise(MultiStreamError)
 
 proc select*(
     _: MultistreamSelect | type MultistreamSelect, stream: Stream, proto: string
@@ -121,25 +132,25 @@ proc list*(
 
   list
 
-proc handle*(
+proc tryHandle*(
     _: type MultistreamSelect,
     stream: Stream,
     protos: seq[string],
     matchers = newSeq[Matcher](),
     active: bool = false,
-): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
+): Future[MultiStreamResult[string]] {.
+    async: (raises: [CancelledError, LPStreamError])
+.} =
+  ## Returns "" when the stream reaches EOF before a proposal matches.
   trace "Multistream negotiation started", stream, handshaked = active
   var handshaked = active
   while not stream.atEof:
-    var ms = string.fromBytes(await stream.readLp(MsgSize))
-    validateSuffix(ms)
+    let ms = ?(await stream.readMessage())
 
     if not handshaked and ms != Codec:
       trace "Multistream handshake rejected",
         stream, receivedProtocol = ms, reason = "unexpected first message"
-      raise (ref MultiStreamError)(
-        msg: "MultistreamSelect handling failed, invalid first message"
-      )
+      return err(MultiStreamFailure.InvalidFirstMessage)
 
     trace "Protocol negotiation request received", stream, protocol = ms
     case ms
@@ -160,11 +171,24 @@ proc handle*(
       trace "Protocol handler selected", stream, protocol = ms
       await stream.writeLp(ms & "\n")
       stream.protocol = ms
-      return ms
+      return ok(ms)
     else:
       trace "Protocol negotiation rejected",
         stream, protocol = ms, reason = "no handler"
       await stream.writeLp(Na)
+
+  ok("")
+
+proc handle*(
+    _: type MultistreamSelect,
+    stream: Stream,
+    protos: seq[string],
+    matchers = newSeq[Matcher](),
+    active: bool = false,
+): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
+  (await MultistreamSelect.tryHandle(stream, protos, matchers, active)).valueOrRaise(
+    MultiStreamError
+  )
 
 proc lookupProtocol*(m: MultistreamSelect, proto: string): Opt[LPProtocol] =
   ## Find the LPProtocol registered for the given protocol string, if any.
@@ -195,16 +219,16 @@ proc handle*(
     trace "Multistream handler stopped", stream
     await noCancel stream.close()
 
-  let ms =
+  let negotiated =
     try:
       let (protos, matchers) = m.allProtosAndMatchers()
-      await MultistreamSelect.handle(stream, protos, matchers, active)
+      await MultistreamSelect.tryHandle(stream, protos, matchers, active)
     except LPStreamError as e:
       trace "Multistream negotiation failed", err = e.msg, stream
       return
-    except MultiStreamError as e:
-      trace "Multistream negotiation failed", err = e.msg, stream
-      return
+  let ms = negotiated.valueOr:
+    trace "Multistream negotiation failed", err = $error, stream
+    return
 
   m.lookupProtocol(ms).ifValue(p):
     trace "Protocol handler selected", stream, protocol = ms
