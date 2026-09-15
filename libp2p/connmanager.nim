@@ -319,7 +319,7 @@ proc triggerConnEvent*(
 
   trace "Connection event callbacks started", peerId, event = $event.kind
 
-  var connEvents: seq[Future[void]]
+  var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
   var outcome = "completed"
   try:
     for h in c.connEvents[event.kind]:
@@ -369,7 +369,7 @@ proc triggerPeerEvents*(
   if c.peerEvents[event.kind].len == 0:
     return
 
-  var peerEvents: seq[Future[void]]
+  var peerEvents = newSeqOfCap[Future[void]](c.peerEvents[event.kind].len)
   var outcome = "completed"
   try:
     trace "Peer event callbacks started", peerId, event = $event.kind
