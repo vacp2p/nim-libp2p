@@ -15,7 +15,7 @@ import
   ./utils
 
 logScope:
-  topics = "libp2p autonat v2 client"
+  topics = "libp2p autonat"
 
 const
   MaxAcceptedDialDataRequest* = 100 * 1024 # 100 KB

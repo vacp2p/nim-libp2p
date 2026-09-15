@@ -16,7 +16,7 @@ import protocols/connectivity/autonat/types
 export NetworkReachability
 
 logScope:
-  topics = "libp2p addressmanager"
+  topics = "libp2p address-manager"
 
 const
   DefaultObservedAddrMaxSize* = 10

@@ -14,7 +14,7 @@ import ../../peerid
 import ../../crypto/crypto
 
 logScope:
-  topics = "kad-dht rtable"
+  topics = "libp2p kademlia"
 
 const NoneHasher = Opt.none(XorDHasher)
 

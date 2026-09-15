@@ -9,7 +9,7 @@ import ../protocol
 import ./[protobuf, types, find, rpc, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht put"
+  topics = "libp2p kademlia"
 
 proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally

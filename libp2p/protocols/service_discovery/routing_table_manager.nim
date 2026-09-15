@@ -10,7 +10,7 @@ import ../kademlia/[types, routing_table]
 import ./[types, service_discovery_metrics]
 
 logScope:
-  topics = "service-disco service-routing-tables"
+  topics = "libp2p service-discovery"
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)

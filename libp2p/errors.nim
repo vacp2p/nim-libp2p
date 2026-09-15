@@ -44,6 +44,8 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   of 0:
     quote:
       for res in `futs`:
+        logScope:
+          topics = "libp2p futures"
         if res.failed:
           let exc = res.error
           # We still don't abort but warn
@@ -52,6 +54,8 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   else:
     quote:
       for res in `futs`:
+        logScope:
+          topics = "libp2p futures"
         block check:
           if res.failed:
             let exc = res.error

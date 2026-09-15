@@ -17,7 +17,7 @@ import
 export reachabilityobservers
 
 logScope:
-  topics = "libp2p autonatv2 service"
+  topics = "libp2p autonat"
 
 # needed because nim 2.0 can't do proper type assertions
 const noneDuration: Opt[Duration] = Opt.none(Duration)

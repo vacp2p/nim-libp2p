@@ -22,7 +22,7 @@ type ACMEClient* = ref object
   kid*: Kid
 
 logScope:
-  topics = "libp2p acme client"
+  topics = "libp2p auto-tls"
 
 proc new*(
     T: typedesc[ACMEClient],

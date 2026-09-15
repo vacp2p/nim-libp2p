@@ -20,7 +20,7 @@ import
   ]
 
 logScope:
-  topics = "service-disco registrar"
+  topics = "libp2p service-discovery"
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.ads.len.float64)

@@ -21,7 +21,7 @@ import
 export chronicles, offsettedseq
 
 logScope:
-  topics = "libp2p discovery rendezvous"
+  topics = "libp2p rendezvous"
 
 declareCounter(libp2p_rendezvous_register, "number of advertise requests")
 declareCounter(libp2p_rendezvous_discover, "number of discovery requests")
@@ -596,7 +596,7 @@ proc new*(
     peerRecordValidator: checkPeerRecord,
   )
   logScope:
-    topics = "libp2p discovery rendezvous"
+    topics = "libp2p rendezvous"
   proc handleStream(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =

@@ -10,7 +10,7 @@ import ./coder, ../muxer, ../../stream/[bufferstream, connection], ../../peerinf
 export connection
 
 logScope:
-  topics = "libp2p mplexchannel"
+  topics = "libp2p mplex"
 
 when defined(libp2p_mplex_metrics):
   declareHistogram libp2p_mplex_qlen,

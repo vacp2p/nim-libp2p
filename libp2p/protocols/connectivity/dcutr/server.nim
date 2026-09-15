@@ -16,7 +16,7 @@ export chronicles
 type Dcutr* = ref object of LPProtocol
 
 logScope:
-  topics = "libp2p dcutr"
+  topics = "libp2p hole-punching"
 
 proc new*(
     T: typedesc[Dcutr],

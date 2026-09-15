@@ -19,7 +19,7 @@ export MemoryTransportError, MemoryTransportAcceptStopped
 const MemoryAutoAddress* = "/memorytransport/*"
 
 logScope:
-  topics = "libp2p memorytransport"
+  topics = "libp2p memory-transport"
 
 type MemoryTransport* = ref object of Transport
   rng*: Rng
