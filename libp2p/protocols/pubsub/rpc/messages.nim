@@ -229,8 +229,8 @@ func shortLog*(pme: PartialMessageExtensionRPC): auto =
   (
     topicID: pme.topicID.shortLog,
     groupID: pme.groupID.shortLog,
-    partialMessageLen: pme.partialMessage.len,
-    partsMetadataLen: pme.partsMetadata.len,
+    partialMessage: pme.partialMessage.shortLog,
+    partsMetadata: pme.partsMetadata.shortLog,
   )
 
 chronicles.formatIt(PartialMessageExtensionRPC):
