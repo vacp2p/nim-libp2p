@@ -315,7 +315,7 @@ proc pickClosestFirst(
 ): seq[Key] =
   ## Up to `count` keys sampled randomly per bucket, closest bucket (highest
   ## index) first, at most `maxPerBucket` from each.
-  var selected: seq[Key] = @[]
+  var selected: seq[Key] = newSeqOfCap[Key](count)
   var remaining = count
 
   for i in countdown(buckets.high, 0):
@@ -331,7 +331,7 @@ proc pickClosestFirst(
 
 proc randomPeersClosestFirst*(
     rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
-): seq[Key] =
+): seq[Key] {.raises: [].} =
   ## Returns up to `count` peers sampled randomly from the routing table's
   ## buckets, starting from the closest buckets (highest indices) and moving
   ## to farther buckets (lower indices).
@@ -348,7 +348,7 @@ proc randomPeersClosestFirst*(
     count: int,
     maxPerBucket = high(int),
     maxBuckets = rtable.config.maxBuckets,
-): seq[Key] =
+): seq[Key] {.raises: [].} =
   ## Same sampling, but with the table's peers viewed by distance to the
   ## pre-hashed ``target`` (which must be ``IdLength`` bytes) instead of to
   ## ``selfId``. Read-only: nothing is inserted and neither the registry nor

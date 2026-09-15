@@ -298,7 +298,7 @@ proc registration*(
     return
 
   if serviceId.len != IdLength:
-    trace "Key is not a service id: registration", msg = inMsg
+    trace "Key does not have service id length: registration", msg = inMsg
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -419,7 +419,7 @@ proc getAdvertisements*(
     return
 
   if serviceId.len != IdLength:
-    trace "Key is not a service id: getAdvertisements", msg
+    trace "Key does not have service id length: getAdvertisements", msg
     return Message(
       msgType: Opt.some(MessageType.getAds),
       getAds: Opt.some(GetAdsMessage(advertisements: @[])),

@@ -113,32 +113,38 @@ suite "Service Discovery Component - Registrar Closer Peers":
     # kRegister = fReturn = 1: the reply is one peer from the bucket nearest the
     # service. Unclamped buckets keep that bucket to the target alone.
     let conf = ServiceDiscoveryConfig.new(
-      safetyParam = 0.0, kRegister = 1, fReturn = 1, bucketsCount = MaxBucketsLimit
+      kRegister = 1, fReturn = 1, bucketsCount = MaxBucketsLimit
     )
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let rtable = registrarNode.rtable
+
+    # Peer ids are random and could all fall in one bucket, so add peers until
+    # they span at least two.
     var others: seq[ServiceDiscovery]
-    for _ in 0 ..< 12:
-      others.add(setupServiceDiscoveryNode(discoConfig = conf))
+    var keys: seq[Key]
+    var buckets: seq[int]
+    while others.len < 12 or buckets.min() == buckets.max():
+      let node = setupServiceDiscoveryNode(discoConfig = conf)
+      others.add(node)
+      keys.add(node.switch.peerInfo.peerId.toKey())
+      buckets.add(rtable.bucketIndex(keys[^1]))
 
     startAndDeferStop(@[registrarNode] & others)
     for node in others:
       await connect(registrarNode, node)
 
-    let rtable = registrarNode.rtable
-    let keys = others.mapIt(it.switch.peerInfo.peerId.toKey())
     checkUntilTimeout:
       keys.allIt(rtable.hasPeer(it))
 
     # Centre the service on a peer in the registrar's farthest bucket, so the
     # peer nearest the service is not in the registrar's own nearest bucket.
-    let buckets = keys.mapIt(rtable.bucketIndex(it))
     let targetIdx = buckets.minIndex()
     check buckets[targetIdx] < buckets.max()
 
     let serviceId = Key.init(keys[targetIdx].hashFor(rtable.config.hasher))
     check registrarNode.rtManager.getTable(serviceId).isNone()
 
-    # Ask as a peer other than the target, which `targetIdx == 0` would make it.
+    # Ask as a peer other than the target.
     let requester = others[(targetIdx + 1) mod others.len]
     let response = registrarNode.getAdvertisements(
       requester.switch.peerInfo.peerId,
@@ -148,6 +154,39 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check response.closerPeers.toPeerIds() == @[
       others[targetIdx].switch.peerInfo.peerId
     ]
+
+  asyncTest "GET_ADS closerPeers without a RegT follow the configured bucketsCount":
+    # With one service bucket every peer shares it, so kRegister = 1 caps the
+    # reply at one peer although fReturn allows two.
+    let conf = ServiceDiscoveryConfig.new(kRegister = 1, fReturn = 2, bucketsCount = 1)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let hasher = registrarNode.rtable.config.hasher
+    let serviceId = "service".hashServiceId()
+
+    # Add peers until they sit at two distances from the service, so a view with
+    # more buckets than configured would return two peers.
+    var others: seq[ServiceDiscovery]
+    var prefixLens: seq[int]
+    while prefixLens.len < 2 or prefixLens.min() == prefixLens.max():
+      let node = setupServiceDiscoveryNode(discoConfig = conf)
+      let hashed = Key.fromBytes(node.switch.peerInfo.peerId.toKey().hashFor(hasher))
+      others.add(node)
+      prefixLens.add(xorDistance(serviceId, hashed).leadingZeros())
+
+    startAndDeferStop(@[registrarNode] & others)
+    for node in others:
+      await connect(registrarNode, node)
+
+    checkUntilTimeout:
+      others.allIt(registrarNode.rtable.hasPeer(it.switch.peerInfo.peerId.toKey()))
+    check registrarNode.rtManager.getTable(serviceId).isNone()
+
+    let response = registrarNode.getAdvertisements(
+      others[0].switch.peerInfo.peerId,
+      Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId)),
+    )
+
+    check response.closerPeers.len == 1
 
   asyncTest "REGISTER with Wait adds advertiser to RegT":
     # Use safetyParam = 0 so the first registration is Confirmed, and
