@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, strutils, stew/byteutils, results, nimcrypto/sha2
+import chronos, strutils, stew/[byteutils, endians2], results, nimcrypto/sha2
 import
   ../../../libp2p/[
     peerid,
@@ -13,6 +13,7 @@ import
     protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
+    utils/shortlog,
   ]
 import ../../tools/[unittest, crypto as cryptoTools]
 import converters
@@ -20,22 +21,28 @@ import converters
 suite "Message":
   const topic = "foobar"
 
-  test "log formatting includes pubsub metadata but not payload contents":
-    let message = Message(
-      data: "message-payload-secret".toBytes(),
-      seqno: "sequence-secret".toBytes(),
-      topic: topic,
-      signature: "signature-secret".toBytes(),
-      key: "key-secret".toBytes(),
-    )
+  test "log formatting uses short byte values and renders seqno":
+    let
+      seqno = 42'u64
+      message = Message(
+        data: "message-payload-secret".toBytes(),
+        seqno: @(seqno.toBytesBE()),
+        topic: topic,
+        signature: "signature-secret".toBytes(),
+        key: "key-secret".toBytes(),
+      )
+      logMsg = $chroniclesFormatItIMPL(message)
 
     check:
-      ($chroniclesFormatItIMPL(message)).contains("dataLen")
-      ($chroniclesFormatItIMPL(message)).contains("signaturePresent")
-      not ($chroniclesFormatItIMPL(message)).contains("message-payload-secret")
-      not ($chroniclesFormatItIMPL(message)).contains("sequence-secret")
-      not ($chroniclesFormatItIMPL(message)).contains("signature-secret")
-      not ($chroniclesFormatItIMPL(message)).contains("key-secret")
+      logMsg.contains("dataLen")
+      logMsg.contains("signaturePresent")
+      not logMsg.contains(message.data)
+      not logMsg.contains(message.data.shortLog)
+      not logMsg.contains(message.signature)
+      not logMsg.contains(message.signature.shortLog)
+      logMsg.contains(message.key.shortLog)
+      shortLog(message).seqno == $seqno
+      shortLog(Message(topic: topic)).seqno == "<unset>"
 
   test "signature":
     var seqno = 11'u64
