@@ -109,7 +109,7 @@ method dial*(
     peerId: Opt[PeerId] = Opt.none(PeerId),
     dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     try:
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
       return await self.dial(address)
@@ -130,7 +130,7 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
   handles
 
 proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   let self = Self(client: cl, upgrader: upgrader)
   self.running = true
   self.queue = newAsyncQueue[RawConn](0)

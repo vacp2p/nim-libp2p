@@ -213,14 +213,14 @@ proc portMapping(self: NATService): PortMappingConfig =
 proc mergeInto*(dst: var NATConfig, src: NATConfig) =
   ## Fold ``src``'s set concerns into ``dst``; setting one concern twice is a
   ## programmer error (build-time misuse), so it fails fast with a Defect.
-  src.portMapping.withValue(v):
+  src.portMapping.ifValue(v):
     doAssert dst.portMapping.isNone(), "withNAT: portMapping configured more than once"
     dst.portMapping = Opt.some(v)
-  src.reachability.withValue(v):
+  src.reachability.ifValue(v):
     doAssert dst.reachability.isNone(),
       "withNAT: reachability configured more than once"
     dst.reachability = Opt.some(v)
-  src.holePunching.withValue(v):
+  src.holePunching.ifValue(v):
     doAssert dst.holePunching.isNone(),
       "withNAT: holePunching configured more than once"
     dst.holePunching = Opt.some(v)
@@ -241,7 +241,7 @@ proc explicitIpMapped*(
       continue
     if ip.family != explicitIp.family:
       continue
-    listenAddr.replaceIp(explicitIp).withValue(remapped):
+    listenAddr.replaceIp(explicitIp).ifValue(remapped):
       if remapped notin addrs:
         addrs.add(remapped)
   addrs
@@ -367,12 +367,12 @@ proc setupMappings*(
     externalIp = Opt.none(IpAddress)
 
   for lp in listenPorts:
-    (await self.mapOnePort(lp)).withValue(res):
+    (await self.mapOnePort(lp)).ifValue(res):
       externalIp = Opt.some(res.externalIp)
       if res.entry notin nextMapped:
         nextMapped.add(res.entry)
 
-      res.announced.withValue(annAddr):
+      res.announced.ifValue(annAddr):
         if annAddr notin announced:
           announced.add(annAddr)
 
@@ -456,10 +456,10 @@ proc setupReachability(
       "NATService: holePunching and reachability are mutually exclusive; " &
         "holePunching already runs AutoNAT v1.",
     )
-  self.config.holePunching.withValue(hp):
+  self.config.holePunching.ifValue(hp):
     self.setupHolePunching(switch, hp)
     return
-  self.config.reachability.withValue(r):
+  self.config.reachability.ifValue(r):
     case r.version
     of AutonatV1:
       self.setupAutonatV1(switch, r)
@@ -472,7 +472,7 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
     reachability = self.config.reachability.isSome(),
     holePunching = self.config.holePunching.isSome()
 
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     if pm.mode in {Upnp, NatPmp, Auto}:
       validatePortMapperConfig(pm)
 
@@ -516,7 +516,7 @@ func portMappingSource(mode: PortMappingMode): AddrSource =
 proc startPortMapping(self: NATService, switch: Switch) =
   ## (Re)build the addressMapper here, not in setup, so a stop/start cycle
   ## re-creates it after stop() tears it down.
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     case pm.mode
     of ExplicitIp:
       self.addressMapper = explicitIpMapper(pm.explicitIp)
@@ -545,7 +545,7 @@ proc stopPortMapping(
 ) {.async: (raises: [CancelledError]).} =
   ## Deliberately never call peerInfo.update() during shutdown: user-set
   ## announcedAddrs must survive and observers must not broadcast mid-teardown.
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     case pm.mode
     of ExplicitIp:
       if not self.addressMapper.isNil():

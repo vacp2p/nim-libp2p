@@ -56,7 +56,7 @@ proc handleDialBack(
     trace "DialBack requires a fresh inbound connection", nonce = dialBack.nonce
     return
 
-  stream.localAddr.withValue(localAddr):
+  stream.localAddr.ifValue(localAddr):
     trace "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
     self.expectedNonces[dialBack.nonce] =
@@ -131,8 +131,9 @@ proc handleDialDataRequest*(
     trace "Sending DialDataResponse", index = i, messagesToSend = messagesToSend
 
   # get DialResponse
-  msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-    raise newException(AutonatV2Error, error)
+  msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOrRaise(
+      AutonatV2Error
+    )
 
   trace "Received message", kind = msg.oneof.kind
   if msg.oneof.kind != MsgKind.DialResponse:
@@ -190,8 +191,9 @@ method sendDialRequest*(
         )
       ).encode()
     )
-    let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-      raise newException(AutonatV2Error, error)
+    let msg = AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOrRaise(
+        AutonatV2Error
+      )
 
     dialResp =
       case msg.oneof.kind
@@ -207,7 +209,7 @@ method sendDialRequest*(
 
     trace "Received DialResponse", dialResp = dialResp
 
-    dialResp.dialStatus.withValue(dialStatus):
+    dialResp.dialStatus.ifValue(dialStatus):
       if dialStatus == DialStatus.Ok:
         let addrIdx = dialResp.addrIdx.valueOr(0.AddrIdx)
         if not self.checkAddrIdx(addrIdx, testAddrs, nonce):

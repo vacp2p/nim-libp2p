@@ -379,7 +379,7 @@ proc createLibp2pNode(config: Libp2pConfig): Result[LibP2P, string] =
   if cfg.autonat:
     switchBuilder = switchBuilder.withAutonat()
 
-  cfg.nat.withValue(natCfg):
+  cfg.nat.ifValue(natCfg):
     switchBuilder = switchBuilder.withNAT(natCfg)
 
   if cfg.autonatV2Server:

@@ -348,11 +348,10 @@ method start*(
 
   info "Starting WS transport"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   if not self.secure and self.autotls.isSome():
-    self.autotls.withValue(autotls):
+    self.autotls.ifValue(autotls):
       if not await autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
         error "Unable to upgrade, autotls not running"
         await self.stop()

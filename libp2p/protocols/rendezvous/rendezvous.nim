@@ -458,7 +458,7 @@ proc requestPeer[E](
   if resp.status != ResponseStatus.Ok:
     trace "Cannot discover", namespace = ns, status = resp.status, text = resp.text
     return @[]
-  resp.cookie.withValue(cookie):
+  resp.cookie.ifValue(cookie):
     if ns.isSome:
       let namespace = ns.get()
       if cookie.len() < 1000 and

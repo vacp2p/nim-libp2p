@@ -273,7 +273,7 @@ proc countBroadcastMetrics*(
       npeers, labelValues = [p.topicLabel(smsg.topic)]
     )
 
-  msg.control.withValue(control):
+  msg.control.ifValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
     for ihave in control.ihave:
@@ -365,7 +365,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
   for m in rpcMsg.messages:
     libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(m.topic)])
 
-  rpcMsg.control.withValue(control):
+  rpcMsg.control.ifValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
       libp2p_pubsub_received_ihave.inc(labelValues = [p.topicLabel(ihave.topicID)])

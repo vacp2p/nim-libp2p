@@ -99,7 +99,7 @@ proc dialAndUpgrade*(
     return nil
 
   let backoffKey = backoffKey(addrs, peerId)
-  self.dialBackoff.withValue(backoff):
+  self.dialBackoff.ifValue(backoff):
     # `forceDial` already overrides the connection limits, so it overrides the wait too.
     if not forceDial and backoff.blocked(backoffKey):
       return nil
@@ -121,7 +121,7 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
       )
-      self.dialBackoff.withValue(backoff):
+      self.dialBackoff.ifValue(backoff):
         backoff.recordFailure(backoffKey)
       return nil # Try the next address
 
@@ -146,7 +146,7 @@ proc dialAndUpgrade*(
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["upgrade_failed"]
       )
-      self.dialBackoff.withValue(backoff):
+      self.dialBackoff.ifValue(backoff):
         backoff.recordFailure(backoffKey)
 
       # Try other address
@@ -158,7 +158,7 @@ proc dialAndUpgrade*(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
   )
 
-  self.dialBackoff.withValue(backoff):
+  self.dialBackoff.ifValue(backoff):
     backoff.recordSuccess(backoffKey)
 
   let filtered = self.peerStore.addressPolicy.filterAddrs(@[addrs])
@@ -658,11 +658,11 @@ proc establishConnection(
     dir: Direction,
 ): Future[Muxer] {.async: (raises: [DialFailedError, CancelledError]).} =
   if reuseConnection:
-    peerId.withValue(peerId):
-      self.tryReusingConnection(peerId).withValue(mux):
+    peerId.ifValue(peerId):
+      self.tryReusingConnection(peerId).ifValue(mux):
         return mux
 
-  self.dialBackoff.withValue(backoff):
+  self.dialBackoff.ifValue(backoff):
     if not forceDial and backoff.blocked(peerId):
       raise newException(
         DialFailedError,
@@ -691,7 +691,7 @@ proc establishConnection(
   if isNil(muxed): # None of the addresses connected
     slot.release()
     if reach.dialed:
-      self.dialBackoff.withValue(backoff):
+      self.dialBackoff.ifValue(backoff):
         backoff.recordFailure(peerId)
     raise newException(
       DialFailedError,
@@ -703,11 +703,11 @@ proc establishConnection(
   try:
     await self.finishUpgrade(muxed, dir)
   except DialFailedError as e:
-    self.dialBackoff.withValue(backoff):
+    self.dialBackoff.ifValue(backoff):
       backoff.recordFailure(peerId)
     raise e
 
-  self.dialBackoff.withValue(backoff):
+  self.dialBackoff.ifValue(backoff):
     backoff.recordSuccess(peerId)
   muxed
 
@@ -759,7 +759,7 @@ method connect*(
 ): Future[PeerId] {.async: (raises: [DialFailedError, CancelledError]).} =
   ## Connects to a peer and retrieve its PeerId
 
-  parseFullAddress(address).toOpt().withValue(fullAddress):
+  parseFullAddress(address).toOpt().ifValue(fullAddress):
     return (
       await self.internalConnect(Opt.some(fullAddress[0]), @[fullAddress[1]], false)
     ).connection.peerId
@@ -792,7 +792,7 @@ proc negotiateStream*(
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
     )
 
-  self.ms.lookupProtocol(selected).withValue(protocol):
+  self.ms.lookupProtocol(selected).ifValue(protocol):
     if not protocol.reserveOutgoing(stream.peerId):
       raise newException(
         DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
@@ -917,7 +917,7 @@ proc new*(
     dialBackoff = Opt.none(DialBackoffConfig),
 ): Dialer {.raises: [].} =
   var backoff = Opt.none(DialBackoff)
-  dialBackoff.withValue(backoffConfig):
+  dialBackoff.ifValue(backoffConfig):
     backoff = Opt.some(DialBackoff.new(backoffConfig))
 
   T(

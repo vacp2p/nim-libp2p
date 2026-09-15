@@ -190,7 +190,7 @@ proc updateWaitAfterRetry*(
     now: UnixTimestamp,
     wait: var Duration,
 ) =
-  ticketOpt.withValue(ticket):
+  ticketOpt.ifValue(ticket):
     let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar.seconds
 
@@ -251,9 +251,10 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  discard disco.insertPeer(
+  disco.rtManager.admitPeers(
+    disco,
     serviceId,
-    PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address)),
+    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
   )
 
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
@@ -367,7 +368,7 @@ proc registration*(
     tWaitFor: Opt.some(tWait),
   )
 
-  ticketOpt.withValue(t):
+  ticketOpt.ifValue(t):
     ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
