@@ -348,7 +348,7 @@ proc triggerConnEvent*(
       succeeded = results.succeeded,
       failed = results.failed,
       cancelled = results.cancelled,
-      pending = connEvents.len - results.succeeded - results.failed - results.cancelled
+      pending = results.pending
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -399,7 +399,7 @@ proc triggerPeerEvents*(
       succeeded = results.succeeded,
       failed = results.failed,
       cancelled = results.cancelled,
-      pending = peerEvents.len - results.succeeded - results.failed - results.cancelled
+      pending = results.pending
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction

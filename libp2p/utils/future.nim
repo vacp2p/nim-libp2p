@@ -12,14 +12,13 @@ logScope:
 type
   AllFuturesFailedError* = object of CatchableError
 
-  FutureOutcomeCounts* = object ## Completed futures grouped by their terminal outcome.
-    succeeded*, failed*, cancelled*: int
+  FutureOutcomeCounts* = object ## Futures grouped by their current outcome.
+    succeeded*, failed*, cancelled*, pending*: int
 
 proc countFutureOutcomes*[Fut](
     futs: openArray[Fut]
 ): FutureOutcomeCounts {.raises: [].} =
-  ## Counts completed futures by terminal outcome. Futures that have not
-  ## finished are omitted from the result.
+  ## Counts futures by current state, including those still pending.
   for fut in futs:
     if fut.cancelled():
       result.cancelled.inc()
@@ -27,6 +26,8 @@ proc countFutureOutcomes*[Fut](
       result.failed.inc()
     elif fut.completed():
       result.succeeded.inc()
+    else:
+      result.pending.inc()
 
 proc anyCompleted*[T](
     futs: seq[T]

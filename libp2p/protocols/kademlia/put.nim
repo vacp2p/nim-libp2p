@@ -118,15 +118,15 @@ proc putValue*(
     try:
       await batch.allFuturesWaitOrTimeout(kad.config.timeout)
     finally:
+      let results = countFutureOutcomes(batch)
+      var rejected: int
       for fut in batch:
-        if not fut.finished():
-          pending.inc()
-        elif fut.cancelled():
-          cancelled.inc()
-        elif fut.completed() and fut.value().isOk():
-          succeeded.inc()
-        else:
-          failed.inc()
+        if fut.completed() and fut.value().isErr():
+          rejected.inc()
+      succeeded += results.succeeded - rejected
+      failed += results.failed + rejected
+      cancelled += results.cancelled
+      pending += results.pending
   outcome = "completed"
   ok()
 
