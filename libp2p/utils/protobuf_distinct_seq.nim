@@ -12,12 +12,11 @@ macro distinctByteSeqSerialization*(T: typedesc): untyped =
   ## `T` must be a `distinct seq[byte]` type. Its wire representation is the
   ## underlying byte sequence, and empty sequences use protobuf's default
   ## sequence handling.
-  result = quote do:
+  result = quote:
     Protobuf.extensionDefaults(`T`, pbytes, defaultSeq = true)
 
     func computeFieldSize*(
-        field: int, value: `T`, ProtoType: type ProtobufExt,
-        skipDefault: static bool
+        field: int, value: `T`, ProtoType: type ProtobufExt, skipDefault: static bool
     ): int =
       computeFieldSize(field, seq[byte](value), pbytes, skipDefault)
 
