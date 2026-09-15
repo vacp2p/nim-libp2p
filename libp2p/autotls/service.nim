@@ -220,7 +220,7 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
   var lastError: ref CatchableError
   let operation = if self.cert.isSome(): "renewal" else: "initial issuance"
   var attempts = 0
-  var outcome = ""
+  var outcome = "cancelled"
   defer:
     debug "Certificate issuance finished",
       operation, outcome, attempts, hasCertificate = self.cert.isSome()
@@ -234,7 +234,6 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
       await self.issueCertificate()
       return
     except CancelledError as exc:
-      outcome = "cancelled"
       raise exc
     except CatchableError as exc:
       outcome = "failed"
