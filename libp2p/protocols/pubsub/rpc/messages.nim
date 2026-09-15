@@ -212,10 +212,12 @@ func shortLog*(msg: Message): auto =
   (
     topic: msg.topic.shortLog,
     seqno:
-      if msg.seqno.len > 0:
+      if msg.seqno.len == 8:
         $fromBytesBE(uint64, msg.seqno)
+      elif msg.seqno.len == 0:
+        "<unset>"
       else:
-        "<unset>",
+        "<invalid>",
     fromPeer: msg.fromPeer.shortLog,
     dataLen: msg.data.len,
     key: msg.key.shortLog,
