@@ -249,25 +249,22 @@ proc explicitIpMapped*(
 type ListenPort = tuple[port: Port, proto: MapProto, multiAddr: MultiAddress]
 
 proc transportProto(ma: MultiAddress): Opt[MapProto] =
-  if ma[multiCodec("tcp")].isOk:
+  if ma[TcpMultiCodec].isOk:
     Opt.some(mpTcp)
-  elif ma[multiCodec("udp")].isOk:
+  elif ma[UdpMultiCodec].isOk:
     Opt.some(mpUdp)
   else:
     Opt.none(MapProto)
 
 proc replaceTransportPort(ma: MultiAddress, port: Port): Opt[MultiAddress] =
   ## Mirrors ``MultiAddress.replaceIp`` but for the tcp/udp port component.
-  let
-    tcp = multiCodec("tcp")
-    udp = multiCodec("udp")
   var res = MultiAddress.init()
   for item in ma.items:
     let part = item.valueOr:
       return Opt.none(MultiAddress)
     let code = part.protoCode.valueOr:
       return Opt.none(MultiAddress)
-    if code == tcp or code == udp:
+    if code == TcpMultiCodec or code == UdpMultiCodec:
       let portMa = MultiAddress.init(code, int(port)).valueOr:
         return Opt.none(MultiAddress)
       res.append(portMa).isOkOr:
