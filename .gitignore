@@ -47,5 +47,8 @@ tests/**/test*[^.]*
 # nix builds
 result
 
+# interop peer binaries
 /interop/autonatv2/go-peer/testautonatv2
 /interop/autonatv2/nim-peer/src/nim_peer
+/interop/partial-message/go-peer/peer
+/interop/partial-message/nim-peer/src/peer

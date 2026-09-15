@@ -18,6 +18,7 @@ env:
 permissions:
   contents: read
 
+# build all peers before running them, so that no peer times out while it waits for another peer to build.
 jobs:
   run-transport-interop:
     name: Run transport interoperability tests
@@ -168,6 +169,7 @@ jobs:
           nimble --noLockfile --requires:"nim == $NIM_VERSION" --resolver:minver -l setup -y
           nim c -d:chronicles_log_level=DEBUG interop/partial-message/nim-peer/src/peer.nim
 
+      # the go peer runs in the background because the interop test logic is implemented in the nim peer.
       - name: Run Go and Nim together
         working-directory: interop/partial-message
         run: |
