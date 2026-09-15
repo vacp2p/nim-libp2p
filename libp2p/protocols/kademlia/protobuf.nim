@@ -11,65 +11,11 @@ import ../../crypto/crypto
 import protobuf_serialization
 import protobuf_serialization/pkg/results
 import protobuf_serialization/std/enums
-import ../../utils/[protobuf, protobuf_chronos_sec]
+import ../../utils/[protobuf, protobuf_chronos_sec, protobuf_distinct_seq]
 import ./key_value
 
-Protobuf.extensionDefaults(Key, pbytes, defaultSeq = true)
-Protobuf.extensionDefaults(Value, pbytes, defaultSeq = true)
-
-func computeFieldSize*(
-    field: int, value: Key, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  computeFieldSize(field, value.toBytes(), pbytes, skipDefault)
-
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: Key,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  writeField(stream, field, value.toBytes(), pbytes, skipDefault)
-
-proc readFieldInto*(
-    stream: InputStream,
-    value: var Key,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var bytes: seq[byte]
-  if readFieldInto(stream, bytes, header, pbytes):
-    value = Key.fromBytes(bytes)
-    true
-  else:
-    false
-
-func computeFieldSize*(
-    field: int, value: Value, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  computeFieldSize(field, value.toBytes(), pbytes, skipDefault)
-
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: Value,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  writeField(stream, field, value.toBytes(), pbytes, skipDefault)
-
-proc readFieldInto*(
-    stream: InputStream,
-    value: var Value,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var bytes: seq[byte]
-  if readFieldInto(stream, bytes, header, pbytes):
-    value = Value.fromBytes(bytes)
-    true
-  else:
-    false
+distinctByteSeqSerialization(Key)
+distinctByteSeqSerialization(Value)
 
 type
   Record* {.proto2.} = object
