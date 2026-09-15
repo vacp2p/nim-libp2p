@@ -60,6 +60,38 @@ suite "Service Discovery Component - Lookup Get Ads":
     check found.get().len == 1
     check found.containsPeer(advertiserNode)
 
+  asyncTest "lookup queries closer peers learned during the same lookup":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    # The relay sits in bucket 0 and the holder in bucket 1, so the discoverer's
+    # walk reaches the holder's bucket after the relay has named it.
+    let (relayNode, holderNode, serviceName) = setupRegistrarsInDistinctBuckets(conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[holderNode, relayNode, advertiserNode, discovererNode])
+    await connect(holderNode, advertiserNode)
+    await connect(holderNode, relayNode)
+    await connect(relayNode, discovererNode)
+
+    let serviceId = serviceName.hashServiceId()
+    let adBytes = makeAdvertisement(
+        serviceName, advertiserNode.switch.peerInfo.privateKey
+      )
+      .encode()
+      .get()
+    let regResult = await advertiserNode.sendRegister(
+      holderNode.switch.peerInfo.peerId, serviceId, adBytes
+    )
+    check regResult.isOk()
+    check regResult.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    # Only the relay's reply can tell the discoverer about the holder.
+    check not discovererNode.rtable.hasPeer(holderNode.switch.peerInfo.peerId.toKey())
+
+    let found = await discovererNode.lookup(serviceId)
+    check found.isOk()
+    check found.get().len == 1
+    check found.containsPeer(advertiserNode)
+
   asyncTest "local duplicates do not consume the remaining lookup quota":
     let conf = ServiceDiscoveryConfig.new(fLookup = 2, fReturn = 2)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
