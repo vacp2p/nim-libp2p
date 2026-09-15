@@ -487,32 +487,49 @@ proc handleData*(
   # happens on {.async.} transformation
   p.topics.withValue(topic, topicData):
     var futs = newSeq[Future[void]]()
+    var handlers = 0
 
     for handler in topicData[].handlers:
       if handler != nil: # allow nil handlers
+        handlers.inc()
         let fut = handler(topic, data)
         if not fut.completed(): # Fast path for successful sync handlers
           futs.add(fut)
 
-    if futs.len() > 0:
-      proc waiter(): Future[void] {.async: (raises: []).} =
-        # slow path - we have to wait for the handlers to complete
-        try:
-          futs = await allFinished(futs)
-        except CancelledError:
-          # propagate cancellation
-          futs.cancelSoon()
+    if futs.len() == 0:
+      # Fast path - futures finished synchronously or nobody cared about data
+      debug "Topic handlers finished",
+        topic, handlers, succeeded = handlers, failed = 0, cancelled = 0, pending = 0
+      return newFutureCompleted[void]()
 
-        # check for errors in futures
-        for fut in futs:
-          if fut.failed:
-            let err = fut.error()
-            warn "Error in topic handler", err = err.msg
+    proc waiter(): Future[void] {.async: (raises: []).} =
+      # slow path - we have to wait for the handlers to complete
+      try:
+        futs = await allFinished(futs)
+      except CancelledError:
+        # propagate cancellation
+        futs.cancelSoon()
 
-      return waiter()
+      var failed, cancelled, pending: int
+      # check for errors in futures
+      for fut in futs:
+        if fut.cancelled():
+          cancelled.inc()
+        elif fut.failed:
+          failed.inc()
+          trace "Error in topic handler", topic, err = fut.error().msg
+        elif not fut.finished():
+          pending.inc()
 
-  # Fast path - futures finished synchronously or nobody cared about data
-  newFutureCompleted[void]()
+      debug "Topic handlers finished",
+        topic,
+        handlers,
+        succeeded = handlers - failed - cancelled - pending,
+        failed,
+        cancelled,
+        pending
+
+    return waiter()
 
 template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
   if p.triggerSelf:
