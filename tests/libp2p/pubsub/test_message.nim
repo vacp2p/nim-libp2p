@@ -34,13 +34,11 @@ suite "Message":
       logMsg = $chroniclesFormatItIMPL(message)
 
     check:
-      logMsg.contains("dataLen")
-      logMsg.contains("signaturePresent")
-      not logMsg.contains(message.data)
-      not logMsg.contains(message.data.shortLog)
-      not logMsg.contains(message.signature)
-      not logMsg.contains(message.signature.shortLog)
-      logMsg.contains(message.key.shortLog)
+      strutils.contains(logMsg, "dataLen")
+      strutils.contains(logMsg, "signaturePresent")
+      not strutils.contains(logMsg, message.data.shortLog)
+      not strutils.contains(logMsg, message.signature.shortLog)
+      strutils.contains(logMsg, message.key.shortLog)
       shortLog(message).seqno == $seqno
       shortLog(Message(topic: topic)).seqno == "<unset>"
 
