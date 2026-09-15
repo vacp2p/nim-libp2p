@@ -6,7 +6,9 @@ from std/times import getTime, toUnix
 import chronos, results
 import
   ../../../../libp2p/[
+    extended_peer_record,
     multiaddress,
+    protocols/kademlia/put,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/connection,
     protocols/service_discovery/types,
@@ -402,3 +404,18 @@ suite "Service Discovery Component - Error Handling":
         response.msgType == kad_protobuf.MessageType.getAds
         response.getAds.isSome()
         response.getAds.get().advertisements.len == 0
+
+  asyncTest "PUT_VALUE signed by another peer is rejected with a default validator config":
+    let kadConfig = KadDHTConfig.new(timeout = 1.seconds, disableBootstrapping = true)
+    let storeNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    let clientNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    startAndDeferStop(@[storeNode, clientNode])
+    await connect(storeNode, clientNode)
+
+    let storePeerId = storeNode.switch.peerInfo.peerId
+    let value = Value.fromBytes(makeAdvertisement().encode())
+    discard await clientNode.dispatchPutVal(storePeerId, storePeerId.toKey(), value)
+
+    check storeNode.dataTable.get(storePeerId.toKey()).isNone()

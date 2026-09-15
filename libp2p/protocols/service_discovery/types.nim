@@ -248,17 +248,24 @@ proc init*(
     services: services,
   )
 
+proc boundXpr*(key: Key, value: Value): Opt[SignedExtendedPeerRecord] =
+  ## Accepts a valid signed XPR only when its subject is the peer that `key` names.
+  let expectedPeerId = key.toPeerId().valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  let sxpr = SignedExtendedPeerRecord.decode(value.toBytes()).valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  if sxpr.data.peerId != expectedPeerId or not sxpr.isValid():
+    return Opt.none(SignedExtendedPeerRecord)
+
+  Opt.some(sxpr)
+
 type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedExtendedPeerRecord.decode(record.value.toBytes()).valueOr:
-    return false
-
-  let expectedPeerId = key.toPeerId().valueOr:
-    return false
-
-  return spr.data.peerId == expectedPeerId
+  boundXpr(key, record.value).isSome()
 
 type ExtEntrySelector* = ref object of EntrySelector
 method select*(

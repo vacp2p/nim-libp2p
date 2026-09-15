@@ -1,3 +1,6 @@
 # nimcrypto picks its SHA-2 compress function on first use and caches it in a
 # global, so every thread writes the same pointer at once.
 race:default_sha*_compress_func
+
+# localtime_r guards its TZ cache with a glibc-internal lock that TSAN cannot see.
+race:getLocalOffsetAndDst

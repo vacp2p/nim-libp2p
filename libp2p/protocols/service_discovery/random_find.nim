@@ -11,6 +11,23 @@ import ./[types]
 logScope:
   topics = "libp2p service-discovery"
 
+type PendingGetVal = object
+  key: Key
+  fut: Future[Result[Message, string]].Raising([CancelledError])
+
+proc replyXpr*(key: Key, reply: Message): Opt[SignedExtendedPeerRecord] =
+  let record = reply.record.valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  if record.key != Opt.some(key):
+    debug "Get-value reply names another key", key
+    return Opt.none(SignedExtendedPeerRecord)
+
+  let value = record.value.valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  boundXpr(key, value)
+
 proc randomRecords(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
@@ -23,48 +40,37 @@ proc randomRecords(
   let randomKey = randomPeerId.toKey()
 
   var queried: HashSet[PeerId]
-  var getValFuts: seq[Future[Result[Message, string]].Raising([CancelledError])]
+  var pending: seq[PendingGetVal]
 
-  # Issue a getValue as soon as a peer responds, so they run in parallel with
-  # the rest of the lookup.
+  # getValue runs in parallel with the rest of the lookup.
   let onReply = proc(
       peerId: PeerId, msg: Opt[Message], state: LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
     if peerId notin queried:
       queried.incl(peerId)
-      getValFuts.add(disco.dispatchGetVal(peerId, peerId.toKey()))
+      let key = peerId.toKey()
+      pending.add(PendingGetVal(key: key, fut: disco.dispatchGetVal(peerId, key)))
 
   try:
     discard await disco.iterativeLookup(randomKey, findNodeDispatch, onReply)
   except CancelledError as e:
-    await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
+    await noCancel allFutures(pending.mapIt(it.fut.cancelAndWait()))
     raise e
 
-  var values: seq[Value]
-  for fut in getValFuts:
+  var records: HashSet[ExtendedPeerRecord]
+  for p in pending:
     let res =
       try:
-        await fut
+        await p.fut
       except CancelledError as e:
-        await noCancel allFutures(getValFuts.mapIt(it.cancelAndWait()))
+        await noCancel allFutures(pending.mapIt(it.fut.cancelAndWait()))
         raise e
 
     let reply = res.valueOr:
       trace "Kademlia get-value failed", err = error
       continue
 
-    let record = reply.record.valueOr:
-      continue
-
-    let value = record.value.valueOr:
-      continue
-
-    values.add(value)
-
-  var records: HashSet[ExtendedPeerRecord]
-  for v in values:
-    let sxpr = SignedExtendedPeerRecord.decode(v.toBytes()).valueOr:
-      debug "Cannot decode signed extended peer record", error
+    let sxpr = replyXpr(p.key, reply).valueOr:
       continue
 
     records.incl(sxpr.data)
