@@ -251,11 +251,16 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  disco.rtManager.admitPeers(
-    disco,
-    serviceId,
-    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
-  )
+  # Admit the registering DHT peer, not the advertised subject. Under proxy
+  # advertising ad.data.peerId need not participate in KadDHT; the DHT peer is
+  # `advertiser`. Mirror seatSender and use its peerstore addresses.
+  let advertiserAddrs = disco.switch.peerStore[AddressBook][advertiser]
+  if advertiserAddrs.len > 0:
+    disco.rtManager.admitPeers(
+      disco,
+      serviceId,
+      @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)],
+    )
 
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
