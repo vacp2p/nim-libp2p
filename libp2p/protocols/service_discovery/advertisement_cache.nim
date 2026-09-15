@@ -71,7 +71,7 @@ proc findOldest(c: AdvertisementCache): Opt[(ServiceId, PeerId)] =
   oldest
 
 proc evictOldest(c: AdvertisementCache) =
-  c.findOldest().withValue(entry):
+  c.findOldest().ifValue(entry):
     c.remove(entry[0], entry[1])
 
 proc put*(

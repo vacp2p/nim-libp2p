@@ -15,8 +15,8 @@ logScope:
 proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
   ## Remote endpoint IP(s) from the transport connection, if known.
   var ips: seq[IpAddress]
-  stream.observedAddr.withValue(ma):
-    ma.getIp().withValue(ip):
+  stream.observedAddr.ifValue(ma):
+    ma.getIp().ifValue(ip):
       ips.add(ip)
   ips
 

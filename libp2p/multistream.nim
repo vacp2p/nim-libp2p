@@ -206,7 +206,7 @@ proc handle*(
       trace "Multistream negotiation failed", err = e.msg, stream
       return
 
-  m.lookupProtocol(ms).withValue(p):
+  m.lookupProtocol(ms).ifValue(p):
     trace "Protocol handler selected", stream, protocol = ms
 
     if not p.reserveIncoming(stream.peerId):

@@ -460,7 +460,7 @@ template streamTransportTest*(
           check (await stream.readExactlyAsStr(clientMessage.len)) == clientMessage
 
           successfulReadsWG.done()
-        except LPStreamIncompleteError:
+        except LPStreamIncompleteError, LPStreamResetError:
           # Error is expected when muxer is closed while waiting in readExactly
           discard
 

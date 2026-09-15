@@ -75,7 +75,7 @@ proc dispatchGetAds(
 
 proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
   let peersToPick = min(disco.discoConfig.kLookup, bucket.peers.len)
-  disco.rng.pick(bucket.peers, peersToPick).withValue(picked):
+  disco.rng.pick(bucket.peers, peersToPick).ifValue(picked):
     return picked.toPeerIds()
   else:
     return @[]
@@ -198,7 +198,7 @@ proc lookup*(
 
   var found = initHashSet[Advertisement]()
   let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
-  local.withValue(response):
+  local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
   let buckets = searchTable.buckets

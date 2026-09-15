@@ -163,7 +163,7 @@ proc blocked*(self: DialBackoff, address: MultiAddress, now = Moment.now()): boo
   self.addrs.blockedIn(address, "address", now)
 
 proc blocked*(self: DialBackoff, peerId: Opt[PeerId], now = Moment.now()): bool =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     return self.blocked(pid, now)
   false
 
@@ -174,7 +174,7 @@ proc recordFailure*(self: DialBackoff, address: MultiAddress, now = Moment.now()
   self.countFailure(self.addrs, address, "address", now)
 
 proc recordFailure*(self: DialBackoff, peerId: Opt[PeerId], now = Moment.now()) =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     self.recordFailure(pid, now)
 
 proc recordSuccess*(self: DialBackoff, peerId: PeerId) =
@@ -184,7 +184,7 @@ proc recordSuccess*(self: DialBackoff, address: MultiAddress) =
   self.addrs.del(address)
 
 proc recordSuccess*(self: DialBackoff, peerId: Opt[PeerId]) =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     self.recordSuccess(pid)
 
 proc new*(T: type DialBackoff, config: DialBackoffConfig): T =

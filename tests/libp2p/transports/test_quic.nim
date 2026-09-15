@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     transports/transport,
     transports/quictransport,
+    transports/tls/certificate,
     upgrademngrs/upgrade,
     utils/future,
     muxers/muxer,
@@ -58,6 +59,43 @@ suite "Quic transport":
     quicTransProvider, ma(addressIP4), Opt.some(ma(addressIP6)), streamProvider
   )
   cancellationTransportTest(quicTransProvider, addressIP4)
+
+  asyncTest "dial retries after endpoint construction fails":
+    for address in [addressIP4, "/ip6/::1/udp/0/quic-v1"]:
+      let server = await createQuicTransport(
+        isServer = true, addresses = @[MultiAddress.init(address).tryGet()]
+      )
+      defer:
+        await server.stop()
+
+      var failNext = true
+      proc flakyCertGenerator(
+          kp: KeyPair
+      ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+        if failNext:
+          failNext = false
+          raise newException(TLSCertificateError, "simulated endpoint creation failure")
+        generateX509(kp, encodingFormat = EncodingFormat.PEM)
+
+      let client = QuicTransport.new(
+        Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet(), rng(), flakyCertGenerator
+      )
+      defer:
+        await client.stop()
+
+      expect QuicTransportDialError:
+        discard await client.dial("", server.addrs[0])
+      check not failNext
+
+      let acceptFut = server.accept()
+      defer:
+        await acceptFut.cancelAndWait()
+      let clientConn = await client.dial("", server.addrs[0])
+      let serverConn = await acceptFut
+      check:
+        not clientConn.closed()
+        not serverConn.closed()
+      await allFutures(clientConn.close(), serverConn.close())
 
   asyncTest "listener-role dial sends UDP hole-punch packets":
     let packetReceived =
@@ -343,8 +381,7 @@ suite "Quic transport":
     expect QuicTransportAcceptStopped:
       discard await server.accept()
 
-  asyncTest "remote connection close leaves the dialer with a live session":
-    # TODO: vacp2p/nim-lsquic#162
+  asyncTest "remote connection close closes the dialer's session":
     let server = await createQuicTransport(isServer = true)
     let client = await createQuicTransport()
     defer:
@@ -370,12 +407,10 @@ suite "Quic transport":
     defer:
       await readFut.cancelAndWait()
 
-    # a CONNECTION_CLOSE crosses loopback in well under a millisecond
-    # the dialer instead waits out lsquic's 30s idle timeout
     check:
-      not (await readFut.withTimeout(1.seconds))
+      await readFut.withTimeout(1.seconds)
       serverConn.closed
-      not clientConn.closed
+      clientConn.closed
 
   asyncTest "stream idle timeout resets only the idle stream":
     let server = await createQuicTransport(

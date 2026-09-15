@@ -207,11 +207,11 @@ proc isDialableMA*(ma: MultiAddress): bool =
   if isCircuitRelayMA(ma):
     return true
 
-  ma.portOf().withValue(port):
+  ma.portOf().ifValue(port):
     if port == Port(0):
       return false
 
-  ma.getIp().withValue(ip):
+  ma.getIp().ifValue(ip):
     case ip.family
     of IpAddressFamily.IPv4:
       return ip.address_v4 != AnyAddressV4

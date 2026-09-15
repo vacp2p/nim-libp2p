@@ -40,7 +40,7 @@ proc asAutonatV2Response*(
 ): AutonatV2Response =
   var response =
     AutonatV2Response(reachability: self.asNetworkReachability(), dialResp: self)
-  self.addrIdx.withValue(addrIdx):
+  self.addrIdx.ifValue(addrIdx):
     if addrIdx.uint64 < testAddrs.len.uint64:
       response.addrs = Opt.some(testAddrs[addrIdx.int])
   return response

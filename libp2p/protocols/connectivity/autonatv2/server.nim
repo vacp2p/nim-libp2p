@@ -168,7 +168,7 @@ proc amplificationAttackPrevention(
 
 proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
   let (ipv4Support, ipv6Support) = self.switch.peerInfo.listenAddrs.ipSupport()
-  addrs[0].withValue(addrIp):
+  addrs[0].ifValue(addrIp):
     if IP4.match(addrIp) and not ipv4Support:
       return false
     if IP6.match(addrIp) and not ipv6Support:
@@ -311,7 +311,7 @@ proc new*(
     switch: Switch,
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Self =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   let autonatV2 = Self(
     switch: switch,
     config: config,

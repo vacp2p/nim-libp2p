@@ -37,7 +37,7 @@ proc createSwitch(
     .withAutonat(withAutonat)
     .build()
 
-  autonatSvc.withValue(s):
+  autonatSvc.ifValue(s):
     switch.add(s)
 
   return switch
