@@ -82,6 +82,8 @@ proc trySelect*(
     stream.protocol = proto[0]
     return ok(proto[0])
 
+  if proto.len() > 1:
+    trace "Protocol alternatives available", stream, protocols = proto[1 .. ^1]
   for p in proto.toOpenArray(1, proto.high):
     trace "Protocol negotiation retrying", stream, protocol = p
     await stream.writeLp(p & "\n")

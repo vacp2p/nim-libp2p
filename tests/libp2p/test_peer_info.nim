@@ -21,9 +21,9 @@ suite "PeerInfo":
     check peerId == peerInfo.peerId
     check seckey.getPublicKey().get() == peerInfo.publicKey
 
-  test "init returns the peer info without raising":
+  test "tryNew returns the peer info without raising":
     let seckey = PrivateKey.random(Ed25519, rng()).get()
-    let peerInfo = PeerInfo.init(seckey, protocols = ["/test/1.0.0"]).get()
+    let peerInfo = PeerInfo.tryNew(seckey, protocols = ["/test/1.0.0"]).get()
 
     check:
       peerInfo.peerId == PeerId.init(seckey).get()

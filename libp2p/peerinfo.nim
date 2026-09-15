@@ -169,7 +169,7 @@ proc toFullAddress*(peerId: PeerId, ma: MultiAddress): MaResult[MultiAddress] =
   let peerIdPart = ?MultiAddress.init(p2pMultiCodec, peerId.data)
   concat(ma, peerIdPart)
 
-proc init*(
+proc tryNew*(
     p: typedesc[PeerInfo],
     key: PrivateKey,
     listenAddrs: openArray[MultiAddress] = [],
@@ -210,7 +210,7 @@ proc new*(
     announcedAddrs: openArray[MultiAddress] = [],
 ): PeerInfo {.raises: [LPError].} =
   PeerInfo
-    .init(
+    .tryNew(
       key, listenAddrs, protocols, protoVersion, agentVersion, addressMappers,
       addressPolicy, announcedAddrs,
     )
