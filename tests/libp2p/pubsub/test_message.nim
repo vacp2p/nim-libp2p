@@ -20,6 +20,32 @@ import converters
 suite "Message":
   const topic = "foobar"
 
+  test "log formatting includes pubsub metadata but not payload contents":
+    let
+      message = Message(
+        data: "message-payload-secret".toBytes(),
+        seqno: "sequence-secret".toBytes(),
+        topic: topic,
+        signature: "signature-secret".toBytes(),
+        key: "key-secret".toBytes(),
+      )
+      extension = PartialMessageExtensionRPC(
+        groupID: Opt.some("group-secret".toBytes()),
+        partialMessage: Opt.some("partial-secret".toBytes()),
+        partsMetadata: Opt.some("metadata-secret".toBytes()),
+      )
+      
+    check:
+      ($chroniclesFormatItIMPL(message)).contains("dataLen")
+      ($chroniclesFormatItIMPL(message)).contains("signaturePresent")
+      not ($chroniclesFormatItIMPL(message)).contains("message-payload-secret")
+      not ($chroniclesFormatItIMPL(message)).contains("sequence-secret")
+      not ($chroniclesFormatItIMPL(message)).contains("signature-secret")
+      not ($chroniclesFormatItIMPL(message)).contains("key-secret")
+      ($chroniclesFormatItIMPL(extension)).contains("partialMessageLen")
+      not ($chroniclesFormatItIMPL(extension)).contains("partial-secret")
+      not ($chroniclesFormatItIMPL(extension)).contains("metadata-secret")
+
   test "signature":
     var seqno = 11'u64
     let

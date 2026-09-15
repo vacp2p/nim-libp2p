@@ -210,12 +210,12 @@ chronicles.formatIt(ControlMessage):
 
 func shortLog*(msg: Message): auto =
   (
+    topic: msg.topic.shortLog,
     fromPeer: msg.fromPeer.shortLog,
-    data: msg.data.shortLog,
-    seqno: msg.seqno.shortLog,
-    topic: msg.topic,
-    signature: msg.signature.shortLog,
-    key: msg.key.shortLog,
+    dataLen: msg.data.len,
+    seqnoLen: msg.seqno.len,
+    signaturePresent: msg.signature.len > 0,
+    keyPresent: msg.key.len > 0,
   )
 
 chronicles.formatIt(Message):
@@ -225,8 +225,8 @@ func shortLog*(pme: PartialMessageExtensionRPC): auto =
   (
     topicID: pme.topicID.shortLog,
     groupID: pme.groupID.shortLog,
-    partialMessage: pme.partialMessage.shortLog,
-    partsMetadata: pme.partsMetadata.shortLog,
+    partialMessageLen: pme.partialMessage.len,
+    partsMetadataLen: pme.partsMetadata.len,
   )
 
 chronicles.formatIt(PartialMessageExtensionRPC):
