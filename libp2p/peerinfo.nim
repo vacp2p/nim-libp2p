@@ -169,7 +169,7 @@ proc toFullAddress*(peerId: PeerId, ma: MultiAddress): MaResult[MultiAddress] =
   let peerIdPart = ?MultiAddress.init(p2pMultiCodec, peerId.data)
   concat(ma, peerIdPart)
 
-proc new*(
+proc tryNew*(
     p: typedesc[PeerInfo],
     key: PrivateKey,
     listenAddrs: openArray[MultiAddress] = [],
@@ -179,16 +179,13 @@ proc new*(
     addressMappers = newSeq[AddressMapper](),
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     announcedAddrs: openArray[MultiAddress] = [],
-): PeerInfo {.raises: [LPError].} =
+): Result[PeerInfo, string] =
   let pubkey = key.getPublicKey().valueOr:
-    raise
-      newException(PeerInfoError, "invalid private key creating PeerInfo: " & $error)
+    return err("invalid private key creating PeerInfo: " & $error)
   let peerId = PeerId.init(pubkey).valueOr:
-    raise newException(
-      PeerInfoError, "invalid public key creating PeerInfo peer id: " & $error
-    )
+    return err("invalid public key creating PeerInfo peer id: " & $error)
 
-  PeerInfo(
+  ok PeerInfo(
     peerId: peerId,
     publicKey: pubkey,
     privateKey: key,
@@ -200,3 +197,21 @@ proc new*(
     addressMappers: addressMappers,
     addressPolicy: addressPolicy,
   )
+
+proc new*(
+    p: typedesc[PeerInfo],
+    key: PrivateKey,
+    listenAddrs: openArray[MultiAddress] = [],
+    protocols: openArray[string] = [],
+    protoVersion: string = "",
+    agentVersion: string = "",
+    addressMappers = newSeq[AddressMapper](),
+    addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
+    announcedAddrs: openArray[MultiAddress] = [],
+): PeerInfo {.raises: [LPError].} =
+  PeerInfo
+    .tryNew(
+      key, listenAddrs, protocols, protoVersion, agentVersion, addressMappers,
+      addressPolicy, announcedAddrs,
+    )
+    .valueOrRaise(PeerInfoError)
