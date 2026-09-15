@@ -57,6 +57,7 @@ type
   DialReach* = ref object
     ## Shared by every address of one dial, so the peer answers for a real dial only.
     dialed: bool
+    attempted, succeeded, failed, cancelled: int
 
   DialLock = ref object
     lock: AsyncLock
@@ -103,6 +104,16 @@ proc dialAndUpgrade*(
       return nil
 
   reach.dialed = true
+  reach.attempted.inc()
+  var attemptOutcome = "cancelled"
+  defer:
+    case attemptOutcome
+    of "succeeded":
+      reach.succeeded.inc()
+    of "failed":
+      reach.failed.inc()
+    else:
+      reach.cancelled.inc()
 
   let dialStarted = Moment.now()
   trace "Address dial started", peerId, address = addrs, hostname
@@ -114,7 +125,8 @@ proc dialAndUpgrade*(
       trace "Address dial canceled", err = e.msg, peerId, address = addrs
       raise e
     except CatchableError as e:
-      debug "Address dial failed", err = e.msg, peerId, address = addrs, hostname
+      attemptOutcome = "failed"
+      trace "Address dial failed", err = e.msg, peerId, address = addrs, hostname
       libp2p_failed_dials.inc()
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
@@ -136,7 +148,8 @@ proc dialAndUpgrade*(
     except CatchableError as e:
       # Another transport for the same address fails the same way, so give this one up.
       await dialed.close()
-      debug "Connection upgrade failed", err = e.msg, peerId, address = addrs, hostname
+      attemptOutcome = "failed"
+      trace "Connection upgrade failed", err = e.msg, peerId, address = addrs, hostname
       if dialed.dir == Direction.Out:
         libp2p_failed_upgrades_outgoing.inc()
       else:
@@ -151,6 +164,7 @@ proc dialAndUpgrade*(
       return nil
 
   doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
+  attemptOutcome = "succeeded"
   trace "Peer connection established", peerId = mux.connection.peerId, address = addrs
   libp2p_dial_duration_ms.observe(
     (Moment.now() - dialStarted).milliseconds, labelValues = ["success"]
@@ -278,7 +292,7 @@ proc take(budget: DialBudget, candidates: seq[DialCandidate]): seq[DialCandidate
       fresh.add(candidate)
 
   if fresh.len > budget.left:
-    debug "Dial candidates truncated", limit = budget.left
+    trace "Dial candidates truncated", limit = budget.left
 
   let taken = fresh.take(budget.left)
   budget.left -= taken.len
@@ -299,7 +313,7 @@ proc awaitLookup(
   if lookup.completed():
     return lookup.value()
 
-  debug "Address lookup stopped at candidate limit"
+  trace "Address lookup stopped at candidate limit"
   @[]
 
 func fromNameLookup(candidate: DialCandidate): bool =
@@ -404,7 +418,7 @@ proc dialInOrder(
 
   for rawAddress in addrs:
     if deadline.timeLeft().isZero():
-      debug "Peer dial timed out", peerId, addresses = addrs
+      trace "Peer dial timed out", peerId, addresses = addrs
       return nil
 
     let advertised = DialCandidate(address: rawAddress, peerId: peerId)
@@ -544,12 +558,32 @@ proc dialAndUpgrade*(
   ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
 
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
-  debug "Peer dial started", peerId, addresses = dialAddrs
+  trace "Peer dial started", peerId, addresses = dialAddrs
 
-  if self.dialRanking:
-    await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
-  else:
-    await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial, reach)
+  var outcome = "cancelled"
+  defer:
+    debug "Peer address dial finished",
+      peerId,
+      addresses = dialAddrs,
+      outcome,
+      attempted = reach.attempted,
+      succeeded = reach.succeeded,
+      failed = reach.failed,
+      cancelled = reach.cancelled
+
+  let mux =
+    if self.dialRanking:
+      await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
+    else:
+      await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial, reach)
+  outcome =
+    if not mux.isNil:
+      "connected"
+    elif deadline.timeLeft().isZero():
+      "timedOut"
+    else:
+      "exhausted"
+  mux
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
