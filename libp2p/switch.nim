@@ -65,6 +65,7 @@ type
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
+    ownsNameResolver*: bool
     addressManager*: AddressManager
     started: bool
     stopping: bool
@@ -390,6 +391,9 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   doAssert not s.addressManager.isNil(), MissingAddressManager
   s.addressManager.stop()
 
+  if s.ownsNameResolver and not s.nameResolver.isNil:
+    await s.nameResolver.close()
+
   s.peerStore.close()
 
   info "Switch stopped"
@@ -402,6 +406,9 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   info "Starting switch for peer", peerInfo = s.peerInfo
   s.stopping = false
+
+  if s.ownsNameResolver and not s.nameResolver.isNil:
+    s.nameResolver.start()
 
   if not s.connManager.isRunning():
     s.connManager.start()

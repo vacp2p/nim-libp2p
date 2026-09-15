@@ -170,21 +170,17 @@ proc expandDnsAddr(
 ): Future[seq[(MultiAddress, Opt[PeerId])]] {.
     async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
 .} =
-  if not DNS.matchPartial(address):
+  if not address.containsDnsComponent():
     return @[(address, peerId)]
   if isNil(self.nameResolver):
-    warn "Can't resolve DNSADDR without NameResolver", address = address
+    warn "Can't resolve a DNS multiaddress without NameResolver", address
     return @[]
 
   trace "Address resolution started"
-  let toResolve =
-    if peerId.isSome:
-      try:
-        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
-      except ResultError[void]:
-        raiseAssert "checked with if"
-    else:
-      address
+  # Keep the expected peer separate from the DNSADDR suffix. Records which
+  # include /p2p must agree with it, while records which omit /p2p remain valid.
+  # This mirrors go-libp2p's ResolveDNSAddr(expectedPeerID, address) contract.
+  let toResolve = address
   # A dnsaddr record points at more dnsaddr records, and each lookup can take
   # seconds, so the chain answers to the dial deadline like the dial itself.
   let resolved =
@@ -208,6 +204,11 @@ proc expandDnsAddr(
         raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " & e.msg
 
       let addrPeerId = PeerId.init(peerIdBytes).tryGet()
+      peerId.ifValue(expectedPeerId):
+        if addrPeerId != expectedPeerId:
+          debug "Skipping DNSADDR record for a different peer",
+            expectedPeerId, recordPeerId = addrPeerId
+          continue
       addrs.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
     else:
       addrs.add((resolvedAddress, peerId))
@@ -373,7 +374,7 @@ proc directCandidates(
 
   var candidates: seq[DialCandidate]
   for address in addrs:
-    if DNS.matchPartial(address):
+    if address.containsDnsComponent():
       continue
     if self.transportFor(address).isNone():
       trace "Address skipped because no transport supports it", peerId, address
@@ -389,7 +390,9 @@ proc directCandidates(
 proc dnsCandidates(peerId: Opt[PeerId], addrs: seq[MultiAddress]): seq[DialCandidate] =
   ## The advertised addresses that need a lookup before anything can dial them.
 
-  addrs.filterIt(DNS.matchPartial(it)).mapIt(DialCandidate(address: it, peerId: peerId))
+  addrs.filterIt(it.containsDnsComponent()).mapIt(
+    DialCandidate(address: it, peerId: peerId)
+  )
 
 proc dialInOrder(
     self: Dialer,

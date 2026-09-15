@@ -301,10 +301,14 @@ proc new*(
     addresses: seq[MultiAddress] = @[],
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError].} =
-  var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(config: TransportConfig): Transport =
-        TorTransport.new(torServer, flags, config.upgr)
-    )
+  var builder =
+    SwitchBuilder.new()
+      .withRng(rng)
+      .withoutNameResolver()
+      .withTransport(
+        proc(config: TransportConfig): Transport =
+          TorTransport.new(torServer, flags, config.upgr)
+      )
   if addresses.len != 0:
     builder = builder.withAddresses(addresses)
   let switch = builder.withMplex().withNoise().build()

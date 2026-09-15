@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[sequtils, tables]
-import chronos
+import chronos, chronos/threadsync
 import
   ../../libp2p/[
     stream/connection,
@@ -14,46 +14,139 @@ import
     nameresolving/nameresolver,
     nameresolving/dnsresolver,
     nameresolving/mockresolver,
+    nameresolving/systemresolver,
   ]
-import ../tools/[unittest, multiaddress]
+import ../tools/[unittest, crypto, multiaddress]
 
-const unixPlatform =
-  defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
-  defined(netbsd) or defined(openbsd) or defined(dragonfly)
+suite "System nameserver discovery":
+  test "nameserver entries are parsed in order":
+    check parseNameServers("""
+# a comment
+search example.com
+nameserver 10.0.0.2
+nameserver 10.0.0.3
+options ndots:5
+""") == @[initTAddress("10.0.0.2:53"), initTAddress("10.0.0.3:53")]
 
-when unixPlatform:
-  import std/strutils, chronicles
+  test "IPv6 nameservers are bracketed":
+    check parseNameServers("nameserver fd00::2\n") == @[initTAddress("[fd00::2]:53")]
 
-proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
-  when unixPlatform:
-    var resultSeq = newSeqOfCap[TransportAddress](3)
-    try:
-      for l in lines("/etc/resolv.conf"):
-        let lineParsed = l.strip().split(seps = Whitespace + {'%'}, maxsplit = 2)
-        if lineParsed.len < 2:
-          continue
-        if lineParsed[0].startsWith('#'):
-          continue
+  test "IPv6 zone indices are stripped":
+    check parseNameServers("nameserver fe80::1%eth0\n") ==
+      @[initTAddress("[fe80::1]:53")]
 
-        if lineParsed[0] == "nameserver":
-          resultSeq.add(initTAddress(lineParsed[1], Port(53)))
+  test "at most 3 nameservers are used (resolv.conf(5))":
+    check parseNameServers("""
+nameserver 10.0.0.1
+nameserver 10.0.0.2
+nameserver 10.0.0.3
+nameserver 10.0.0.4
+""") == @[initTAddress("10.0.0.1:53"), initTAddress("10.0.0.2:53"), initTAddress("10.0.0.3:53")]
 
-          if resultSeq.len > 2:
-            break
-            #3 nameserver max on linux
-    except IOError as exc:
-      debug "Failed to get unix nameservers", description = exc.msg
-    except TransportAddressError as exc:
-      debug "Failed to init address", description = exc.msg
-    finally:
-      if resultSeq.len > 0:
-        return resultSeq
-      return DefaultDnsServers
-  elif defined(windows):
-    #TODO
-    return DefaultDnsServers
-  else:
-    return DefaultDnsServers
+  test "unparseable nameserver entries are skipped":
+    check parseNameServers("""
+nameserver not-an-address
+nameserver 10.0.0.2
+""") == @[initTAddress("10.0.0.2:53")]
+
+  test "missing or empty resolv.conf content yields no servers":
+    check:
+      parseNameServers("").len == 0
+      parseNameServers("search example.com\noptions ndots:5\n").len == 0
+
+  test "system name servers are never empty":
+    # Either discovered from platform configuration or the public fallback.
+    check getSystemNameServers().len > 0
+
+suite "System Resolving":
+  teardown:
+    checkTrackers()
+
+  asyncTest "resolves localhost via the OS resolver":
+    # localhost is in /etc/hosts (or equivalent) everywhere, so this works
+    # without network access - and is something DnsResolver cannot do.
+    let resolver = SystemResolver.new(rng())
+    let addrs = await resolver.resolveIp("localhost", 4001.Port)
+    check:
+      addrs.len > 0
+      initTAddress("127.0.0.1:4001") in addrs
+    await resolver.close()
+
+  asyncTest "AF_INET filter returns only IPv4 addresses":
+    let resolver = SystemResolver.new(rng())
+    let addrs = await resolver.resolveIp("localhost", 0.Port, Domain.AF_INET)
+    check:
+      addrs.len > 0
+      addrs.allIt(it.family == AddressFamily.IPv4)
+    await resolver.close()
+
+  asyncTest "unresolvable name yields an empty result":
+    let resolver = SystemResolver.new(rng())
+    check (await resolver.resolveIp("thisdomain.doesnot.exist", 0.Port)).len == 0
+    await resolver.close()
+
+  asyncTest "TXT queries are delegated to the fallback resolver":
+    let fallback = MockResolver.new()
+    fallback.txtResponses["_dnsaddr.test.io"] = @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
+    let resolver = SystemResolver.new(rng(), txtResolver = fallback)
+    check await(resolver.resolveTxt("_dnsaddr.test.io")) ==
+      @["dnsaddr=/ip4/127.0.0.1/tcp/4001"]
+    await resolver.close()
+
+  asyncTest "concurrent resolutions all complete":
+    let resolver = SystemResolver.new(rng())
+    # all submitted before awaiting any, so they resolve concurrently
+    let futs = (0 ..< 8).mapIt(resolver.resolveIp("localhost", Port(4001 + it)))
+    for fut in futs:
+      check (await fut).len > 0
+    await resolver.close()
+
+  asyncTest "close stays async and leaves queued resolutions unprocessed":
+    let
+      workerEntered = ThreadSignalPtr.new().expect("create worker-entered signal")
+      workerRelease = ThreadSignalPtr.new().expect("create worker-release signal")
+      resolver = SystemResolver.new(rng(), workers = 1)
+    resolver.setWorkerTestGate(workerEntered, workerRelease)
+    defer:
+      discard workerRelease.fireSync()
+      await resolver.close()
+      discard workerEntered.close()
+      discard workerRelease.close()
+
+    let inFlight = resolver.resolveIp("localhost", 4001.Port)
+    await workerEntered.wait()
+
+    let queued = (0 ..< 2).mapIt(resolver.resolveIp("localhost", Port(4002 + it)))
+    proc releaseWorker() {.async: (raises: [CancelledError]).} =
+      await sleepAsync(10.milliseconds)
+      discard workerRelease.fireSync()
+
+    let releaseFut = releaseWorker()
+    await resolver.close()
+    await releaseFut
+
+    check:
+      resolver.workerTestGateReleased()
+      (await queued[0]).len == 0
+      (await queued[1]).len == 0
+    discard await inFlight
+
+  asyncTest "close without any resolution":
+    let resolver = SystemResolver.new(rng())
+    await resolver.close()
+    check (await resolver.resolveIp("localhost", 4001.Port)).len == 0
+    await resolver.close() # idempotent
+
+  asyncTest "cancelled queued resolutions do not poison the worker pool":
+    let resolver = SystemResolver.new(rng(), workers = 1)
+    let resolutions =
+      (0 ..< 16).mapIt(resolver.resolveIp("cancel-" & $it & ".invalid", 0.Port))
+    for i in 1 ..< resolutions.len:
+      await resolutions[i].cancelAndWait()
+    discard await resolutions[0]
+
+    check (await resolver.resolveIp("localhost", 4001.Port)).len > 0
+    await resolver.close()
 
 suite "Name resolving":
   suite "Generic Resolving":
@@ -88,6 +181,30 @@ suite "Name resolving":
         "/dns4/localhost/tcp/443/tls/sni/example.com/ws",
         "/ip4/127.0.0.1/tcp/443/tls/sni/example.com/ws",
       )
+
+    asyncTest "DNS replacement preserves prefixes, suffixes and chained components":
+      resolver.ipResponses[("v4.test", false)] = @["192.0.2.1"]
+      resolver.ipResponses[("v6.test", true)] = @["2001:db8::1"]
+
+      await testOne("/dns4/v4.test", "/ip4/192.0.2.1")
+      await testOne(
+        "/p2p-circuit/dns4/v4.test/tcp/4001",
+        "/p2p-circuit/ip4/192.0.2.1/tcp/4001",
+      )
+      await testOne(
+        "/dns4/v4.test/dns6/v6.test/tcp/4001",
+        "/ip4/192.0.2.1/ip6/2001:db8::1/tcp/4001",
+      )
+
+    asyncTest "DNS replacement stops at the lookup limit":
+      var input = ""
+      for i in 0 .. MaxDnsLookups:
+        let hostname = "lookup-" & $i & ".test"
+        input.add("/dns4/" & hostname)
+        resolver.ipResponses[(hostname, false)] = @["192.0.2.1"]
+      input.add("/tcp/4001")
+
+      await testOne(input, newSeq[string]())
 
     asyncTest "test non dns resolve":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
@@ -147,6 +264,93 @@ suite "Name resolving":
         ],
       )
 
+    asyncTest "dnsaddr matches the complete suffix and skips malformed records":
+      const
+        peerId = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+        otherPeerId = "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"
+      resolver.txtResponses["_dnsaddr.peers.test"] = @[
+        "not-a-dnsaddr-record",
+        "dnsaddr=not-a-multiaddress",
+        "dnsaddr=/ip4/192.0.2.2/tcp/4002/p2p/" & peerId,
+        "dnsaddr=/ip4/192.0.2.3/tcp/4001/p2p/" & otherPeerId,
+        "dnsaddr=/ip4/192.0.2.1/tcp/4001/p2p/" & peerId,
+      ]
+
+      await testOne(
+        "/p2p-circuit/dnsaddr/peers.test/tcp/4001/p2p/" & peerId,
+        "/p2p-circuit/ip4/192.0.2.1/tcp/4001/p2p/" & peerId,
+      )
+
+    asyncTest "dnsaddr record limit counts only applicable records":
+      const peerId = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+      var
+        records: seq[string]
+        expected: seq[string]
+
+      for i in 1 .. MaxDnsaddrRecords:
+        records.add("unrelated-txt-record-" & $i)
+        records.add("dnsaddr=not-a-multiaddress")
+        records.add(
+          "dnsaddr=/ip4/198.51.100." & $i & "/tcp/4002/p2p/" & peerId
+        )
+
+      for i in 1 .. (MaxDnsaddrRecords + 4):
+        let address = "/ip4/192.0.2." & $i & "/tcp/4001/p2p/" & peerId
+        records.add("dnsaddr=" & address)
+        if i <= MaxDnsaddrRecords:
+          expected.add(address)
+
+      resolver.txtResponses["_dnsaddr.applicable-limit.test"] = records
+
+      await testOne(
+        "/dnsaddr/applicable-limit.test/tcp/4001/p2p/" & peerId, expected
+      )
+
+    asyncTest "dnsaddr bounds records and removes duplicate outputs":
+      var records: seq[string]
+      var expected: seq[string]
+      for i in 1 .. 20:
+        let address = "/ip4/192.0.2." & $i & "/tcp/4001"
+        records.add("dnsaddr=" & address)
+        # One duplicate is inserted at the front below, so the first bounded
+        # window contains unique addresses 1 through MaxDnsaddrRecords - 1.
+        if i < MaxDnsaddrRecords:
+          expected.add(address)
+      records.insert(records[0])
+      resolver.txtResponses["_dnsaddr.limit.test"] = records
+
+      await testOne("/dnsaddr/limit.test", expected)
+
+    asyncTest "dnsaddr bounds total output":
+      var
+        rootRecords: seq[string]
+        expected: seq[string]
+      for branch in 1 .. MaxDnsaddrRecords:
+        let branchName = "branch-" & $branch & ".test"
+        rootRecords.add("dnsaddr=/dnsaddr/" & branchName)
+
+        var branchRecords: seq[string]
+        for host in 1 .. MaxDnsaddrRecords:
+          let address =
+            "/ip4/198.51." & $branch & "." & $host & "/tcp/4001"
+          branchRecords.add("dnsaddr=" & address)
+          if expected.len < MaxResolvedAddresses:
+            expected.add(address)
+        resolver.txtResponses["_dnsaddr." & branchName] = branchRecords
+      resolver.txtResponses["_dnsaddr.output-limit.test"] = rootRecords
+
+      await testOne("/dnsaddr/output-limit.test", expected)
+
+    asyncTest "dnsaddr stops at the recursion limit":
+      for i in 0 .. MaxDnsaddrRecursion:
+        resolver.txtResponses["_dnsaddr.level-" & $i & ".test"] =
+          @["dnsaddr=/dnsaddr/level-" & $(i + 1) & ".test"]
+      resolver.txtResponses[
+        "_dnsaddr.level-" & $(MaxDnsaddrRecursion + 1) & ".test"
+      ] = @["dnsaddr=/ip4/192.0.2.1/tcp/4001"]
+
+      await testOne("/dnsaddr/level-0.test", newSeq[string]())
+
     asyncTest "dnsaddr infinite recursion":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
         @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
@@ -171,6 +375,12 @@ suite "Name resolving":
         ma("/dns/localhost/udp/0").getHostname == "localhost"
         ma("/dns4/hello.com/udp/0").getHostname == "hello.com"
         ma("/dns6/hello.com/udp/0").getHostname == "hello.com"
+        ma("/p2p-circuit/dns4/hello.com/tcp/4001").getHostname == "hello.com"
+        ma(
+          "/ip4/192.0.2.1/tcp/4001/p2p/" &
+            "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN" &
+            "/p2p-circuit/dns4/hello.com/tcp/4001"
+        ).getHostname == "hello.com"
         ma("/wss/").getHostname == ""
 
   suite "DNS Resolving":
@@ -289,12 +499,12 @@ suite "Name resolving":
       await unresponsiveServer.closeWait()
 
     asyncTest "inexisting domain resolving":
-      let dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(getSystemNameServers())
       let invalid = await dnsresolver.resolveIp("thisdomain.doesnot.exist", 0.Port)
       check invalid.len == 0
 
     asyncTest "wrong domain resolving":
-      let dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(getSystemNameServers())
       let invalid = await dnsresolver.resolveIp("", 0.Port)
       check invalid.len == 0
 
