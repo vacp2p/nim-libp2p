@@ -551,23 +551,44 @@ proc verifyEach(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## One address at a time until the run runs out of time; true when a state changed.
   var changed = false
+  var attempted, verified, reachable, unreachable: int
+  var outcome = "cancelled"
+  defer:
+    debug "Address verification finished",
+      outcome,
+      addresses = addresses.len,
+      attempted,
+      verified,
+      reachable,
+      unreachable,
+      inconclusive = verified - reachable - unreachable,
+      unverified = addresses.len - verified,
+      changed
+
   let deadline = Moment.now() + self.verifyTimeout
   for address in addresses:
     let left = deadline - Moment.now()
     if left <= ZeroDuration:
-      debug "Address verification timed out", timeout = self.verifyTimeout
+      trace "Address verification timed out", timeout = self.verifyTimeout
       break
 
+    attempted.inc()
     let state =
       try:
         await self.verifier.verify(address).wait(left)
       except AsyncTimeoutError:
-        debug "Address verification timed out", address, timeout = self.verifyTimeout
+        trace "Address verification timed out", address, timeout = self.verifyTimeout
         break
 
+    verified.inc()
     state.ifValue(verdict):
       if self.applyVerdict(address, verdict):
         changed = true
+      if verdict == AddrState.Confirmed:
+        reachable.inc()
+      elif verdict == AddrState.Unreachable:
+        unreachable.inc()
+  outcome = if verified == addresses.len: "completed" else: "timedOut"
   changed
 
 proc runVerifier(self: AddressManager) {.async: (raises: [CancelledError]).} =
