@@ -49,3 +49,19 @@ suite "seq[Advertisement] encode":
       check:
         decoded.isOk()
         decoded.get() == origAds[i]
+
+suite "ExtEntryValidator":
+  test "accepts a record signed by the peer its key names":
+    let ad = makeAdvertisement()
+    let record = EntryRecord(value: Value.fromBytes(ad.encode()), time: Timestamp.now())
+    check ExtEntryValidator().isValid(ad.data.peerId.toKey(), record)
+
+  test "rejects a record signed by another peer":
+    let ad = makeAdvertisement()
+    let record = EntryRecord(value: Value.fromBytes(ad.encode()), time: Timestamp.now())
+    check not ExtEntryValidator().isValid(randomPeerId().toKey(), record)
+
+  test "rejects a record with oversized service data":
+    let ad = makeOversizedAdvertisement("svc")
+    let record = EntryRecord(value: Value.fromBytes(ad.encode()), time: Timestamp.now())
+    check not ExtEntryValidator().isValid(ad.data.peerId.toKey(), record)
