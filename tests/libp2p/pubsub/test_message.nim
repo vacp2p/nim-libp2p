@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, strutils, stew/byteutils, results, nimcrypto/sha2
+import chronos, strutils, stew/[byteutils, endians2], results, nimcrypto/sha2
 import
   ../../../libp2p/[
     peerid,
@@ -13,12 +13,34 @@ import
     protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
+    utils/shortlog,
   ]
 import ../../tools/[unittest, crypto as cryptoTools]
 import converters
 
 suite "Message":
   const topic = "foobar"
+
+  test "log formatting uses short byte values and renders seqno":
+    let
+      seqno = 42'u64
+      message = Message(
+        data: "message-payload-secret".toBytes(),
+        seqno: @(seqno.toBytesBE()),
+        topic: topic,
+        signature: "signature-secret".toBytes(),
+        key: "key-secret".toBytes(),
+      )
+      logMsg = $chroniclesFormatItIMPL(message)
+
+    check:
+      strutils.contains(logMsg, "dataLen")
+      strutils.contains(logMsg, "signaturePresent")
+      not strutils.contains(logMsg, message.data.shortLog)
+      not strutils.contains(logMsg, message.signature.shortLog)
+      strutils.contains(logMsg, message.key.shortLog)
+      shortLog(message).seqno == $seqno
+      shortLog(Message(topic: topic)).seqno == "<unset>"
 
   test "signature":
     var seqno = 11'u64
