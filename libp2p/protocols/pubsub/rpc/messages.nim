@@ -211,15 +211,15 @@ chronicles.formatIt(ControlMessage):
 func shortLog*(msg: Message): auto =
   (
     topic: msg.topic.shortLog,
-    fromPeer: msg.fromPeer.shortLog,
-    dataLen: msg.data.len,
     seqno:
       if msg.seqno.len > 0:
         $fromBytesBE(uint64, msg.seqno)
       else:
         "<unset>",
+    fromPeer: msg.fromPeer.shortLog,
+    dataLen: msg.data.len,
+    key: msg.key.shortLog,
     signaturePresent: msg.signature.len > 0,
-    keyPresent: msg.key.len > 0,
   )
 
 chronicles.formatIt(Message):
