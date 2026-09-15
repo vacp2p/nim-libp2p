@@ -21,7 +21,7 @@ import
   ./utils
 
 logScope:
-  topics = "libp2p autonatv2 verifier"
+  topics = "libp2p autonat"
 
 const AskTimeout = 2 * DefaultDialTimeout ## Twice the time a server has to dial back.
 

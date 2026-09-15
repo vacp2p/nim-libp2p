@@ -9,7 +9,7 @@ import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
 import utils/future
 
 logScope:
-  topics = "libp2p connmanager"
+  topics = "libp2p connection-manager"
 
 declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles")

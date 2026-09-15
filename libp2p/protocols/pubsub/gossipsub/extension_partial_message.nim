@@ -8,7 +8,7 @@ import ../rpc/messages
 import ./[extensions_types, partial_message]
 
 logScope:
-  topics = "libp2p partial message"
+  topics = "libp2p gossipsub"
 
 declareGauge(
   libp2p_gossipsub_partial_message_groups,

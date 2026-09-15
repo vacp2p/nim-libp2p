@@ -17,7 +17,7 @@ import
 export PeerIDAuthError
 
 logScope:
-  topics = "libp2p autotls broker"
+  topics = "libp2p auto-tls"
 
 const
   DefaultRegistrationURL* =

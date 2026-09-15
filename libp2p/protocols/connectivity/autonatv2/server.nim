@@ -21,7 +21,7 @@ import
   ./types
 
 logScope:
-  topics = "libp2p autonat v2 server"
+  topics = "libp2p autonat"
 
 declareCounter(
   libp2p_autonatv2_dial_back_refusals_total,

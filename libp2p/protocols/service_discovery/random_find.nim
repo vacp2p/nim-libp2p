@@ -9,7 +9,7 @@ import ../kademlia/[types, find, get, protobuf]
 import ./[types]
 
 logScope:
-  topics = "ext-kad-dht random records"
+  topics = "libp2p service-discovery"
 
 proc randomRecords(
     disco: ServiceDiscovery

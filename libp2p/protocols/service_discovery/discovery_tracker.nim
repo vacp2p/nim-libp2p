@@ -7,7 +7,7 @@ import ../../peerid
 import ./[types, service_discovery_metrics]
 
 logScope:
-  topics = "service-disco tracker"
+  topics = "libp2p service-discovery"
 
 const MaxTrackedProviders* = 1024
 

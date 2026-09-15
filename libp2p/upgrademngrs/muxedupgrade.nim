@@ -13,7 +13,7 @@ import ../utils/opt
 export Upgrade
 
 logScope:
-  topics = "libp2p muxedupgrade"
+  topics = "libp2p connection-upgrade"
 
 type MuxedUpgrade* = ref object of Upgrade
   muxers*: seq[MuxerProvider]

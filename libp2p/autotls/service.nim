@@ -26,7 +26,7 @@ import
   ../wire
 
 logScope:
-  topics = "libp2p autotls"
+  topics = "libp2p auto-tls"
 
 export
   LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationURL,

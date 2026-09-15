@@ -7,7 +7,7 @@ import chronos
 import ../multiaddress, ../multicodec
 
 logScope:
-  topics = "libp2p ipaddr"
+  topics = "libp2p ip-address"
 
 const RouteProbes = [parseIpAddress("8.8.8.8"), parseIpAddress("2001:4860:4860::8888")]
 

@@ -135,13 +135,13 @@ type
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
-    selfPublicationLoop*: Future[void]
+    signedPeerRecordLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
     serviceBootstrapFuts*: Table[ServiceId, Future[void]]
-    addressChanged*: AsyncEvent
+    addressRepublish*: Future[void]
     addressObserver*: PeerInfoObserver
     dialFailures*: Table[PeerId, ProbeFailure]
 

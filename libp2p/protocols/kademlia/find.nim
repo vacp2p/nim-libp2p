@@ -10,7 +10,7 @@ import
   ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity]
 
 logScope:
-  topics = "kad-dht find"
+  topics = "libp2p kademlia"
 
 type RespondedStatus* = enum
   Failed

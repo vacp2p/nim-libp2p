@@ -24,7 +24,7 @@ export connection
 export transport
 
 logScope:
-  topics = "libp2p quictransport"
+  topics = "libp2p quic"
 
 const QuicHolePunchPacketSize* = 64
 

@@ -21,7 +21,7 @@ declarePublicCounter libp2p_stream_resets,
 export oids
 
 logScope:
-  topics = "libp2p lpstream"
+  topics = "libp2p stream"
 
 const
   LPStreamTrackerName* = "LPStream"

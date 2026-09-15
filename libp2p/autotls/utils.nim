@@ -14,7 +14,7 @@ import
   ./acme/client
 
 logScope:
-  topics = "libp2p utils"
+  topics = "libp2p auto-tls"
 
 type AutoTLSError* = object of LPError
 

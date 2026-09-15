@@ -18,7 +18,7 @@ import ../multicodec
 export reachabilityobservers
 
 logScope:
-  topics = "libp2p hpservice"
+  topics = "libp2p hole-punching"
 
 type HPService* = ref object of Service
   newConnectedPeerHandler: PeerEventHandler
