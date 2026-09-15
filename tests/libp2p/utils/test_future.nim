@@ -111,7 +111,6 @@ suite "Future":
     check results.failed == 1
     check results.cancelled == 1
     check results.pending == 1
-    check results.succeeded + results.failed + results.cancelled + results.pending == 4
 
   asyncTest "cancelAndWait cancels pending futures":
     var f1 = newFuture[void]()
