@@ -34,7 +34,7 @@ suite "Message":
         partialMessage: Opt.some("partial-secret".toBytes()),
         partsMetadata: Opt.some("metadata-secret".toBytes()),
       )
-      
+
     check:
       ($chroniclesFormatItIMPL(message)).contains("dataLen")
       ($chroniclesFormatItIMPL(message)).contains("signaturePresent")

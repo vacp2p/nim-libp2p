@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import sequtils, chronicles
+import sequtils, chronicles, stew/endians2
 import protobuf_serialization
 import ../../../[peerid, routing_record]
 import ../../../utils/[opt, shortlog]
@@ -213,7 +213,11 @@ func shortLog*(msg: Message): auto =
     topic: msg.topic.shortLog,
     fromPeer: msg.fromPeer.shortLog,
     dataLen: msg.data.len,
-    seqnoLen: msg.seqno.len,
+    seqno:
+      if msg.seqno.len > 0:
+        $fromBytesBE(uint64, msg.seqno)
+      else:
+        "<unset>",
     signaturePresent: msg.signature.len > 0,
     keyPresent: msg.key.len > 0,
   )
