@@ -19,7 +19,7 @@ permissions:
 jobs:
   codecov:
     name: Run coverage and upload to codecov
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
@@ -33,30 +33,28 @@ jobs:
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: linux
+          os: linux-gcc-14
           cpu: amd64
           shell: bash
           nim_ref: v2.2.10
 
+      - name: Use gcc 14
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 14
+          sudo update-alternatives --set g++ /usr/bin/g++-14
+
       - name: Restore dependencies from cache
         uses: "./.github/actions/install_test_deps"
         with:
-          os: linux
+          os: linux-gcc-14
           cpu: amd64
           cc: gcc
           nim_ref: v2.2.10
 
       - name: Setup deps
         run: make setup
-
-      - name: Restore build cache
-        id: coverage-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: nimcache
-          key: ${{ github.ref_name }}-nimcache-coverage-linux-amd64-gcc-2.2.10
-          restore-keys: |
-            master-nimcache-coverage-linux-amd64-gcc-2.2.10
 
       - name: Setup coverage
         run: |
@@ -74,22 +72,16 @@ jobs:
         run: |
           ./tests/test_all
 
+      # Nim attributes generated C code to non-code lines and to lines past the end of the file.
       - name: Run coverage
         run: |
-          find nimcache -name *.c -delete
-          lcov --capture --directory nimcache --output-file coverage/coverage.info
-          lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info
-          genhtml coverage/coverage.f.info --ignore-errors source --output-directory coverage/output
-
-      - name: Save build cache
-        if: >
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/master' &&
-          steps.coverage-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: nimcache
-          key: ${{ steps.coverage-cache.outputs.cache-primary-key }}
+          lcov --capture --directory nimcache --gcov-tool gcov-14 --ignore-errors mismatch \
+            --include "${PWD}/libp2p/*" --output-file coverage/coverage.info
+          lcov --extract coverage/coverage.info "${PWD}/libp2p/*" --output-file coverage/coverage.f.info \
+            --rc c_file_extensions=nim --filter range,blank \
+            --omit-lines '^\s*#' \
+            --omit-lines '^\s*(proc|func|method|iterator|template)\b([^=]*|.*=\s*(#.*)?)$' \
+            --omit-lines '^\s*[\)\]\}]+\s*$'
 
       - name: Upload coverage to codecov
         uses: codecov/codecov-action@v5

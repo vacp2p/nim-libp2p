@@ -441,18 +441,18 @@ proc parseMessage*(data: openArray[byte]): DnsMessage {.raises: [ValueError].} =
   var msg = DnsMessage(id: header.id, response: header.isResponse())
 
   for _ in 0 ..< header.qdcount:
-    r.readQuestion().withValue(question):
+    r.readQuestion().ifValue(question):
       msg.questions.add(question)
 
   for _ in 0 ..< header.ancount:
-    r.readRecord().withValue(record):
+    r.readRecord().ifValue(record):
       msg.answers.add(record)
 
   for _ in 0 ..< header.nscount:
     discard r.readRecord()
 
   for _ in 0 ..< header.arcount:
-    r.readRecord().withValue(record):
+    r.readRecord().ifValue(record):
       msg.additionals.add(record)
 
   return msg

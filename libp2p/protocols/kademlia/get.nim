@@ -44,7 +44,7 @@ proc getValue*(
   let received = ReceivedTable()
 
   # if locally present and not expired, include our own copy
-  kad.dataTable.get(key).withValue(localRecord):
+  kad.dataTable.get(key).ifValue(localRecord):
     if not localRecord.isExpired(kad.config.recordExpirationInterval):
       received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
     else:
@@ -135,7 +135,7 @@ method handleGetValue*(
   # Evict the entry eagerly if it has expired so the response below treats it as
   # absent and sends the standard "no record found" response.
   var entryRecordOpt = kad.dataTable.get(key)
-  entryRecordOpt.withValue(record):
+  entryRecordOpt.ifValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
       trace "Record expired, dropping", key = key
       kad.dataTable.del(key)

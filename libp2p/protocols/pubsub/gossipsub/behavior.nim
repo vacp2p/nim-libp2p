@@ -240,7 +240,7 @@ proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecor
 
     var peerRecord = Opt.none(PeerRecord)
     if record.signedPeerRecord.isSome:
-      SignedPeerRecord.decode(record.signedPeerRecord.get()).toOpt().withValue(spr):
+      SignedPeerRecord.decode(record.signedPeerRecord.get()).toOpt().ifValue(spr):
         if record.peerId.isSome and record.peerId.get() != spr.data.peerId:
           trace "peer sent envelope with wrong public key", peer
         else:
