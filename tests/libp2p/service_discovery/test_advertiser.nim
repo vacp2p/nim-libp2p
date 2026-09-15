@@ -43,7 +43,6 @@ suite "Advertiser - republish on address change":
     disco.switch.peerInfo.notifyObservers()
     let second = disco.addressRepublish
 
-    await sleepAsync(20.millis)
     check:
       first != held
       second != first
@@ -70,7 +69,6 @@ suite "Advertiser - republish on address change":
     let pending = disco.addressRepublish
 
     let stopping = disco.stop()
-    await sleepAsync(20.millis)
     check:
       not stopping.finished()
       not pending.finished()
