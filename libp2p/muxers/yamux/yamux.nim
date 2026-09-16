@@ -6,7 +6,7 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
-import ../../utils/zeroqueue
+import ../../utils/[shortlog, zeroqueue]
 
 export muxer
 
@@ -610,6 +610,16 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   trace "Yamux stream handler completed", channel = $channel
   doAssert(channel.isClosed, "connection not closed by handler!")
 
+func openStreamProtocols(m: Yamux): seq[string] =
+  ## Distinct negotiated protocols of the still-open streams, bounded for logs
+  var protocols: seq[string]
+  for channel in m.channels.values:
+    if channel.protocol.len > 0 and channel.protocol notin protocols:
+      protocols.add(channel.protocol)
+      if protocols.len == ShortCollectionMax:
+        break
+  protocols
+
 method handle*(m: Yamux) {.async: (raises: []).} =
   trace "Yamux handler started", peerId = m.connection.peerId
   # Loop exits without an exception only on EOF or GoAway
@@ -748,7 +758,8 @@ method handle*(m: Yamux) {.async: (raises: []).} =
       reason,
       err,
       closedLocally = m.connection.closed,
-      openStreams = m.channels.len
+      openStreams = m.channels.len,
+      protocols = m.openStreamProtocols()
     await m.close()
   trace "Yamux handler stopped"
 
