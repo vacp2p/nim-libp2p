@@ -199,6 +199,24 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
 
   disco.rtManager.removeService(serviceHash, Interest)
 
+proc recordCloserPeers(
+    disco: ServiceDiscovery,
+    searchTable: RoutingTable,
+    closerPeers: openArray[PeerInfo],
+    afterBucket: int,
+    learned: var seq[seq[Key]],
+) =
+  ## File closer peers into buckets the walk has not reached yet. Peers
+  ## without a recorded address are skipped since they cannot be dialed.
+  for peer in closerPeers:
+    if peer.peerId == disco.switch.peerInfo.peerId or
+        disco.switch.peerStore[AddressBook][peer.peerId].len == 0:
+      continue
+    let key = peer.peerId.toKey()
+    let peerIdx = searchTable.bucketIndex(key)
+    if peerIdx > afterBucket:
+      learned[peerIdx].add(key)
+
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
@@ -232,9 +250,6 @@ proc lookup*(
   local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
-  # Admission into the table waits on a background probe, so closer peers from a
-  # reply are also kept here, by bucket, and queried when the walk reaches them.
-  # The walk covers every bucket the table can have, as it allocates them lazily.
   var learned = newSeq[seq[Key]](bucketCount(searchTable.config.maxBuckets))
   for bucketIdx in 0 ..< learned.len:
     if found.len >= disco.discoConfig.fLookup:
@@ -252,17 +267,7 @@ proc lookup*(
       serviceId, peers, found, disco.discoConfig.fLookup, stats
     )
     found = bucketAds.found
-
-    for peer in bucketAds.closerPeers:
-      # Admission records addresses only for peers it would seat, so a peer
-      # without one could not be dialed.
-      if peer.peerId == disco.switch.peerInfo.peerId or
-          disco.switch.peerStore[AddressBook][peer.peerId].len == 0:
-        continue
-      let key = peer.peerId.toKey()
-      let peerIdx = searchTable.bucketIndex(key)
-      if peerIdx > bucketIdx:
-        learned[peerIdx].add(key)
+    disco.recordCloserPeers(searchTable, bucketAds.closerPeers, bucketIdx, learned)
 
   outcome = if found.len >= disco.discoConfig.fLookup: "limitReached" else: "completed"
   cd_lookup_peers_found.inc(found.len.int64)
