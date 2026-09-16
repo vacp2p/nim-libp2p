@@ -48,6 +48,23 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
     validAds.add(ad)
   return validAds
 
+proc atMostOnePerBucket(
+    disco: ServiceDiscovery, searchTable: RoutingTable, closerPeers: seq[PeerInfo]
+): seq[PeerInfo] =
+  ## Cap each responder to one peer per service bucket before merging
+  ## replies. Exclude self before counting.
+  var capped: seq[PeerInfo] = @[]
+  var filled = initHashSet[int]()
+  for peer in closerPeers:
+    if peer.peerId == disco.switch.peerInfo.peerId:
+      continue
+    let bucketIdx = searchTable.bucketIndex(peer.peerId.toKey())
+    if filled.containsOrIncl(bucketIdx):
+      trace "Closer peer beyond one per bucket", bucket = bucketIdx, peer = peer.peerId
+      continue
+    capped.add(peer)
+  return capped
+
 proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
   return ok(disco.getAdvertisements(disco.switch.peerInfo.peerId, msg))
 
@@ -113,17 +130,21 @@ proc processResponse(
 proc drainCompletedPeers(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
+    searchTable: RoutingTable,
     pending: seq[Future[Result[GetAdsResult, string]]],
 ) =
   for fut in pending.filterIt(it.completed()):
     let res = fut.value()
     if res.isOk():
-      disco.admitCloserPeers(serviceId, res.value().closerPeers)
+      disco.admitCloserPeers(
+        serviceId, disco.atMostOnePerBucket(searchTable, res.value().closerPeers)
+      )
       disco.tracker.recordProviders(serviceId, res.value().ads, FromLookup)
 
 proc collectBucketAds(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
+    searchTable: RoutingTable,
     peers: seq[PeerId],
     known: HashSet[Advertisement],
     limit: int,
@@ -161,12 +182,13 @@ proc collectBucketAds(
     if completedFut.completed():
       let res = completedFut.value()
       if res.isOk():
-        let reply = res.value()
+        var reply = res.value()
+        reply.closerPeers = disco.atMostOnePerBucket(searchTable, reply.closerPeers)
         bucketAds.closerPeers.add(reply.closerPeers)
         disco.processResponse(serviceId, reply, bucketAds.found, limit)
 
     if bucketAds.found.len >= limit:
-      disco.drainCompletedPeers(serviceId, pending)
+      disco.drainCompletedPeers(serviceId, searchTable, pending)
       break
 
   return bucketAds
@@ -264,7 +286,7 @@ proc lookup*(
 
     let peers = disco.peersToQuery(candidates)
     let bucketAds = await disco.collectBucketAds(
-      serviceId, peers, found, disco.discoConfig.fLookup, stats
+      serviceId, searchTable, peers, found, disco.discoConfig.fLookup, stats
     )
     found = bucketAds.found
     disco.recordCloserPeers(searchTable, bucketAds.closerPeers, bucketIdx, learned)
