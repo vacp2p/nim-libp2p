@@ -1,6 +1,6 @@
 # NoiseHFS: post-quantum hybrid Noise for nim-libp2p
 
-Status: experimental. Protocol identifier `/noise-mlkem768-hfs/0.1.0` is a
+Status: experimental. Protocol identifier `/noise-mlkem768-hfs/0.2.0` is a
 working identifier, not yet registered with libp2p-specs or IANA.
 
 ## Motivation
@@ -17,7 +17,7 @@ negotiates the best protocol either side supports.
 
 ## Algorithm suite
 
-`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`
+`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`
 
 | Primitive | Choice |
 |---|---|
@@ -41,7 +41,7 @@ Applying the Noise HFS extension (`e1`/`ekem1` tokens) to the classical XX
 pattern:
 
 ```
-Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256:
+Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256:
 
   -> e, e1
   <- e, ee, ekem1, s, es
@@ -137,7 +137,7 @@ decapsulation is even attempted.
 ## Interoperability status
 
 This profile's wire format was designed to match
-`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256` as published in "Post-Quantum
+`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256` as published in "Post-Quantum
 Cryptography Integration into the Noise Protocol" (Okwuosa, 2026), which
 reports a 3-way interop test between TypeScript (ChainSafe/js-libp2p-noise PR
 #665), Python (libp2p/py-libp2p PR #1310), and Rust (royzah/rust-libp2p PR

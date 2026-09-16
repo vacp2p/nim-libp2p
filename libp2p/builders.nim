@@ -60,7 +60,7 @@ type
   SecureProtocol* {.pure.} = enum
     Noise
     NoiseHFS
-      ## Post-quantum hybrid Noise (`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`).
+      ## Post-quantum hybrid Noise (`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`).
       ## Mount alongside `Noise` (the default) so hybrid-capable peers
       ## negotiate the quantum-resistant handshake while classical-only
       ## peers still fall back to `/noise` transparently.

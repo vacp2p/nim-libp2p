@@ -3,7 +3,7 @@
 
 ## NoiseHFS: a post-quantum hybrid variant of the libp2p Noise handshake.
 ##
-## Implements `Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`, applying the
+## Implements `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`, applying the
 ## Noise Hybrid Forward Secrecy extension (`e1`/`ekem1` tokens) to the
 ## classical XX pattern:
 ##
@@ -43,9 +43,9 @@ logScope:
 const
   # Working identifier for this profile; not yet IANA/libp2p-specs
   # registered. See NOISE_HFS_SPEC.md for the standardization status.
-  NoiseHFSCodec* = "/noise-mlkem768-hfs/0.1.0"
+  NoiseHFSCodec* = "/noise-mlkem768-hfs/0.2.0"
 
-  ProtocolXXHFSName = "Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256"
+  ProtocolXXHFSName* = "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256"
 
 type
   HandshakeStateHFS = object

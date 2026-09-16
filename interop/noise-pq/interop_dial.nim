@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Standalone interop dialer for NoiseHFS
-## (`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`).
+## (`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`).
 ##
 ## Dials a peer speaking the same protocol and completes a real handshake
 ## over TCP, independent of the rest of the nim-libp2p test suite. Used to

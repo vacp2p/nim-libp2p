@@ -28,7 +28,8 @@ suite "NoiseHFS":
   let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
 
   test "protocol id matches the published XXhfs profile identifier":
-    check NoiseHFSCodec == "/noise-mlkem768-hfs/0.1.0"
+    check NoiseHFSCodec == "/noise-mlkem768-hfs/0.2.0"
+    check ProtocolXXHFSName == "Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256"
 
   asyncTest "e2e: handle write + NoiseHFS":
     let

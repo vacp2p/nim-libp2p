@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Standalone interop listener for NoiseHFS
-## (`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`).
+## (`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`).
 ##
 ## Accepts one connection, completes the handshake as responder, prints the
 ## remote peer id, and exits. Companion to interop_dial.nim - used to let

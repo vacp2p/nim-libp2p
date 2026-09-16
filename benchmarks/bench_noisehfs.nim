@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## Benchmarks for NoiseHFS (`Noise_XXhfs_25519+ML-KEM-768_ChaChaPoly_SHA256`)
+## Benchmarks for NoiseHFS (`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`)
 ## against the classical Noise XX handshake, plus ML-KEM-768 microbenchmarks.
 ##
 ## Methodology mirrors the JavaScript and Python benchmarks published for the
@@ -220,7 +220,7 @@ proc main() {.async: (raises: [CancelledError, LPStreamError]).} =
     hybrid = median(paired.hybrid)
     pairedDiff = median(paired.diff)
   row("Noise_XX_25519_ChaChaPoly_SHA256 (classical)", classical, paired.classical)
-  row("Noise_XXhfs_25519+ML-KEM-768 (hybrid)", hybrid, paired.hybrid)
+  row("Noise_XXhfs_25519+MLKEM768 (hybrid)", hybrid, paired.hybrid)
 
   echo ""
   echo "Derived figures"
