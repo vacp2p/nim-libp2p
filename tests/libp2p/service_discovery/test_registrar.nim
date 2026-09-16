@@ -14,6 +14,7 @@ import
     peerstore,
     protocols/service_discovery/advertisement_cache,
     protocols/service_discovery/connection,
+    protocols/service_discovery/discoverer,
     protocols/service_discovery/registrar,
     protocols/service_discovery/types,
     routing_record,
@@ -1112,6 +1113,77 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
     check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.peerId ==
       ad.data.peerId
+
+  test "expiry of the last ad removes the service table":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId()
+    let now = Moment.now()
+
+    disco.acceptAd(now - 1000.secs, serviceId, makeAdvertisement($serviceId))
+    disco.acceptAd(now - 500.secs, serviceId, makeAdvertisement($serviceId))
+    disco.registrar.pruneExpiredAds(900.secs)
+    check disco.rtManager.hasService(serviceId)
+
+    disco.registrar.pruneExpiredAds(100.secs)
+    check:
+      disco.registrar.ads.len == 0
+      not disco.rtManager.hasService(serviceId)
+
+  test "eviction of the last ad removes the service table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(advertCacheCap = 1)
+    )
+    let evicted = makeServiceId(1)
+    let kept = makeServiceId(2)
+    let now = Moment.now()
+
+    disco.acceptAd(now - 10.secs, evicted, makeAdvertisement($evicted))
+    disco.acceptAd(now, kept, makeAdvertisement($kept))
+
+    check:
+      not disco.rtManager.hasService(evicted)
+      disco.rtManager.hasService(kept)
+      disco.rtManager.count() == 1
+
+  test "clearing the ad cache removes the service tables":
+    let disco = setupServiceDiscoveryNode()
+    let first = makeServiceId(1)
+    let second = makeServiceId(2)
+    let now = Moment.now()
+
+    disco.acceptAd(now, first, makeAdvertisement($first))
+    disco.acceptAd(now, second, makeAdvertisement($second))
+    disco.registrar.ads.clear()
+
+    check:
+      not disco.rtManager.hasService(first)
+      not disco.rtManager.hasService(second)
+      disco.rtManager.count() == 0
+
+  test "eviction of another advertiser's ad for the same service keeps the table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(advertCacheCap = 1)
+    )
+    let serviceId = makeServiceId()
+    let now = Moment.now()
+
+    disco.acceptAd(now - 10.secs, serviceId, makeAdvertisement($serviceId))
+    disco.acceptAd(now, serviceId, makeAdvertisement($serviceId))
+
+    check:
+      disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
+      disco.rtManager.serviceStatus.getOrDefault(serviceId) == {Registered}
+
+  test "ad expiry keeps a service table the node has local interest in":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    check disco.registerInterest(service.id)
+    disco.acceptAd(Moment.now() - 1000.secs, serviceId, makeAdvertisement(service.id))
+    disco.registrar.pruneExpiredAds(900.secs)
+
+    check disco.rtManager.serviceStatus.getOrDefault(serviceId) == {Interest}
 
   asyncTest "advertised peer is not seated when its admission probe fails":
     let disco = setupServiceDiscoveryNode()

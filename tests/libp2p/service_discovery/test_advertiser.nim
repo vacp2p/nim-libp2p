@@ -24,6 +24,9 @@ proc settleStartupRepublish(disco: ServiceDiscovery) {.async.} =
     return
   await disco.addressRepublish
 
+proc dropCachedAds(disco: ServiceDiscovery) =
+  discard disco.registrar.ads.pruneExpired(Moment.now() + 1.hours, 0.secs)
+
 suite "Advertiser - republish on address change":
   teardown:
     checkTrackers()
@@ -355,7 +358,7 @@ suite "Advertiser - removeProvidedService":
     check disco.addProvidedService(s2).isOk()
 
     await disco.removeProvidedService(s1.id)
-    disco.unregisterInterest(s1.id) # local registrar has interest too
+    disco.dropCachedAds() # the local registrar holds the self-ad
 
     check:
       not disco.rtManager.hasService(sid1)
@@ -370,7 +373,7 @@ suite "Advertiser - removeProvidedService":
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
     discard disco.registerInterest(service.id)
-    check disco.rtManager.serviceStatus[sid] == Both
+    check disco.rtManager.serviceStatus[sid] == {Interest, Provided, Registered}
 
     let bootstrapFut = newFuture[void]("test service bootstrap")
     disco.serviceBootstrapFuts[sid] = bootstrapFut
@@ -379,6 +382,9 @@ suite "Advertiser - removeProvidedService":
     check sid in disco.serviceBootstrapFuts # interest keeps the table alive
 
     disco.unregisterInterest(service.id)
+    check sid in disco.serviceBootstrapFuts # the self-ad keeps the table alive
+
+    disco.dropCachedAds()
     await sleepAsync(0.millis) # let the pending cancellation run
 
     check:
@@ -402,7 +408,7 @@ suite "Advertiser - removeProvidedService":
     check disco.addProvidedService(s2).isOk()
 
     await disco.removeProvidedService(s1.id)
-    disco.unregisterInterest(s1.id) # local registrar has interest too
+    disco.dropCachedAds() # the local registrar holds the self-ad
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
