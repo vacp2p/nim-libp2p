@@ -47,11 +47,7 @@ func decodeMessage(data: openArray[byte]): MultiStreamResult[string] =
 
   ok(string.fromBytes(data.toOpenArray(0, data.high - 1)))
 
-proc readMessage(
-    stream: Stream
-): Future[MultiStreamResult[string]] {.
-    async: (raises: [CancelledError, LPStreamError])
-.} =
+template readMessage(stream: Stream): MultiStreamResult[string] =
   decodeMessage(await stream.readLp(MsgSize))
 
 proc trySelect*(
@@ -66,7 +62,7 @@ proc trySelect*(
     trace "Protocol negotiation started", stream, protocol = proto[0]
     await stream.writeLp(proto[0] & "\n")
 
-  let header = ?(await stream.readMessage())
+  let header = ?stream.readMessage()
   if header != Codec:
     trace "Multistream handshake failed", stream, protocol = header
     return err(MultiStreamFailure.HandshakeFailed)
@@ -75,7 +71,7 @@ proc trySelect*(
   if proto.len() == 0:
     return ok(Codec)
 
-  let response = ?(await stream.readMessage())
+  let response = ?stream.readMessage()
   trace "Protocol negotiation response received", stream, protocol = response
   if response == proto[0]:
     trace "Protocol negotiation completed", stream, protocol = proto[0]
@@ -87,7 +83,7 @@ proc trySelect*(
   for p in proto.toOpenArray(1, proto.high):
     trace "Protocol negotiation retrying", stream, protocol = p
     await stream.writeLp(p & "\n")
-    let alternative = ?(await stream.readMessage())
+    let alternative = ?stream.readMessage()
     if alternative == p:
       trace "Protocol negotiation completed", stream, protocol = p
       stream.protocol = p
@@ -147,7 +143,7 @@ proc tryHandle*(
   trace "Multistream negotiation started", stream, handshaked = active
   var handshaked = active
   while not stream.atEof:
-    let ms = ?(await stream.readMessage())
+    let ms = ?stream.readMessage()
 
     if not handshaked and ms != Codec:
       trace "Multistream handshake rejected",

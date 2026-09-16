@@ -181,9 +181,9 @@ proc tryNew*(
     announcedAddrs: openArray[MultiAddress] = [],
 ): Result[PeerInfo, string] =
   let pubkey = key.getPublicKey().valueOr:
-    return err("invalid private key creating PeerInfo: " & $error)
+    return err("PeerInfo.tryNew called with invalid private key. " & $error)
   let peerId = PeerId.init(pubkey).valueOr:
-    return err("invalid public key creating PeerInfo peer id: " & $error)
+    return err("PeerInfo.tryNew failed to derive peer id from public key. " & $error)
 
   ok PeerInfo(
     peerId: peerId,

@@ -727,4 +727,4 @@ suite "Multistream :: result API":
       discard await handling.wait(1.seconds)
       raiseAssert "handle must raise"
     except MultiStreamError as e:
-      check e.msg == $MultiStreamFailure.InvalidFirstMessage
+      check e == MultiStreamFailure.InvalidFirstMessage
