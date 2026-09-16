@@ -473,7 +473,7 @@ template punishOverBudget*(
 ) =
   # a template, so that only the disconnect path allocates a future
   debug "Peer sent application data above the rate limit",
-    peer = punished, overhead = invalidBytesSent
+    peer = punished, overhead = invalidBytesSent, willDisconnect = disconnectAboveLimit
   if disconnectAboveLimit:
     await p.disconnectPeer(punished)
     raise newException(

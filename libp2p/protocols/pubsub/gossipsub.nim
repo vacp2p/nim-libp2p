@@ -937,7 +937,7 @@ method publish*(
     topic
 
   if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
+    warn "Empty topic, skipping publish"
     return 0
 
   let msg =
@@ -976,7 +976,7 @@ method publish*(
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    debug "No peers for topic, skipping publish",
+    trace "No peers for topic, skipping publish",
       peersOnTopic = topicPeers.len,
       connectedPeers = topicPeers.filterIt(it.connected).len,
       topic
