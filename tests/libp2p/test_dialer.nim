@@ -14,6 +14,7 @@ import
     stream/bridgestream,
     switch,
     transports/transport,
+    upgrademngrs/muxedupgrade,
     upgrademngrs/upgrade,
   ]
 import ../stubs/transportstub
@@ -855,3 +856,48 @@ suite "Dialer":
     expect MultiStreamError:
       discard await negotiation
     check stream.wasResetLocally
+
+  asyncTest "tryDial raises DialFailedError when every dial fails":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    let transport = FailingDialTransport.new(Upgrade(), rng())
+    let dialer = Dialer.new(
+      src.peerInfo.peerId,
+      src.connManager,
+      src.peerStore,
+      @[Transport(transport)],
+      src.ms,
+    )
+
+    expect DialFailedError:
+      discard await dialer.tryDial(randomPeerId(), @[MemoryAutoAddress()])
+
+suite "MuxedUpgrade":
+  asyncTest "upgrade raises UpgradeFailedError without secure managers":
+    let (conn, remote) = bridgedConnections()
+    defer:
+      await conn.close()
+      await remote.close()
+    let upgrader = MuxedUpgrade.new(@[], [], MultistreamSelect.new())
+
+    expect UpgradeFailedError:
+      discard await upgrader.upgrade(conn, Opt.none(PeerId))
+
+  asyncTest "tryUpgrade returns the secure negotiation failure":
+    let (conn, remote) = bridgedConnections(dirA = Direction.Out)
+    defer:
+      await conn.close()
+      await remote.close()
+    let upgrader = MuxedUpgrade.new(
+      @[], [Secure(codecs: @["/test/secure"])], MultistreamSelect.new()
+    )
+    let upgrading = upgrader.tryUpgrade(conn, Opt.none(PeerId))
+
+    discard await remote.readLp(1024)
+    discard await remote.readLp(1024)
+    await remote.writeLp("bad handshake\n")
+    let res = await upgrading.wait(1.seconds)
+    check res.error == $MultiStreamFailure.HandshakeFailed
