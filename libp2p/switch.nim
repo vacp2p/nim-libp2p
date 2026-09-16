@@ -288,12 +288,16 @@ proc upgradeMonitor(
 proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
+  logScope:
+    addresses = transport.addrs
+
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
+  
+  debug "Transport connection acceptance started"
 
   while transport.running:
     var conn: RawConn
-    try:
-      debug "Transport connection acceptance started"
+    try:    
       conn =
         try:
           await transport.accept()
@@ -306,7 +310,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
-        debug "Transport connection acceptance returned no connection"
+        trace "Transport connection acceptance returned no connection", addresses = transport.addrs
         await sleepAsync(AcceptRetryDelay)
         continue
 
@@ -325,7 +329,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       # gossipsub gives priority to connections we make
       conn.transportDir = Direction.In
 
-      debug "Transport connection accepted", conn
+      trace "Transport connection accepted", conn
       s.upgradeFuts.trackFut(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
