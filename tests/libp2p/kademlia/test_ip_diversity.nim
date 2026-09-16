@@ -122,3 +122,26 @@ suite "KadDHT IP diversity":
 
     let keys = kad.rtable.allKeys()
     check peers.allIt(it.peerId.toKey() in keys)
+
+  test "updatePeers enforces the per-bucket IPv6 /64 limit":
+    var limits = KadDHTLimits.new(DefaultReplication, DefaultQuorum)
+    limits.maxPeersPerIpv6SubnetPerBucket = 1
+    let kad = setupKad(KadDHTConfig.new(limits = Opt.some(limits)))
+    let
+      first = kad.peerIdInBucket(0)
+      sameSubnet = kad.peerIdInBucket(0)
+      otherSubnet = kad.peerIdInBucket(0)
+
+    kad.updatePeers(
+      @[
+        PeerInfo(peerId: first, addrs: @[ma("/ip6/2600::1/tcp/4001")]),
+        PeerInfo(peerId: sameSubnet, addrs: @[ma("/ip6/2600::2/tcp/4001")]),
+        PeerInfo(peerId: otherSubnet, addrs: @[ma("/ip6/2600:0:0:1::1/tcp/4001")]),
+      ]
+    )
+
+    let keys = kad.rtable.allKeys()
+    check:
+      first.toKey() in keys
+      sameSubnet.toKey() notin keys
+      otherSubnet.toKey() in keys

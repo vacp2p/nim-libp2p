@@ -603,3 +603,34 @@ suite "KadDHT Routing Table":
       not rt.insert(localNodeId) # localNodeId is rejected
       not rt.insert(selfId) # selfId is rejected
       rt.insert(peer) # other peers are accepted
+
+  test "an empty table has no peer to replace or remove and its buckets are stale":
+    let rt = RoutingTable.new(testKey(0))
+    let peer = testKey(1)
+
+    check:
+      not rt.isReplaceable(peer, 1.hours, Moment.now())
+      not rt.removePeer(peer)
+      rt.isStale(rt.bucketIndex(peer))
+
+  test "a detached table no longer marks peers useful":
+    let registry = PeerRegistry.new()
+    let peer = testKey(1)
+    let mainRt = RoutingTable.new(testKey(0), registry = registry)
+    let serviceRt = RoutingTable.new(testKey(0xFF), registry = registry)
+    check:
+      mainRt.insert(peer)
+      serviceRt.insert(peer)
+
+    serviceRt.detachAll()
+    serviceRt.markUseful(peer)
+
+    check registry.get(peer).expect("mainRt holds the peer").lastUsefulAt.isNone()
+
+  test "randomPeersClosestFirst returns nothing for a non-positive count":
+    let rt = RoutingTable.new(testKey(0))
+    check rt.insert(testKey(1))
+
+    check:
+      rt.randomPeersClosestFirst(rng(), 0).len == 0
+      rt.randomPeersClosestFirst(testKey(1), rng(), 0).len == 0
