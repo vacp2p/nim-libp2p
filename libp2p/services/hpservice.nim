@@ -57,7 +57,7 @@ proc tryStartingDirectConn(
   ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
     debug "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
-    debug "Direct connection created."
+    debug "Direct connection created"
     return true
 
   await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
@@ -69,7 +69,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection.", err = err.msg
+      debug "Failed to create direct connection", err = err.msg
       continue
   return false
 
