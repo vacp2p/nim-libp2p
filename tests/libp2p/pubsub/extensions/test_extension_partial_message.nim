@@ -6,11 +6,12 @@
 import chronos, tables, results, strutils, stew/byteutils, sequtils
 import ../../../../libp2p/peerid
 import
-  ../../../../libp2p/protocols/pubsub/
-    [
-      gossipsub/extension_partial_message, gossipsub/extensions_types,
-      gossipsub/partial_message, rpc/messages,
-    ]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub/extension_partial_message,
+    gossipsub/extensions_types,
+    gossipsub/partial_message,
+    rpc/messages,
+  ]
 import ../../../tools/[unittest, crypto]
 import ./my_partial_message
 import ../converters

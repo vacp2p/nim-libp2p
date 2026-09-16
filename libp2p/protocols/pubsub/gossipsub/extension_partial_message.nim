@@ -479,8 +479,8 @@ proc publishPartial*(
       # node's own topic opts. A node may publish partials as a fanout
       # publisher without being subscribed to the topic.
       if ext.publishPartialToPeer(
-          topic, groupId, partsMetadata, materializeParts, groupState, p, true
-        ):
+        topic, groupId, partsMetadata, materializeParts, groupState, p, true
+      ):
         publishedToCount.inc
       continue
 
@@ -491,8 +491,8 @@ proc publishPartial*(
     if nodeRequestsPartial and
         (peerSubOpt.supportsSendingPartial or groupState.hasPeer(p)):
       if ext.publishPartialToPeer(
-          topic, groupId, partsMetadata, materializeParts, groupState, p, false
-        ):
+        topic, groupId, partsMetadata, materializeParts, groupState, p, false
+      ):
         publishedToCount.inc
 
   return publishedToCount
