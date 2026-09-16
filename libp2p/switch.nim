@@ -289,12 +289,12 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
-  
+
   debug "Transport connection acceptance started", addresses = transport.addrs
 
   while transport.running:
     var conn: RawConn
-    try:    
+    try:
       conn =
         try:
           await transport.accept()
@@ -307,7 +307,8 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
-        trace "Transport connection acceptance returned no connection", addresses = transport.addrs
+        trace "Transport connection acceptance returned no connection",
+          addresses = transport.addrs
         await sleepAsync(AcceptRetryDelay)
         continue
 
