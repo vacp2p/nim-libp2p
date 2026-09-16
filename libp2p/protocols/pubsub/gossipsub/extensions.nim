@@ -199,6 +199,20 @@ proc publishPartial*(
     # raises because this proc is called by user
     raiseAssert "partial message extension is not configured"
 
+proc publishPartial*(
+    state: ExtensionsState,
+    topic: string,
+    groupId: GroupId,
+    partsMetadata: PartsMetadata,
+    materializeParts: MaterializePartsProc,
+    peers: seq[PeerId] = @[],
+): int =
+  state.partialMessageExtension.ifValue(e):
+    return e.publishPartial(topic, groupId, partsMetadata, materializeParts, peers)
+  else:
+    # raises because this proc is called by user
+    raiseAssert "partial message extension is not configured"
+
 proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool =
   state.partialMessageExtension.ifValue(e):
     return e.peerRequestsPartial(peerId, topic)

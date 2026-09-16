@@ -382,22 +382,22 @@ method onHandleRPC*(
 proc publishPartialToPeer(
     ext: PartialMessageExtension,
     topic: string,
-    pm: PartialMessage,
+    groupId: GroupId,
+    msgPartsMetadata: PartsMetadata,
+    materializeParts: MaterializePartsProc,
     groupState: var GroupState,
     peer: PeerId,
     peerRequestsPartial: bool,
 ): bool {.raises: [].} =
-  let msgPartsMetadata = pm.partsMetadata()
-  var rpc = PartialMessageExtensionRPC(
-    topicID: Opt.some(topic), groupID: Opt.some(pm.groupId())
-  )
+  var rpc =
+    PartialMessageExtensionRPC(topicID: Opt.some(topic), groupID: Opt.some(groupId))
   var peerState = groupState.getPeerState(peer)
   var hasChanges: bool = false
 
   # if peer has requested partial messages and node knows what parts peer has requested, then
   # attempt to fulfill any parts that peer is missing.
   if peerRequestsPartial and peerState.receivedPartsMetadata.isSome():
-    let materializeRes = pm.materializeParts(peerState.receivedPartsMetadata.get())
+    let materializeRes = materializeParts(peerState.receivedPartsMetadata.get())
     if materializeRes.isErr():
       # there might be error with last PartsMetadata so it is discarded,
       # to avoid any error with future messages.
@@ -434,17 +434,23 @@ proc publishPartialToPeer(
 proc publishPartial*(
     ext: PartialMessageExtension,
     topic: string,
-    pm: PartialMessage,
+    groupId: GroupId,
+    partsMetadata: PartsMetadata,
+    materializeParts: MaterializePartsProc,
     peers: seq[PeerId] = @[],
       # overrides the peers to whom partial messages is going to be published.
 ): int {.raises: [].} =
-  if pm.groupId().len == 0:
-    warn "could not publish partial message without groupId", groupId = pm.groupId()
+  if groupId.len == 0:
+    warn "could not publish partial message without groupId", groupId
     return 0
 
-  var groupState = ext.getGroupState(topic, pm.groupId())
+  if materializeParts.isNil:
+    warn "could not publish partial message without materializeParts", groupId
+    return 0
+
+  var groupState = ext.getGroupState(topic, groupId)
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
-  groupState.lastPublishedMetadata = pm.partsMetadata()
+  groupState.lastPublishedMetadata = partsMetadata
   ext.updateGroupCountMetric()
 
   let publishToPeers =
@@ -472,7 +478,9 @@ proc publishPartial*(
       # If the peer requests partials, publish to it without checking this
       # node's own topic opts. A node may publish partials as a fanout
       # publisher without being subscribed to the topic.
-      if ext.publishPartialToPeer(topic, pm, groupState, p, true):
+      if ext.publishPartialToPeer(
+          topic, groupId, partsMetadata, materializeParts, groupState, p, true
+        ):
         publishedToCount.inc
       continue
 
@@ -482,7 +490,23 @@ proc publishPartial*(
     # this group without ever sending a subscription RPC.
     if nodeRequestsPartial and
         (peerSubOpt.supportsSendingPartial or groupState.hasPeer(p)):
-      if ext.publishPartialToPeer(topic, pm, groupState, p, false):
+      if ext.publishPartialToPeer(
+          topic, groupId, partsMetadata, materializeParts, groupState, p, false
+        ):
         publishedToCount.inc
 
   return publishedToCount
+
+proc publishPartial*(
+    ext: PartialMessageExtension,
+    topic: string,
+    pm: PartialMessage,
+    peers: seq[PeerId] = @[],
+      # overrides the peers to whom partial messages is going to be published.
+): int {.raises: [].} =
+  let materializeParts = proc(
+      metadata: PartsMetadata
+  ): Result[PartsData, string] {.gcsafe, raises: [].} =
+    pm.materializeParts(metadata)
+
+  ext.publishPartial(topic, pm.groupId(), pm.partsMetadata(), materializeParts, peers)

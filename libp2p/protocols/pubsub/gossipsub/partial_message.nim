@@ -29,6 +29,12 @@ type
     ## The interpretation and encoding of this metadata are entirely
     ## application-defined.
 
+  MaterializePartsProc* =
+    proc(metadata: PartsMetadata): Result[PartsData, string] {.gcsafe, raises: [].}
+    ## Produces encoded message data for the parts specified by `metadata`.
+    ## Same contract as `materializeParts`, for callers that publish plain data
+    ## instead of a PartialMessage.
+
   PartialMessage* = ref object of RootObj
     ## Interface for messages that can be divided into independently transferable parts.
     ##

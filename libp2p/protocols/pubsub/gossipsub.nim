@@ -1039,6 +1039,24 @@ proc publishPartial*(
 
   trace "Published partial message to peers", count = count
 
+proc publishPartial*(
+    g: GossipSub,
+    topic: string,
+    groupId: GroupId,
+    partsMetadata: PartsMetadata,
+    materializeParts: MaterializePartsProc,
+    peers: seq[PeerId] = @[],
+): Future[void] {.async: (raises: []).} =
+  let count = g.extensionsState.publishPartial(
+    topic, groupId, partsMetadata, materializeParts, peers
+  )
+
+  libp2p_pubsub_messages_published_partial.inc(
+    count.int64, labelValues = [g.topicLabel(topic)]
+  )
+
+  trace "Published partial message to peers", count = count
+
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =

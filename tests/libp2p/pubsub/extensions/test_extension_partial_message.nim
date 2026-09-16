@@ -7,7 +7,10 @@ import chronos, tables, results, strutils, stew/byteutils, sequtils
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
-    [gossipsub/extension_partial_message, gossipsub/extensions_types, rpc/messages]
+    [
+      gossipsub/extension_partial_message, gossipsub/extensions_types,
+      gossipsub/partial_message, rpc/messages,
+    ]
 import ../../../tools/[unittest, crypto]
 import ./my_partial_message
 import ../converters
@@ -397,6 +400,79 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # because peer's request is already fulfilled
     check ext.publishPartial(topic, pm, peers = @[selectedPeerId]) == 0
     check cr.sentRPC.len == 1
+
+  test "publish partial message: plain data fills request":
+    # same as above, but publishing groupId, parts metadata and a materialize
+    # callback instead of a PartialMessage.
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+    let requestingPeerId = PeerId.random(rng()).get()
+
+    ext.subscribe(peerId, topic, true)
+    ext.subscribe(requestingPeerId, topic, true)
+
+    # requesting peer seeks parts [1, 2]
+    ext.handlePartialMessage(
+      requestingPeerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+      ),
+    )
+
+    let pm = MyPartialMessage(
+      groupId: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    var requestedMetadata: seq[PartsMetadata]
+    let materializeParts = proc(
+        metadata: PartsMetadata
+    ): Result[PartsData, string] {.gcsafe, raises: [].} =
+      requestedMetadata.add(metadata)
+      pm.materializeParts(metadata)
+
+    check ext.publishPartial(
+      topic, groupId, MyPartsMetadata.have(@[1, 2, 3]), materializeParts
+    ) == 2
+
+    check:
+      # only the peer that sent a request is asked to materialize parts
+      requestedMetadata == @[MyPartsMetadata.want(@[1, 2])]
+      cr.sentRPC.len == 2
+      PeerRPC(
+        peerId: requestingPeerId,
+        rpc: PartialMessageExtensionRPC(
+          groupID: groupId,
+          topicID: topic,
+          partialMessage: "onetwo".toBytes,
+          partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+        ),
+      ) in cr.sentRPC
+      PeerRPC(
+        peerId: peerId,
+        rpc: PartialMessageExtensionRPC(
+          groupID: groupId,
+          topicID: topic,
+          partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+          partialMessage: Opt.none(seq[byte]),
+        ),
+      ) in cr.sentRPC
+
+  test "publish partial message: plain data without groupId or materializeParts is not published":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+    ext.subscribe(peerId, topic, true)
+
+    let materializeParts = proc(
+        metadata: PartsMetadata
+    ): Result[PartsData, string] {.gcsafe, raises: [].} =
+      ok(default(PartsData))
+
+    check:
+      ext.publishPartial(topic, @[], MyPartsMetadata.have(@[1]), materializeParts) == 0
+      ext.publishPartial(topic, groupId, MyPartsMetadata.have(@[1]), nil) == 0
+      cr.sentRPC.len == 0
 
   test "publish partial message: selected peer without subscription can receive explicit metadata reply":
     const topic = "logos-partial"
