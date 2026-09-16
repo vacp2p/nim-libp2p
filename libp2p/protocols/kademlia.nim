@@ -152,11 +152,20 @@ proc probeAndEvictPeers*(
   if peers.len == 0:
     return
 
-  debug "Liveness batch starting", peers = peers.len
+  trace "Liveness batch starting", peers = peers.len
   var futs = newSeqOfCap[Future[void]](peers.len)
+  var reused = 0
+  defer:
+    debug "Liveness batch finished",
+      peers = peers.len,
+      reused,
+      completed = futs.countIt(it.completed()),
+      cancelled = futs.countIt(it.cancelled()),
+      remainingInTable = peers.countIt(rtable.contains(it.toKey()))
+
   for peerId in peers:
     kad.livenessProbes.withValue(peerId, existing):
-      trace "Liveness batch reusing in-flight probe", peerId
+      reused.inc()
       futs.add(existing[])
       continue
     let fut = kad.checkAndEvictPeer(peerId)
@@ -169,7 +178,6 @@ proc probeAndEvictPeers*(
     except CancelledError as exc:
       await noCancel futs.cancelAndWait()
       raise exc
-  debug "Liveness batch complete", peers = peers.len
 
 proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Continuous background task: drain replaceable peers via liveness probes

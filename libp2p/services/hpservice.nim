@@ -55,12 +55,11 @@ proc tryStartingDirectConn(
   proc tryConnect(
       address: MultiAddress
   ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
-    debug "Trying to create direct connection", peerId, address
+    trace "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
-    debug "Direct connection created."
+    debug "Direct connection created", peerId, address
     return true
 
-  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
@@ -69,7 +68,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection.", err = err.msg
+      debug "Failed to create direct connection", err = err.msg, peerId, address
       continue
   return false
 
@@ -142,7 +141,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   switch.connManager.addPeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
+    self.newConnectedPeerHandler, PeerEventKind.Identified
   )
 
   discard self.reachabilityObservers.add(self.onNewStatusHandler)
@@ -150,7 +149,7 @@ method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   switch.connManager.removePeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
+    self.newConnectedPeerHandler, PeerEventKind.Identified
   )
   discard self.reachabilityObservers.remove(self.onNewStatusHandler)
   await self.autonatService.stop(switch)

@@ -193,7 +193,7 @@ proc connectGossipsubPeers(
       connected.inc()
       info "Connected", peer, currentConnections = $connected, target = connectTo
     except CatchableError as e:
-      warn "Failed to dial", theirAddress = peer, message = e.msg
+      warn "Failed to dial", theirAddress = peer, err = e.msg
 
   if connected == 0:
     return err("Failed to connect any peer")

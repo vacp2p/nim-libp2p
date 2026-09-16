@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject unsafe Chronicle log fields and unhelpfully short field names."""
+"""Lint checks for Chronicle logs"""
 
 from pathlib import Path
 import re
@@ -7,6 +7,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_START = re.compile(r"^(\s*)(trace|debug|info|notice|warn|error|fatal)\s+\"")
+LOG_MESSAGE = re.compile(
+    r'^\s*(?:trace|debug|info|notice|warn|error|fatal)\s+"((?:\\.|[^"\\])*)"'
+)
+MULTI_SENTENCE = re.compile(r"\.\s+(?=[A-Z])")
 EXCEPTION_ALIAS = re.compile(
     r"\b(?:description|error|message|msg)\s*=\s*"
     r"(?:getCurrentExceptionMsg\(\)|[A-Za-z_][\w.]*\.msg)"
@@ -38,6 +42,16 @@ RETURN_TYPE = re.compile(r"\b(?:func|proc)\s+(\w+)\*?\([^)]*\)\s*:\s*([^=\n{]+)"
 # logging contexts. Every other log field name must be at least three
 # characters long.
 SHORT_FIELD_EXCEPTIONS = {"id", "ip"}
+EXCLUDED_PATH_PARTS = {".git", "nimbledeps", "nimcache"}
+
+
+def audit_paths():
+    """Return repository-owned Nim sources, excluding generated dependencies."""
+    return [
+        path
+        for path in ROOT.rglob("*.nim")
+        if not EXCLUDED_PATH_PARTS.intersection(path.relative_to(ROOT).parts)
+    ]
 
 
 def log_blocks(path: Path):
@@ -60,6 +74,12 @@ def log_blocks(path: Path):
             end += 1
         yield line + 1, match.group(2), "\n".join(lines[line:end])
         line = end
+
+
+def log_message(block: str):
+    """Return a literal Chronicle event message, if the event has one."""
+    match = LOG_MESSAGE.match(block)
+    return match.group(1) if match else None
 
 
 def short_positional_fields(block: str):
@@ -198,7 +218,21 @@ def has_compact_formatter(value: str, declarations, fields) -> bool:
 
 def main() -> int:
     violations = []
-    paths = list(ROOT.joinpath("libp2p").rglob("*.nim"))
+    for path in audit_paths():
+        for line, _, block in log_blocks(path):
+            message = log_message(block)
+            if message is None:
+                continue
+            if message.endswith("."):
+                violations.append(
+                    f"{path.relative_to(ROOT)}:{line}: log message must not end with a full stop"
+                )
+            if MULTI_SENTENCE.search(message):
+                violations.append(
+                    f"{path.relative_to(ROOT)}:{line}: log message must contain one sentence"
+                )
+
+    paths = audit_paths()
     global COMPACT_FORMAT_TYPES
     COMPACT_FORMAT_TYPES, declarations, fields = source_types(paths)
     for path in paths:
@@ -237,8 +271,10 @@ def main() -> int:
                         f"{path.relative_to(ROOT)}:{line}: bare field '{field_name}' is too short (needs to be at least 3 characters long)"
                     )
     if violations:
+        print("❌ Log audit failed:", file=sys.stderr)
         print("\n".join(violations), file=sys.stderr)
         return 1
+    print("✅ Log audit passed")
     return 0
 
 
