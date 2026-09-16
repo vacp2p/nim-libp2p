@@ -68,7 +68,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection.", err = err.msg
+      debug "Failed to create direct connection.", err = err.msg, peerId, address
       continue
   return false
 
