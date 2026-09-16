@@ -51,6 +51,14 @@ type
       proc(a, b: PartsMetadata): Result[PartsMetadata, string] {.gcsafe, raises: [].}
       # creates union of two PartsMetadata and returns it.
       # needs to be implemented by application.
+    materializeParts*: proc(
+      topic: string, groupId: GroupId, metadata: PartsMetadata
+    ): Result[PartsData, string] {.gcsafe, raises: [].}
+      # produces encoded message data for the parts of (topic, groupId) specified by
+      # metadata. it should return as many of the requested parts as are available.
+      # empty metadata must be treated as a request for all available parts.
+      # returns error if metadata is invalid or the request cannot be satisfied.
+      # needs to be implemented by application.
     validateRPC*:
       proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
       # implements logic for performing sanity checks on PartialMessageExtensionRPC.
@@ -106,6 +114,7 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.updatePeerBehaviorPenalty != nil, msg("updatePeerBehaviorPenalty"))
   doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
   doAssert(config.unionPartsMetadata != nil, msg("unionPartsMetadata"))
+  doAssert(config.materializeParts != nil, msg("materializeParts"))
   doAssert(config.validateRPC != nil, msg("validateRPC"))
   doAssert(config.onIncomingRPC != nil, msg("onIncomingRPC"))
   doAssert(config.heartbeatsTillEviction >= 1, msg("heartbeatsTillEviction"))
@@ -384,7 +393,6 @@ proc publishPartialToPeer(
     topic: string,
     groupId: GroupId,
     msgPartsMetadata: PartsMetadata,
-    materializeParts: MaterializePartsProc,
     groupState: var GroupState,
     peer: PeerId,
     peerRequestsPartial: bool,
@@ -397,7 +405,8 @@ proc publishPartialToPeer(
   # if peer has requested partial messages and node knows what parts peer has requested, then
   # attempt to fulfill any parts that peer is missing.
   if peerRequestsPartial and peerState.receivedPartsMetadata.isSome():
-    let materializeRes = materializeParts(peerState.receivedPartsMetadata.get())
+    let materializeRes =
+      ext.config.materializeParts(topic, groupId, peerState.receivedPartsMetadata.get())
     if materializeRes.isErr():
       # there might be error with last PartsMetadata so it is discarded,
       # to avoid any error with future messages.
@@ -436,16 +445,11 @@ proc publishPartial*(
     topic: string,
     groupId: GroupId,
     partsMetadata: PartsMetadata,
-    materializeParts: MaterializePartsProc,
     peers: seq[PeerId] = @[],
       # overrides the peers to whom partial messages is going to be published.
 ): int {.raises: [].} =
   if groupId.len == 0:
     warn "could not publish partial message without groupId", groupId
-    return 0
-
-  if materializeParts.isNil:
-    warn "could not publish partial message without materializeParts", groupId
     return 0
 
   var groupState = ext.getGroupState(topic, groupId)
@@ -478,9 +482,7 @@ proc publishPartial*(
       # If the peer requests partials, publish to it without checking this
       # node's own topic opts. A node may publish partials as a fanout
       # publisher without being subscribed to the topic.
-      if ext.publishPartialToPeer(
-        topic, groupId, partsMetadata, materializeParts, groupState, p, true
-      ):
+      if ext.publishPartialToPeer(topic, groupId, partsMetadata, groupState, p, true):
         publishedToCount.inc
       continue
 
@@ -490,23 +492,7 @@ proc publishPartial*(
     # this group without ever sending a subscription RPC.
     if nodeRequestsPartial and
         (peerSubOpt.supportsSendingPartial or groupState.hasPeer(p)):
-      if ext.publishPartialToPeer(
-        topic, groupId, partsMetadata, materializeParts, groupState, p, false
-      ):
+      if ext.publishPartialToPeer(topic, groupId, partsMetadata, groupState, p, false):
         publishedToCount.inc
 
   return publishedToCount
-
-proc publishPartial*(
-    ext: PartialMessageExtension,
-    topic: string,
-    pm: PartialMessage,
-    peers: seq[PeerId] = @[],
-      # overrides the peers to whom partial messages is going to be published.
-): int {.raises: [].} =
-  let materializeParts = proc(
-      metadata: PartsMetadata
-  ): Result[PartsData, string] {.gcsafe, raises: [].} =
-    pm.materializeParts(metadata)
-
-  ext.publishPartial(topic, pm.groupId(), pm.partsMetadata(), materializeParts, peers)
