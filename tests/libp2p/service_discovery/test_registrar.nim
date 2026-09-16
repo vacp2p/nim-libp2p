@@ -1114,6 +1114,21 @@ suite "Service Discovery Registrar - acceptAdvertisement":
       disco.rtManager.hasService(kept)
       disco.rtManager.count() == 1
 
+  test "clearing the ad cache removes the service tables":
+    let disco = setupServiceDiscoveryNode()
+    let first = makeServiceId(1)
+    let second = makeServiceId(2)
+    let now = Moment.now()
+
+    disco.acceptAd(now, first, makeAdvertisement($first))
+    disco.acceptAd(now, second, makeAdvertisement($second))
+    disco.registrar.ads.clear()
+
+    check:
+      not disco.rtManager.hasService(first)
+      not disco.rtManager.hasService(second)
+      disco.rtManager.count() == 0
+
   test "eviction of another advertiser's ad for the same service keeps the table":
     let disco = setupServiceDiscoveryNode(
       discoConfig = ServiceDiscoveryConfig.new(advertCacheCap = 1)

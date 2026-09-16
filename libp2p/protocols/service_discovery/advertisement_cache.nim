@@ -128,6 +128,15 @@ proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   removed
 
 proc clear*(c: AdvertisementCache) =
+  var removed = newSeqOfCap[ServiceId](c.byService.len)
+  for serviceId in c.byService.keys:
+    removed.add(serviceId)
+
   c.byService.clear()
   c.ipTree = IpTree.new()
   c.count = 0
+
+  if c.onServiceRemoved.isNil():
+    return
+  for serviceId in removed:
+    c.onServiceRemoved(serviceId)
