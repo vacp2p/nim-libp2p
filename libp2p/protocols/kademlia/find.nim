@@ -7,7 +7,10 @@ import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
 import ../../utils/future
 import
-  ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity]
+  ./[
+    routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity,
+    peer_registry,
+  ]
 
 logScope:
   topics = "libp2p kademlia"
@@ -23,6 +26,7 @@ type LookupState* = ref object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
+  unreachable*: HashSet[PeerId] ## failed to dial: not asked again in this lookup
 
 type DispatchProc* = proc(
   kad: KadDHT, peer: PeerId, target: Key
@@ -154,6 +158,8 @@ proc sortedShortlist(
       continue
     if state.attempts.getOrDefault(pid, 0) > state.kad.config.retries:
       # depleted retries, do not query again
+      continue
+    if pid in state.unreachable:
       continue
     sortedShortlist.add((pid, dist))
 
@@ -418,6 +424,7 @@ proc findNodeDispatch*(
 type DispatchOutcome = enum
   Completed
   Errored
+  Unreachable
 
 type DispatchResult = object
   peer: PeerId
@@ -441,8 +448,11 @@ proc dispatchPeer(
   if res.isErr():
     let err = res.error()
     if err.startsWith($dialStage):
-      trace "Kademlia RPC stream establishment failed",
-        err, peerId, protocol = kad.codec
+      trace "Kademlia RPC dial failed", err, peerId, protocol = kad.codec
+      return DispatchResult(peer: peerId, outcome: Unreachable)
+
+    if err.startsWith($waitStage):
+      trace "Kademlia RPC stream wait timed out", err, peerId, protocol = kad.codec
     elif err.startsWith($writeStage):
       trace "Kademlia RPC write failed", err, peerId, protocol = kad.codec
     else:
@@ -527,12 +537,13 @@ proc harvestInflight(
 ): seq[DispatchResult] {.raises: [].} =
   ## Collect the replies of finished, still-relevant RPCs and drop them, and
   ## mark overdue in-flight RPCs abandoned so their slot frees while they keep
-  ## running (a late reply is ignored).
+  ## running. A late reply is ignored, except a failed dial, which ends the retries.
   var completed: seq[DispatchResult]
   var stillPending: seq[Attempt]
   for a in pending:
     if a.fut.finished():
-      if not a.abandoned and not a.fut.cancelled():
+      if not a.fut.cancelled() and
+          (not a.abandoned or a.fut.value().outcome == Unreachable):
         completed.add(a.fut.value())
       continue
     if not a.abandoned and now >= a.deadline:
@@ -543,6 +554,17 @@ proc harvestInflight(
       stillPending.add(a)
   pending = stillPending
   completed
+
+proc dropUnreachableSeed(kad: KadDHT, peerId: PeerId) {.raises: [].} =
+  ## Seeds skip the admission probe, so only this keeps a dead seed out of later lookups.
+  if not kad.bootstrapNodes.anyIt(it.peerId == peerId):
+    return
+  let record = kad.rtable.registry.get(peerId.toKey()).valueOr:
+    return
+  if record.lastUsefulAt.isSome():
+    return
+  if kad.rtable.removePeer(peerId, reason = "unreachable_seed"):
+    debug "Removed unreachable bootstrap peer from the routing table", peerId
 
 proc applyReplies(
     kad: KadDHT,
@@ -555,6 +577,10 @@ proc applyReplies(
     case res.outcome
     of Errored:
       state.responded[res.peer] = RespondedStatus.Failed
+    of Unreachable:
+      state.responded[res.peer] = RespondedStatus.Failed
+      state.unreachable.incl(res.peer)
+      kad.dropUnreachableSeed(res.peer)
     of Completed:
       state.responded[res.peer] = RespondedStatus.Success
       # A reply proves the peer useful; retain it through eviction.
@@ -566,19 +592,17 @@ proc applyReplies(
 proc dropDonePeers(
     state: LookupState, pending: var seq[Attempt]
 ): seq[RpcFuture] {.raises: [].} =
-  ## Remove attempts whose peer is finished with — it responded successfully (no
-  ## duplicate retry), a closer peer evicted it from the shortlist, or it was
-  ## abandoned with its retries depleted (never re-dispatched, so its RPC is pure
-  ## waste) — and return their still-live RPCs so the caller can cancel them.
-  ## A `Failed` status does not end the peer: the entry stays until its retries
-  ## run out, and the retry that `fillSlots` dispatched must keep running.
+  ## Remove the attempts of done peers (answered, evicted from the shortlist, dial
+  ## failed, or abandoned with no retries left) and return their live RPCs to cancel.
+  ## Any other failure keeps the peer, so the retry that `fillSlots` sent keeps running.
   var keep: seq[Attempt]
   var stale: seq[RpcFuture]
   for a in pending:
     let succeeded = state.responded.getOrDefault(a.peer) == RespondedStatus.Success
     let retriesDepleted =
       a.abandoned and state.attempts.getOrDefault(a.peer, 0) > state.kad.config.retries
-    if succeeded or not state.shortlist.hasKey(a.peer) or retriesDepleted:
+    if succeeded or not state.shortlist.hasKey(a.peer) or retriesDepleted or
+        a.peer in state.unreachable:
       stale.add(a.fut)
     else:
       keep.add(a)

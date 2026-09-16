@@ -32,6 +32,7 @@ type
     ## How far a send got before it gave up. Callers distinguish these: an RPC
     ## that reached the remote but drew no reply differs from one that never
     ## left the node.
+    waitStage ## timed out in the queue for the peer's stream, before any dial
     dialStage
     writeStage
     readStage
@@ -244,7 +245,7 @@ proc prepStream(
 
   let timeLeft = deadline.timeLeft()
   if timeLeft.isZero():
-    return err(SendError.init(dialStage, "timed out before dialing"))
+    return err(SendError.init(waitStage, "timed out before dialing"))
 
   let dialFut = ms.switch.dial(peerId, addrs, ms.codec)
   # use `join` so a cancelled wait drops the dial instead of waiting it out.
@@ -359,7 +360,7 @@ proc send(
     if not await acquireFut.withTimeout(timeout):
       if acquireFut.completed():
         ps.releaseLock()
-      return err(SendError.init(dialStage, "timed out waiting for the peer's stream"))
+      return err(SendError.init(waitStage, "timed out waiting for the peer's stream"))
   except CancelledError as e:
     if acquireFut.completed():
       ps.releaseLock()

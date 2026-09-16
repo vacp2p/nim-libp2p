@@ -160,6 +160,26 @@ suite "KadDHT message sender":
       reply.isErr()
       reply.error().stage == readStage
 
+  asyncTest "an RPC that times out behind another one fails at the wait stage":
+    let proto = newCountingEcho(reply = false)
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await sender.stop()
+
+    let peerId = server.peerInfo.peerId
+    let first = sender.sendRequest(peerId, server.peerInfo.addrs, @[byte 1], 1.seconds)
+    let second = await sender.sendRequest(
+      peerId, server.peerInfo.addrs, @[byte 2], 100.milliseconds
+    )
+    let firstReply = await first
+    check:
+      second.isErr()
+      second.error().stage == waitStage
+      firstReply.error().stage == readStage
+
   asyncTest "an unreachable peer fails at the dial stage":
     let client = makeStandardSwitch(TcpAutoAddress)
     startAndDeferStop(@[client])
