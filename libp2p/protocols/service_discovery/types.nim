@@ -42,13 +42,13 @@ type
   ServiceId* = Key
 
   ServiceStatus* = enum
-    Interest = 0
-    Provided = 1
-    Both = 2
+    Interest
+    Provided
+    Registered
 
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
-    serviceStatus*: Table[ServiceId, ServiceStatus]
+    serviceStatus*: Table[ServiceId, set[ServiceStatus]]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
     onServiceTableRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
@@ -65,6 +65,7 @@ type
     ipTree*: IpTree
     capacity*: uint64
     count*: int
+    onServiceRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   Registrar* = ref object
     ads*: AdvertisementCache

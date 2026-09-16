@@ -55,8 +55,12 @@ proc remove(c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId) =
       c.ipTree.removeIps(cachedAd[].ips)
       peers[].del(advertiser)
       dec c.count
-    if peers[].len == 0:
-      c.byService.del(serviceId)
+    if peers[].len > 0:
+      return
+
+    c.byService.del(serviceId)
+    if not c.onServiceRemoved.isNil():
+      c.onServiceRemoved(serviceId)
 
 proc findOldest(c: AdvertisementCache): Opt[(ServiceId, PeerId)] =
   var oldest = Opt.none((ServiceId, PeerId))
@@ -147,6 +151,15 @@ proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   removed
 
 proc clear*(c: AdvertisementCache) =
+  var removed = newSeqOfCap[ServiceId](c.byService.len)
+  for serviceId in c.byService.keys:
+    removed.add(serviceId)
+
   c.byService.clear()
   c.ipTree = IpTree.new()
   c.count = 0
+
+  if c.onServiceRemoved.isNil():
+    return
+  for serviceId in removed:
+    c.onServiceRemoved(serviceId)
