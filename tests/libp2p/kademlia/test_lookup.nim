@@ -25,7 +25,7 @@ proc recordingDispatch(
     queried[].add(peer)
     if peer in undialable:
       await sleepAsync(dialDelay)
-      return err($dialStage & ": connection refused")
+      return err($refusedStage & ": connection refused")
     if peer in failing:
       return err("peer is not answering")
     let closer = closerPeers.getOrDefault(peer).mapIt(Peer(id: it.getBytes()))
@@ -487,7 +487,8 @@ suite "KadDHT Iterative Lookup":
     let deadPeer = randomPeerId()
     let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/1")]
     let kad = setupKad(
-      testKadConfig(disableBootstrapping = true),
+      # Windows retries a refused loopback connect for about 2 seconds.
+      testKadConfig(timeout = 5.seconds, disableBootstrapping = true),
       bootstrapNodes = @[(deadSeed, deadAddrs)],
     )
     kad.updatePeers(@[(deadPeer, deadAddrs)])

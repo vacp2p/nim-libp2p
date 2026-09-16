@@ -13,7 +13,7 @@ proc countSent*[T](
     res: Result[T, SendError], msgType: MessageType, sentBytes: int64
 ) {.gcsafe, raises: [].} =
   ## Count what left the node: a send that gave up at the dial sent nothing.
-  if res.isErr() and res.error().stage in {waitStage, dialStage}:
+  if res.isErr() and res.error().stage in {waitStage, dialStage, refusedStage}:
     return
   kad_messages_sent.inc(labelValues = [$msgType])
   kad_message_bytes_sent.inc(sentBytes, labelValues = [$msgType])

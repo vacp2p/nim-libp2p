@@ -168,13 +168,14 @@ suite "KadDHT Bootstrap Component":
     let fakePeerId = randomPeerId()
     let fakeAddrs = @[ma("/ip4/127.0.0.1/tcp/59999")]
 
-    let config = testKadConfig(timeout = chronos.milliseconds(100))
+    # Windows retries a refused loopback connect for about 2 seconds.
+    let config = testKadConfig(timeout = 5.seconds)
     let kad = setupKad(config = config, bootstrapNodes = @[(fakePeerId, fakeAddrs)])
     startAndDeferStop(@[kad])
 
-    check:
-      kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table
-      kad.started # node should be operational
+    check kad.started
+    checkUntilTimeout:
+      not kad.hasKey(fakePeerId.toKey())
 
   asyncTest "probeAndEvictPeers removes peers past liveness grace that fail probe":
     let hub = setupKad()

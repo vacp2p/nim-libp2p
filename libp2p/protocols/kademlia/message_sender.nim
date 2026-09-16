@@ -34,6 +34,7 @@ type
     ## left the node.
     waitStage ## timed out in the queue for the peer's stream, before any dial
     dialStage
+    refusedStage ## the dial failed outright, not by a timeout
     writeStage
     readStage
 
@@ -263,7 +264,7 @@ proc prepStream(
     try:
       await noCancel dialFut
     except DialFailedError as e:
-      return err(SendError.init(dialStage, e.msg))
+      return err(SendError.init(refusedStage, e.msg))
 
   # `stop` and `dropPeer` reset the peer's stream, and this one did not exist
   # yet when they ran. Sending on it would use a sender that is already gone.

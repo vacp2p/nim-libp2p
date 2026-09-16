@@ -447,11 +447,14 @@ proc dispatchPeer(
   let res = await dispatch(kad, peerId, target)
   if res.isErr():
     let err = res.error()
-    if err.startsWith($dialStage):
+    if err.startsWith($refusedStage):
       trace "Kademlia RPC dial failed", err, peerId, protocol = kad.codec
       return DispatchResult(peer: peerId, outcome: Unreachable)
 
-    if err.startsWith($waitStage):
+    if err.startsWith($dialStage):
+      trace "Kademlia RPC stream establishment failed",
+        err, peerId, protocol = kad.codec
+    elif err.startsWith($waitStage):
       trace "Kademlia RPC stream wait timed out", err, peerId, protocol = kad.codec
     elif err.startsWith($writeStage):
       trace "Kademlia RPC write failed", err, peerId, protocol = kad.codec
@@ -563,6 +566,7 @@ proc dropUnreachableSeed(kad: KadDHT, peerId: PeerId) {.raises: [].} =
     return
   if record.lastUsefulAt.isSome():
     return
+  kad.unreachableSeeds.incl(peerId)
   if kad.rtable.removePeer(peerId, reason = "unreachable_seed"):
     debug "Removed unreachable bootstrap peer from the routing table", peerId
 
@@ -573,7 +577,11 @@ proc applyReplies(
     completed: seq[DispatchResult],
     onReply: ReplyHandler,
 ) {.async: (raises: [CancelledError]).} =
-  for res in completed:
+  # Successes first, so a retry that answered outranks a late failure of the same peer.
+  for res in completed.sortedByIt(it.outcome):
+    if state.responded.getOrDefault(res.peer) == RespondedStatus.Success:
+      continue
+
     case res.outcome
     of Errored:
       state.responded[res.peer] = RespondedStatus.Failed
@@ -585,6 +593,7 @@ proc applyReplies(
       state.responded[res.peer] = RespondedStatus.Success
       # A reply proves the peer useful; retain it through eviction.
       rtable.markUseful(res.peer)
+      kad.unreachableSeeds.excl(res.peer)
       let newPeerInfos = state.updateShortlist(res.msg)
       kad.admitPeers(rtable, newPeerInfos)
       await onReply(res.peer, Opt.some(res.msg), state)

@@ -704,6 +704,8 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
   bootstrapNodes*: seq[PeerInfo]
     ## Configured seed peers, kept for the re-seed in ``fixLowPeers``.
+  unreachableSeeds*: HashSet[PeerId]
+    ## Seeds that failed to dial, skipped by the re-seed until no seed is left.
   msgSender*: MessageSender
     ## Reuses one outbound stream per peer across every RPC sent to it.
   rpcSem*: AsyncSemaphore
