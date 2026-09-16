@@ -288,12 +288,9 @@ proc upgradeMonitor(
 proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
-  logScope:
-    addresses = transport.addrs
-
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
   
-  debug "Transport connection acceptance started"
+  debug "Transport connection acceptance started", addresses = transport.addrs
 
   while transport.running:
     var conn: RawConn
