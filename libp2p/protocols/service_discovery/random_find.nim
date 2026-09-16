@@ -20,7 +20,7 @@ proc replyXpr*(key: Key, reply: Message): Opt[SignedExtendedPeerRecord] =
     return Opt.none(SignedExtendedPeerRecord)
 
   if record.key != Opt.some(key):
-    debug "Get-value reply names another key", key
+    trace "Get-value reply names another key", key
     return Opt.none(SignedExtendedPeerRecord)
 
   let value = record.value.valueOr:
