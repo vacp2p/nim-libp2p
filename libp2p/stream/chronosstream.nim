@@ -75,9 +75,10 @@ template withExceptions(body: untyped) =
     raise newLPStreamLimitError()
   except TransportUseClosedError:
     raise newLPStreamEOFError()
-  except TransportError:
+  except TransportError as exc:
     # TODO https://github.com/status-im/nim-chronos/pull/99
-    raise newLPStreamEOFError()
+    # Keep the transport error text: it is the only place the OS error survives
+    raise (ref LPStreamEOFError)(msg: "Stream EOF: " & exc.msg, parent: exc)
 
 when defined(libp2p_agents_metrics):
   proc trackPeerIdentity(s: ChronosStream) =
@@ -113,11 +114,15 @@ proc completeWrite(
   withExceptions:
     # StreamTransport will only return written < msg.len on fatal failures where
     # further writing is not possible - in such cases, we'll raise here,
-    # since we don't return partial writes lengths
+    # since we don't return partial writes lengths.
+    # Chronos only does this when the OS reports ECONNRESET/EPIPE (or the
+    # Windows equivalents), i.e. the remote peer dropped the connection.
     var written = await fut
 
     if written < msgLen:
-      raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
+      raise (ref LPStreamClosedError)(
+        msg: "Write failed: connection reset or closed by remote peer"
+      )
 
     s.activity = true # reset activity flag
     libp2p_network_bytes.inc(msgLen.int64, labelValues = ["out"])

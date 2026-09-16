@@ -397,7 +397,11 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     except CancelledError:
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
-      trace "Yamux frame write failed", err = exc.msg, channel = $channel
+      trace "Yamux frame write failed",
+        err = exc.msg,
+        channel = $channel,
+        peerId = channel.peerId,
+        protocol = channel.protocol
       let connDown = newLPStreamConnDownError(exc)
       for fut in futures:
         fut.fail(connDown)
@@ -608,6 +612,10 @@ proc handleStream(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
 
 method handle*(m: Yamux) {.async: (raises: []).} =
   trace "Yamux handler started", peerId = m.connection.peerId
+  # Loop exits without an exception only on EOF or GoAway
+  var
+    reason = "end of stream"
+    err = ""
   try:
     while not m.connection.atEof:
       trace "Waiting for header"
@@ -622,8 +630,10 @@ method handle*(m: Yamux) {.async: (raises: []).} =
         var status: GoAwayStatus
         if status.checkedEnumAssign(header.length):
           trace "Received go away", status
+          reason = "remote sent go away: " & $status
         else:
           trace "Yamux shutdown status rejected", status = header.length
+          reason = "remote sent go away with unknown status: " & $header.length
         break
       of Data, WindowUpdate:
         if MsgFlags.Syn in header.flags:
@@ -704,23 +714,41 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           await channel.reset()
   except CancelledError as exc:
     trace "Yamux handler canceled", err = exc.msg
+    reason = "handler canceled"
+    err = exc.msg
   except LPStreamEOFError as exc:
     trace "Stream EOF", err = exc.msg
+    reason = "end of stream"
+    err = exc.msg
   except LPStreamError as exc:
     trace "Unexpected stream exception in yamux read loop", err = exc.msg
+    reason = "stream error"
+    err = exc.msg
   except YamuxError as exc:
     trace "Closing yamux connection", err = exc.msg
+    reason = "protocol error"
+    err = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:
       discard
   except MuxerError as exc:
     debug "Unexpected muxer exception in yamux read loop", err = exc.msg
+    reason = "muxer error"
+    err = exc.msg
     try:
       await m.connection.write(YamuxHeader.goAway(ProtocolError))
     except CancelledError, LPStreamError:
       discard
   finally:
+    # Checked before our own close below: tells a local close (e.g. a
+    # disconnect requested by the application) apart from a remote one
+    debug "Yamux connection closed",
+      peerId = m.connection.peerId,
+      reason,
+      err,
+      closedLocally = m.connection.closed,
+      openStreams = m.channels.len
     await m.close()
   trace "Yamux handler stopped"
 
