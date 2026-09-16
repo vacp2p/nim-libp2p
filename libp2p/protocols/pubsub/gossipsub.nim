@@ -374,7 +374,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     return
 
   # remove from peer IPs collection too
-  pubSubPeer.address.withValue(address):
+  pubSubPeer.address.ifValue(address):
     g.peersInIP.withValue(address, s):
       s[].excl(pubSubPeer.peerId)
       if s[].len == 0:
@@ -396,8 +396,6 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
   g.peerStats.withValue(peer, stats):
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
-
-  pubSubPeer.stopTasks()
 
   g.extensionsState.removePeer(peer)
 
@@ -643,7 +641,7 @@ proc messageOverhead(g: GossipSub, msg: RPCMsg, msgSize: int): int =
         byteSize(msg.messages)
       else:
         dataAndTopicsIdSize(msg.messages)
-    controlSize = msg.control.withValue(control):
+    controlSize = msg.control.ifValue(control):
       byteSize(control.ihave) + byteSize(control.iwant)
     do:
       0
@@ -1044,6 +1042,8 @@ proc publishPartial*(
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
+  if g.switch.isStopping:
+    return
   if id notin g.peers:
     trace "Attempting to dial a direct peer", peerId = id
     if g.switch.isConnected(id):
@@ -1052,7 +1052,8 @@ proc maintainDirectPeer(
     try:
       await g.switch.connect(id, addrs, forceDial = true)
       # populate the peer after it's connected
-      discard g.getOrCreatePeer(id, g.codecs)
+      if not g.switch.isStopping:
+        discard g.getOrCreatePeer(id, g.codecs)
     except CancelledError as exc:
       trace "Direct peer dial canceled"
       raise exc
@@ -1084,7 +1085,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
   # these params are not set. they can be set with non default behaviour in
   # unit tests.
 
-  g.parameters.testExtensionConfig.withValue(c):
+  g.parameters.testExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.onNegotiated.isNil:
@@ -1098,7 +1099,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.testExtensionConfig = Opt.some(cfg)
 
-  g.parameters.partialMessageExtensionConfig.withValue(c):
+  g.parameters.partialMessageExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.sendRPC.isNil:
@@ -1126,7 +1127,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.partialMessageExtensionConfig = Opt.some(cfg)
 
-  g.parameters.pingpongExtensionConfig.withValue(c):
+  g.parameters.pingpongExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.sendPong.isNil:
@@ -1136,7 +1137,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
-  g.parameters.preambleExtensionConfig.withValue(c):
+  g.parameters.preambleExtensionConfig.ifValue(c):
     var cfg = c
 
     if cfg.broadcastRPC.isNil:
@@ -1165,13 +1166,12 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig,
   )
 
-method start*(
-    g: GossipSub
-): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+method start*(g: GossipSub): Future[void] {.async: (raises: [CancelledError]).} =
   if g.started:
     warn "Starting gossipsub twice"
-    return newFutureCompleted[void]()
+    return
 
+  await procCall PubSub(g).start()
   info "gossipsub start"
 
   g.heartbeatFut = g.heartbeat()
@@ -1180,23 +1180,21 @@ method start*(
   reportBackgroundFailure(g.heartbeatFut, "gossipsub heartbeat")
   reportBackgroundFailure(g.scoringHeartbeatFut, "gossipsub scoring")
   reportBackgroundFailure(g.directPeersLoop, "gossipsub direct peer maintenance")
-  g.started = true
-  newFutureCompleted[void]()
 
-method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
-  info "gossipsub stop"
-
+method stop*(g: GossipSub): Future[void] {.async: (raw: true, raises: []).} =
   if not g.started:
     warn "Stopping gossipsub without starting it"
-    return newFutureCompleted[void]()
+  if not g.stopFut.isNil and not g.stopFut.finished:
+    return g.stopFut
 
-  g.started = false
-  g.directPeersLoop.cancelSoon()
-  g.scoringHeartbeatFut.cancelSoon()
-  g.heartbeatFut.cancelSoon()
-  g.pendingTasks.cancelSoon()
-  g.pendingTasks = @[]
-  newFutureCompleted[void]()
+  info "gossipsub stop"
+  let peersStopped = procCall PubSub(g).stop()
+  var pending = move g.pendingTasks
+  for fut in [move g.directPeersLoop, move g.scoringHeartbeatFut, move g.heartbeatFut]:
+    if not fut.isNil:
+      pending.add(fut)
+  g.stopFut = noCancel allFutures(peersStopped, chronos.cancelAndWait(pending))
+  return g.stopFut
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()
@@ -1210,8 +1208,7 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
       "gossipsub: set the overhead rate limit through GossipSubParams, not the inherited FloodSub fields",
     )
 
-  g.parameters.validateParameters().isOkOr:
-    raise newException(InitializationError, $error)
+  g.parameters.validateParameters().onErrorRaise(InitializationError)
 
   # init the floodsub stuff here, we customize timedcache in gossip!
   g.seen =

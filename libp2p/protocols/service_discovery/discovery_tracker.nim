@@ -7,7 +7,7 @@ import ../../peerid
 import ./[types, service_discovery_metrics]
 
 logScope:
-  topics = "service-disco tracker"
+  topics = "libp2p service-discovery"
 
 const MaxTrackedProviders* = 1024
 
@@ -71,7 +71,7 @@ proc recordProvider*(
   if discovery.rank == 1:
     cd_first_provider_discovery_ms.observe(elapsedMs)
 
-  debug "Provider found",
+  trace "Provider found",
     serviceId, provider, rank = discovery.rank, elapsedMs = elapsed.milliseconds, source
 
 proc recordProviders*(
@@ -103,7 +103,7 @@ proc toCsv*(tracker: DiscoveryTracker): string {.raises: [].} =
   ## Raw data dump: one row per discovered provider.
   var rows = @["service_id,provider,rank,elapsed_ms,source"]
   for serviceId, interest in tracker.interests:
-    let service = serviceId.toHex()
+    let service = serviceId.toBytes().toHex()
     for d in interest.found:
       rows.add(
         service & "," & $d.provider & "," & $d.rank & "," & $d.elapsed.milliseconds & "," &

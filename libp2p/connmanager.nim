@@ -9,7 +9,7 @@ import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
 import utils/future
 
 logScope:
-  topics = "libp2p connmanager"
+  topics = "libp2p connection-manager"
 
 declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles")
@@ -319,17 +319,36 @@ proc triggerConnEvent*(
 
   trace "Connection event callbacks started", peerId, event = $event.kind
 
+  var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
+  var outcome = "completed"
   try:
-    var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
     for h in c.connEvents[event.kind]:
       connEvents.add(h(peerId, event))
 
     checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
+    outcome = "cancelled"
     raise exc
   except CatchableError as exc:
-    warn "Connection event callback failed",
+    outcome = "failed"
+    trace "Connection event callback failed",
       err = exc.msg, errType = exc.name, peerId, event = $event.kind
+  finally:
+    let results = countFutureOutcomes(connEvents)
+    for fut in connEvents:
+      if fut.failed():
+        trace "Connection event callback failed",
+          peerId, event = $event.kind, err = fut.error().msg
+
+    debug "Connection event callbacks finished",
+      peerId,
+      event = $event.kind,
+      outcome,
+      handlers = connEvents.len,
+      succeeded = results.succeeded,
+      failed = results.failed,
+      cancelled = results.cancelled,
+      pending = results.pending
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -350,18 +369,37 @@ proc triggerPeerEvents*(
   if c.peerEvents[event.kind].len == 0:
     return
 
+  var peerEvents = newSeqOfCap[Future[void]](c.peerEvents[event.kind].len)
+  var outcome = "completed"
   try:
     trace "Peer event callbacks started", peerId, event = $event.kind
 
-    var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
       peerEvents.add(h(peerId, event))
 
     checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
+    outcome = "cancelled"
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Peer event callback failed", err = exc.msg, errType = exc.name, peerId
+    outcome = "failed"
+    trace "Peer event callback failed", err = exc.msg, errType = exc.name, peerId
+  finally:
+    let results = countFutureOutcomes(peerEvents)
+    for fut in peerEvents:
+      if fut.failed():
+        trace "Peer event callback failed",
+          peerId, event = $event.kind, err = fut.error().msg
+
+    debug "Peer event callbacks finished",
+      peerId,
+      event = $event.kind,
+      outcome,
+      handlers = peerEvents.len,
+      succeeded = results.succeeded,
+      failed = results.failed,
+      cancelled = results.cancelled,
+      pending = results.pending
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction
@@ -794,10 +832,10 @@ proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].} =
     # trim is ongoing
     return
 
-  c.watermark.withValue(wm):
+  c.watermark.ifValue(wm):
     if c.muxerStore.countPeers() <= wm.highWater:
       return
-    c.lastTrim.withValue(lastTrim):
+    c.lastTrim.ifValue(lastTrim):
       if Moment.now() - lastTrim < wm.silencePeriod:
         return
     c.trimFut = c.trimConnections()

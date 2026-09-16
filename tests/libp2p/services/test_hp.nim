@@ -44,7 +44,7 @@ suite "Hole Punching":
 
     check hpService.reachabilityObservers == autonatService.reachabilityObservers
 
-  asyncTest "Direct connection must work when peer address is public":
+  template directConnection(restart: bool) =
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
     let autonatService = AutonatService.new(autonatClientStub, rng(), maxQueueSize = 1)
@@ -73,6 +73,10 @@ suite "Hole Punching":
       publicPeerSwitch.start(),
       peerSwitch.start(),
     )
+    if restart:
+      await hpservice.stop(privatePeerSwitch)
+      await hpservice.start(privatePeerSwitch)
+
     publicPeerSwitch.peerInfo.addrs.add(
       [ma("/dns4/localhost/") & publicPeerSwitch.peerInfo.addrs[0][1].tryGet()]
     )
@@ -100,6 +104,12 @@ suite "Hole Punching":
       switchRelay.stop(),
       peerSwitch.stop(),
     )
+
+  asyncTest "Direct connection must work when peer address is public":
+    directConnection(false)
+
+  asyncTest "Direct connection works after restarting HPService":
+    directConnection(true)
 
   asyncTest "Direct connection must work when peer address is public and dns is used":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)

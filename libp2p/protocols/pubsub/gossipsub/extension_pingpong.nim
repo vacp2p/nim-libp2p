@@ -45,7 +45,7 @@ method onRemovePeer*(ext: PingPongExtension, peerId: PeerId) {.gcsafe, raises: [
 method onHandleRPC*(
     ext: PingPongExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
-  rpc.pingpongExtension.withValue(ppe):
+  rpc.pingpongExtension.ifValue(ppe):
     if ppe.ping.isNone:
       return
     let ping = ppe.ping.get(@[])

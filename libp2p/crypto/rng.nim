@@ -6,9 +6,12 @@
 import typetraits
 import bearssl/[rand, hash]
 import results
+import ../utils/redact
 
 type Rng* = ref object
   drbg: ref HmacDrbgContext
+
+redactType(Rng)
 
 proc newRng*(): Rng =
   ## Create a new randomness source for libp2p.

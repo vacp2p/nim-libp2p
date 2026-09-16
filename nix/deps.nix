@@ -145,15 +145,15 @@
 
   boringssl = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-boringssl";
-    rev = "e77caabae78fbc9aa5b78a0a521181b077c82571";
-    sha256 = "15k4dqh1hlcpq9zm30lpr728h7apdmgm22xzqhdm3clq9kia6fr8";
+    rev = "346429e4cda48e775f2d1eb3ccb8757edf4f3648";
+    sha256 = "0x46sdq75zp84qahwh472qr33xw38adrsp41fksh7xwwd6384fl3";
     fetchSubmodules = true;
   };
 
   lsquic = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-lsquic";
-    rev = "d6d8f81d854cbc575f6206aa6d72bcdfbe5d07aa";
-    sha256 = "0syyig0jlpph5fghd0ijngq2m99zl4pq5ajckax4y9cpy6ljs532";
+    rev = "fb293834a3f90368e1f6c57aec2360cf8d840c5a";
+    sha256 = "0mixc5vm5s6ppbf289rmqs7mjbvwpaj96aczfjsqjapinig92xy1";
     fetchSubmodules = true;
   };
 

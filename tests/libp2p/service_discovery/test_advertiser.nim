@@ -7,12 +7,83 @@ import
   ../../../libp2p/[
     extended_peer_record,
     peeraddrpolicy,
+    peerinfo,
     protocols/kademlia,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
   ]
-import ../../tools/unittest
+import ../../tools/[unittest, multiaddress, lifecycle]
 import ./utils
+
+proc holdUntil(gate: AsyncEvent) {.async: (raises: [CancelledError]).} =
+  ## A republish caught mid-flight: a cancel lands only once `gate` fires.
+  await noCancel gate.wait()
+
+proc settleStartupRepublish(disco: ServiceDiscovery) {.async.} =
+  if disco.addressRepublish.isNil():
+    return
+  await disco.addressRepublish
+
+suite "Advertiser - republish on address change":
+  teardown:
+    checkTrackers()
+
+  asyncTest "a newer address change waits for the pending republish to drain":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo()])
+    startAndDeferStop(@[disco])
+    await disco.settleStartupRepublish()
+
+    let gate = newAsyncEvent()
+    let held = holdUntil(gate)
+    disco.addressRepublish = held
+    let loopBefore = disco.signedPeerRecordLoop
+
+    disco.switch.peerInfo.notifyObservers()
+    let first = disco.addressRepublish
+    disco.switch.peerInfo.notifyObservers()
+    let second = disco.addressRepublish
+
+    check:
+      first != held
+      second != first
+      not first.finished()
+      not second.finished()
+      disco.signedPeerRecordLoop == loopBefore
+
+    gate.fire()
+    await second
+    check:
+      held.completed()
+      first.finished()
+      second.completed()
+      disco.signedPeerRecordLoop != loopBefore
+
+  asyncTest "stop drains the pending republish before it clears the advertiser":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo()])
+    startAndDeferStop(@[disco])
+    await disco.settleStartupRepublish()
+
+    let gate = newAsyncEvent()
+    disco.addressRepublish = holdUntil(gate)
+    disco.switch.peerInfo.notifyObservers()
+    let pending = disco.addressRepublish
+
+    let stopping = disco.stop()
+    check:
+      not stopping.finished()
+      not pending.finished()
+      disco.advertiser.providedAdverts.len == 1
+
+    gate.fire()
+    await stopping
+    check:
+      pending.finished()
+      disco.addressRepublish.isNil()
+      disco.addressObserver.isNil()
+      disco.advertiser.providedAdverts.len == 0
+
+    disco.switch.peerInfo.notifyObservers()
+    check disco.addressRepublish.isNil()
 
 suite "Advertiser - addProvidedService":
   teardown:
@@ -36,7 +107,7 @@ suite "Advertiser - addProvidedService":
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
 
-    let cached = disco.advertiser.providedAdverts[serviceId]
+    let cached = disco.advertiser.providedAdverts[serviceId].bytes
     let ad = Advertisement.decode(cached).get()
     check:
       ad.data.peerId == disco.switch.peerInfo.peerId
@@ -44,7 +115,37 @@ suite "Advertiser - addProvidedService":
 
     disco.switch.peerInfo.addrs = @[makeMultiAddress("10.0.0.2")]
     check disco.record().get().encode() != cached
-    check disco.advertiser.providedAdverts[serviceId] == cached
+    check disco.advertiser.providedAdverts[serviceId].bytes == cached
+
+  asyncTest "a moved address rebuilds the cached record":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    check disco.addProvidedService(service).isOk()
+
+    let moved = makeMultiAddress("10.0.0.2")
+    disco.switch.peerInfo.addrs = @[moved]
+    await disco.republishProvidedAdverts()
+
+    let ad =
+      Advertisement.decode(disco.advertiser.providedAdverts[serviceId].bytes).get()
+    check:
+      ad.data.addresses.len == 1
+      ad.data.addresses[0].address == moved
+
+  asyncTest "a moved address keeps a caller-supplied advertisement":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+    let advert = makeAdvertisement(service.id).encode()
+
+    check disco.addProvidedService(service, Opt.some(advert)).isOk()
+
+    disco.switch.peerInfo.addrs = @[makeMultiAddress("10.0.0.2")]
+    await disco.republishProvidedAdverts()
+
+    check disco.advertiser.providedAdverts[serviceId].bytes == advert
 
   test "with empty routing table: creates table but schedules no actions":
     let disco = setupServiceDiscoveryNode()
@@ -155,7 +256,7 @@ suite "Advertiser - caller-supplied advertisement":
     disco.populateRoutingTable(1)
 
     check disco.addProvidedService(service, Opt.some(advert)).isOk()
-    check disco.advertiser.providedAdverts[service.id.hashServiceId()] == advert
+    check disco.advertiser.providedAdverts[service.id.hashServiceId()].bytes == advert
 
   test "rejects an advertisement that does not decode":
     let disco = setupServiceDiscoveryNode()
@@ -204,12 +305,12 @@ suite "Advertiser - caller-supplied advertisement":
 
     check disco.startAdvertising(service, Opt.some(first)).isOk()
     check disco.startAdvertising(service, Opt.some(second)).isErr()
-    check disco.advertiser.providedAdverts[serviceId] == first
+    check disco.advertiser.providedAdverts[serviceId].bytes == first
 
     await disco.stopAdvertising(service.id)
 
     check disco.startAdvertising(service, Opt.some(second)).isOk()
-    check disco.advertiser.providedAdverts[serviceId] == second
+    check disco.advertiser.providedAdverts[serviceId].bytes == second
 
 suite "Advertiser - maintainRegistrations":
   teardown:
@@ -268,7 +369,8 @@ suite "Advertiser - removeProvidedService":
 
     disco.populateRoutingTable(1)
     check disco.addProvidedService(service).isOk()
-    check disco.registerInterest(service.id)
+    discard disco.registerInterest(service.id)
+    check disco.rtManager.serviceStatus[sid] == Both
 
     let bootstrapFut = newFuture[void]("test service bootstrap")
     disco.serviceBootstrapFuts[sid] = bootstrapFut
@@ -385,3 +487,39 @@ suite "Advertiser - record creation":
     let recDef = discoDef.record()
     check recDef.isOk()
     check recDef.get().data.addresses.len == 2
+
+  test "record creation drops an undialable address by default":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    let routable = makeMultiAddress("10.0.0.1")
+    disco.switch.peerInfo.addrs =
+      @[ma("/ip4/0.0.0.0/tcp/60000"), ma("/ip4/127.0.0.1/tcp/0"), routable]
+
+    let rec = disco.record()
+    check rec.isOk()
+    let xprAddrs = rec.get().data.addresses
+    check:
+      xprAddrs.len == 1
+      xprAddrs[0].address == routable
+
+  test "record creation fails while nothing dialable is announced":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+
+    disco.switch.peerInfo.addrs = @[ma("/ip4/0.0.0.0/tcp/60000")]
+    check disco.record().isErr()
+
+    disco.switch.peerInfo.addrs = @[]
+    check disco.record().isErr()
+
+  test "record creation keeps an undialable address for a local test network":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    disco.switch.peerStore.allowUndialableAddrs = true
+
+    let wildcard = ma("/ip4/0.0.0.0/tcp/60000")
+    disco.switch.peerInfo.addrs = @[wildcard]
+
+    let rec = disco.record()
+    check rec.isOk()
+    let xprAddrs = rec.get().data.addresses
+    check:
+      xprAddrs.len == 1
+      xprAddrs[0].address == wildcard

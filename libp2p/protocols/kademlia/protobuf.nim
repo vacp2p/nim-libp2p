@@ -11,12 +11,16 @@ import ../../crypto/crypto
 import protobuf_serialization
 import protobuf_serialization/pkg/results
 import protobuf_serialization/std/enums
-import ../../utils/[protobuf, protobuf_chronos_sec]
+import ../../utils/[protobuf, protobuf_chronos_sec, protobuf_distinct_seq]
+import ./key_value
+
+distinctByteSeqSerialization(Key)
+distinctByteSeqSerialization(Value)
 
 type
   Record* {.proto2.} = object
-    key* {.fieldNumber: 1.}: Opt[seq[byte]]
-    value* {.fieldNumber: 2.}: Opt[seq[byte]]
+    key* {.fieldNumber: 1, ext.}: Opt[Key]
+    value* {.fieldNumber: 2, ext.}: Opt[Value]
     timeReceived* {.fieldNumber: 5.}: Opt[string]
 
   MessageType* = enum
@@ -83,7 +87,7 @@ type
 
   Message* {.proto2.} = object
     msgType* {.fieldNumber: 1, ext.}: Opt[MessageType]
-    key* {.fieldNumber: 2.}: Opt[seq[byte]]
+    key* {.fieldNumber: 2, ext.}: Opt[Key]
     record* {.fieldNumber: 3.}: Opt[Record]
     closerPeers* {.fieldNumber: 8.}: seq[Peer]
     providerPeers* {.fieldNumber: 9.}: seq[Peer]
@@ -93,8 +97,8 @@ type
 
 func shortLog*(record: Record): auto =
   (
-    key: record.key.get(@[]).shortLog,
-    value: record.value.get(@[]).shortLog,
+    key: record.key.get(Key.fromBytes(@[])).shortLog,
+    value: record.value.get(Value.fromBytes(@[])).shortLog,
     timeReceived: record.timeReceived.get("").shortLog,
   )
 
@@ -114,7 +118,7 @@ chronicles.formatIt(Peer):
 func shortLog*(msg: Message): auto =
   (
     messageType: msg.msgType,
-    key: msg.key.get(@[]).shortLog,
+    key: msg.key.get(Key.fromBytes(@[])).shortLog,
     record: msg.record.get(Record()).shortLog,
     closerPeers: msg.closerPeers.shortLog,
     providerPeers: msg.providerPeers.shortLog,

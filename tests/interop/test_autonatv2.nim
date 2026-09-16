@@ -9,6 +9,7 @@ import
   ../../libp2p/[
     peerid, switch, wire, protocols/connectivity/autonatv2/service, services/natservice
   ]
+import ../../libp2p/protocols/connectivity/autonatv2/server except AutonatV2
 import ../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
@@ -21,7 +22,9 @@ proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
     .withNoise()
 
   if withAutonatV2:
-    builder = builder.withAutonatV2Server().withNAT(
+    builder = builder
+      .withAutonatV2Server(AutonatV2Config.new(allowPrivateAddresses = true))
+      .withNAT(
         autonatConfig(
           AutonatV2,
           v2ServiceConfig =

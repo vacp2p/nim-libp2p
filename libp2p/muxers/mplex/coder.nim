@@ -7,7 +7,7 @@ import pkg/[chronos, chronicles, stew/byteutils]
 import ../../stream/connection, ../../varint, ../../vbuffer, ../muxer
 
 logScope:
-  topics = "libp2p mplexcoder"
+  topics = "libp2p mplex"
 
 type
   MessageType* {.pure.} = enum

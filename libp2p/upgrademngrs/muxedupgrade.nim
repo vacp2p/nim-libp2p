@@ -13,7 +13,7 @@ import ../utils/opt
 export Upgrade
 
 logScope:
-  topics = "libp2p muxedupgrade"
+  topics = "libp2p connection-upgrade"
 
 type MuxedUpgrade* = ref object of Upgrade
   muxers*: seq[MuxerProvider]
@@ -47,7 +47,7 @@ proc mux(
       of Direction.In:
         await MultistreamSelect.handle(secureConn, self.muxers.mapIt(it.codec))
     muxerProvider = self.getMuxerByCodec(muxerName).valueOr:
-      debug "Mux negotiation failed", secureConn, protocol = muxerName
+      trace "Mux negotiation failed", secureConn, protocol = muxerName
       return Opt.none(Muxer)
 
   trace "Mux negotiation completed", secureConn, protocol = muxerName
@@ -97,7 +97,7 @@ proc new*(
   upgrader.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
     trace "Protocol stream handler started", stream
     try:
-      upgrader.connManager.withValue(connManager):
+      upgrader.connManager.ifValue(connManager):
         let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
           debug "Timed out waiting for peer ready before handling stream", stream

@@ -10,7 +10,7 @@ import pkg/[chronos, chronicles, metrics]
 import multiaddress, multicodec, peerid, utils/opt
 
 logScope:
-  topics = "libp2p dialbackoff"
+  topics = "libp2p dial-backoff"
 
 declareCounter libp2p_dial_backoffs,
   "failures that started or raised a backoff", ["scope"]
@@ -116,7 +116,7 @@ proc blockedIn[K](
     return false
 
   libp2p_dial_backoff_skips.inc(labelValues = [scope])
-  debug "Skipping the dial, it is on backoff",
+  trace "Skipping the dial, it is on backoff",
     scope, key, backoffMs = (entry.until - now).milliseconds
   true
 
@@ -153,7 +153,7 @@ proc countFailure[K](
     return
 
   libp2p_dial_backoffs.inc(labelValues = [scope])
-  debug "Backing the dial off",
+  trace "Backing the dial off",
     scope, key, failures = entry.failures, backoffMs = (entry.until - now).milliseconds
 
 proc blocked*(self: DialBackoff, peerId: PeerId, now = Moment.now()): bool =
@@ -163,7 +163,7 @@ proc blocked*(self: DialBackoff, address: MultiAddress, now = Moment.now()): boo
   self.addrs.blockedIn(address, "address", now)
 
 proc blocked*(self: DialBackoff, peerId: Opt[PeerId], now = Moment.now()): bool =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     return self.blocked(pid, now)
   false
 
@@ -174,7 +174,7 @@ proc recordFailure*(self: DialBackoff, address: MultiAddress, now = Moment.now()
   self.countFailure(self.addrs, address, "address", now)
 
 proc recordFailure*(self: DialBackoff, peerId: Opt[PeerId], now = Moment.now()) =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     self.recordFailure(pid, now)
 
 proc recordSuccess*(self: DialBackoff, peerId: PeerId) =
@@ -184,7 +184,7 @@ proc recordSuccess*(self: DialBackoff, address: MultiAddress) =
   self.addrs.del(address)
 
 proc recordSuccess*(self: DialBackoff, peerId: Opt[PeerId]) =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     self.recordSuccess(pid)
 
 proc new*(T: type DialBackoff, config: DialBackoffConfig): T =

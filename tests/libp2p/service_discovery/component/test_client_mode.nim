@@ -39,6 +39,39 @@ suite "Service Discovery Component - Client Mode":
       response.isErr
       clientNode.registrar.ads.len == 0
 
+  asyncTest "a peer that resets a request loses its seats":
+    let clientNode = setupServiceDiscoveryNode(client = true)
+    let serverNode = setupServiceDiscoveryNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[clientNode, serverNode, registrarNode])
+    await connect(serverNode, clientNode)
+    await connect(serverNode, registrarNode)
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    check serverNode.rtManager.addService(
+      serviceId, serverNode.rtable, serverNode.config.replication,
+      serverNode.discoConfig.bucketsCount, Interest,
+    )
+
+    let clientId = clientNode.switch.peerInfo.peerId
+    let registrarId = registrarNode.switch.peerInfo.peerId
+    check:
+      serverNode.hasPeerInServiceTable(serviceId, clientId)
+      serverNode.hasPeerInServiceTable(serviceId, registrarId)
+
+    let ad = makeAdvertisement(serviceName).encode().get()
+    let refused = await serverNode.sendRegister(clientId, serviceId, ad)
+    let answered = await serverNode.sendRegister(registrarId, serviceId, ad)
+
+    check:
+      refused.isErr()
+      answered.isOk()
+      not serverNode.rtable.hasPeer(clientId.toKey())
+      not serverNode.hasPeerInServiceTable(serviceId, clientId)
+      serverNode.rtable.hasPeer(registrarId.toKey())
+      serverNode.hasPeerInServiceTable(serviceId, registrarId)
+
   asyncTest "client-mode node returns no ads when targeted by lookup":
     let clientNode = setupServiceDiscoveryNode(client = true)
     let discovererNode = setupServiceDiscoveryNode()

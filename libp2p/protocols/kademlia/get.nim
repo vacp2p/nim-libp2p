@@ -9,7 +9,7 @@ import ../protocol
 import ./[protobuf, types, find, put, rpc, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht get"
+  topics = "libp2p kademlia"
 
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
@@ -44,7 +44,7 @@ proc getValue*(
   let received = ReceivedTable()
 
   # if locally present and not expired, include our own copy
-  kad.dataTable.get(key).withValue(localRecord):
+  kad.dataTable.get(key).ifValue(localRecord):
     if not localRecord.isExpired(kad.config.recordExpirationInterval):
       received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
     else:
@@ -77,7 +77,7 @@ proc getValue*(
         expected = key, got = record.key
       return
 
-    let value: Value = record.value.valueOr:
+    let value = record.value.valueOr:
       trace "Get-value reply has no value", messageType = "getValue"
       return
 
@@ -135,25 +135,38 @@ method handleGetValue*(
   # Evict the entry eagerly if it has expired so the response below treats it as
   # absent and sends the standard "no record found" response.
   var entryRecordOpt = kad.dataTable.get(key)
-  entryRecordOpt.withValue(record):
+  entryRecordOpt.ifValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
       trace "Record expired, dropping", key = key
       kad.dataTable.del(key)
       entryRecordOpt = Opt.none(EntryRecord)
 
-  var response = Message(
+  let entryRecord = entryRecordOpt.valueOr:
+    let response = Message(
+      msgType: Opt.some(MessageType.getValue),
+      key: Opt.some(key),
+      closerPeers: kad.findClosestPeers(key, stream.peerId),
+    )
+    let encoded = response.encode(kad.config.hideConnectionStatus)
+    kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
+    try:
+      await stream.writeLp(encoded)
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", err = exc.msg, stream
+    return
+
+  let response = Message(
     msgType: Opt.some(MessageType.getValue),
     key: Opt.some(key),
     closerPeers: kad.findClosestPeers(key, stream.peerId),
-  )
-  entryRecordOpt.withValue(entryRecord):
-    response.record = Opt.some(
+    record: Opt.some(
       Record(
         key: Opt.some(key),
         value: Opt.some(entryRecord.value),
         timeReceived: Opt.some(entryRecord.time),
       )
-    )
+    ),
+  )
   let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.getValue])
   try:

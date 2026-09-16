@@ -171,11 +171,11 @@ suite "Autorelay":
     await switchClient.peerInfo.update()
     check relayMAs.allIt(it in switchClient.peerInfo.addrs)
 
-  asyncTest "an in-flight reservation still writes relayAddresses after stop has run":
-    # TODO: vacp2p/nim-libp2p#3018
+  asyncTest "stopping cancels an in-flight reservation":
     let
       relay = Relay.new()
       reservationRequested = newFuture[void]()
+      reservationHandled = newFuture[void]()
       answerReservation = newAsyncEvent()
       relayHandler = relay.handler
 
@@ -185,7 +185,10 @@ suite "Autorelay":
     ) {.async: (raises: [CancelledError]).} =
       reservationRequested.completeOnce()
       await answerReservation.wait()
-      await relayHandler(stream, proto)
+      try:
+        await relayHandler(stream, proto)
+      finally:
+        reservationHandled.completeOnce()
 
     switchRelay = createSwitch(relay)
     relayClient = RelayClient.new()
@@ -194,7 +197,6 @@ suite "Autorelay":
 
     startAndDeferStop(@[switchClient, switchRelay])
     await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
-    let relayMAs = buildRelayMA(switchRelay, switchClient)
 
     # stop the service while the reservation is still unanswered
     await reservationRequested.wait(1.seconds)
@@ -204,11 +206,10 @@ suite "Autorelay":
     check autorelay.getAddresses().len == 0
 
     answerReservation.fire()
-    checkUntilTimeout:
-      autorelay.getAddresses() == relayMAs # bug: written after stop
+    await reservationHandled.wait(1.seconds)
+    check autorelay.getAddresses().len == 0
 
-  asyncTest "start announces the previous cycle's relay address and never withdraws it":
-    # TODO: vacp2p/nim-libp2p#3018
+  asyncTest "restart does not announce the previous cycle's relay address":
     switchRelay = createSwitch(Relay.new())
     relayClient = RelayClient.new()
     autorelay = AutoRelayService.new(3, relayClient, nil, rng())
@@ -226,17 +227,29 @@ suite "Autorelay":
     await autorelay.stop(switchClient)
     check:
       relayMAs.allIt(it notin switchClient.peerInfo.addrs)
-      autorelay.getAddresses() == relayMAs # bug: stop keeps the reservation
+      autorelay.getAddresses().len == 0
 
     # the relay is gone, so this cycle reserves nothing of its own
     await switchRelay.stop()
     await autorelay.start(switchClient)
-    check relayMAs.allIt(it in switchClient.peerInfo.addrs) # bug: announced again
+    check relayMAs.allIt(it notin switchClient.peerInfo.addrs)
 
-    # innerRun prunes relayAddresses but never calls peerInfo.update()
+    check autorelay.getAddresses().len == 0
+
+  asyncTest "losing the last relay withdraws its announced address":
+    switchRelay = createSwitch(Relay.new())
+    relayClient = RelayClient.new()
+    autorelay = AutoRelayService.new(1, relayClient, nil, rng())
+    switchClient = createSwitch(relayClient, autorelay)
+    startAndDeferStop(@[switchClient, switchRelay])
+    await switchClient.connect(switchRelay.peerInfo.peerId, switchRelay.peerInfo.addrs)
+    let relayMAs = buildRelayMA(switchRelay, switchClient)
+    checkUntilTimeout:
+      autorelay.getAddresses() == relayMAs
+    await switchRelay.stop()
     checkUntilTimeout:
       autorelay.getAddresses().len == 0
-    check relayMAs.allIt(it in switchClient.peerInfo.addrs) # bug: never withdrawn
+    check relayMAs.allIt(it notin switchClient.peerInfo.addrs)
 
   asyncTest "Three relays connections":
     type RelayReservationState = enum

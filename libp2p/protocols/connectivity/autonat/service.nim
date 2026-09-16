@@ -16,7 +16,7 @@ import ../../../crypto/crypto
 export reachabilityobservers
 
 logScope:
-  topics = "libp2p autonatservice"
+  topics = "libp2p autonat"
 
 declarePublicGauge(
   libp2p_autonat_reachability_confidence,
@@ -115,7 +115,7 @@ proc handleAnswer(
       current = self.networkReachability,
       confidence = self.confidence
 
-  debug "Current status",
+  trace "Current status",
     currentStats = $self.networkReachability,
     confidence = $self.confidence,
     answers = self.answers
@@ -135,7 +135,7 @@ proc askPeer(
     return Unknown
 
   if not hasEnoughIncomingSlots(switch):
-    debug "No incoming slots available, not asking peer",
+    trace "No incoming slots available, not asking peer",
       incomingSlotsAvailable = switch.connManager.availableSlots(In)
     return Unknown
 
@@ -143,18 +143,18 @@ proc askPeer(
   let ans =
     try:
       discard await self.autonatClient.dialMe(switch, peerId).wait(self.dialTimeout)
-      debug "dialMe answer is reachable"
+      trace "dialMe answer is reachable"
       Reachable
     except AutonatUnreachableError as error:
-      debug "dialMe answer is not reachable", err = error.msg
+      trace "dialMe answer is not reachable", err = error.msg
       NotReachable
     except AsyncTimeoutError as error:
-      debug "dialMe timed out", err = error.msg
+      trace "dialMe timed out", err = error.msg
       Unknown
     except CancelledError as error:
       raise error
     except CatchableError as error:
-      debug "dialMe unexpected error", err = error.msg
+      trace "dialMe unexpected error", err = error.msg
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
@@ -169,15 +169,37 @@ proc askConnectedPeers(
   var peers = switch.connectedPeers(Direction.Out)
   self.rng.shuffle(peers)
   var answersFromPeers = 0
+  var attempted, reachable, unreachable, unknown: int
+  var outcome = "cancelled"
+  defer:
+    debug "Reachability check finished",
+      outcome,
+      peers = peers.len,
+      attempted,
+      reachable,
+      unreachable,
+      unknown,
+      reachability = self.networkReachability,
+      confidence = self.confidence
   for peer in peers:
     if answersFromPeers >= self.numPeersToAsk:
       break
     if not hasEnoughIncomingSlots(switch):
-      debug "No incoming slots available, not asking peers",
+      trace "No incoming slots available, not asking peers",
         incomingSlotsAvailable = switch.connManager.availableSlots(In)
       break
-    if (await askPeer(self, switch, peer)) != Unknown:
+    attempted.inc()
+    case await askPeer(self, switch, peer)
+    of Reachable:
+      reachable.inc()
       answersFromPeers.inc()
+    of NotReachable:
+      unreachable.inc()
+      answersFromPeers.inc()
+    of Unknown:
+      unknown.inc()
+  outcome =
+    if answersFromPeers >= self.numPeersToAsk: "completed" else: "insufficientAnswers"
 
 proc schedule(
     service: AutonatService, switch: Switch, interval: Duration
@@ -231,7 +253,7 @@ method start*(
     switch.addressManager.addMapper(self.addressMapper, AddrSource.Autonat)
     await switch.peerInfo.update()
 
-  self.scheduleInterval.withValue(interval):
+  self.scheduleInterval.ifValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)
 

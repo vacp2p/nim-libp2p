@@ -10,7 +10,7 @@ import
   ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity]
 
 logScope:
-  topics = "kad-dht find"
+  topics = "libp2p kademlia"
 
 type RespondedStatus* = enum
   Failed
@@ -71,7 +71,8 @@ proc admissibleAddrs(
     caps: DiversityCaps,
     pending: seq[PeerId] = @[],
 ): seq[MultiAddress] {.raises: [].} =
-  let addrs = addressPolicy.filterAddrs(p.addrs)
+  let addrs =
+    addressPolicy.dialableAddrs(p.addrs, switch.peerStore.allowUndialableAddrs)
   if addrs.len == 0:
     return @[]
   if not switch.peerStore[AddressBook].hasIpDiversity(
@@ -645,15 +646,30 @@ proc iterativeLookup*(
   let state = LookupState.init(kad, target, rtable)
   var pending: seq[Attempt]
   var phases = LookupPhases(phase: Core)
+  var queried, replies, failed: int
+  var outcome = "cancelled"
 
   # `noCancel`: when the lookup itself is cancelled, still wait for every RPC to
   # unwind, otherwise we return while their streams are still closing.
   defer:
     let inflight = pending.mapIt(it.fut)
     await noCancel inflight.cancelAndWait()
+    debug "Kademlia lookup finished",
+      target,
+      outcome,
+      queried,
+      replies,
+      failed,
+      withoutReply = queried - replies - failed,
+      peers = state.shortlist.len
 
   while true:
     let completed = pending.harvestInflight(Moment.now())
+    for reply in completed:
+      if reply.outcome == Completed:
+        replies.inc()
+      else:
+        failed.inc()
     await kad.applyReplies(state, rtable, completed, onReply)
     # `dropDonePeers` already removed these from `pending`, so the `defer` above
     # no longer covers them: they must be awaited to completion here. Bind first:
@@ -663,7 +679,9 @@ proc iterativeLookup*(
 
     if not earlyExit(state):
       let candidates = kad.dropUndialable(state, phases.targets(state))
+      let before = pending.len
       kad.fillSlots(state, pending, dispatch, candidates)
+      queried += pending.len - before
 
     # Dispatching nothing new only stops the lookup once the RPCs already in
     # flight have drained, so the returned peer set stays complete.
@@ -671,7 +689,11 @@ proc iterativeLookup*(
       await awaitProgress(pending)
       continue
 
-    if earlyExit(state) or not phases.advance(state):
+    if earlyExit(state):
+      outcome = "earlyExit"
+      break
+    if not phases.advance(state):
+      outcome = "completed"
       break
 
   state

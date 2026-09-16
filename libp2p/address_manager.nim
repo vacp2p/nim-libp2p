@@ -16,7 +16,7 @@ import protocols/connectivity/autonat/types
 export NetworkReachability
 
 logScope:
-  topics = "libp2p addressmanager"
+  topics = "libp2p address-manager"
 
 const
   DefaultObservedAddrMaxSize* = 10
@@ -176,9 +176,9 @@ func mostObservedProtosAndPorts*(self: AddressManager): seq[MultiAddress] =
   ## The most observed IP4/Port and IP6/Port addresses, empty below `minCount` peers.
   let observed = self.observedAddrs()
   var res: seq[MultiAddress]
-  self.mostObserved(observed, multiCodec("ip4")).withValue(ip4):
+  self.mostObserved(observed, multiCodec("ip4")).ifValue(ip4):
     res.add(ip4)
-  self.mostObserved(observed, multiCodec("ip6")).withValue(ip6):
+  self.mostObserved(observed, multiCodec("ip6")).ifValue(ip6):
     res.add(ip6)
   res
 
@@ -341,7 +341,7 @@ proc expandWildcardAddresses*(
 
     for family in families:
       for ifaddr in networkInterfaceProvider(family):
-        listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
+        listenAddr.replaceIp(ifaddr.host.toIpAddress()).ifValue(remapped):
           addresses.add(remapped)
   addresses
 
@@ -402,7 +402,7 @@ func confirmedFamilies(self: AddressManager): set[IpAddressFamily] =
     if candidate.state != AddrState.Confirmed or candidate.address.isRelayed() or
         not candidate.address.isPublicMA():
       continue
-    candidate.address.getIp().withValue(ip):
+    candidate.address.getIp().ifValue(ip):
       families.incl(ip.family)
   families
 
@@ -551,23 +551,44 @@ proc verifyEach(
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## One address at a time until the run runs out of time; true when a state changed.
   var changed = false
+  var attempted, verified, reachable, unreachable: int
+  var outcome = "cancelled"
+  defer:
+    debug "Address verification finished",
+      outcome,
+      addresses = addresses.len,
+      attempted,
+      verified,
+      reachable,
+      unreachable,
+      inconclusive = verified - reachable - unreachable,
+      unverified = addresses.len - verified,
+      changed
+
   let deadline = Moment.now() + self.verifyTimeout
   for address in addresses:
     let left = deadline - Moment.now()
     if left <= ZeroDuration:
-      debug "Address verification timed out", timeout = self.verifyTimeout
+      trace "Address verification timed out", timeout = self.verifyTimeout
       break
 
+    attempted.inc()
     let state =
       try:
         await self.verifier.verify(address).wait(left)
       except AsyncTimeoutError:
-        debug "Address verification timed out", address, timeout = self.verifyTimeout
+        trace "Address verification timed out", address, timeout = self.verifyTimeout
         break
 
-    state.withValue(verdict):
+    verified.inc()
+    state.ifValue(verdict):
       if self.applyVerdict(address, verdict):
         changed = true
+      if verdict == AddrState.Confirmed:
+        reachable.inc()
+      elif verdict == AddrState.Unreachable:
+        unreachable.inc()
+  outcome = if verified == addresses.len: "completed" else: "timedOut"
   changed
 
 proc runVerifier(self: AddressManager) {.async: (raises: [CancelledError]).} =

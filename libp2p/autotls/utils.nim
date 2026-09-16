@@ -14,7 +14,7 @@ import
   ./acme/client
 
 logScope:
-  topics = "libp2p utils"
+  topics = "libp2p auto-tls"
 
 type AutoTLSError* = object of LPError
 
@@ -73,7 +73,7 @@ proc checkDNSRecords*(
 ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
   let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
   let ipDomain = api.Domain(ipAddress.dnsLabel() & "." & baseDomain)
-  debug "Waiting for DNS record to be set", ip = ipDomain, acmeDomain = acmeChalDomain
+  trace "Waiting for DNS record to be set", ip = ipDomain, acmeDomain = acmeChalDomain
 
   for attempt in 0 .. retries:
     if attempt > 0:
@@ -86,7 +86,7 @@ proc checkDNSRecords*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      debug "Failed to resolve IP", err = exc.msg # retry
+      trace "Failed to resolve IP", err = exc.msg # retry
 
     if txt.len > 0 and txt[0] == keyAuth and resolvedIps.len > 0:
       return true

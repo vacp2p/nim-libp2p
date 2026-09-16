@@ -12,12 +12,18 @@ const defaultAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].
   true
 
 proc accepts*(policy: PeerAddressPolicy, ma: MultiAddress): bool =
-  policy(ma)
+  policy.isNil() or policy(ma)
 
 proc filterAddrs*(
     policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
 ): seq[MultiAddress] =
-  addrs.filterIt(policy(it))
+  addrs.filterIt(policy.accepts(it))
+
+proc dialableAddrs*(
+    policy: PeerAddressPolicy, addrs: openArray[MultiAddress], allowUndialable = false
+): seq[MultiAddress] =
+  ## A preset chooses `policy`, and `allowUndialable` keeps `0.0.0.0` for a local test.
+  addrs.filterIt((allowUndialable or isDialableMA(it)) and policy(it))
 
 const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress

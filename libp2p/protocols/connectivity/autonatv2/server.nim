@@ -14,13 +14,14 @@ import
     transports/transport,
     multicodec,
     peerid,
+    wire,
     utils/ipaddr,
   ],
   ../../protocol,
   ./types
 
 logScope:
-  topics = "libp2p autonat v2 server"
+  topics = "libp2p autonat"
 
 declareCounter(
   libp2p_autonatv2_dial_back_refusals_total,
@@ -134,8 +135,9 @@ proc handleDialDataResponses(
   var dataReceived: uint64 = 0
 
   while dataReceived < self.config.dialDataSize:
-    let msg = AutonatV2Msg.decode(await stream.readLp(DialDataResponseLpSize)).valueOr:
-      raise newException(AutonatV2Error, error)
+    let msg = AutonatV2Msg
+      .decode(await stream.readLp(DialDataResponseLpSize))
+      .valueOrRaise(AutonatV2Error)
     trace "Received message"
 
     if msg.oneof.kind != MsgKind.DialDataResponse:
@@ -150,7 +152,7 @@ proc handleDialDataResponses(
 
 proc amplificationAttackPrevention(
     self: AutonatV2, stream: Stream, addrIdx: AddrIdx
-): Future[bool] {.async: (raises: [CancelledError, LPStreamError]).} =
+) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   # send DialDataRequest
   await stream.writeLp(
     AutonatV2Msg(
@@ -162,28 +164,21 @@ proc amplificationAttackPrevention(
     ).encode()
   )
 
-  # recieve DialDataResponses until we're satisfied
-  try:
-    await self.handleDialDataResponses(stream)
-  except AutonatV2Error as exc:
-    debug "Amplification attack prevention failed", err = exc.msg
-    return false
-
-  return true
+  await self.handleDialDataResponses(stream)
 
 proc canDial(self: AutonatV2, addrs: MultiAddress): bool =
   let (ipv4Support, ipv6Support) = self.switch.peerInfo.listenAddrs.ipSupport()
-  addrs[0].withValue(addrIp):
+  addrs[0].ifValue(addrIp):
     if IP4.match(addrIp) and not ipv4Support:
       return false
     if IP6.match(addrIp) and not ipv6Support:
       return false
-    try:
-      if not self.config.allowPrivateAddresses and isPrivate($addrIp):
-        return false
-    except ValueError:
-      trace "Unable to parse IP address, skipping", address = $addrs
-      return false
+
+  # A name and a relayed address have no global IP, so both are refused here too.
+  if not self.config.allowPrivateAddresses and not addrs.isGlobalMA():
+    trace "Refusing to dial back a non-global address", address = addrs
+    return false
+
   for t in self.switch.transports:
     if t.handles(addrs):
       return true
@@ -194,8 +189,9 @@ proc forceNewConnection(
 ): Future[Opt[DialBackConn]] {.async: (raises: [CancelledError]).} =
   ## Bypasses connManager to force a new connection to ``pid``
   ## instead of reusing a preexistent one
+  var mux: Muxer
   try:
-    let mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
+    mux = await self.switch.dialer.dialAndUpgrade(Opt.some(pid), addrs)
     if mux.isNil():
       return Opt.none(DialBackConn)
     return Opt.some(
@@ -207,8 +203,12 @@ proc forceNewConnection(
       )
     )
   except CancelledError as exc:
+    if mux != nil:
+      await mux.close()
     raise exc
-  except CatchableError:
+  except LPError:
+    if mux != nil:
+      await mux.close()
     return Opt.none(DialBackConn)
 
 proc selectDialAddr(self: AutonatV2, addrs: seq[MultiAddress]): Opt[AddrIdx] =
@@ -255,12 +255,18 @@ proc handleDialRequest(
   if not ipAddrMatches(observedIPAddr, [req.addrs[addrIdx]]):
     debug "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
-    # send DialDataRequest and wait until dataReceived is enough
-    if not await self.amplificationAttackPrevention(stream, addrIdx).withTimeout(
-      self.config.amplificationAttackTimeout
-    ):
-      debug "Amplification attack prevention timeout",
-        timeout = self.config.amplificationAttackTimeout, peer = stream.peerId
+    try:
+      await self.amplificationAttackPrevention(stream, addrIdx).wait(
+        self.config.amplificationAttackTimeout
+      )
+    except AsyncTimeoutError:
+      warn "Amplification attack prevention timed out",
+        peer = stream.peerId, timeout = self.config.amplificationAttackTimeout
+      await stream.sendDialResponse(ResponseStatus.EDialRefused)
+      return
+    except AutonatV2Error as exc:
+      debug "Amplification attack prevention failed",
+        peer = stream.peerId, err = exc.msg
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
@@ -305,7 +311,7 @@ proc new*(
     switch: Switch,
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Self =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   let autonatV2 = Self(
     switch: switch,
     config: config,

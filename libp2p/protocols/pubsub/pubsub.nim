@@ -164,6 +164,8 @@ type
     supportsSendingPartial*: bool
 
   PubSub* = ref object of LPProtocol
+    stopping: bool
+    peerStopFuts: seq[Future[void].Raising([])] # cleanup outlives removal from peers
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -214,6 +216,13 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ##
 
   debug "unsubscribing pubsub peer", peerId
+  p.peers.withValue(peerId, peer):
+    let stopped = peer[].stopTasks()
+    if p.stopping:
+      # Shutdown drains the whole batch; pruning on each removal is quadratic.
+      p.peerStopFuts.add(stopped)
+    else:
+      p.peerStopFuts.trackFut(stopped)
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -264,7 +273,7 @@ proc countBroadcastMetrics*(
       npeers, labelValues = [p.topicLabel(smsg.topic)]
     )
 
-  msg.control.withValue(control):
+  msg.control.ifValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
     for ihave in control.ihave:
@@ -356,7 +365,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
   for m in rpcMsg.messages:
     libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(m.topic)])
 
-  rpcMsg.control.withValue(control):
+  rpcMsg.control.ifValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
       libp2p_pubsub_received_ihave.inc(labelValues = [p.topicLabel(ihave.topicID)])
@@ -406,6 +415,8 @@ method getOrCreatePeer*(
   proc getStream(): Future[Stream] {.
       async: (raises: [CancelledError, GetStreamDialError])
   .} =
+    if p.stopping or p.switch.isStopping:
+      raise newException(CancelledError, "pubsub is stopping")
     try:
       return await p.switch.dial(peerId, protos)
     except DialFailedError as e:
@@ -474,38 +485,74 @@ proc handleData*(
 ): Future[void] {.async: (raises: [], raw: true).} =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
-  p.topics.withValue(topic, topicData):
-    var futs = newSeq[Future[void]]()
+  if topic notin p.topics:
+    return newFutureCompleted[void]()
 
-    for handler in topicData[].handlers:
-      if handler != nil: # allow nil handlers
-        let fut = handler(topic, data)
-        if not fut.completed(): # Fast path for successful sync handlers
-          futs.add(fut)
+  var futs = newSeq[Future[void]]()
+  var handlers = 0
+  let handleData =
+    try:
+      p.topics[topic]
+    except KeyError:
+      raiseAssert "checked with if"
 
-    if futs.len() > 0:
-      proc waiter(): Future[void] {.async: (raises: []).} =
-        # slow path - we have to wait for the handlers to complete
-        try:
-          futs = await allFinished(futs)
-        except CancelledError:
-          # propagate cancellation
-          futs.cancelSoon()
+  for handler in handleData.handlers:
+    if handler != nil: # allow nil handlers
+      handlers.inc()
+      let fut = handler(topic, data)
+      if not fut.completed(): # Fast path for successful sync handlers
+        futs.add(fut)
 
-        # check for errors in futures
-        for fut in futs:
-          if fut.failed:
-            let err = fut.error()
-            warn "Error in topic handler", err = err.msg
+  if futs.len() == 0:
+    # Fast path - futures finished synchronously or nobody cared about data
+    trace "Topic handlers finished",
+      topic, handlers, succeeded = handlers, failed = 0, cancelled = 0, pending = 0
+    return newFutureCompleted[void]()
 
-      return waiter()
+  proc waiter(): Future[void] {.async: (raises: []).} =
+    # slow path - we have to wait for the handlers to complete
+    try:
+      futs = await allFinished(futs)
+    except CancelledError:
+      # propagate cancellation
+      futs.cancelSoon()
 
-  # Fast path - futures finished synchronously or nobody cared about data
-  newFutureCompleted[void]()
+    var failed, cancelled, pending: int
+    # check for errors in futures
+    for fut in futs:
+      if fut.cancelled():
+        cancelled.inc()
+      elif fut.failed:
+        failed.inc()
+        trace "Error in topic handler", topic, err = fut.error().msg
+      elif not fut.finished():
+        pending.inc()
+
+    trace "Topic handlers finished",
+      topic,
+      handlers,
+      succeeded = handlers - failed - cancelled - pending,
+      failed,
+      cancelled,
+      pending
+
+  return waiter()
 
 template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
   if p.triggerSelf:
     await handleData(p, topic, data)
+
+method start*(p: PubSub) {.async: (raises: [CancelledError]).} =
+  p.stopping = false
+  await procCall LPProtocol(p).start()
+
+method stop*(p: PubSub) {.async: (raises: []).} =
+  p.stopping = true
+  p.started = false
+  for peerId in toSeq(p.peers.keys):
+    p.unsubscribePeer(peerId)
+  await noCancel allFutures(p.peerStopFuts)
+  p.peerStopFuts = @[]
 
 method handleConn*(
     p: PubSub, stream: Stream, proto: string
@@ -516,6 +563,10 @@ method handleConn*(
   ## 1) register a new PubSubPeer for the connection
   ## 2) handle RPC messages received on this stream
   ##
+
+  if p.stopping or p.switch.isStopping:
+    await stream.close()
+    return
 
   let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
@@ -530,6 +581,9 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
+
+  if p.stopping or p.switch.isStopping:
+    return
 
   let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)
   pubSubPeer.connect()

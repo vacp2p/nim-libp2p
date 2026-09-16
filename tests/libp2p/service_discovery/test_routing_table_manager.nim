@@ -9,7 +9,7 @@ import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, multiaddress, unittest]
 import ../kademlia/[mock_kademlia, utils]
 import ./utils
 
@@ -305,6 +305,26 @@ suite "ServiceRoutingTableManager":
     check not disco.insertPeer(serviceId, peerInfo)
     check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
+  test "insertPeer rejects an undialable address unless the switch allows it":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let peerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60000")])
+    check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = true
+    check disco.insertPeer(serviceId, peerInfo)
+    check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = false
+    let otherPeerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60001")])
+    check not disco.insertPeer(serviceId, otherPeerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, otherPeerInfo.peerId)
+
   test "insertPeer on non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
@@ -500,6 +520,35 @@ suite "ServiceRoutingTableManager - service id hashing":
       preHashBucket != doubleHashBucket
       serviceTable.buckets[preHashBucket].peers.len == 1
       serviceTable.buckets[preHashBucket].peers[0] == peer
+
+  test "service table hashes peers with the main table's hasher":
+    let
+      serviceId = makeServiceId(1)
+      peer = makeKey(3)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(
+        makeKey(0), RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+      )
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    proc bucketWith(hasher: Opt[XorDHasher]): int =
+      RoutingTable
+        .new(
+          serviceId,
+          RoutingTableConfig.new(
+            hasher = hasher, maxBuckets = DefaultMaxBuckets, selfIdPreHashed = true
+          ),
+        )
+        .bucketIndex(peer)
+
+    # With `noOpHasher` the peer differs from the service id in one bit, so the
+    # default hasher puts it in a different bucket.
+    check:
+      bucketWith(Opt.some(noOpHasher)) != bucketWith(Opt.none(XorDHasher))
+      manager.getTable(serviceId).get().bucketIndex(peer) ==
+        bucketWith(Opt.some(noOpHasher))
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let

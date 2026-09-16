@@ -105,6 +105,7 @@ type
     addressManagerConfig: Opt[AddressManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
+    allowUndialableAddrs: bool
 
 proc new*(T: type[SwitchBuilder]): T =
   ## Creates a SwitchBuilder
@@ -128,6 +129,7 @@ proc new*(T: type[SwitchBuilder]): T =
     identifyPusherEnabled: false,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    allowUndialableAddrs: false,
     addressTtls: AddressConfidenceTtls(),
     addressManagerConfig: Opt.none(AddressManagerConfig),
   )
@@ -455,6 +457,11 @@ proc withAddressPolicy*(
   b.addressPolicy = addressPolicy
   b
 
+proc withUndialableAddresses*(b: SwitchBuilder, allow = true): SwitchBuilder =
+  ## Publishes, stores and dials a wildcard host and a port `0`, for a local test only.
+  b.allowUndialableAddrs = allow
+  b
+
 proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Filter private (RFC1918/link-local) addresses from all peer address
   ## announcements and incoming peer address records. When enabled:
@@ -495,11 +502,12 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, addressManager)
 
   var peerStore = block:
-    b.peerStoreCapacity.withValue(capacity):
+    b.peerStoreCapacity.ifValue(capacity):
       PeerStore.new(identify, capacity, b.addressTtls)
     else:
       PeerStore.new(identify, addressTtls = b.addressTtls)
   peerStore.addressPolicy = b.addressPolicy
+  peerStore.allowUndialableAddrs = b.allowUndialableAddrs
 
   var connManager = ConnManager.new(
     maxConnsPerPeer = b.maxConnsPerPeer,
@@ -514,7 +522,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
-  b.autotlsConfig.withValue(config):
+  b.autotlsConfig.ifValue(config):
     let autotlsService = AutotlsService.new(b.rng, config)
     autotlsOpt = Opt.some(autotlsService)
     services.add(autotlsService)
@@ -564,7 +572,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.natConfig.withValue(natCfg):
+  b.natConfig.ifValue(natCfg):
     switch.services.add(NATService.new(natCfg, b.rng, b.natPortMapperFactory))
 
   if b.identifyPusherEnabled:
@@ -594,24 +602,24 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
 
-  b.rdvConfig.withValue(rdvCfg):
+  b.rdvConfig.ifValue(rdvCfg):
     let rend = RendezVous.new(b.rng, rdvCfg)
     rend.setup(switch)
     switch.mount(rend)
 
-  b.autonatV2ServerConfig.withValue(config):
+  b.autonatV2ServerConfig.ifValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
 
   if b.autonatEnabled:
     switch.mount(Autonat.new(switch))
 
-  b.circuitRelay.withValue(relay):
+  b.circuitRelay.ifValue(relay):
     if relay of RelayClient:
       switch.addTransport(RelayTransport.new(RelayClient(relay), switch.muxedUpgrade))
     relay.setup(switch)
     switch.mount(relay)
 
-  b.kad.withValue(kadInfo):
+  b.kad.ifValue(kadInfo):
     var config = kadInfo.config
     config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
@@ -626,7 +634,7 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 
     if kadInfo.mode == KadMode.Auto:
       var wired = false
-      switch.natService().withValue(nat):
+      switch.natService().ifValue(nat):
         wired = nat.addReachabilityHandler(makeKadReachabilityHandler(kad))
       if not wired:
         warn "Kad-DHT auto mode has no reachability service; it stays a client",

@@ -212,5 +212,7 @@ suite "Discovery tracker":
     let rows = disco.tracker.toCsv().splitLines()
     check rows.len == 2
     check rows[0] == "service_id,provider,rank,elapsed_ms,source"
-    check rows[1].startsWith(serviceId.toHex() & "," & $ad.data.peerId & ",1,")
+    check rows[1].startsWith(
+      serviceId.toBytes().toHex() & "," & $ad.data.peerId & ",1,"
+    )
     check rows[1].endsWith(",FromRegistration")

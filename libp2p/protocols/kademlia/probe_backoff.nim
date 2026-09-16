@@ -29,44 +29,62 @@ func probeAddrsDigest(addrs: seq[MultiAddress]): Hash =
     digest = digest + cast[uint64](hash(ma))
   cast[Hash](digest)
 
-proc probeBackedOff*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]): bool =
+proc backedOff*(
+    failures: Table[PeerId, ProbeFailure], peerId: PeerId, addrs: seq[MultiAddress]
+): bool =
   ## An unprobed address set earns a probe, so a bogus address cannot hold back the real one.
-  let failure = kad.probeFailures.getOrDefault(peerId)
+  let failure = failures.getOrDefault(peerId)
   failure.count > 0 and Moment.now() < failure.until and
     failure.addrs == addrs.probeAddrsDigest()
 
-proc probePruneFailures(kad: KadDHT, now: Moment) =
+proc pruneFailures(failures: var Table[PeerId, ProbeFailure], now: Moment, cap: int) =
   ## Make room for one entry: elapsed backoffs first, then soonest to elapse.
-  let cap = kad.config.limits.maxProbeFailures
-  if kad.probeFailures.len < cap:
+  if failures.len < cap:
     return
 
-  for peerId in kad.probeFailures.keys().toSeq():
-    if now >= kad.probeFailures.getOrDefault(peerId).until:
-      kad.probeFailures.del(peerId)
+  for peerId in failures.keys().toSeq():
+    if now >= failures.getOrDefault(peerId).until:
+      failures.del(peerId)
 
-  let excess = kad.probeFailures.len - cap + 1
+  let excess = failures.len - cap + 1
   if excess <= 0:
     return
 
-  var byExpiry = kad.probeFailures.pairs().toSeq()
+  var byExpiry = failures.pairs().toSeq()
   byExpiry.sort(
     proc(a, b: (PeerId, ProbeFailure)): int =
       cmp(a[1].until, b[1].until)
   )
   for i in 0 ..< excess:
-    kad.probeFailures.del(byExpiry[i][0])
+    failures.del(byExpiry[i][0])
 
-proc probeRecordFailure*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]) =
+proc recordFailure*(
+    failures: var Table[PeerId, ProbeFailure],
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    base, cap: Duration,
+    maxEntries: int,
+): int {.discardable.} =
+  ## Returns the consecutive failure count the peer has now reached.
   let now = Moment.now()
-  let count = kad.probeFailures.getOrDefault(peerId).count + 1
+  let count = failures.getOrDefault(peerId).count + 1
   ## A repeat offender overwrites its own entry, so a prune would drop the count it just read.
   if count == 1:
-    kad.probePruneFailures(now)
-  kad.probeFailures[peerId] = ProbeFailure(
+    failures.pruneFailures(now, maxEntries)
+  failures[peerId] = ProbeFailure(
     count: count,
-    until: now + probeBackoff(count, kad.config.timeout, kad.config.probeBackoffMax),
+    until: now + probeBackoff(count, base, cap),
     addrs: addrs.probeAddrsDigest(),
+  )
+  count
+
+proc probeBackedOff*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]): bool =
+  kad.probeFailures.backedOff(peerId, addrs)
+
+proc probeRecordFailure*(kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]) =
+  kad.probeFailures.recordFailure(
+    peerId, addrs, kad.config.timeout, kad.config.probeBackoffMax,
+    kad.config.limits.maxProbeFailures,
   )
 
 proc probeClearFailures*(kad: KadDHT, peerId: PeerId) =

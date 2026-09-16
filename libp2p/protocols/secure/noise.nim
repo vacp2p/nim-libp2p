@@ -541,8 +541,9 @@ method handshake*(
         remotePubKey: PublicKey
         remoteSig: Signature
 
-      remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).valueOr:
-        raise newException(NoiseHandshakeError, error)
+      remoteMsg = NoiseHandshakePayloadMsg
+        .decode(handshakeRes.remoteP2psecret)
+        .valueOrRaise(NoiseHandshakeError)
 
       if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
         raise newException(
@@ -569,14 +570,14 @@ method handshake*(
 
       trace "Remote Noise peer identified", peerId = pid
 
-      peerId.withValue(targetPid):
+      peerId.ifValue(targetPid):
         if not targetPid.validate():
           raise (ref NoiseHandshakeError)(msg: "Failed to validate expected peerId.")
 
         if pid != targetPid:
           var failedKey: PublicKey
           discard extractPublicKey(targetPid, failedKey)
-          debug "Noise handshake peer identity rejected",
+          trace "Noise handshake peer identity rejected",
             initiator,
             dealt_peer = conn,
             dealt_key = $failedKey,
