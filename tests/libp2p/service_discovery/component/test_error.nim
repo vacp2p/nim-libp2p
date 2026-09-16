@@ -275,7 +275,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "REGISTER with non-32-byte key returns Rejected":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, the key reaches the service-membership check.
+    # The handler rejects the key on its length, before seating the sender.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])
@@ -386,7 +386,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "GET_ADS with non-32-byte key returns empty response":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, cache lookup misses on the arbitrary key.
+    # The handler returns an empty response before the cache lookup.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])

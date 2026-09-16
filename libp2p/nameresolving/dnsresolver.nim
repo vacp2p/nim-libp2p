@@ -112,7 +112,7 @@ method resolveIp*(
     trace "DNS address query completed", resolvedAddresses, server = $server
     return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
 
-  debug "DNS address resolution returned no results"
+  trace "DNS address resolution returned no results"
   return @[]
 
 method resolveTxt*(
@@ -140,7 +140,7 @@ method resolveTxt*(
     except ValueError as e:
       handleFail(e)
 
-  debug "DNS TXT resolution returned no results"
+  trace "DNS TXT resolution returned no results"
   return @[]
 
 proc new*(

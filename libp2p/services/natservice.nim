@@ -304,6 +304,9 @@ proc findMappableListenPorts(listenAddrs: seq[MultiAddress]): seq[ListenPort] =
     .filterIt(it.isSome)
     .mapIt(it.get())
 
+type MappingLog = ref object
+  mapped, mapFailed, unmapped, unmapFailed: int
+
 type MappedEntry =
   tuple[entry: (Port, MapProto), externalIp: IpAddress, announced: Opt[MultiAddress]]
 
@@ -312,7 +315,7 @@ proc mapOnePort(
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
-    warn "NAT port mapping failed", port = lp.port, protocol = lp.proto, err = error
+    trace "NAT port mapping failed", port = lp.port, protocol = lp.proto, err = error
     return Opt.none(MappedEntry)
 
   Opt.some(
@@ -325,7 +328,7 @@ proc mapOnePort(
   )
 
 proc unmapStale(
-    self: NATService, keep: seq[(Port, MapProto)]
+    self: NATService, keep: seq[(Port, MapProto)], stats: MappingLog = nil
 ) {.async: (raises: [CancelledError]).} =
   ## Unmap any (extPort, proto) entries that were active in the previous
   ## refresh cycle but are no longer part of the desired mapping set. Covers
@@ -336,7 +339,12 @@ proc unmapStale(
       continue
     let (port, proto) = entry
     (await self.mapper.unmap(port, proto)).isOkOr:
-      warn "Failed to unmap stale port", port, proto, err = error
+      if not stats.isNil:
+        stats.unmapFailed.inc()
+      trace "Failed to unmap stale port", port, proto, err = error
+      continue
+    if not stats.isNil:
+      stats.unmapped.inc()
 
 proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
   await self.unmapStale(@[])
@@ -348,14 +356,28 @@ proc setupMappings*(
   ## Request a mapping for every private listen address; updates ``externalIp``
   ## and ``mappedPorts`` as a side-effect, and tears down mappings that are no
   ## longer needed.
+  let stats = MappingLog()
+  var outcome = "cancelled"
+  defer:
+    debug "NAT mapping refresh finished",
+      outcome,
+      listenAddresses = listenAddrs.len,
+      mapped = stats.mapped,
+      mapFailed = stats.mapFailed,
+      unmapped = stats.unmapped,
+      unmapFailed = stats.unmapFailed
+
   if self.mapper.isNil:
-    debug "No port mapper available; skipping NAT port mapping"
+    outcome = "noMapper"
+    trace "No port mapper available; skipping NAT port mapping"
     return @[]
 
   let listenPorts = findMappableListenPorts(listenAddrs)
   if listenPorts.len == 0:
-    debug "No private listen addresses to map; releasing any prior mappings"
-    await self.unmapAll()
+    trace "No private listen addresses to map; releasing any prior mappings"
+    await self.unmapStale(@[], stats)
+    self.mappedPorts.setLen(0)
+    outcome = "completed"
     return @[]
 
   var
@@ -364,7 +386,9 @@ proc setupMappings*(
     externalIp = Opt.none(IpAddress)
 
   for lp in listenPorts:
-    (await self.mapOnePort(lp)).ifValue(res):
+    let portRes = await self.mapOnePort(lp)
+    portRes.ifValue(res):
+      stats.mapped.inc()
       externalIp = Opt.some(res.externalIp)
       if res.entry notin nextMapped:
         nextMapped.add(res.entry)
@@ -372,10 +396,13 @@ proc setupMappings*(
       res.announced.ifValue(annAddr):
         if annAddr notin announced:
           announced.add(annAddr)
+    else:
+      stats.mapFailed.inc()
 
   self.externalIp = externalIp
-  await self.unmapStale(nextMapped)
+  await self.unmapStale(nextMapped, stats)
   self.mappedPorts = nextMapped
+  outcome = "completed"
   announced
 
 proc validatePortMapperConfig(cfg: PortMappingConfig) {.raises: [ServiceSetupError].} =
