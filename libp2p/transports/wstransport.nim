@@ -538,7 +538,7 @@ method dial*(
           @[hostHeaderHook(httpHostname)]
         else:
           @[]
-    debug "Creating websocket",
+    trace "Creating websocket",
       address = initAddress,
       secure = secure,
       hostName = httpHostname,

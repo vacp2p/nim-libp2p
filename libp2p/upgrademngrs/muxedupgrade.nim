@@ -47,7 +47,7 @@ proc mux(
       of Direction.In:
         await MultistreamSelect.handle(secureConn, self.muxers.mapIt(it.codec))
     muxerProvider = self.getMuxerByCodec(muxerName).valueOr:
-      debug "Mux negotiation failed", secureConn, protocol = muxerName
+      trace "Mux negotiation failed", secureConn, protocol = muxerName
       return Opt.none(Muxer)
 
   trace "Mux negotiation completed", secureConn, protocol = muxerName

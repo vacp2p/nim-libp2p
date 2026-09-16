@@ -577,7 +577,7 @@ method handshake*(
         if pid != targetPid:
           var failedKey: PublicKey
           discard extractPublicKey(targetPid, failedKey)
-          debug "Noise handshake peer identity rejected",
+          trace "Noise handshake peer identity rejected",
             initiator,
             dealt_peer = conn,
             dealt_key = $failedKey,
