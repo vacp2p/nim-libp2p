@@ -57,7 +57,7 @@ proc tryStartingDirectConn(
   ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
     trace "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
-    debug "Direct connection created.", peerId, address
+    debug "Direct connection created", peerId, address
     return true
 
   for address in switch.peerStore[AddressBook][peerId]:
@@ -68,7 +68,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection.", err = err.msg, peerId, address
+      debug "Failed to create direct connection", err = err.msg, peerId, address
       continue
   return false
 
