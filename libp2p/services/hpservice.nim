@@ -60,7 +60,6 @@ proc tryStartingDirectConn(
     debug "Direct connection created."
     return true
 
-  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
@@ -142,7 +141,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
 
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   switch.connManager.addPeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
+    self.newConnectedPeerHandler, PeerEventKind.Identified
   )
 
   discard self.reachabilityObservers.add(self.onNewStatusHandler)
@@ -150,7 +149,7 @@ method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   switch.connManager.removePeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
+    self.newConnectedPeerHandler, PeerEventKind.Identified
   )
   discard self.reachabilityObservers.remove(self.onNewStatusHandler)
   await self.autonatService.stop(switch)
