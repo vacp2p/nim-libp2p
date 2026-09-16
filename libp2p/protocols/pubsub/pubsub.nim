@@ -215,7 +215,7 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
   ##
 
-  debug "unsubscribing pubsub peer", peerId
+  trace "unsubscribing pubsub peer", peerId
   p.peers.withValue(peerId, peer):
     let stopped = peer[].stopTasks()
     if p.stopping:
@@ -444,7 +444,7 @@ method getOrCreatePeer*(
     customStreamCallbacks = p.customStreamCallbacks,
     handler = peerHandler,
   )
-  debug "created new pubsub peer", peerId
+  trace "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
   pubSubPeer.observers = p.observers
@@ -613,6 +613,11 @@ method onTopicSubscription*(
   # Called when subscribe is called the first time for a topic or unsubscribe
   # removes the last handler
 
+  if subscribed:
+    debug "subscribed to topic", topic
+  else:
+    debug "unsubscribed from topic", topic
+
   # Notify others that we are no longer interested in the topic.
   for peer in toSeq(p.peers.values):
     # If we don't have a sendStream yet, we will
@@ -647,7 +652,7 @@ proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) =
 proc unsubscribeAll*(p: PubSub, topic: string) {.gcsafe.} =
   ## unsubscribe every `handler` from `topic`
   if topic notin p.topics:
-    debug "unsubscribeAll called for an unknown topic", topic
+    trace "unsubscribeAll called for an unknown topic", topic
   else:
     p.topics.del(topic)
 
@@ -677,7 +682,7 @@ proc subscribe*(
 
   # Check that this is an allowed topic
   if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
-    warn "Trying to subscribe to a topic not passing validation!", topic
+    trace "trying to subscribe to a topic not passing validation", topic
     return
 
   p.topics.withValue(topic, topicData):

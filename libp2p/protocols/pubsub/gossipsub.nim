@@ -419,7 +419,7 @@ proc handleSubscribe(
 
     if not (isNil(g.subscriptionValidator)) and not (g.subscriptionValidator(topic)):
       # this is a violation, so warn should be in order
-      trace "ignoring invalid topic subscription", topic, peer
+      trace "ignoring invalid topic subscription"
       libp2p_gossipsub_invalid_topic_subscription.inc()
       return false
 
@@ -429,22 +429,20 @@ proc handleSubscribe(
       peer.behaviourPenalty += SubscriptionFloodPenalty
       return false
 
-    trace "peer subscribed to topic"
-
     if g.gossipsub.addPeer(topic, peer):
       peer.subscribedTopics.inc()
+      debug "peer subscribed to topic"
     if peer.peerId in g.parameters.directPeers:
       discard g.subscribedDirectPeers.addPeer(topic, peer)
   else:
-    trace "peer unsubscribed from topic"
-
     if g.mesh.hasPeer(topic, peer):
       #against spec
       g.mesh.removePeer(topic, peer)
       g.pruned(peer, topic)
 
     # unsubscribe remote peer from the topic
-    if g.gossipsub.hasPeer(topic, peer):
+    let wasSubscribed = g.gossipsub.hasPeer(topic, peer)
+    if wasSubscribed:
       peer.subscribedTopics.dec()
     g.gossipsub.removePeer(topic, peer)
 
@@ -452,7 +450,9 @@ proc handleSubscribe(
     if peer.peerId in g.parameters.directPeers:
       g.subscribedDirectPeers.removePeer(topic, peer)
 
-  trace "gossip peers", peers = g.gossipsub.peers(topic), topic
+    if wasSubscribed:
+      debug "peer unsubscribed from topic"
+
   true
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
