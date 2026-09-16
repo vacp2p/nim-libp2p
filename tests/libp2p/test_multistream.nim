@@ -675,3 +675,56 @@ suite "Multistream :: stream limits":
     await client.writeLp(codecs & "\n")
     check string.fromBytes(await client.readLp(1024)) == codecs & "\n"
     check (await handling.wait(1.seconds)) == codecs
+
+suite "Multistream :: result API":
+  const codecs = "/test/proto/1.0.0"
+
+  teardown:
+    checkTrackers()
+
+  proc selectAgainstHeader(
+      header: string
+  ): Future[MultiStreamResult[string]] {.
+      async: (raises: [CancelledError, LPStreamError, AsyncTimeoutError])
+  .} =
+    let (client, server) = bridgedConnections()
+    let selecting = MultistreamSelect.trySelect(client, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    discard await server.readLp(1024)
+    discard await server.readLp(1024)
+    await server.writeLp(header)
+    let res = await selecting.wait(1.seconds)
+    res
+
+  asyncTest "trySelect returns HandshakeFailed on a wrong header":
+    check (await selectAgainstHeader("/other/1.0.0\n")).error ==
+      MultiStreamFailure.HandshakeFailed
+
+  asyncTest "trySelect returns MalformedMessage on a header without newline":
+    check (await selectAgainstHeader("/multistream/1.0.0")).error ==
+      MultiStreamFailure.MalformedMessage
+
+  asyncTest "tryHandle returns InvalidFirstMessage before the handshake":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.tryHandle(server, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    await client.writeLp(codecs & "\n")
+    check (await handling.wait(1.seconds)).error ==
+      MultiStreamFailure.InvalidFirstMessage
+
+  asyncTest "handle raises MultiStreamError with the failure text":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.handle(server, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    await client.writeLp(codecs & "\n")
+    try:
+      discard await handling.wait(1.seconds)
+      raiseAssert "handle must raise"
+    except MultiStreamError as e:
+      check e == MultiStreamFailure.InvalidFirstMessage

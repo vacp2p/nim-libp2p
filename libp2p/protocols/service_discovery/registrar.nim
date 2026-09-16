@@ -347,6 +347,15 @@ proc registration*(
 
     return msg
 
+  if disco.registrar.ads.hasNewer(serviceId, ad):
+    trace "Stale advertisement", peerId = ad.data.peerId, seqNo = ad.data.seqNo
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
   disco.tracker.recordProvider(serviceId, ad.data.peerId, FromRegistration)
 
   #Always use seconds granularity
