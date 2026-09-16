@@ -262,8 +262,8 @@ proc runMain*(body: proc(): Future[void] {.async.}, timeout: Duration) =
   try:
     waitFor body().wait(timeout)
   except AsyncTimeoutError as e:
-    error "Program execution timed out", description = e.msg
+    error "Program execution timed out", err = e.msg
     quit(-1)
   except CatchableError as e:
-    error "Unexpected error", description = e.msg
+    error "Unexpected error", err = e.msg
     quit(-1)

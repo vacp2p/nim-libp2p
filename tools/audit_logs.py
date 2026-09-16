@@ -218,9 +218,6 @@ def has_compact_formatter(value: str, declarations, fields) -> bool:
 
 def main() -> int:
     violations = []
-    # Event-message style applies to every repository-owned Nim source. The
-    # existing field-safety rules intentionally remain limited to the library:
-    # interop and test fixtures have legacy fields outside that policy.
     for path in audit_paths():
         for line, _, block in log_blocks(path):
             message = log_message(block)
@@ -235,7 +232,7 @@ def main() -> int:
                     f"{path.relative_to(ROOT)}:{line}: log message must contain one sentence"
                 )
 
-    paths = list(ROOT.joinpath("libp2p").rglob("*.nim"))
+    paths = audit_paths()
     global COMPACT_FORMAT_TYPES
     COMPACT_FORMAT_TYPES, declarations, fields = source_types(paths)
     for path in paths:

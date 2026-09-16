@@ -158,7 +158,7 @@ suite "Identify":
           conn = await transport1.accept()
           await msListen.handle(conn)
         except transport.TransportError as exc:
-          debug "Transport error", description = exc.msg
+          debug "Transport error", err = exc.msg
         finally:
           await conn.close()
 
