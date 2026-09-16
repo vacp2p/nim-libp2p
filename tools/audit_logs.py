@@ -274,8 +274,10 @@ def main() -> int:
                         f"{path.relative_to(ROOT)}:{line}: bare field '{field_name}' is too short (needs to be at least 3 characters long)"
                     )
     if violations:
+        print("❌ Log audit failed:", file=sys.stderr)
         print("\n".join(violations), file=sys.stderr)
         return 1
+    print("✅ Log audit passed")
     return 0
 
 
