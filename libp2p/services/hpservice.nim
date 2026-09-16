@@ -55,9 +55,9 @@ proc tryStartingDirectConn(
   proc tryConnect(
       address: MultiAddress
   ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
-    debug "Trying to create direct connection", peerId, address
+    trace "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
-    debug "Direct connection created."
+    debug "Direct connection created.", peerId, address
     return true
 
   for address in switch.peerStore[AddressBook][peerId]:
