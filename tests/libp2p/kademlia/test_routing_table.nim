@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, algorithm
+import chronos, results, algorithm, sets
 import ../../../libp2p/[protocols/kademlia, crypto/crypto]
 import ../../tools/[unittest, crypto]
 
@@ -60,6 +60,50 @@ suite "KadDHT Routing Table":
     var rt = RoutingTable.new(selfId)
 
     check not rt.insert(selfId)
+
+  test "samples peers closest to a target instead of closest to self":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    # With `noOpHasher` a key is its own hash, so a peer is at distance 0 from
+    # itself and lands in the last bucket of a view centred on it.
+    let target = rt.buckets[1].peers[0]
+    check rt.randomPeersClosestFirst(target, rng(), 1) == @[target]
+
+    # Centred on self, the same table starts from its own closest bucket.
+    check rt.randomPeersClosestFirst(rng(), 1) == @[rt.buckets[TargetBucket].peers[0]]
+
+  test "a view centred on a target clamps deep peers into its last bucket":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [0, 1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    # Seen from the bucket-1 peer, the bucket-0 peer shares no prefix bit, and
+    # the peer itself and the bucket-3 and bucket-6 peers share at least one. A
+    # 2-bucket view puts those three together in its last bucket.
+    let target = rt.buckets[1].peers[0]
+    let farPeer = rt.buckets[0].peers[0]
+    let nearPeers = [target, rt.buckets[3].peers[0], rt.buckets[TargetBucket].peers[0]]
+
+    let all = rt.randomPeersClosestFirst(target, rng(), 4, maxBuckets = 2)
+    check:
+      all.len == 4
+      all[0 .. 2].toHashSet() == nearPeers.toHashSet()
+      all[3] == farPeer
+
+    let capped =
+      rt.randomPeersClosestFirst(target, rng(), 4, maxPerBucket = 1, maxBuckets = 2)
+    check:
+      capped.len == 2
+      capped[0] in nearPeers
+      capped[1] == farPeer
+
+    check rt.randomPeersClosestFirst(target, rng(), 0, maxBuckets = 2).len == 0
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)

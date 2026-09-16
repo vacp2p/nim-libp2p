@@ -521,6 +521,35 @@ suite "ServiceRoutingTableManager - service id hashing":
       serviceTable.buckets[preHashBucket].peers.len == 1
       serviceTable.buckets[preHashBucket].peers[0] == peer
 
+  test "service table hashes peers with the main table's hasher":
+    let
+      serviceId = makeServiceId(1)
+      peer = makeKey(3)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(
+        makeKey(0), RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+      )
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    proc bucketWith(hasher: Opt[XorDHasher]): int =
+      RoutingTable
+        .new(
+          serviceId,
+          RoutingTableConfig.new(
+            hasher = hasher, maxBuckets = DefaultMaxBuckets, selfIdPreHashed = true
+          ),
+        )
+        .bucketIndex(peer)
+
+    # With `noOpHasher` the peer differs from the service id in one bit, so the
+    # default hasher puts it in a different bucket.
+    check:
+      bucketWith(Opt.some(noOpHasher)) != bucketWith(Opt.none(XorDHasher))
+      manager.getTable(serviceId).get().bucketIndex(peer) ==
+        bucketWith(Opt.some(noOpHasher))
+
   test "service table with small bucketsCount uses scaled bucket mapping":
     let
       serviceId = hashServiceId("scaled-buckets-test")
