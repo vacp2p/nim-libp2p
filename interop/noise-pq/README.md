@@ -82,7 +82,8 @@ HANDSHAKE_OK remotePeer=12D3KooWN1LK85XfPFGzKq3gjTnm12e4tZn84GeSkNpQf6Fve4hS
 ```
 
 js-libp2p-noise listening, `interop_dial --chat` dialling, with a message
-exchanged in each direction after the handshake:
+exchanged in each direction after the handshake. The `--chat` flag has since
+been removed: both harnesses now always exchange one greeting each way.
 
 ```
 # js-libp2p-noise side                        # nim-libp2p side
@@ -114,9 +115,9 @@ PEER 12D3KooWHQEvXV28iyrSzHzwbYmLcRpk2zBHyk22ayGLxe91BdB9
 ```
 
 Only this direction was recorded here: the listener example in this pairing
-was ours (royzah/rust-libp2p#1). rust-libp2p now has both a listener and a
-dialer harness on the shared contract, so this pairing is no longer limited
-to nim-libp2p as the initiator.
+was ours (royzah/rust-libp2p#1). royzah/rust-libp2p#1 now has both a
+listener and a dialer harness on the shared contract, so this pairing is no
+longer limited to nim-libp2p as the initiator.
 
 This run also predates royzah's current code: it used our
 `royzah/rust-libp2p#1` branch, whose `Cargo.lock` pins `royzah/snow` at commit
@@ -127,6 +128,15 @@ libp2p/rust-libp2p#6481 branch by 22 August 2026 at the latest, so this
 5 September run was already behind the pull request.
 
 ## Coverage
+
+Historical record, superseded. The runs recorded above and the June 2026
+runs in the table below checked the handshake only: apart from the
+js-libp2p-noise listener run above, no transport message was exchanged. The
+June 2026 claims are corrected under "Earlier claims, corrected" in the
+pq-noise-artifacts README. Current coverage is the 17 September 2026 matrix,
+in which every ordered pair of the four implementations, including each one
+against itself, passed 3 of 3 runs with one encrypted greeting each way:
+<https://github.com/paschal533/pq-noise-artifacts/tree/main/interop/results/20260917T134954Z>.
 
 With the two runs above, all six pairings across the four implementations of
 this profile - TypeScript, Python, Rust and Nim - have now completed a live
