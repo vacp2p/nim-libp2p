@@ -6,6 +6,7 @@
 import ../../../libp2p/[extended_peer_record]
 import ../../../libp2p/protocols/service_discovery/types
 import ../../tools/[unittest]
+import ../kademlia/utils
 import ./utils
 
 suite "seq[Advertisement] encode":
@@ -49,3 +50,19 @@ suite "seq[Advertisement] encode":
       check:
         decoded.isOk()
         decoded.get() == origAds[i]
+
+suite "ExtEntryValidator":
+  test "accepts a record signed by the peer its key names":
+    let ad = makeAdvertisement()
+    let record = EntryRecord(value: ad.encode(), time: Timestamp.now())
+    check ExtEntryValidator().isValid(ad.data.peerId.toKey(), record)
+
+  test "rejects a record signed by another peer":
+    let ad = makeAdvertisement()
+    let record = EntryRecord(value: ad.encode(), time: Timestamp.now())
+    check not ExtEntryValidator().isValid(randomPeerId().toKey(), record)
+
+  test "rejects a record with oversized service data":
+    let ad = makeOversizedAdvertisement("svc")
+    let record = EntryRecord(value: ad.encode(), time: Timestamp.now())
+    check not ExtEntryValidator().isValid(ad.data.peerId.toKey(), record)
