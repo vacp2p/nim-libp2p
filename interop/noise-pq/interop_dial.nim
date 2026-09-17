@@ -20,6 +20,7 @@
 import std/[os, strutils]
 import chronos
 import stew/byteutils
+import ./interop_common
 import
   ../../libp2p/[
     stream/connection,
@@ -35,23 +36,8 @@ import
   ]
 
 const
-  GreetingPrefix = "hello from "
   # How long the dialer waits for the peer to close after it replies.
   PeerCloseTimeout = 5.seconds
-
-proc emit(line: string) =
-  ## Write one contract line to stdout and flush immediately: stdout is
-  ## fully buffered when redirected to a file, and the runner polls the log
-  ## while this process is still alive.
-  echo line
-  stdout.flushFile()
-
-proc firstLine(s: string): string =
-  ## Only the first line of `s`, stripped. A peer could batch extra bytes
-  ## into the same message as its greeting; RECV must always be exactly one
-  ## clean line on stdout, not whatever else rode along in the frame.
-  let nlPos = s.find('\n')
-  (if nlPos >= 0: s[0 ..< nlPos] else: s).strip()
 
 proc main() {.async.} =
   var port = 9998
@@ -88,9 +74,7 @@ proc main() {.async.} =
   # here, on the first real data frame.
   let incoming = firstLine(string.fromBytes(await sconn.readMessage()))
   emit("RECV " & incoming)
-  if not incoming.startsWith(GreetingPrefix) or incoming.len == GreetingPrefix.len:
-    stderr.writeLine("ERROR unexpected greeting: " & incoming)
-    quit(1)
+  requireGreeting(incoming)
   await sconn.write(GreetingPrefix & "Nim\n")
   emit("SENT " & GreetingPrefix & "Nim")
 

@@ -16,6 +16,7 @@
 import std/[os, strutils]
 import chronos
 import stew/byteutils
+import ./interop_common
 import
   ../../libp2p/[
     stream/connection,
@@ -29,22 +30,6 @@ import
     protocols/secure/noisehfs,
     upgrademngrs/upgrade,
   ]
-
-const GreetingPrefix = "hello from "
-
-proc emit(line: string) =
-  ## Write one contract line to stdout and flush immediately: stdout is
-  ## fully buffered when redirected to a file, and the runner polls the log
-  ## for READY/INTEROP_OK while this process is still alive.
-  echo line
-  stdout.flushFile()
-
-proc firstLine(s: string): string =
-  ## Only the first line of `s`, stripped. A peer could batch extra bytes
-  ## into the same message as its greeting; RECV must always be exactly one
-  ## clean line on stdout, not whatever else rode along in the frame.
-  let nlPos = s.find('\n')
-  (if nlPos >= 0: s[0 ..< nlPos] else: s).strip()
 
 proc main() {.async.} =
   let port =
@@ -70,9 +55,7 @@ proc main() {.async.} =
   emit("SENT " & GreetingPrefix & "Nim")
   let reply = firstLine(string.fromBytes(await sconn.readMessage()))
   emit("RECV " & reply)
-  if not reply.startsWith(GreetingPrefix) or reply.len == GreetingPrefix.len:
-    stderr.writeLine("ERROR unexpected greeting: " & reply)
-    quit(1)
+  requireGreeting(reply)
 
   await sconn.close()
   await conn.close()
