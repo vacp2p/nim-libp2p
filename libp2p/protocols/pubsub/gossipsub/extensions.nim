@@ -55,11 +55,11 @@ proc new*(
     Opt.none(PartialMessageExtension)
   var preambleExtension: Opt[PreambleExtension] = Opt.none(PreambleExtension)
 
-  testExtensionConfig.withValue(c):
+  testExtensionConfig.ifValue(c):
     extensions.add(TestExtension.new(c))
     nodeExtensions.testExtension = Opt.some(true)
 
-  partialMessageExtensionConfig.withValue(c):
+  partialMessageExtensionConfig.ifValue(c):
     var cfg = c
     cfg.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
       let peerExt = state.peerExtensions.getOrDefault(peerId)
@@ -69,11 +69,11 @@ proc new*(
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = Opt.some(true)
 
-  pingpongExtensionConfig.withValue(c):
+  pingpongExtensionConfig.ifValue(c):
     extensions.add(PingPongExtension.new(c))
     nodeExtensions.pingpongExtension = Opt.some(true)
 
-  preambleExtensionConfig.withValue(c):
+  preambleExtensionConfig.ifValue(c):
     preambleExtension = Opt.some(PreambleExtension.new(c, rng))
     extensions.add(preambleExtension.get())
     nodeExtensions.preambleExtension = Opt.some(true)
@@ -193,14 +193,14 @@ proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
 proc publishPartial*(
     state: ExtensionsState, topic: string, pm: PartialMessage, peers: seq[PeerId] = @[]
 ): int =
-  state.partialMessageExtension.withValue(e):
+  state.partialMessageExtension.ifValue(e):
     return e.publishPartial(topic, pm, peers)
   else:
     # raises because this proc is called by user
     raiseAssert "partial message extension is not configured"
 
 proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool =
-  state.partialMessageExtension.withValue(e):
+  state.partialMessageExtension.ifValue(e):
     return e.peerRequestsPartial(peerId, topic)
   else:
     # should not raise, because this is called whenever IDONTWANT is being sent.
@@ -208,24 +208,24 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     return false
 
 proc preambleBroadcast*(state: ExtensionsState, msg: RPCMsg, peers: seq[PeerId]) =
-  state.preambleExtension.withValue(e):
+  state.preambleExtension.ifValue(e):
     e.preambleBroadcast(msg, peers)
 
 proc preambleBroadcastIfNotReceiving*(
     state: ExtensionsState, msg: RPCMsg, peers: seq[PeerId]
 ) =
-  state.preambleExtension.withValue(e):
+  state.preambleExtension.ifValue(e):
     e.preambleBroadcastIfNotReceiving(msg, peers)
 
 proc preambleMsgReceived*(
     state: ExtensionsState, peerId: PeerId, msgId: MessageId, msgLen: int
 ) =
-  state.preambleExtension.withValue(e):
+  state.preambleExtension.ifValue(e):
     e.preambleMsgReceived(peerId, msgId, msgLen)
 
 proc preambleHandleIHave*(
     state: ExtensionsState, peerId: PeerId, msgId: MessageId
 ): bool =
-  state.preambleExtension.withValue(e):
+  state.preambleExtension.ifValue(e):
     return e.handleIHave(peerId, msgId)
   return false

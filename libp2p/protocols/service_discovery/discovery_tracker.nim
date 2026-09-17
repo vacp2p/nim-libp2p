@@ -7,7 +7,7 @@ import ../../peerid
 import ./[types, service_discovery_metrics]
 
 logScope:
-  topics = "service-disco tracker"
+  topics = "libp2p service-discovery"
 
 const MaxTrackedProviders* = 1024
 
@@ -71,7 +71,7 @@ proc recordProvider*(
   if discovery.rank == 1:
     cd_first_provider_discovery_ms.observe(elapsedMs)
 
-  debug "Provider found",
+  trace "Provider found",
     serviceId, provider, rank = discovery.rank, elapsedMs = elapsed.milliseconds, source
 
 proc recordProviders*(

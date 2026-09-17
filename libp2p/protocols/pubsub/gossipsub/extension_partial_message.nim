@@ -8,7 +8,7 @@ import ../rpc/messages
 import ./[extensions_types, partial_message]
 
 logScope:
-  topics = "libp2p partial message"
+  topics = "libp2p gossipsub"
 
 declareGauge(
   libp2p_gossipsub_partial_message_groups,
@@ -142,7 +142,7 @@ proc evictGroup(ext: PartialMessageExtension, key: TopicGroupKey) =
   let group = ext.groupState.getOrDefault(key)
   if group.isNil():
     return
-  group.creator.withValue(creator):
+  group.creator.ifValue(creator):
     ext.releasePeerGroup(creator)
   ext.groupState.del(key)
   ext.updateGroupCountMetric()
@@ -376,7 +376,7 @@ method onHandleRPC*(
   for subRPC in rpc.subscriptions:
     ext.handleSubscribeRPC(peerId, subRPC)
 
-  rpc.partialMessageExtension.withValue(partialExtRPC):
+  rpc.partialMessageExtension.ifValue(partialExtRPC):
     ext.handlePartialRPC(peerId, partialExtRPC)
 
 proc publishPartialToPeer(

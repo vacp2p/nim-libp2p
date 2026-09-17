@@ -19,7 +19,7 @@ type DcutrClient* = ref object
   maxDialableAddrs: int
 
 logScope:
-  topics = "libp2p dcutrclient"
+  topics = "libp2p hole-punching"
 
 proc new*(
     T: typedesc[DcutrClient], connectTimeout = 15.seconds, maxDialableAddrs = 8
@@ -38,13 +38,13 @@ proc startSync*(
   try:
     var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:
-      trace "Dcutr initiator has no supported dialable addresses. Aborting Dcutr.",
+      trace "Aborting Dcutr because the initiator has no supported dialable addresses",
         addresses = addrs
       return
 
     stream = await switch.dial(remotePeerId, DcutrCodec)
     await stream.send(MsgType.Connect, addrs)
-    trace "Dcutr initiator has sent a Connect message."
+    trace "Dcutr initiator sent a Connect message"
     let rttStart = Moment.now()
     let connectAnswer =
       DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
@@ -53,12 +53,12 @@ proc startSync*(
       getHolePunchableAddrs(connectAnswer.addrs)
     )
     if peerDialableAddrs.len == 0:
-      trace "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
+      trace "Aborting Dcutr because the receiver has no supported dialable addresses",
         addresses = connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()
-    trace "Dcutr initiator has received a Connect message back.",
+    trace "Dcutr initiator received a Connect message back",
       connectAnswer = connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
 
@@ -70,7 +70,7 @@ proc startSync*(
       expectedIncoming.cancelSoon()
 
     await stream.send(MsgType.Sync, @[])
-    trace "Dcutr initiator has sent a Sync message."
+    trace "Dcutr initiator sent a Sync message"
     await sleepAsync(halfRtt)
 
     if peerDialableAddrs.len > self.maxDialableAddrs:
@@ -97,7 +97,7 @@ proc startSync*(
         if dialFuts.allIt(it.finished and not it.completed()):
           raise newException(AllFuturesFailedError, "all direct dial attempts failed")
         raise err
-      trace "Dcutr initiator has directly connected to the remote peer."
+      trace "Dcutr initiator connected directly to the remote peer"
     finally:
       trace "Dcutr initiator cancelling remaining direct dial attempts",
         attempts = futs.len

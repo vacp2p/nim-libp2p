@@ -195,7 +195,7 @@ const
     ## ``::ffff:0.0.0.0``, the IPv4-mapped spelling of the wildcard host.
 
 proc portOf(ma: MultiAddress): Opt[Port] =
-  for codec in [multiCodec("tcp"), multiCodec("udp")]:
+  for codec in [TcpMultiCodec, UdpMultiCodec]:
     let arg = ma.getProtocolArgument(codec).valueOr:
       continue
     if arg.len == 2:
@@ -207,11 +207,11 @@ proc isDialableMA*(ma: MultiAddress): bool =
   if isCircuitRelayMA(ma):
     return true
 
-  ma.portOf().withValue(port):
+  ma.portOf().ifValue(port):
     if port == Port(0):
       return false
 
-  ma.getIp().withValue(ip):
+  ma.getIp().ifValue(ip):
     case ip.family
     of IpAddressFamily.IPv4:
       return ip.address_v4 != AnyAddressV4

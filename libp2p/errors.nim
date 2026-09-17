@@ -23,6 +23,9 @@ func toException*(e: string): ref LPError =
 func toException*[E](e: E, X: typedesc): ref X =
   (ref X)(msg: $e)
 
+func `==`*[E: enum](e: ref LPError, failure: E): bool =
+  e.msg == $failure
+
 template valueOrRaise*[T: not void, E](r: Result[T, E], X: typedesc): T =
   ## Unwrap `r`, or raise `X` carrying the error message.
   r.valueOr:
@@ -44,6 +47,8 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   of 0:
     quote:
       for res in `futs`:
+        logScope:
+          topics = "libp2p futures"
         if res.failed:
           let exc = res.error
           # We still don't abort but warn
@@ -52,6 +57,8 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
   else:
     quote:
       for res in `futs`:
+        logScope:
+          topics = "libp2p futures"
         block check:
           if res.failed:
             let exc = res.error

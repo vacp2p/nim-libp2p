@@ -570,14 +570,14 @@ method handshake*(
 
       trace "Remote Noise peer identified", peerId = pid
 
-      peerId.withValue(targetPid):
+      peerId.ifValue(targetPid):
         if not targetPid.validate():
           raise (ref NoiseHandshakeError)(msg: "Failed to validate expected peerId.")
 
         if pid != targetPid:
           var failedKey: PublicKey
           discard extractPublicKey(targetPid, failedKey)
-          debug "Noise handshake peer identity rejected",
+          trace "Noise handshake peer identity rejected",
             initiator,
             dealt_peer = conn,
             dealt_key = $failedKey,

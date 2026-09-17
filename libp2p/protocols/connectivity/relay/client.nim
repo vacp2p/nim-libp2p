@@ -17,7 +17,7 @@ import
   ../../../signed_envelope
 
 logScope:
-  topics = "libp2p relay relay-client"
+  topics = "libp2p relay"
 
 const RelayClientMsgSize = 4096
 
@@ -112,13 +112,13 @@ proc reserve*(
   let expire = reservation.expire.valueOr:
     raise newException(ReservationError, "Missing expire")
 
-  if expire > int64.high().uint64 or now().utc > expire.int64.fromUnix.utc:
+  if expire > int64.high().uint64 or getTime().utc > expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   var rsvp: Rsvp
   rsvp.expire = expire
   rsvp.addrs = reservation.addrs
 
-  reservation.svoucher.withValue(sv):
+  reservation.svoucher.ifValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
       if error == EnvelopeFieldMissing:
         raise newException(ReservationError, "Missing voucher field")

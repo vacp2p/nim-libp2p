@@ -161,13 +161,13 @@ suite "Service Discovery Component - Register":
     check registrarNode.countAdsInCache(serviceId) == 1
     check registrarNode.getAdsInCache(serviceId)[0].data.seqNo == 2
 
-    # Lower seqNo also replaces; only the latest payload remains.
+    # Lower seqNo is rejected; the newer payload stays.
     registerResponse = await advertiserNode.sendRegister(
       registrarPeerId, serviceId, staleLowerSeqAd.encode().get()
     )
-    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Rejected
     check registrarNode.countAdsInCache(serviceId) == 1
-    check registrarNode.getAdsInCache(serviceId)[0].data.seqNo == 0
+    check registrarNode.getAdsInCache(serviceId)[0].data.seqNo == 2
 
   asyncTest "REGISTER with invalid-signature ticket is rejected":
     let conf =

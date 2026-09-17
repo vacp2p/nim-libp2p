@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue, hashes]
-from std/times import format, now, parse, toTime, toUnix, utc
+from std/times import format, getTime, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy, multiaddress]
 import ../../utils/[opt, shortlog]
@@ -12,7 +12,7 @@ import ./[key_value, protobuf, message_sender]
 export tables, sets, heapqueue, key_value, message_sender
 
 logScope:
-  topics = "kad-dht types"
+  topics = "libp2p kademlia"
 
 const
   MaxBucketsLimit* = IdLength * 8
@@ -133,7 +133,7 @@ proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =
   var peers: seq[Peer]
 
   for p in keys:
-    p.toPeer(switch).withValue(peer):
+    p.toPeer(switch).ifValue(peer):
       peers.add(peer)
 
   return peers
@@ -348,7 +348,7 @@ type Timestamp* = string
 const TimestampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
 
 proc now*(T: typedesc[Timestamp]): Timestamp {.gcsafe, raises: [].} =
-  T(now().utc.format(TimestampFormat))
+  T(getTime().utc.format(TimestampFormat))
 
 proc toUnixSeconds*(
     time: Timestamp
@@ -357,7 +357,7 @@ proc toUnixSeconds*(
     parse(time, TimestampFormat, utc()).toTime().toUnix()
 
 proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
-  now().utc.toTime().toUnix()
+  getTime().toUnix()
 
 type EntryRecord* = object
   value*: Value
@@ -376,7 +376,7 @@ type
 proc insert*(
     self: var LocalTable, key: Key, value: sink Value, time: Timestamp
 ) {.raises: [].} =
-  debug "Local Kademlia record stored", key, value
+  trace "Local Kademlia record stored", key, value
   self[key] = EntryRecord(value: value, time: time)
 
 proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =

@@ -17,7 +17,7 @@ import
 export reachabilityobservers
 
 logScope:
-  topics = "libp2p autonatv2 service"
+  topics = "libp2p autonat"
 
 # needed because nim 2.0 can't do proper type assertions
 const noneDuration: Opt[Duration] = Opt.none(Duration)
@@ -103,7 +103,7 @@ method start*(
   info "Running AutonatV2Service"
 
   let manager = switch.addressManager
-  self.config.scheduleInterval.withValue(interval):
+  self.config.scheduleInterval.ifValue(interval):
     manager.verifyInterval = interval
   manager.deriveIdentifyCandidates = self.config.enableDialableCandidates
   manager.onReachabilityChange = proc(

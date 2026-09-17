@@ -20,7 +20,7 @@ import
   ]
 
 logScope:
-  topics = "service-disco registrar"
+  topics = "libp2p service-discovery"
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.ads.len.float64)
@@ -190,7 +190,7 @@ proc updateWaitAfterRetry*(
     now: UnixTimestamp,
     wait: var Duration,
 ) =
-  ticketOpt.withValue(ticket):
+  ticketOpt.ifValue(ticket):
     let totalWaitSoFar = now - ticket.tInit.get()
     wait -= totalWaitSoFar.seconds
 
@@ -247,9 +247,13 @@ proc acceptAdvertisement*(
     ad: Advertisement,
     advertiserIps: seq[IpAddress],
 ) =
+  # Put first: a full cache can evict this service's last ad and drop its table.
+  disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
+  disco.registrar.updateRegistrarMetrics()
+
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
+    Registered,
   )
   # Admit the registering DHT peer, not the advertised subject. Under proxy
   # advertising ad.data.peerId need not participate in KadDHT; the DHT peer is
@@ -261,9 +265,6 @@ proc acceptAdvertisement*(
       serviceId,
       @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)],
     )
-
-  disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
-  disco.registrar.updateRegistrarMetrics()
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
@@ -278,11 +279,17 @@ proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
 proc getCloserPeers(
     disco: ServiceDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] =
-  let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
-
-  let keys = table.randomPeersClosestFirst(
-    disco.rng, count, maxPerBucket = disco.discoConfig.kRegister
-  )
+  let maxPerBucket = disco.discoConfig.kRegister
+  let table = disco.rtManager.getTable(serviceId)
+  let keys =
+    if table.isSome():
+      table.get().randomPeersClosestFirst(disco.rng, count, maxPerBucket)
+    else:
+      # No table for this service: view the main table by distance to the
+      # service (the spec's GETPEERS), not by distance to this node.
+      disco.rtable.randomPeersClosestFirst(
+        serviceId, disco.rng, count, maxPerBucket, disco.discoConfig.bucketsCount
+      )
 
   return disco.switch.toPeers(keys)
 
@@ -295,6 +302,24 @@ proc registration*(
   let serviceId = inMsg.key.valueOr:
     trace "Key not set: registration", msg = inMsg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key does not have service id length: registration", msg = inMsg
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return Message(
+      msgType: Opt.some(MessageType.register),
+      register: Opt.some(
+        RegisterMessage(
+          advertisement: Opt.none(seq[byte]),
+          status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
 
   let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
@@ -321,6 +346,15 @@ proc registration*(
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
     trace "Invalid advertisement", error
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
+  if disco.registrar.ads.hasNewer(serviceId, ad):
+    trace "Stale advertisement", peerId = ad.data.peerId, seqNo = ad.data.seqNo
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -373,7 +407,7 @@ proc registration*(
     tWaitFor: Opt.some(tWait),
   )
 
-  ticketOpt.withValue(t):
+  ticketOpt.ifValue(t):
     ticket.tInit = t.tInit
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
@@ -398,6 +432,13 @@ proc getAdvertisements*(
   let serviceId = msg.key.valueOr:
     trace "Key not set: getAdvertisements", msg
     return
+
+  if serviceId.len != IdLength:
+    trace "Key does not have service id length: getAdvertisements", msg
+    return Message(
+      msgType: Opt.some(MessageType.getAds),
+      getAds: Opt.some(GetAdsMessage(advertisements: @[])),
+    )
 
   disco.seatSender(serviceId, peerId)
 

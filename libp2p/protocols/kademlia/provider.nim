@@ -17,7 +17,7 @@ import ../protocol
 import ./[protobuf, types, find, rpc, keyspace, netsize, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht provider"
+  topics = "libp2p kademlia"
 
 proc `==`*(a, b: ProviderRecord): bool =
   a.provider.id == b.provider.id and a.key == b.key
@@ -150,8 +150,8 @@ proc countResults[T](rpcBatch: seq[T]): (int, int) =
   for fut in rpcBatch:
     if not fut.finished():
       discard # batch timeout fired before request completed
-    elif fut.failed():
-      discard # transport/connection error
+    elif not fut.completed():
+      discard # transport/connection error or cancellation
     elif not fut.value().isOk():
       discard # protocol/decode error
     else:
@@ -168,9 +168,40 @@ proc storeProviderAt(
   ## Store this node as a provider of `key` at `peers`, ordered closest first.
   ## With `providerRejection`, a fully rejected batch spills over to the next,
   ## farther batch until `replication` peers accepted.
+  var attempted, acceptedTotal, rejectedTotal, failed, cancelled, pending: int
+  var outcome = "cancelled"
+  defer:
+    debug "Provider replication finished",
+      key,
+      outcome,
+      attempted,
+      accepted = acceptedTotal,
+      rejected = rejectedTotal,
+      failed,
+      cancelled,
+      pending
+
+  template recordBatch(batch: untyped) =
+    let (accepted, rejected) = batch.countResults()
+    acceptedTotal += accepted
+    rejectedTotal += rejected
+    for fut in batch:
+      if not fut.finished():
+        pending.inc()
+      elif fut.cancelled():
+        cancelled.inc()
+      elif fut.failed() or not fut.value().isOk():
+        failed.inc()
+
   if not kad.config.providerRejection:
     for chunk in peers.take(kad.config.replication).toChunks(kad.config.alpha):
-      await kad.sendBatch(chunk, key).allFuturesWaitOrTimeout(kad.config.timeout)
+      let batch = kad.sendBatch(chunk, key)
+      attempted += batch.len
+      try:
+        await batch.allFuturesWaitOrTimeout(kad.config.timeout)
+      finally:
+        recordBatch(batch)
+    outcome = "completed"
     return
 
   var stored = 0
@@ -178,19 +209,24 @@ proc storeProviderAt(
     if stored >= kad.config.replication:
       break
     let batch = kad.sendBatch(chunk, key)
+    attempted += batch.len
     # Batch timeout must exceed the per-peer reply timeout to account for dial
     # time. Each future waits up to `timeout` for a reply *after* the dial
     # completes, so the batch timeout must outlast that wait; otherwise
     # non-rejection peers (which default to accepted on reply timeout) may
     # still be mid-wait when countResults runs and get skipped, causing the
     # stored count to be too low and triggering unnecessary spillover rounds.
-    await batch.allFuturesWaitOrTimeout(kad.config.timeout + kad.config.timeout div 4)
+    try:
+      await batch.allFuturesWaitOrTimeout(kad.config.timeout + kad.config.timeout div 4)
+    finally:
+      recordBatch(batch)
     let (accepted, rejected) = batch.countResults()
     stored += accepted
     if accepted == 0 and rejected == chunk.len:
       kad_provider_spillover_rounds.inc()
-      debug "ADD_PROVIDER batch fully rejected, spilling over",
+      trace "ADD_PROVIDER batch fully rejected, spilling over",
         key = key, batchSize = chunk.len
+  outcome = "completed"
 
 const
   CertaintyPeerIsInClosestSet = 0.9
@@ -245,7 +281,7 @@ proc maybeTrackNetsize(kad: KadDHT, key: Key, closest: seq[PeerId]) =
   ## provides bootstrap the estimate that optimistic provide needs. `track`
   ## rejects a short list on its own.
   discard kad.nsEstimator.track(kad.rtable, key, closest.take(kad.config.replication))
-  kad.nsEstimator.networkSize().withValue(ns):
+  kad.nsEstimator.networkSize().ifValue(ns):
     kad_network_size_estimate.set(ns.float64)
 
 proc optimisticStop(
@@ -302,7 +338,7 @@ proc optimisticProvide(
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   if kad.config.optimisticProvide:
-    kad.nsEstimator.networkSize().withValue(ns):
+    kad.nsEstimator.networkSize().ifValue(ns):
       await kad.optimisticProvide(key, ns)
       return
 
@@ -456,7 +492,7 @@ method handleAddProvider*(
   # Per-key cap is enforced regardless of providerRejection: when rejection is
   # disabled the receiver still drops over-cap providers, just silently.
   var atCap = false
-  kad.config.limits.maxProvidersPerKey.withValue(limit):
+  kad.config.limits.maxProvidersPerKey.ifValue(limit):
     let existingProviders =
       kad.providerManager.knownKeys.getOrDefault(msgKey, initHashSet[Provider]())
     let senderIsKnown =

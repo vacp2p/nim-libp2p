@@ -19,7 +19,7 @@ export
   provider, ping, kademlia_metrics, netsize, probe_backoff, ip_diversity
 
 logScope:
-  topics = "kad-dht"
+  topics = "libp2p kademlia"
 
 const KadCodec* = "/ipfs/kad/1.0.0"
 
@@ -33,7 +33,7 @@ proc peersPastGracePeriod(
     for nodeId in bucket.peers:
       if not rtable.registry.isReplaceable(nodeId, rtable.selfId, gracePeriod, now):
         continue
-      nodeId.toPeerId().withValue(pid):
+      nodeId.toPeerId().ifValue(pid):
         peers.add(pid)
   peers
 
@@ -152,11 +152,20 @@ proc probeAndEvictPeers*(
   if peers.len == 0:
     return
 
-  debug "Liveness batch starting", peers = peers.len
+  trace "Liveness batch starting", peers = peers.len
   var futs = newSeqOfCap[Future[void]](peers.len)
+  var reused = 0
+  defer:
+    debug "Liveness batch finished",
+      peers = peers.len,
+      reused,
+      completed = futs.countIt(it.completed()),
+      cancelled = futs.countIt(it.cancelled()),
+      remainingInTable = peers.countIt(rtable.contains(it.toKey()))
+
   for peerId in peers:
     kad.livenessProbes.withValue(peerId, existing):
-      trace "Liveness batch reusing in-flight probe", peerId
+      reused.inc()
       futs.add(existing[])
       continue
     let fut = kad.checkAndEvictPeer(peerId)
@@ -169,7 +178,6 @@ proc probeAndEvictPeers*(
     except CancelledError as exc:
       await noCancel futs.cancelAndWait()
       raise exc
-  debug "Liveness batch complete", peers = peers.len
 
 proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Continuous background task: drain replaceable peers via liveness probes
@@ -211,7 +219,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
 proc centerTarget(kad: KadDHT, rtable: RoutingTable): Opt[Key] {.raises: [].} =
   ## A table with no peers of its own borrows the main table's peers to start the walk.
-  rtable.refreshSelfTarget().withValue(own):
+  rtable.refreshSelfTarget().ifValue(own):
     return Opt.some(own)
   rtable.nearestToCenter(kad.rtable.allKeys())
 
@@ -373,8 +381,8 @@ proc initKadBase*(
   kad.bootstrapNodes = bootstrapNodes.toPeerInfos()
   kad.updatePeers(kad.bootstrapNodes)
 
-# K instead of T to avoid clashing with the T type param in withValue[T] when
-# called inside a withValue block, which causes a compiler error under --lineDir:on
+# K instead of T to avoid clashing with the T type param in ifValue[T] when
+# called inside a ifValue block, which causes a compiler error under --lineDir:on
 proc new*(
     K: typedesc[KadDHT],
     switch: Switch,

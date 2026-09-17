@@ -2,6 +2,30 @@
 
 Read this guide before adding or changing logs: useful logs let people diagnose runtime behavior without reading the source. Choose levels mindfully, describe actions and outcomes clearly, and use readable field names. Sensitive data must be omitted or redacted, and large field values must be bounded.
 
+## Topics and component filtering
+
+- Use exactly two space-separated topics in every library logging scope: `libp2p` and one stable component name.
+
+- Name the component after its capability or protocol, using kebab case for multiword names, for example `address-manager`, `peer-id-auth`, and `hole-punching`.
+
+- Prefer full words over implementation abbreviations, such as `connection-manager` and `ip-address`.
+
+- Reuse the component name across its implementation and helper modules.
+
+- Choose the component by ownership, rather than giving every file a new filter. For example, AutoTLS's ACME helpers use `auto-tls`, Mplex's coder and channels use `mplex`, and all service discovery modules use `service-discovery`.
+
+- Do not create topics for a version, role, operation, or helper filename. Put that detail in structured fields when useful, or compile with `-d:chronicles_line_numbers:on` to identify the source module.
+
+- Keep distinct implementations in distinct components: `gossipsub`, `floodsub`, and shared `pubsub` infrastructure; likewise individual transports and muxers. A `pubsub` filter alone therefore does not select `gossipsub` or `floodsub`.
+
+- Remember that topics are independent tags, not a hierarchy: `libp2p autonat v2 client` creates four separate filters.
+
+```nim
+logScope:
+  topics = "libp2p autonat"
+```
+
+
 ## Choose a level
 
 Severity represents operational impact and the action required from the library user, not the wording of a message or the presence of an `except` branch.
@@ -71,4 +95,4 @@ Reuse [the shared utilities](../libp2p/utils/shortlog.nim) for collections and `
 
 Where the audit needs an explicit concrete overload, keep a thin wrapper that delegates to the generic helper, as in [the Rendezvous formatters](../libp2p/protocols/rendezvous/protobuf.nim).
 
-Before submitting changes, run `python3 tools/audit_log_fields.py` from the repository root. It checks naming and selected payload/formatter patterns; passing it does not replace reviewing field contents for sensitive data or unbounded output.
+Before submitting changes, run `python3 tools/audit_logs.py` from the repository root. It checks event-message style, field naming, and selected payload/formatter patterns; passing it does not replace reviewing field contents for sensitive data or unbounded output.

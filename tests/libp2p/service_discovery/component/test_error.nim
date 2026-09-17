@@ -6,7 +6,9 @@ from std/times import getTime, toUnix
 import chronos, results
 import
   ../../../../libp2p/[
+    extended_peer_record,
     multiaddress,
+    protocols/kademlia/put,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/connection,
     protocols/service_discovery/types,
@@ -273,7 +275,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "REGISTER with non-32-byte key returns Rejected":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, the key reaches the service-membership check.
+    # The handler rejects the key on its length, before seating the sender.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])
@@ -384,7 +386,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "GET_ADS with non-32-byte key returns empty response":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, cache lookup misses on the arbitrary key.
+    # The handler returns an empty response before the cache lookup.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])
@@ -402,3 +404,18 @@ suite "Service Discovery Component - Error Handling":
         response.msgType == kad_protobuf.MessageType.getAds
         response.getAds.isSome()
         response.getAds.get().advertisements.len == 0
+
+  asyncTest "PUT_VALUE signed by another peer is rejected with a default validator config":
+    let kadConfig = KadDHTConfig.new(timeout = 1.seconds, disableBootstrapping = true)
+    let storeNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    let clientNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    startAndDeferStop(@[storeNode, clientNode])
+    await connect(storeNode, clientNode)
+
+    let storePeerId = storeNode.switch.peerInfo.peerId
+    let value = Value.fromBytes(makeAdvertisement().encode())
+    discard await clientNode.dispatchPutVal(storePeerId, storePeerId.toKey(), value)
+
+    check storeNode.dataTable.get(storePeerId.toKey()).isNone()

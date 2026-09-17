@@ -75,7 +75,7 @@ proc createNode*(
   params.behaviourPenaltyDecay = 0.0
   params.disconnectBadPeers = false
   params.disconnectPeerAboveRateLimit = false
-  partialMessageConfig.withValue(pmConfig):
+  partialMessageConfig.ifValue(pmConfig):
     params.partialMessageExtensionConfig = Opt.some(pmConfig)
 
   let gossipsub = GossipSub.init(

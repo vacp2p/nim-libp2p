@@ -8,7 +8,7 @@ import ../logging
 import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
-  topics = "libp2p autorelay"
+  topics = "libp2p auto-relay"
 
 type
   OnReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
@@ -47,7 +47,7 @@ proc reserveAndUpdate(
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
       relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
-      ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
+      ttl = rsvp.expire.int64 - times.getTime().toUnix
     if ttl <= 60:
       if self.lifetimeWarnings.allowLog():
         warn "Relay reservation lifetime too short", relayPid, ttl, minimumTtl = 61

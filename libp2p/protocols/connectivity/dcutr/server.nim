@@ -16,7 +16,7 @@ export chronicles
 type Dcutr* = ref object of LPProtocol
 
 logScope:
-  topics = "libp2p dcutr"
+  topics = "libp2p hole-punching"
 
 proc new*(
     T: typedesc[Dcutr],
@@ -32,7 +32,7 @@ proc new*(
       let connectMsg =
         DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
 
-      trace "Dcutr receiver received a Connect message.", connectMsg = connectMsg
+      trace "Dcutr receiver received a Connect message", connectMsg = connectMsg
 
       var ourAddrs = switch.addressManager.mostObservedProtosAndPorts()
         # likely empty when the peer is reachable
@@ -47,7 +47,7 @@ proc new*(
             switch.peerInfo.listenAddrs.mapIt(switch.addressManager.externalAddrFor(it))
       var ourDialableAddrs = getHolePunchableAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
-        trace "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.",
+        trace "Aborting Dcutr because the receiver has no supported dialable addresses",
           addresses = ourAddrs
         return
 
@@ -56,11 +56,11 @@ proc new*(
       )
       if peerDialableAddrs.len == 0:
         await stream.send(MsgType.Connect, ourAddrs)
-        trace "Dcutr receiver has sent a Connect message back."
+        trace "Dcutr receiver sent a Connect message back"
         let syncMsg =
           DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
-        trace "Dcutr receiver has received a Sync message.", syncMsg
-        trace "Dcutr initiator has no supported dialable addresses to connect to. Aborting Dcutr.",
+        trace "Dcutr receiver received a Sync message", syncMsg
+        trace "Aborting Dcutr because the initiator has no supported dialable addresses",
           addresses = connectMsg.addrs
         return
 
@@ -79,9 +79,9 @@ proc new*(
         expectedOutgoing.cancelSoon()
 
       await stream.send(MsgType.Connect, ourAddrs)
-      trace "Dcutr receiver has sent a Connect message back."
+      trace "Dcutr receiver sent a Connect message back"
       let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
-      trace "Dcutr receiver has received a Sync message.", syncMsg
+      trace "Dcutr receiver received a Sync message", syncMsg
 
       if peerDialableAddrs.len > maxDialableAddrs:
         peerDialableAddrs = peerDialableAddrs[0 ..< maxDialableAddrs]
@@ -105,7 +105,7 @@ proc new*(
           if dialFuts.allIt(it.finished and not it.completed()):
             raise newException(AllFuturesFailedError, "all direct dial attempts failed")
           raise err
-        trace "Dcutr receiver has directly connected to the remote peer."
+        trace "Dcutr receiver connected directly to the remote peer"
       finally:
         trace "Dcutr receiver cancelling remaining direct dial attempts",
           attempts = futs.len

@@ -55,8 +55,12 @@ proc remove(c: AdvertisementCache, serviceId: ServiceId, advertiser: PeerId) =
       c.ipTree.removeIps(cachedAd[].ips)
       peers[].del(advertiser)
       dec c.count
-    if peers[].len == 0:
-      c.byService.del(serviceId)
+    if peers[].len > 0:
+      return
+
+    c.byService.del(serviceId)
+    if not c.onServiceRemoved.isNil():
+      c.onServiceRemoved(serviceId)
 
 proc findOldest(c: AdvertisementCache): Opt[(ServiceId, PeerId)] =
   var oldest = Opt.none((ServiceId, PeerId))
@@ -71,8 +75,28 @@ proc findOldest(c: AdvertisementCache): Opt[(ServiceId, PeerId)] =
   oldest
 
 proc evictOldest(c: AdvertisementCache) =
-  c.findOldest().withValue(entry):
+  c.findOldest().ifValue(entry):
     c.remove(entry[0], entry[1])
+
+proc hasNewer*(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement): bool =
+  ## True when the service holds an ad signed by the same peer with a higher seqNo.
+  c.byService.withValue(serviceId, peers):
+    for _, cachedAd in peers[]:
+      if cachedAd.ad.data.peerId == ad.data.peerId and
+          cachedAd.ad.data.seqNo > ad.data.seqNo:
+        return true
+  false
+
+proc removeSuperseded(c: AdvertisementCache, serviceId: ServiceId, ad: Advertisement) =
+  var superseded: seq[PeerId]
+  c.byService.withValue(serviceId, peers):
+    for advertiser, cachedAd in peers[]:
+      if cachedAd.ad.data.peerId == ad.data.peerId and
+          cachedAd.ad.data.seqNo < ad.data.seqNo:
+        superseded.add(advertiser)
+
+  for advertiser in superseded:
+    c.remove(serviceId, advertiser)
 
 proc put*(
     c: AdvertisementCache,
@@ -82,9 +106,12 @@ proc put*(
     ips: seq[IpAddress],
     now: Moment,
 ) =
-  ## Insert or replace the ad for `(serviceId, advertiser)`.
-  ## Replace updates payload, IPs, and timestamp without consuming capacity.
-  ## New inserts evict the oldest cachedAd when the cache is full.
+  ## Insert or replace the ad for `(serviceId, advertiser)`; skip it when its signer has a newer cached ad.
+  if c.hasNewer(serviceId, ad):
+    return
+
+  c.removeSuperseded(serviceId, ad)
+
   c.byService.withValue(serviceId, peers):
     if advertiser in peers[]:
       peers[].withValue(advertiser, cachedAd):
@@ -124,6 +151,15 @@ proc pruneExpired*(c: AdvertisementCache, now: Moment, expiry: Duration): int =
   removed
 
 proc clear*(c: AdvertisementCache) =
+  var removed = newSeqOfCap[ServiceId](c.byService.len)
+  for serviceId in c.byService.keys:
+    removed.add(serviceId)
+
   c.byService.clear()
   c.ipTree = IpTree.new()
   c.count = 0
+
+  if c.onServiceRemoved.isNil():
+    return
+  for serviceId in removed:
+    c.onServiceRemoved(serviceId)

@@ -21,7 +21,7 @@ import
 export chronicles, offsettedseq
 
 logScope:
-  topics = "libp2p discovery rendezvous"
+  topics = "libp2p rendezvous"
 
 declareCounter(libp2p_rendezvous_register, "number of advertise requests")
 declareCounter(libp2p_rendezvous_discover, "number of discovery requests")
@@ -458,7 +458,7 @@ proc requestPeer[E](
   if resp.status != ResponseStatus.Ok:
     trace "Cannot discover", namespace = ns, status = resp.status, text = resp.text
     return @[]
-  resp.cookie.withValue(cookie):
+  resp.cookie.ifValue(cookie):
     if ns.isSome:
       let namespace = ns.get()
       if cookie.len() < 1000 and
@@ -596,7 +596,7 @@ proc new*(
     peerRecordValidator: checkPeerRecord,
   )
   logScope:
-    topics = "libp2p discovery rendezvous"
+    topics = "libp2p rendezvous"
   proc handleStream(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =

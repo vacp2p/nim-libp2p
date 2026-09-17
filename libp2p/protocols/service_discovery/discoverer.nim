@@ -14,10 +14,17 @@ import
 import ../../utils/future
 
 logScope:
-  topics = "service-disco discoverer"
+  topics = "libp2p service-discovery"
+
+type LookupLog = ref object
+  queried, succeeded, failed, pending: int
 
 type GetAdsResult = object
   ads: seq[Advertisement]
+  closerPeers: seq[PeerInfo]
+
+type BucketAds = object
+  found: HashSet[Advertisement]
   closerPeers: seq[PeerInfo]
 
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
@@ -47,7 +54,7 @@ proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string]
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
 ): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  debug "Getting adverts", serviceId, registrar = peerId
+  trace "Getting adverts", serviceId, registrar = peerId
 
   let msg = Message(msgType: Opt.some(MessageType.getAds), key: Opt.some(serviceId))
 
@@ -63,7 +70,7 @@ proc dispatchGetAds(
   let getAdsMsg = reply.getAds.valueOr:
     return err("get ads message response not found")
 
-  debug "Adverts found",
+  trace "Adverts found",
     serviceId, remote = peerId, count = getAdsMsg.advertisements.len
 
   return ok(
@@ -73,9 +80,9 @@ proc dispatchGetAds(
     )
   )
 
-proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
-  let peersToPick = min(disco.discoConfig.kLookup, bucket.peers.len)
-  disco.rng.pick(bucket.peers, peersToPick).withValue(picked):
+proc peersToQuery(disco: ServiceDiscovery, peers: seq[Key]): seq[PeerId] =
+  let peersToPick = min(disco.discoConfig.kLookup, peers.len)
+  disco.rng.pick(peers, peersToPick).ifValue(picked):
     return picked.toPeerIds()
   else:
     return @[]
@@ -120,12 +127,22 @@ proc collectBucketAds(
     peers: seq[PeerId],
     known: HashSet[Advertisement],
     limit: int,
-): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
-  var found = known
+    stats: LookupLog,
+): Future[BucketAds] {.async: (raises: [CancelledError]).} =
+  var bucketAds = BucketAds(found: known)
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
+  let queries = pending
+  stats.queried += queries.len
   defer:
+    for fut in queries:
+      if not fut.finished():
+        stats.pending.inc()
+      elif fut.completed() and fut.value().isOk():
+        stats.succeeded.inc()
+      else:
+        stats.failed.inc()
     pending.cancelSoon()
 
   let deadline = Moment.fromNow(disco.config.timeout)
@@ -144,13 +161,15 @@ proc collectBucketAds(
     if completedFut.completed():
       let res = completedFut.value()
       if res.isOk():
-        disco.processResponse(serviceId, res.value(), found, limit)
+        let reply = res.value()
+        bucketAds.closerPeers.add(reply.closerPeers)
+        disco.processResponse(serviceId, reply, bucketAds.found, limit)
 
-    if found.len >= limit:
+    if bucketAds.found.len >= limit:
       disco.drainCompletedPeers(serviceId, pending)
       break
 
-  return found
+  return bucketAds
 
 proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   ## Register interest in a service so its routing table is created and kept
@@ -180,6 +199,24 @@ proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
 
   disco.rtManager.removeService(serviceHash, Interest)
 
+proc recordCloserPeers(
+    disco: ServiceDiscovery,
+    searchTable: RoutingTable,
+    closerPeers: openArray[PeerInfo],
+    afterBucket: int,
+    learned: var seq[seq[Key]],
+) =
+  ## File closer peers into buckets the walk has not reached yet. Peers
+  ## without a recorded address are skipped since they cannot be dialed.
+  for peer in closerPeers:
+    if peer.peerId == disco.switch.peerInfo.peerId or
+        disco.switch.peerStore[AddressBook][peer.peerId].len == 0:
+      continue
+    let key = peer.peerId.toKey()
+    let peerIdx = searchTable.bucketIndex(key)
+    if peerIdx > afterBucket:
+      learned[peerIdx].add(key)
+
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
@@ -197,22 +234,41 @@ proc lookup*(
     return err("service table not found for service id: " & $serviceId)
 
   var found = initHashSet[Advertisement]()
+  let stats = LookupLog()
+  var outcome = "cancelled"
+  defer:
+    debug "Service provider lookup finished",
+      serviceId,
+      outcome,
+      advertisements = found.len,
+      queried = stats.queried,
+      succeeded = stats.succeeded,
+      failed = stats.failed,
+      pending = stats.pending
+
   let local = await dispatchGetAds(disco, disco.switch.peerInfo.peerId, serviceId)
-  local.withValue(response):
+  local.ifValue(response):
     disco.processResponse(serviceId, response, found, disco.discoConfig.fLookup)
 
-  let buckets = searchTable.buckets
-  for bucket in buckets:
+  var learned = newSeq[seq[Key]](bucketCount(searchTable.config.maxBuckets))
+  for bucketIdx in 0 ..< learned.len:
     if found.len >= disco.discoConfig.fLookup:
       break
 
-    if bucket.peers.len == 0:
+    var candidates = learned[bucketIdx]
+    if bucketIdx < searchTable.buckets.len:
+      candidates.add(searchTable.buckets[bucketIdx].peers)
+    candidates = candidates.deduplicate()
+    if candidates.len == 0:
       continue
 
-    let peers = disco.peersToQuery(bucket)
+    let peers = disco.peersToQuery(candidates)
+    let bucketAds = await disco.collectBucketAds(
+      serviceId, peers, found, disco.discoConfig.fLookup, stats
+    )
+    found = bucketAds.found
+    disco.recordCloserPeers(searchTable, bucketAds.closerPeers, bucketIdx, learned)
 
-    found =
-      await disco.collectBucketAds(serviceId, peers, found, disco.discoConfig.fLookup)
-
+  outcome = if found.len >= disco.discoConfig.fLookup: "limitReached" else: "completed"
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found.toSeq)

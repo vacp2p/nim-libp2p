@@ -7,7 +7,7 @@ import chronos
 import ../multiaddress, ../multicodec
 
 logScope:
-  topics = "libp2p ipaddr"
+  topics = "libp2p ip-address"
 
 const RouteProbes = [parseIpAddress("8.8.8.8"), parseIpAddress("2001:4860:4860::8888")]
 
@@ -26,12 +26,12 @@ proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
   try:
     Opt.some(getPrimaryIPAddr(probe))
   except CatchableError as e:
-    debug "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
   except Defect as e:
     raise e
   except Exception as e: # on windows getPrimaryIPAddr has untracked effects
-    debug "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", err = e.msg, probe
     Opt.none(IpAddress)
 
 func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =
@@ -46,9 +46,18 @@ proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
   for probe in RouteProbes:
     let ip = primaryIPAddrTo(probe).valueOr:
       continue
-    debug "Primary IP address", ip, global = ip.isGlobalIP()
+    trace "Primary IP address", ip, global = ip.isGlobalIP()
     candidates.add(ip)
-  firstGlobalIP(candidates)
+
+  let address = firstGlobalIP(candidates)
+
+  debug "Public IP address lookup finished",
+    probes = RouteProbes.len,
+    resolved = candidates.len,
+    failed = RouteProbes.len - candidates.len,
+    address
+
+  return address
 
 func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool =
   ## Returns true when the ip4 or ip6 component of ``lookup`` equals that of any addr
@@ -58,7 +67,7 @@ func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool 
       return false
 
   for ma in addrs:
-    ma[0].withValue(ipAddr):
+    ma[0].ifValue(ipAddr):
       if ipAddr == lookupIp:
         return true
   false
@@ -70,7 +79,7 @@ proc ipSupport*(addrs: seq[MultiAddress]): (bool, bool) =
   var ipv6 = false
 
   for ma in addrs:
-    ma[0].withValue(addrIp):
+    ma[0].ifValue(addrIp):
       if IP4.match(addrIp):
         ipv4 = true
       elif IP6.match(addrIp):

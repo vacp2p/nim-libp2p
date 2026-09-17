@@ -13,6 +13,9 @@ import ./[routing_table_manager, types as disco_types]
 const MaxDialFailureEntries = 1024
   ## Cache size of failed dials; its keys come from remote replies.
 
+func makeDialBackoffError*(peerId: PeerId): string =
+  "peer is in dial backoff: " & $peerId
+
 proc dialBackedOff*(
     disco: ServiceDiscovery, peerId: PeerId, addrs: seq[MultiAddress]
 ): bool =

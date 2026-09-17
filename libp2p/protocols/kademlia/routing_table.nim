@@ -14,7 +14,7 @@ import ../../peerid
 import ../../crypto/crypto
 
 logScope:
-  topics = "kad-dht rtable"
+  topics = "libp2p kademlia"
 
 const NoneHasher = Opt.none(XorDHasher)
 
@@ -58,7 +58,7 @@ proc new*(
     registry: registry,
   )
 
-func bucketCount(maxBuckets: int): int =
+func bucketCount*(maxBuckets: int): int {.raises: [].} =
   clamp(maxBuckets, 1, MaxBucketsLimit)
 
 func selfHash(rtable: RoutingTable): Key =
@@ -109,7 +109,7 @@ proc oldestPeer*(bucket: Bucket, registry: PeerRegistry): (Key, int) =
   var found = false
   for i, p in bucket.peers:
     var seen = Moment.low
-    registry.get(p).withValue(record):
+    registry.get(p).ifValue(record):
       seen = record.lastSeen
     if not found or seen < oldestSeen:
       oldestKey = p
@@ -157,7 +157,7 @@ proc replaceableCandidate(
     if not rtable.registry.isReplaceable(nodeId, rtable.selfId, gracePeriod, now):
       continue
     var seen = Moment.low
-    rtable.registry.get(nodeId).withValue(record):
+    rtable.registry.get(nodeId).ifValue(record):
       seen = record.lastSeen
     if candidateIdx == -1 or seen < oldestSeen:
       candidateIdx = i
@@ -196,10 +196,10 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
 
 proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   if rtable.detached:
-    debug "Cannot insert into detached routing table", nodeId = nodeId
+    trace "Cannot insert into detached routing table", nodeId = nodeId
     return false
   if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
-    debug "Cannot insert self in routing table", nodeId = nodeId
+    trace "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
   let idx = rtable.bucketIndex(nodeId)
@@ -222,7 +222,7 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     # Full bucket with no replaceable peer: reject rather than evict a useful one.
     # Leave any pre-existing registry row alone; do not create a row without membership.
     if not rtable.tryReplaceStalePeer(bucket, nodeId):
-      debug "Cannot insert, no replaceable peer in bucket",
+      trace "Cannot insert, no replaceable peer in bucket",
         bucket = idx, nodeId = nodeId
       return false
     discard rtable.registry.upsert(nodeId)
@@ -310,9 +310,28 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
 proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
   findClosest(rtable, targetId, count).toPeerIds()
 
+proc pickClosestFirst(
+    buckets: openArray[seq[Key]], rng: Rng, count: int, maxPerBucket: int
+): seq[Key] =
+  ## Up to `count` keys sampled randomly per bucket, closest bucket (highest
+  ## index) first, at most `maxPerBucket` from each.
+  var selected: seq[Key] = newSeqOfCap[Key](count)
+  var remaining = count
+
+  for i in countdown(buckets.high, 0):
+    if remaining <= 0:
+      break
+
+    let take = min(remaining, min(maxPerBucket, buckets[i].len))
+    for nodeId in rng.pick(buckets[i], take).valueOr(@[]):
+      selected.add(nodeId)
+      remaining.dec
+
+  return selected
+
 proc randomPeersClosestFirst*(
     rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
-): seq[Key] =
+): seq[Key] {.raises: [].} =
   ## Returns up to `count` peers sampled randomly from the routing table's
   ## buckets, starting from the closest buckets (highest indices) and moving
   ## to farther buckets (lower indices).
@@ -320,25 +339,31 @@ proc randomPeersClosestFirst*(
   if count <= 0:
     return @[]
 
-  var selected: seq[Key] = @[]
-  var remaining = count
+  pickClosestFirst(rtable.buckets.mapIt(it.peers), rng, count, maxPerBucket)
 
-  for i in countdown(rtable.buckets.high, 0):
-    if remaining <= 0:
-      break
-    let bucket = rtable.buckets[i]
-    if bucket.peers.len == 0:
-      continue
+proc randomPeersClosestFirst*(
+    rtable: RoutingTable,
+    target: Key,
+    rng: Rng,
+    count: int,
+    maxPerBucket = high(int),
+    maxBuckets = rtable.config.maxBuckets,
+): seq[Key] {.raises: [].} =
+  ## Same sampling, but with the table's peers viewed by distance to the
+  ## pre-hashed ``target`` (which must be ``IdLength`` bytes) instead of to
+  ## ``selfId``. Read-only: nothing is inserted and neither the registry nor
+  ## the metrics are touched.
+  if count <= 0:
+    return @[]
 
-    let take = min(remaining, min(maxPerBucket, bucket.peers.len))
-    let picked = rng.pick(bucket.peers, take).valueOr(@[])
-    for nodeId in picked:
-      selected.add(nodeId)
-      remaining.dec
-      if remaining <= 0:
-        break
+  var view = newSeq[seq[Key]](bucketCount(maxBuckets))
+  for bucket in rtable.buckets:
+    for nodeId in bucket.peers:
+      let lz = xorDistance(target, Key.fromBytes(nodeId.hashFor(rtable.config.hasher)))
+        .leadingZeros()
+      view[min(lz, view.high)].add(nodeId)
 
-  return selected
+  pickClosestFirst(view, rng, count, maxPerBucket)
 
 proc randomPeersClosestFirstPeerIds*(
     rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)

@@ -9,14 +9,14 @@ import ../protocol
 import ./[protobuf, types, find, rpc, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht put"
+  topics = "libp2p kademlia"
 
 proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally
   ## Always returns `true` if we don't have the value locally
 
-  kad.dataTable.get(key).withValue(existing):
-    kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
+  kad.dataTable.get(key).ifValue(existing):
+    kad.config.selector.select(key, @[record, existing]).ifValue(selectedIdx):
       return selectedIdx == 0
   return true
 
@@ -69,7 +69,7 @@ proc dispatchPutVal*(
 proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
   if kad.dataTable.hasKey(key):
     return true
-  kad.config.limits.maxLocalRecords.withValue(limit):
+  kad.config.limits.maxLocalRecords.ifValue(limit):
     return kad.dataTable.len < limit
   true
 
@@ -92,15 +92,42 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  if kad.canStoreLocalRecord(key):
+  let storedLocally = kad.canStoreLocalRecord(key)
+  if storedLocally:
     kad.dataTable.insert(key, value, Timestamp.now())
   else:
-    debug "PutValue: local record limit reached", current = kad.dataTable.len
+    trace "PutValue: local record limit reached", current = kad.dataTable.len
+
+  var attempted, succeeded, failed, cancelled, pending: int
+  var outcome = "cancelled"
+  defer:
+    debug "Put-value replication finished",
+      key,
+      outcome,
+      storedLocally,
+      peers = peers.len,
+      attempted,
+      succeeded,
+      failed,
+      cancelled,
+      pending
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
-    await batch.allFuturesWaitOrTimeout(kad.config.timeout)
-
+    attempted += batch.len
+    try:
+      await batch.allFuturesWaitOrTimeout(kad.config.timeout)
+    finally:
+      let results = countFutureOutcomes(batch)
+      var rejected: int
+      for fut in batch:
+        if fut.completed() and fut.value().isErr():
+          rejected.inc()
+      succeeded += results.succeeded - rejected
+      failed += results.failed + rejected
+      cancelled += results.cancelled
+      pending += results.pending
+  outcome = "completed"
   ok()
 
 proc handlePutValue*(

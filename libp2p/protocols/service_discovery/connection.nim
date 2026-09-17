@@ -10,13 +10,13 @@ import
   ./[types, service_discovery_metrics, registrar, dial_backoff, routing_table_manager]
 
 logScope:
-  topics = "service-disco connection"
+  topics = "libp2p service-discovery"
 
 proc observedIps*(stream: Stream): seq[IpAddress] {.raises: [].} =
   ## Remote endpoint IP(s) from the transport connection, if known.
   var ips: seq[IpAddress]
-  stream.observedAddr.withValue(ma):
-    ma.getIp().withValue(ip):
+  stream.observedAddr.ifValue(ma):
+    ma.getIp().ifValue(ip):
       ips.add(ip)
   ips
 
@@ -41,7 +41,7 @@ proc send*(
     return err("no address found for peer: " & $peerId)
 
   if disco.dialBackedOff(peerId, addrs):
-    return err("peer is in dial backoff: " & $peerId)
+    return err(makeDialBackoffError(peerId))
 
   let stream =
     try:

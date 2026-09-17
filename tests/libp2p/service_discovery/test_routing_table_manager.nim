@@ -65,9 +65,9 @@ suite "ServiceRoutingTableManager":
 
     check:
       addedAgain == false
-      manager.serviceStatus[serviceId] == Interest
+      manager.serviceStatus[serviceId] == {Interest}
 
-  test "addService with same service but different status sets Both and returns true":
+  test "addService with same service but different status merges and returns true":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -81,7 +81,7 @@ suite "ServiceRoutingTableManager":
 
     check:
       upgraded == true
-      manager.serviceStatus[serviceId] == Both
+      manager.serviceStatus[serviceId] == {Interest, Provided}
 
   test "addService fires onServiceTableCreated only for brand-new tables":
     let manager = ServiceRoutingTableManager.new()
@@ -110,7 +110,7 @@ suite "ServiceRoutingTableManager":
     )
     check:
       hits.ids.len == 1
-      manager.serviceStatus[serviceId] == Both
+      manager.serviceStatus[serviceId] == {Interest, Provided}
 
     let otherId = makeServiceId(2)
     check manager.addService(
@@ -221,7 +221,7 @@ suite "ServiceRoutingTableManager":
       not manager.hasService(serviceId)
       manager.count() == 0
 
-  test "removeService on Both with Interest leaves Provided":
+  test "removeService of Interest leaves Provided":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -232,15 +232,15 @@ suite "ServiceRoutingTableManager":
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
-    check manager.serviceStatus[serviceId] == Both
+    check manager.serviceStatus[serviceId] == {Interest, Provided}
 
     manager.removeService(serviceId, Interest)
 
     check:
       manager.hasService(serviceId)
-      manager.serviceStatus[serviceId] == Provided
+      manager.serviceStatus[serviceId] == {Provided}
 
-  test "removeService on Both with Provided leaves Interest":
+  test "removeService of Provided leaves Interest":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -251,13 +251,39 @@ suite "ServiceRoutingTableManager":
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
-    check manager.serviceStatus[serviceId] == Both
+    check manager.serviceStatus[serviceId] == {Interest, Provided}
 
     manager.removeService(serviceId, Provided)
 
     check:
       manager.hasService(serviceId)
-      manager.serviceStatus[serviceId] == Interest
+      manager.serviceStatus[serviceId] == {Interest}
+
+  test "removeService keeps the table until every status is removed":
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(1)
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    let removed = HitRecorder()
+    manager.onServiceTableRemoved = proc(sid: ServiceId) =
+      removed.ids.add(sid)
+
+    for status in ServiceStatus:
+      check manager.addService(
+        serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, status
+      )
+
+    manager.removeService(serviceId, Registered)
+    manager.removeService(serviceId, Interest)
+    check:
+      manager.serviceStatus[serviceId] == {Provided}
+      removed.ids.len == 0
+
+    manager.removeService(serviceId, Provided)
+    check:
+      not manager.hasService(serviceId)
+      serviceId notin manager.serviceStatus
+      removed.ids == @[serviceId]
 
   test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
@@ -314,10 +340,16 @@ suite "ServiceRoutingTableManager":
 
     let peerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60000")])
     check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
     disco.switch.peerStore.allowUndialableAddrs = true
     check disco.insertPeer(serviceId, peerInfo)
     check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = false
+    let otherPeerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60001")])
+    check not disco.insertPeer(serviceId, otherPeerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, otherPeerInfo.peerId)
 
   test "insertPeer on non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
@@ -342,7 +374,7 @@ suite "ServiceRoutingTableManager":
       makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.addService(
-      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Both
+      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Registered
     )
 
     check manager.count() == 3
@@ -514,6 +546,35 @@ suite "ServiceRoutingTableManager - service id hashing":
       preHashBucket != doubleHashBucket
       serviceTable.buckets[preHashBucket].peers.len == 1
       serviceTable.buckets[preHashBucket].peers[0] == peer
+
+  test "service table hashes peers with the main table's hasher":
+    let
+      serviceId = makeServiceId(1)
+      peer = makeKey(3)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(
+        makeKey(0), RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+      )
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    proc bucketWith(hasher: Opt[XorDHasher]): int =
+      RoutingTable
+        .new(
+          serviceId,
+          RoutingTableConfig.new(
+            hasher = hasher, maxBuckets = DefaultMaxBuckets, selfIdPreHashed = true
+          ),
+        )
+        .bucketIndex(peer)
+
+    # With `noOpHasher` the peer differs from the service id in one bit, so the
+    # default hasher puts it in a different bucket.
+    check:
+      bucketWith(Opt.some(noOpHasher)) != bucketWith(Opt.none(XorDHasher))
+      manager.getTable(serviceId).get().bucketIndex(peer) ==
+        bucketWith(Opt.some(noOpHasher))
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let

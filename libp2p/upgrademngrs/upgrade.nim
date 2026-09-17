@@ -4,7 +4,7 @@
 {.push gcsafe.}
 {.push raises: [].}
 
-import std/[sequtils, strutils]
+import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import
@@ -27,7 +27,7 @@ declarePublicCounter(
 )
 
 logScope:
-  topics = "libp2p upgrade"
+  topics = "libp2p connection-upgrade"
 
 type
   UpgradeFailedError* = object of LPError

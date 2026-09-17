@@ -8,7 +8,7 @@ import chronos, chronicles, stew/endians2
 import ../[multiaddress, multicodec]
 
 logScope:
-  topics = "libp2p nameresolver"
+  topics = "libp2p name-resolution"
 
 type NameResolver* = ref object of RootObj
 
@@ -86,7 +86,7 @@ proc resolveDnsAddr*(
     dnsval = getHostname(ma)
     txt = await self.resolveTxt("_dnsaddr." & dnsval)
 
-  trace "DNSADDR TXT records received", recordCount = txt.len
+  trace "DNSADDR TXT records received", address = ma, recordCount = txt.len
 
   const codec = multiCodec("p2p")
   let maCodec = block:
@@ -114,7 +114,7 @@ proc resolveDnsAddr*(
       res.add(r)
 
   if res.len == 0:
-    debug "DNSADDR resolution failed", address = ma
+    trace "DNSADDR resolution failed", address = ma
   res
 
 proc resolveMAddress*(
