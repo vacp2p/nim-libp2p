@@ -102,24 +102,99 @@ suite "KadDHT Bootstrap":
     # Self lookup + one lookup per non-empty bucket
     check kad.findNodeCalls.len == nonEmptyBucketCount + 1
 
-  asyncTest "start cancels a bootstrap that runs out of time":
+  asyncTest "bootstrap cancels itself when it runs out of time":
     let kad = setupMockKad()
-    kad.config.bucketRefreshTime = 200.milliseconds
+    kad.config.bootstrapTimeout = 200.milliseconds
     kad.findNodeStalls = true
     defer:
       await stopNodes(@[kad])
 
-    # The switch starts the kad it carries, and that bootstrap stalls in
-    # findNode. Unless start cancels it, the lookup outlives the timeout.
     await startNodes(@[kad]).wait(5.seconds)
 
     check:
       kad.started
       kad.findNodeCancels == 1
 
+  asyncTest "start returns before the bootstrap completes":
+    let kad = setupMockKad()
+    kad.findNodeStalls = true
+    await kad.switch.start().wait(5.seconds)
+    defer:
+      await kad.switch.stop()
+
+    check:
+      kad.started
+      kad.findNodeCalls.len == 1
+      not kad.waitBootstrap().finished()
+
+  asyncTest "concurrent start calls run one bootstrap":
+    let kad = setupMockKad()
+    kad.findNodeStalls = true
+
+    await allFutures(kad.start(), kad.start())
+    check kad.findNodeCalls.len == 1
+
+    await kad.stop()
+    check kad.findNodeCancels == 1
+
+  asyncTest "waitBootstrap completes after the table refresh":
+    let kad = setupMockKad()
+    kad.populateRoutingTable(20)
+    let nonEmptyBucketCount = kad.nonEmptyBuckets().len
+    check nonEmptyBucketCount >= 1
+
+    await kad.switch.start()
+    defer:
+      await kad.switch.stop()
+    await kad.waitBootstrap().wait(5.seconds)
+
+    check:
+      kad.bootstrapFut.completed()
+      kad.findNodeCalls.len == nonEmptyBucketCount + 1
+
+  asyncTest "cancelling waitBootstrap leaves the bootstrap running":
+    let kad = setupMockKad()
+    kad.findNodeStalls = true
+    await kad.switch.start()
+    defer:
+      await kad.switch.stop()
+
+    await kad.waitBootstrap().cancelAndWait()
+
+    check:
+      not kad.bootstrapFut.finished()
+      kad.findNodeCancels == 0
+
+  asyncTest "stop during bootstrap cancels the bootstrap":
+    let kad = setupMockKad()
+    kad.findNodeStalls = true
+    await kad.switch.start()
+    let bootstrap = kad.bootstrapFut
+    let waiter = kad.waitBootstrap()
+
+    await kad.switch.stop()
+
+    check:
+      bootstrap.cancelled()
+      kad.bootstrapFut.isNil()
+      kad.findNodeCancels == 1
+      waiter.completed()
+      kad.waitBootstrap().completed()
+
+  asyncTest "waitBootstrap is complete when bootstrapping is disabled":
+    let kad = setupMockKad(config = testKadConfig(disableBootstrapping = true))
+    await kad.switch.start()
+    defer:
+      await kad.switch.stop()
+
+    check:
+      kad.bootstrapFut.isNil()
+      kad.waitBootstrap().completed()
+
   asyncTest "bucket maintenance cancels a refresh that runs out of time":
     let kad = setupMockKad()
     kad.config.bucketRefreshTime = 200.milliseconds
+    kad.config.bootstrapTimeout = 200.milliseconds
     kad.findNodeStalls = true
     defer:
       await stopNodes(@[kad])

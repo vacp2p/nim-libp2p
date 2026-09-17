@@ -19,7 +19,11 @@ template startAndDeferStop*(nodes: seq[Switch]): untyped =
     await stopNodes(nodes)
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
+  mixin waitBootstrap
   await startNodes(nodes.mapIt(it.switch))
+  # KadDHT.start only launches the bootstrap; tests expect a bootstrapped node.
+  when compiles(nodes[0].waitBootstrap()):
+    await allFutures(nodes.mapIt(it.waitBootstrap()))
 
   when compiles(nodes[0].start()):
     await allFuturesRaising(nodes.mapIt(it.start()))
