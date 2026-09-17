@@ -1114,7 +1114,6 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.peerId ==
       ad.data.peerId
 
-
   test "expiry of the last ad removes the service table":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
@@ -1191,7 +1190,8 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId, addrs = @[ma("/ip4/127.0.0.1/tcp/59996")])
     let advertisingPeer = randomPeerId()
-    disco.switch.peerStore[AddressBook][advertisingPeer] = @[ma("/ip4/127.0.0.1/tcp/59997")]
+    disco.switch.peerStore[AddressBook][advertisingPeer] =
+      @[ma("/ip4/127.0.0.1/tcp/59997")]
 
     disco.acceptAd(Moment.now(), serviceId, ad, advertiser = advertisingPeer)
     check not disco.hasPeerInServiceTable(serviceId, advertisingPeer)

@@ -259,9 +259,7 @@ proc acceptAdvertisement*(
   let advertiserAddrs = disco.switch.peerStore[AddressBook][advertiser]
   if advertiserAddrs.len > 0:
     disco.rtManager.admitPeers(
-      disco,
-      serviceId,
-      @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)],
+      disco, serviceId, @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)]
     )
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
