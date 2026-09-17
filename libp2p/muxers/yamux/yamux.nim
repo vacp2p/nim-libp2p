@@ -723,19 +723,15 @@ method handle*(m: Yamux) {.async: (raises: []).} =
           trace "Remote reset channel"
           await channel.reset()
   except CancelledError as exc:
-    trace "Yamux handler canceled", err = exc.msg
     reason = "handler canceled"
     err = exc.msg
   except LPStreamEOFError as exc:
-    trace "Stream EOF", err = exc.msg
     reason = "end of stream"
     err = exc.msg
   except LPStreamError as exc:
-    trace "Unexpected stream exception in yamux read loop", err = exc.msg
     reason = "stream error"
     err = exc.msg
   except YamuxError as exc:
-    trace "Closing yamux connection", err = exc.msg
     reason = "protocol error"
     err = exc.msg
     try:
@@ -743,7 +739,6 @@ method handle*(m: Yamux) {.async: (raises: []).} =
     except CancelledError, LPStreamError:
       discard
   except MuxerError as exc:
-    debug "Unexpected muxer exception in yamux read loop", err = exc.msg
     reason = "muxer error"
     err = exc.msg
     try:
