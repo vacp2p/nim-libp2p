@@ -523,10 +523,11 @@ suite "Mplex":
       await handleFut
 
   suite "mplex e2e":
-    asyncTest "read/write receiver":
+    asyncTest "read/write receiver", timeout = 20.seconds:
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(@[TcpWildcardAddress])
 
+      let received = newFuture[void]()
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
@@ -534,6 +535,7 @@ suite "Mplex":
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
+            received.complete()
           except CancelledError, LPStreamError:
             return
           finally:
@@ -552,6 +554,7 @@ suite "Mplex":
       await stream.writeLp("HELLO")
       check LPChannel(stream).isOpen # not lazy
       await stream.close()
+      await received
 
       await conn.close()
       await allFuturesRaising(transport1.stop(), transport2.stop())
@@ -559,10 +562,11 @@ suite "Mplex":
       await listenFut
       await mplexDialFut
 
-    asyncTest "read/write receiver lazy":
+    asyncTest "read/write receiver lazy", timeout = 20.seconds:
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let listenFut = transport1.start(@[TcpWildcardAddress])
 
+      let received = newFuture[void]()
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
@@ -570,6 +574,7 @@ suite "Mplex":
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
+            received.complete()
           except CancelledError, LPStreamError:
             return
           finally:
@@ -589,6 +594,7 @@ suite "Mplex":
       await stream.writeLp("HELLO")
       check LPChannel(stream).isOpen # assert lazy
       await stream.close()
+      await received
 
       await conn.close()
       await allFuturesRaising(transport1.stop(), transport2.stop())
