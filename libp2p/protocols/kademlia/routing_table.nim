@@ -58,7 +58,7 @@ proc new*(
     registry: registry,
   )
 
-func bucketCount(maxBuckets: int): int =
+func bucketCount*(maxBuckets: int): int {.raises: [].} =
   clamp(maxBuckets, 1, MaxBucketsLimit)
 
 func selfHash(rtable: RoutingTable): Key =
@@ -364,11 +364,6 @@ proc randomPeersClosestFirst*(
       view[min(lz, view.high)].add(nodeId)
 
   pickClosestFirst(view, rng, count, maxPerBucket)
-
-proc randomPeersClosestFirstPeerIds*(
-    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
-): seq[PeerId] =
-  randomPeersClosestFirst(rtable, rng, count, maxPerBucket).toPeerIds()
 
 proc isStale*(
     bucket: Bucket, registry: PeerRegistry, staleTime: Duration = DefaultBucketStaleTime

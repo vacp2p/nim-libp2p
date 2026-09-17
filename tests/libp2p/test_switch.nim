@@ -18,6 +18,7 @@ import
     peerinfo,
     crypto/crypto,
     protocols/protocol,
+    protocols/secure/noise,
     muxers/muxer,
     muxers/mplex/lpchannel,
     stream/lpstream,
@@ -1202,6 +1203,29 @@ suite "Switch":
 
     # Announced set wins regardless of wildcard-resolver or other mappers.
     check switch.peerInfo.addrs == @[announcedAddr]
+
+  test "withUndialableAddresses and withAgentVersion reach the built switch":
+    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withUndialableAddresses()
+      .withAgentVersion("test-agent/1.0")
+      .build()
+
+    check:
+      switch.peerStore.allowUndialableAddrs
+      switch.peerInfo.agentVersion == "test-agent/1.0"
+
+  test "a builder without an rng or secure manager defaults to Noise":
+    let switch = SwitchBuilder
+      .new()
+      .withAddresses(@[TcpAutoAddress])
+      .withTcpTransport()
+      .withMplex()
+      .build()
+
+    check:
+      switch.transports.len == 1
+      switch.transports[0].upgrader.secureManagers.len == 1
+      switch.transports[0].upgrader.secureManagers[0] of Noise
 
   asyncTest "accept loop not blocked by upgrade semaphore":
     # Regression: old code held the upgrade semaphore in the accept loop, blocking

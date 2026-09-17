@@ -23,6 +23,9 @@ func toException*(e: string): ref LPError =
 func toException*[E](e: E, X: typedesc): ref X =
   (ref X)(msg: $e)
 
+func `==`*[E: enum](e: ref LPError, failure: E): bool =
+  e.msg == $failure
+
 template valueOrRaise*[T: not void, E](r: Result[T, E], X: typedesc): T =
   ## Unwrap `r`, or raise `X` carrying the error message.
   r.valueOr:

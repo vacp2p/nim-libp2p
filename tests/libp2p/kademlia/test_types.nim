@@ -3,8 +3,8 @@
 
 {.used.}
 
-import ../../../libp2p/[protocols/kademlia]
-import ../../tools/[unittest]
+import ../../../libp2p/[protocols/kademlia, peerid]
+import ../../tools/[unittest, crypto]
 
 suite "KadDHT Types":
   teardown:
@@ -38,3 +38,24 @@ suite "KadDHT Types":
         block:
           discard xorDistance(Value.init([1.byte]), Key.init([1.byte]))
       )
+
+  test "toPeerIds skips a peer without a valid id":
+    let pid = randomPeerId()
+    let peers = @[
+      Peer(id: Opt.none(seq[byte])),
+      Peer(id: Opt.some(@[0xFF'u8])),
+      Peer(id: Opt.some(pid.getBytes())),
+    ]
+
+    check peers.toPeerIds() == @[pid]
+
+  test "DefaultEntrySelector rejects an empty record list":
+    check DefaultEntrySelector().select(Key.init([1.byte]), @[]).isErr()
+
+  test "Value supports index assignment and shortLog":
+    var value = Value.init([1.byte, 2, 3])
+    value[0] = 0xAB
+
+    check:
+      value[0] == 0xAB
+      value.shortLog() == "ab0203"

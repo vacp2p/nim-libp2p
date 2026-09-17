@@ -184,11 +184,6 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           # All the errors are handled inside `handleStream()` procedure.
           channel.handlerFut = m.handleStream(channel)
       of MessageType.MsgIn, MessageType.MsgOut:
-        if data.len > MaxMsgSize:
-          trace "Attempting to send a packet larger than allowed",
-            allowed = MaxMsgSize, channel
-          raise newLPStreamLimitError()
-
         if channel.protocol.len == 0:
           let bufferedBytes = m.bufferedBytes()
           if data.len > m.maxBufferedBytes or

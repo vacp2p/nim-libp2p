@@ -70,23 +70,22 @@ proc handleSubscribe(f: FloodSub, peer: PubSubPeer, topic: string, subscribe: bo
   if subscribe and not (isNil(f.subscriptionValidator)) and
       not (f.subscriptionValidator(topic)):
     # this is a violation, so warn should be in order
-    trace "ignoring invalid topic subscription", topic, peer
+    trace "ignoring invalid topic subscription"
     return
 
   if subscribe:
     if peer.subscribedTopics >= f.topicsHigh and not f.floodsub.hasPeer(topic, peer):
-      trace "ignoring subscription over topicsHigh limit", peer, limit = f.topicsHigh
+      trace "ignoring subscription over topicsHigh limit", limit = f.topicsHigh
       return
-
-    trace "adding subscription for topic", peer, topic
 
     if f.floodsub.addPeer(topic, peer):
       peer.subscribedTopics.inc()
+      debug "peer subscribed to topic"
   else:
     if f.floodsub.hasPeer(topic, peer):
-      trace "removing subscription for topic", peer, topic
       f.floodsub.removePeer(topic, peer)
       peer.subscribedTopics.dec()
+      debug "peer unsubscribed from topic"
 
 method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   ## handle peer disconnects
