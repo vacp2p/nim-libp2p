@@ -682,7 +682,7 @@ proc subscribe*(
 
   # Check that this is an allowed topic
   if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
-    trace "trying to subscribe to a topic not passing validation", topic
+    warn "trying to subscribe to a topic not passing validation", topic
     return
 
   p.topics.withValue(topic, topicData):
