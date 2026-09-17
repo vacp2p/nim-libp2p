@@ -180,7 +180,6 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   var idle = true
   while not kad.stopping:
     if idle:
-      # Initial idle: let start() finish bootstrap before the first scan.
       await sleepAsync(kad.config.livenessIdleInterval)
 
     let grace = kad.config.livenessGracePeriod
@@ -261,6 +260,23 @@ proc bootstrap*(
 ) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh)
   debug "Bootstrap complete"
+
+proc bootstrapWithTimeout(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  let boot = kad.bootstrap(forceRefresh = true)
+  if not await boot.withTimeout(kad.config.bootstrapTimeout):
+    await noCancel boot.cancelAndWait()
+    warn "Bootstrap timed out", timeout = kad.config.bootstrapTimeout
+
+proc waitBootstrap*(
+    kad: KadDHT
+): Future[void].Raising([CancelledError]) {.raises: [].} =
+  ## Completes once the bootstrap launched by ``start`` ends. Cancelling the
+  ## returned future leaves the bootstrap running.
+  if kad.bootstrapFut.isNil():
+    let done = Future[void].Raising([CancelledError]).init("KadDHT.waitBootstrap")
+    done.complete()
+    return done
+  join(kad.bootstrapFut)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   var timedOut = false
@@ -468,15 +484,13 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Kademlia DHT already started"
     return
 
+  kad.started = true
   kad.stopping = false
   kad.msgSender.start()
 
   if not kad.config.disableBootstrapping:
-    # A timed-out bootstrap keeps running and keeps dispatching RPCs unless it is
-    # cancelled here: nothing else holds it.
-    let boot = kad.bootstrap(forceRefresh = true)
-    if not await boot.withTimeout(kad.config.bucketRefreshTime):
-      await noCancel boot.cancelAndWait()
+    kad.bootstrapFut = kad.bootstrapWithTimeout()
+    reportBackgroundFailure(kad.bootstrapFut, "kademlia bootstrap")
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.livenessLoop = kad.maintainLiveness()
@@ -492,8 +506,6 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   reportBackgroundFailure(kad.expiredLoop, "kademlia provider expiration")
   reportBackgroundFailure(kad.recordExpirationLoop, "kademlia record expiration")
 
-  kad.started = true
-
   info "Kademlia DHT started"
 
 method stop*(kad: KadDHT) {.async: (raises: []).} =
@@ -504,6 +516,10 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
   # drain loop below can then finish for good rather than chasing new arrivals.
   kad.stopping = true
   kad.started = false
+
+  if not kad.bootstrapFut.isNil():
+    await noCancel kad.bootstrapFut.cancelAndWait()
+    kad.bootstrapFut = nil
 
   await noCancel allFutures(
     kad.maintenanceLoop.cancelAndWait(),
