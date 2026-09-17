@@ -5,7 +5,7 @@
 
 import std/math
 import chronos, results
-import ../../../libp2p/protocols/kademlia
+import ../../../libp2p/[peerid, protocols/kademlia]
 import ../../tools/unittest
 import ./utils
 
@@ -55,7 +55,7 @@ suite "KadDHT - Network Size Estimator":
       est = NetworkSizeEstimator.new(4)
       target = randomPeerId().toKey()
       rtable = RoutingTable.new(randomPeerId().toKey())
-      peers = @[randomPeerId(), randomPeerId(), randomPeerId(), randomPeerId()]
+      peers = PeerId.random(4, rng()).get()
 
     check est.track(rtable, target, peers).isOk()
 
