@@ -113,9 +113,7 @@ proc completeWrite(
   withExceptions:
     # StreamTransport will only return written < msg.len on fatal failures where
     # further writing is not possible - in such cases, we'll raise here,
-    # since we don't return partial writes lengths.
-    # Chronos only does this when the OS reports ECONNRESET/EPIPE (or the
-    # Windows equivalents), i.e. the remote peer dropped the connection.
+    # since we don't return partial writes lengths
     var written = await fut
 
     if written < msgLen:
