@@ -8,6 +8,7 @@ import
   ../../libp2p/[
     multistream,
     stream/bufferstream,
+    stream/bridgestream,
     stream/connection,
     multiaddress,
     transports/transport,
@@ -501,8 +502,11 @@ suite "Multistream :: stream limits":
   asyncTest "e2e - inbound total stream limit":
     const maxTotalStreams = 3
 
+    # Every slot must be reserved before the extra dialer starts, otherwise the
+    # dialers race on reserveIncoming and the extra one may be the slot winner.
+    let reserved = newWaitGroup(maxTotalStreams)
     let protocol = LPProtocol.new(
-      codecs, makeBlockedHandler(), maxIncomingStreamsTotal = maxTotalStreams
+      codecs, makeBlockedHandler(reserved), maxIncomingStreamsTotal = maxTotalStreams
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -525,11 +529,10 @@ suite "Multistream :: stream limits":
     for _ in 0 ..< maxTotalStreams:
       dialers.add(connector())
 
+    await reserved.wait(5.seconds)
+
     expect LPStreamEOFError:
-      try:
-        await connector().wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector()
 
     await dialers.cancelAndWait()
     await transport2.stop()
@@ -537,9 +540,12 @@ suite "Multistream :: stream limits":
     await handlerWait.cancelAndWait()
 
   asyncTest "e2e - shared budget across compatible codecs":
+    # Both slots must be reserved before the third dialer starts, otherwise the
+    # dialers race on reserveIncoming and the third one may be the slot winner.
+    let reserved = newWaitGroup(2)
     let protocol = LPProtocol.new(
       @["/test/proto1/1.0.0", "/test/proto2/1.0.0"],
-      makeBlockedHandler(),
+      makeBlockedHandler(reserved),
       maxIncomingStreamsTotal = 2,
     )
 
@@ -562,11 +568,10 @@ suite "Multistream :: stream limits":
     var d1 = connector("/test/proto1/1.0.0")
     var d2 = connector("/test/proto2/1.0.0")
 
+    await reserved.wait(5.seconds)
+
     expect LPStreamEOFError:
-      try:
-        await connector("/test/proto1/1.0.0").wait(1.seconds)
-      except AsyncTimeoutError:
-        raiseAssert "Timeout while waiting for connector"
+      await connector("/test/proto1/1.0.0")
 
     await @[d1, d2].cancelAndWait()
     await transport2.stop()
@@ -658,3 +663,68 @@ suite "Multistream :: stream limits":
     await transport2.stop()
     await transport1.stop()
     await handlerWait.cancelAndWait()
+
+  asyncTest "empty proposal produces one rejection before the next proposal":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.handle(server, @[codecs], active = true)
+    defer:
+      await handling.cancelAndWait()
+      await client.close()
+    await client.writeLp("\n")
+    check string.fromBytes(await client.readLp(1024)) == "na\n"
+    await client.writeLp(codecs & "\n")
+    check string.fromBytes(await client.readLp(1024)) == codecs & "\n"
+    check (await handling.wait(1.seconds)) == codecs
+
+suite "Multistream :: result API":
+  const codecs = "/test/proto/1.0.0"
+
+  teardown:
+    checkTrackers()
+
+  proc selectAgainstHeader(
+      header: string
+  ): Future[MultiStreamResult[string]] {.
+      async: (raises: [CancelledError, LPStreamError, AsyncTimeoutError])
+  .} =
+    let (client, server) = bridgedConnections()
+    let selecting = MultistreamSelect.trySelect(client, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    discard await server.readLp(1024)
+    discard await server.readLp(1024)
+    await server.writeLp(header)
+    let res = await selecting.wait(1.seconds)
+    res
+
+  asyncTest "trySelect returns HandshakeFailed on a wrong header":
+    check (await selectAgainstHeader("/other/1.0.0\n")).error ==
+      MultiStreamFailure.HandshakeFailed
+
+  asyncTest "trySelect returns MalformedMessage on a header without newline":
+    check (await selectAgainstHeader("/multistream/1.0.0")).error ==
+      MultiStreamFailure.MalformedMessage
+
+  asyncTest "tryHandle returns InvalidFirstMessage before the handshake":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.tryHandle(server, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    await client.writeLp(codecs & "\n")
+    check (await handling.wait(1.seconds)).error ==
+      MultiStreamFailure.InvalidFirstMessage
+
+  asyncTest "handle raises MultiStreamError with the failure text":
+    let (client, server) = bridgedConnections()
+    let handling = MultistreamSelect.handle(server, @[codecs])
+    defer:
+      await client.close()
+      await server.close()
+    await client.writeLp(codecs & "\n")
+    try:
+      discard await handling.wait(1.seconds)
+      raiseAssert "handle must raise"
+    except MultiStreamError as e:
+      check e == MultiStreamFailure.InvalidFirstMessage

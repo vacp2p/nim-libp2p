@@ -16,7 +16,7 @@ import
   ../../../transports/transport
 
 logScope:
-  topics = "libp2p relay relay-transport"
+  topics = "libp2p relay"
 
 type RelayTransport* = ref object of Transport
   client*: RelayClient
@@ -37,7 +37,7 @@ method start*(
     await conn.join()
   self.selfRunning = true
   await procCall Transport(self).start(ma)
-  trace "Starting Relay transport"
+  info "Starting Relay transport"
 
 method stop*(self: RelayTransport) {.async: (raises: []).} =
   self.running = false
@@ -109,7 +109,7 @@ method dial*(
     peerId: Opt[PeerId] = Opt.none(PeerId),
     dir: Direction = Direction.Out,
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  peerId.withValue(pid):
+  peerId.ifValue(pid):
     try:
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
       return await self.dial(address)
@@ -127,11 +127,10 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
       handles = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
   except CatchableError:
     handles = false
-  trace "Handles return", ma, handles
   handles
 
 proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   let self = Self(client: cl, upgrader: upgrader)
   self.running = true
   self.queue = newAsyncQueue[RawConn](0)

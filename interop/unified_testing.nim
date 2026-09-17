@@ -96,7 +96,15 @@ proc setupRedis*(redisAddr: string): Redis =
       Port(parseInt(parts[1]))
     except ValueError as e:
       raise newException(CatchableError, "Invalid REDIS_ADDR port: " & parts[1], e)
-  open(parts[0], port)
+  # redis may not be listening yet when this container starts
+  let deadline = Moment.now() + 30.seconds
+  while true:
+    try:
+      return open(parts[0], port)
+    except CatchableError as e:
+      if Moment.now() >= deadline:
+        raise e
+      sleep(200)
 
 template pollUntil*(
     condition: untyped,
@@ -254,8 +262,8 @@ proc runMain*(body: proc(): Future[void] {.async.}, timeout: Duration) =
   try:
     waitFor body().wait(timeout)
   except AsyncTimeoutError as e:
-    error "Program execution timed out", description = e.msg
+    error "Program execution timed out", err = e.msg
     quit(-1)
   except CatchableError as e:
-    error "Unexpected error", description = e.msg
+    error "Unexpected error", err = e.msg
     quit(-1)

@@ -12,22 +12,8 @@ type
   DurationMsg {.proto3.} = object
     dur {.fieldNumber: 1, ext.}: Duration
 
-  MomentMsg {.proto3.} = object
-    ts {.fieldNumber: 1, ext.}: Moment
-
-  BothMsg {.proto3.} = object
-    dur {.fieldNumber: 1, ext.}: Duration
-    ts {.fieldNumber: 2, ext.}: Moment
-
   DurationSeqMsg {.proto3.} = object
     durs {.fieldNumber: 1, ext.}: seq[Duration]
-
-  MomentSeqMsg {.proto3.} = object
-    moments {.fieldNumber: 1, ext.}: seq[Moment]
-
-  BothSeqMsg {.proto3.} = object
-    durs {.fieldNumber: 1, ext.}: seq[Duration]
-    moments {.fieldNumber: 2, ext.}: seq[Moment]
 
 suite "protobuf_chronos_sec":
   test "Duration zero round-trips":
@@ -52,42 +38,13 @@ suite "protobuf_chronos_sec":
     let dec = Protobuf.decode(enc, DurationMsg)
     check dec.dur.seconds == ns
 
-  test "Moment specific timestamp round-trips":
-    let orig = Moment.init(1_000_000, Second)
-    let enc = Protobuf.encode(MomentMsg(ts: orig))
-    let dec = Protobuf.decode(enc, MomentMsg)
-    check dec.ts == orig
-
-  test "Moment epochSeconds preserved after round-trip":
-    let ns: int64 = 987_654_321
-    let orig = Moment.init(ns, Second)
-    let enc = Protobuf.encode(MomentMsg(ts: orig))
-    let dec = Protobuf.decode(enc, MomentMsg)
-    check dec.ts.epochSeconds() == ns
-
-  test "Duration and Moment coexist in same message":
-    let orig = BothMsg(dur: 5.seconds, ts: Moment.init(1_000_000, Second))
-    let enc = Protobuf.encode(orig)
-    let dec = Protobuf.decode(enc, BothMsg)
-    check dec.dur == orig.dur
-    check dec.ts == orig.ts
-
   test "multiple Duration re-encodes to same bytes":
     let msg = DurationMsg(dur: 42.seconds)
-    check Protobuf.encode(msg) == Protobuf.encode(msg)
-
-  test "multiple Moment re-encodes to same bytes":
-    let msg = MomentMsg(ts: Moment.init(42_000, Second))
     check Protobuf.encode(msg) == Protobuf.encode(msg)
 
   test "distinct Duration values encode to distinct bytes":
     let enc1 = Protobuf.encode(DurationMsg(dur: 1.seconds))
     let enc2 = Protobuf.encode(DurationMsg(dur: 2.seconds))
-    check enc1 != enc2
-
-  test "distinct Moment values encode to distinct bytes":
-    let enc1 = Protobuf.encode(MomentMsg(ts: Moment.init(1, Second)))
-    let enc2 = Protobuf.encode(MomentMsg(ts: Moment.init(2, Second)))
     check enc1 != enc2
 
   test "seq[Duration] empty round-trips":
@@ -128,64 +85,6 @@ suite "protobuf_chronos_sec":
     let enc2 = Protobuf.encode(DurationSeqMsg(durs: @[2.seconds, 1.seconds]))
     check enc1 != enc2
 
-  test "seq[Moment] empty round-trips":
-    let enc = Protobuf.encode(MomentSeqMsg(moments: @[]))
-    let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments.len == 0
-
-  test "seq[Moment] single element round-trips":
-    let orig = @[Moment.init(1_000_000, Second)]
-    let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
-    let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments == orig
-
-  test "seq[Moment] multiple elements round-trips":
-    let orig = @[Moment.init(1_000_000, Second), Moment.init(1_700_000_000, Second)]
-    let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
-    let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments == orig
-
-  test "seq[Moment] second precision preserved":
-    let ns1: int64 = 1_700_000_000
-    let ns2: int64 = 987_654_321
-    let orig = @[Moment.init(ns1, Second), Moment.init(ns2, Second)]
-    let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
-    let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments[0].epochSeconds() == ns1
-    check dec.moments[1].epochSeconds() == ns2
-
-  test "seq[Moment] order preserved":
-    let orig = @[Moment.init(3, Second), Moment.init(1, Second), Moment.init(2, Second)]
-    let enc = Protobuf.encode(MomentSeqMsg(moments: orig))
-    let dec = Protobuf.decode(enc, MomentSeqMsg)
-    check dec.moments[0] == Moment.init(3, Second)
-    check dec.moments[1] == Moment.init(1, Second)
-    check dec.moments[2] == Moment.init(2, Second)
-
-  test "distinct seq[Moment] encode to distinct bytes":
-    let enc1 = Protobuf.encode(
-      MomentSeqMsg(moments: @[Moment.init(1, Second), Moment.init(2, Second)])
-    )
-    let enc2 = Protobuf.encode(
-      MomentSeqMsg(moments: @[Moment.init(2, Second), Moment.init(1, Second)])
-    )
-    check enc1 != enc2
-
-  test "seq[Duration] and seq[Moment] coexist in same message":
-    let orig = BothSeqMsg(
-      durs: @[1.seconds, 2.minutes],
-      moments: @[Moment.init(1_000_000, Second), Moment.init(2_000_000, Second)],
-    )
-    let enc = Protobuf.encode(orig)
-    let dec = Protobuf.decode(enc, BothSeqMsg)
-    check dec.durs == orig.durs
-    check dec.moments == orig.moments
-
   test "seq[Duration] re-encodes to same bytes":
     let msg = DurationSeqMsg(durs: @[1.seconds, 2.seconds])
-    check Protobuf.encode(msg) == Protobuf.encode(msg)
-
-  test "seq[Moment] re-encodes to same bytes":
-    let msg =
-      MomentSeqMsg(moments: @[Moment.init(1_000, Second), Moment.init(2_000, Second)])
     check Protobuf.encode(msg) == Protobuf.encode(msg)

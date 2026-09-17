@@ -9,7 +9,7 @@ import ../../../libp2p/[builders, switch, multiaddress, multicodec, peerinfo, wi
 import ../../../libp2p/services/natservice
 import ../../../libp2p/services/nat/portmapper
 import ../../../libp2p/protocols/connectivity/dcutr/core
-import ../../tools/[unittest, crypto, multiaddress]
+import ../../tools/[unittest, multiaddress, switch_builder]
 
 type
   MockCallKind = enum
@@ -88,13 +88,7 @@ proc closed(m: MockPortMapper): bool =
   m.countCalls(mckClose) > 0
 
 proc standardBuilder(listenAddrs: seq[MultiAddress]): SwitchBuilder =
-  SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(listenAddrs, false)
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
+  makeStandardSwitchBuilder(listenAddrs).withWildcardResolver(false)
 
 proc makeSwitch(
     config: NATConfig,
@@ -106,6 +100,13 @@ proc makeSwitch(
 proc findNatService(switch: Switch): NATService =
   switch.natService().valueOr:
     raiseAssert "NATService not found in switch.services"
+
+proc noopReachabilityHandler(
+    reachability: NetworkReachability,
+    confidence: Opt[float],
+    dialBackAddr: Opt[MultiAddress],
+) {.async: (raises: [CancelledError]).} =
+  discard
 
 suite "NATService":
   teardown:
@@ -135,9 +136,6 @@ suite "NATService":
       explicitIpMapped(@[ma("/unix/tmp/sock")], ip4).len == 0
 
   test "explicitIpMapped dedupes addresses sharing port across interfaces":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       ip4 = parseIpAddress("203.0.113.7")
       resolved = @[ma("/ip4/192.168.1.10/tcp/50000"), ma("/ip4/10.0.0.5/tcp/50000")]
@@ -155,7 +153,7 @@ suite "NATService":
 
     check switch.peerInfo.listenAddrs.len == 1
     let boundPort = switch.peerInfo.listenAddrs[0][multiCodec("tcp")].get
-    let expected = MultiAddress.init("/ip4/" & $explicitIp & $boundPort).tryGet()
+    let expected = ma("/ip4/" & $explicitIp & $boundPort)
 
     check switch.peerInfo.addrs == @[expected]
 
@@ -171,6 +169,11 @@ suite "NATService":
     check switch.peerInfo.announcedAddrs.len == 0
     # addrs falls back to mapper-chain output (which here is just listenAddrs).
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
+    # No reachability config, so there is nothing to subscribe to.
+    let nat = findNatService(switch)
+    check:
+      not nat.addReachabilityHandler(noopReachabilityHandler)
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Upnp maps private listen addrs to extIp/extPort":
     let mock = newMock()
@@ -253,7 +256,7 @@ suite "NATService":
       await switch.stop()
 
     # No addressMapper installed; peerInfo.addrs falls back to listenAddrs.
-    check switch.peerInfo.addressMappers.len == 0
+    check switch.addressManager.mapperSources().len == 0
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
 
   asyncTest "stop unmaps active mappings and closes the mapper":
@@ -335,10 +338,12 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isNone()
       not dcutrMounted(switch)
       # AutonatService registers exactly one reachability addressMapper.
       switch.peerInfo.addressMappers.len == 1
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "autonat v2 spins up the AutonatV2 service":
     let switch = makeSwitch(autonatConfig(AutonatV2), @[TcpAutoAddress])
@@ -348,8 +353,10 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       nat.autonatV2Service.isSome()
       not dcutrMounted(switch)
+      nat.networkReachability == NetworkReachability.Unknown
 
   asyncTest "holePunchingConfig composes the full HP stack":
     let switch = makeSwitch(holePunchingConfig(maxNumRelays = 2), @[TcpAutoAddress])
@@ -359,9 +366,11 @@ suite "NATService":
 
     let nat = findNatService(switch)
     check:
+      nat.addReachabilityHandler(noopReachabilityHandler)
       # HPService mounts DCUtR and drives AutoNAT v1, not v2.
       dcutrMounted(switch)
       nat.autonatV2Service.isNone()
+      nat.networkReachability == NetworkReachability.Unknown
 
   test "hole-punching paired with AutonatV2 reachability is rejected at setup":
     # The realistic path: two withNAT calls for the conflicting concerns.
@@ -389,7 +398,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper from NATService + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   asyncTest "autonat v1 survives stop/start cycle":
     let switch = makeSwitch(autonatConfig(AutonatV1), @[TcpAutoAddress])
@@ -458,7 +467,7 @@ suite "NATService":
     check:
       nat.autonatV2Service.isNone()
       # UPnP addressMapper + AutoNAT v1 mapper both registered.
-      switch.peerInfo.addressMappers.len == 2
+      switch.addressManager.mapperSources() == @[AddrSource.Upnp, AddrSource.Autonat]
 
   test "withNAT configuring the same concern twice is a programmer error":
     expect AssertionDefect:
@@ -466,11 +475,8 @@ suite "NATService":
         .withNAT(autonatConfig(AutonatV1))
         .withNAT(autonatConfig(AutonatV2))
 
-proc loopbackAddr(): MultiAddress =
-  MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()
-
 proc privateAddr(port: int = 9000): MultiAddress =
-  MultiAddress.init("/ip4/192.168.1.5/tcp/" & $port).get()
+  ma("/ip4/192.168.1.5/tcp/" & $port)
 
 suite "NATService (setupMappings)":
   teardown:
@@ -482,7 +488,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = natPmpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -502,7 +508,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -519,7 +525,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -528,10 +534,7 @@ suite "NATService (setupMappings)":
 
     # Public + loopback addresses only → no mappable ports, no mappings made.
     let announced = await svc.setupMappings(
-      @[
-        MultiAddress.init("/ip4/8.8.8.8/tcp/9000").tryGet(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/9001").tryGet(),
-      ]
+      @[ma("/ip4/8.8.8.8/tcp/9000"), ma("/ip4/127.0.0.1/tcp/9001")]
     )
 
     check mapper.mapCalls.len == 0
@@ -540,11 +543,11 @@ suite "NATService (setupMappings)":
   asyncTest "user-set announcedAddrs are not overwritten":
     let
       externalIp = parseIpAddress("203.0.113.111")
-      userAddr = MultiAddress.init("/ip4/198.51.100.7/tcp/4242").tryGet()
+      userAddr = ma("/ip4/198.51.100.7/tcp/4242")
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
 
     switch.peerInfo.announcedAddrs = @[userAddr]
 
@@ -563,7 +566,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -572,7 +575,7 @@ suite "NATService (setupMappings)":
 
     let
       tcpAddr = privateAddr(9000)
-      udpAddr = MultiAddress.init("/ip4/192.168.1.5/udp/9000").tryGet()
+      udpAddr = ma("/ip4/192.168.1.5/udp/9000")
       otherTcp = privateAddr(9001)
       announced = await svc.setupMappings(@[tcpAddr, udpAddr, otherTcp])
 
@@ -590,7 +593,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -615,7 +618,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp, extPorts = @[Port(54321)])
       factory = mapperFactory(mapper)
       cfg = upnpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()
@@ -632,7 +635,7 @@ suite "NATService (setupMappings)":
     let
       cfg = natPmpConfig()
       mapper = newMock(mapErr = Opt.some("mock no IGD"))
-      switch = makeSwitch(cfg, @[loopbackAddr()], mapperFactory(mapper))
+      switch = makeSwitch(cfg, @[TcpAutoAddress], mapperFactory(mapper))
       svc = findNatService(switch)
 
     await switch.start()
@@ -649,7 +652,7 @@ suite "NATService (setupMappings)":
       mapper = newMock(extIp = externalIp)
       factory = mapperFactory(mapper)
       cfg = natPmpConfig()
-      switch = makeSwitch(cfg, @[loopbackAddr()], factory)
+      switch = makeSwitch(cfg, @[TcpAutoAddress], factory)
       svc = findNatService(switch)
 
     await switch.start()

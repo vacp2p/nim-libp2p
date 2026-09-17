@@ -4,9 +4,9 @@
 {.push raises: [].}
 
 import sequtils
-import bearssl/pem
 import chronos, chronicles, net, results, uri
 import chronos/streams/tlsstream
+from times import DateTime, now, toTime, toUnix
 
 import
   ./acme/client,
@@ -22,12 +22,15 @@ import
   ../transports/tcptransport,
   ../utils/heartbeat,
   ../utils/ipaddr,
+  ../utils/tlsredact,
   ../wire
 
 logScope:
-  topics = "libp2p autotls"
+  topics = "libp2p auto-tls"
 
-export LetsEncryptURL, AutoTLSError, DefaultDnsServers, DefaultBrokerURL, AutotlsBroker
+export
+  LetsEncryptDirectoryURL, AutoTLSError, DefaultDnsServers, DefaultRegistrationURL,
+  AutotlsBroker, tlsredact
 
 const
   DefaultRenewCheckTime* = 1.hours
@@ -35,23 +38,23 @@ const
   DefaultIssueRetries = 3
   DefaultIssueRetryTime = 1.seconds
 
-  AutoTLSDNSServer* = "libp2p.direct"
+  DefaultDomainSuffix* = "libp2p.direct"
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
   privkey*: TLSPrivateKey
-  expiry*: Moment
+  expiry*: DateTime
 
 type AutotlsConfig* = object
-  acmeServerURL*: Uri
+  acmeDirectoryURL*: Uri
   nameResolver*: NameResolver
   ipAddress: Opt[IpAddress]
   renewCheckTime*: Duration
   renewBufferTime*: Duration
   issueRetries*: int
   issueRetryTime*: Duration
-  brokerURL*: string
-  dnsServerURL*: string
+  registrationURL*: Uri
+  domainSuffix*: string
   dnsRetries*: int
   dnsRetryTime*: Duration
   acmeRetries*: int
@@ -74,7 +77,7 @@ proc new*(
     T: typedesc[AutotlsCert],
     cert: TLSCertificate,
     privkey: TLSPrivateKey,
-    expiry: Moment,
+    expiry: DateTime,
 ): T =
   T(cert: cert, privkey: privkey, expiry: expiry)
 
@@ -88,13 +91,13 @@ proc new*(
     T: typedesc[AutotlsConfig],
     ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
     nameServers: seq[TransportAddress] = DefaultDnsServers,
-    acmeServerURL: Uri = parseUri(LetsEncryptURL),
+    acmeDirectoryURL: Uri = LetsEncryptDirectoryURL,
     renewCheckTime: Duration = DefaultRenewCheckTime,
     renewBufferTime: Duration = DefaultRenewBufferTime,
     issueRetries: int = DefaultIssueRetries,
     issueRetryTime: Duration = DefaultIssueRetryTime,
-    brokerURL: string = DefaultBrokerURL,
-    dnsServerURL: string = AutoTLSDNSServer,
+    registrationURL: Uri = DefaultRegistrationURL,
+    domainSuffix: string = DefaultDomainSuffix,
     dnsRetries: int = 10,
     dnsRetryTime: Duration = 1.seconds,
     acmeRetries: int = 10,
@@ -104,14 +107,14 @@ proc new*(
 ): T =
   T(
     nameResolver: DnsResolver.new(nameServers),
-    acmeServerURL: acmeServerURL,
+    acmeDirectoryURL: acmeDirectoryURL,
     ipAddress: ipAddress,
     renewCheckTime: renewCheckTime,
     renewBufferTime: renewBufferTime,
     issueRetries: issueRetries,
     issueRetryTime: issueRetryTime,
-    brokerURL: brokerURL,
-    dnsServerURL: dnsServerURL,
+    registrationURL: registrationURL,
+    domainSuffix: domainSuffix,
     dnsRetries: dnsRetries,
     dnsRetryTime: dnsRetryTime,
     acmeRetries: acmeRetries,
@@ -124,9 +127,8 @@ proc new*(
     T: typedesc[AutotlsService], rng: Rng, config: AutotlsConfig = AutotlsConfig.new()
 ): T =
   T(
-    acmeClient:
-      ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL), rng = rng),
-    broker: AutotlsBroker.new(rng, brokerURL = config.brokerURL),
+    acmeClient: ACMEClient.new(api = ACMEApi.new(config.acmeDirectoryURL), rng = rng),
+    broker: AutotlsBroker.new(rng, config.registrationURL),
     cert: Opt.none(AutotlsCert),
     certReady: newAsyncEvent(),
     running: newAsyncEvent(),
@@ -137,15 +139,12 @@ proc new*(
   )
 
 method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
-  trace "Setting up AutotlsService"
-  if self.config.ipAddress.isNone():
-    try:
-      self.config.ipAddress = Opt.some(getPublicIPAddress())
-    except ValueError, OSError:
-      raise newException(
-        ServiceSetupError,
-        "Failed to get public IP address. Reason: " & getCurrentExceptionMsg(),
-      )
+  info "Setting up AutotlsService"
+  if self.config.ipAddress.isSome():
+    return
+  let ip = getPublicIPAddress().valueOr:
+    raise newException(ServiceSetupError, "Host does not have a public IP address")
+  self.config.ipAddress = Opt.some(ip)
 
 method issueCertificate(
     self: AutotlsService
@@ -157,9 +156,9 @@ method issueCertificate(
   if self.peerInfo.isNil():
     raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
 
-  # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
+  # generate autotls domain string: "*.{peerID}.{domainSuffix}"
   let baseDomain =
-    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
+    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.domainSuffix)
 
   trace "Requesting ACME challenge"
   let dns01Challenge =
@@ -204,7 +203,7 @@ method issueCertificate(
       AutotlsCert.new(
         TLSCertificate.init(certificate.rawCertificate),
         TLSPrivateKey.init(derPrivKey.pemEncode("PRIVATE KEY")),
-        asMoment(certificate.certificateExpiry),
+        certificate.certificateExpiry,
       )
     except TLSStreamProtocolError as exc:
       raise newException(
@@ -212,27 +211,48 @@ method issueCertificate(
       )
   self.cert = Opt.some(newCert)
   self.certReady.fire()
-  notice "AutoTLS successfully renewed certificate"
+  info "AutoTLS successfully renewed certificate"
 
 proc hasTcpStarted(switch: Switch): bool =
   switch.transports.filterIt(it of TcpTransport and it.running).len == 0
 
 proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
-  for _ in 0 ..< self.config.issueRetries:
+  var lastError: ref CatchableError
+  let operation = if self.cert.isSome(): "renewal" else: "initial issuance"
+  var attempts = 0
+  var outcome = "cancelled"
+  defer:
+    debug "Certificate issuance finished",
+      operation, outcome, attempts, hasCertificate = self.cert.isSome()
+
+  for attempt in 0 .. self.config.issueRetries:
+    if attempt > 0:
+      await sleepAsync(self.config.issueRetryTime)
+    attempts.inc()
     try:
+      outcome = "issued"
       await self.issueCertificate()
       return
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      error "Failed to issue certificate", err = exc.msg
-    await sleepAsync(self.config.issueRetryTime)
-  error "Failed to issue certificate"
+      outcome = "failed"
+      lastError = exc
+      trace "Certificate issuance failed",
+        err = exc.msg, errType = exc.name, attempt = attempt + 1
+
+  error "Failed to issue certificate",
+    err = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
+    errType = (if lastError.isNil: "" else: $lastError.name),
+    operation,
+    maxAttempts = self.config.issueRetries + 1,
+    hasCertificate = self.cert.isSome(),
+    expiry = (if self.cert.isSome: $self.cert.get().expiry else: "none")
 
 method start*(
     self: AutotlsService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  trace "Starting Autotls management"
+  info "Starting Autotls management"
   self.running.fire()
   self.peerInfo = switch.peerInfo
 
@@ -248,13 +268,10 @@ method start*(
         if self.cert.isNone():
           await self.tryIssueCertificate()
 
-        # AutotlsService will renew the cert 1h before it expires
-        let cert = self.cert.valueOr:
-          error "Could not issue certificate"
-          return
-        let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
-        if waitTime <= self.config.renewBufferTime:
-          await self.tryIssueCertificate()
+        self.cert.ifValue(cert):
+          let timeUntilExpiry = seconds(cert.expiry.toTime.toUnix - now().toTime.toUnix)
+          if timeUntilExpiry <= self.config.renewBufferTime:
+            await self.tryIssueCertificate()
     except CancelledError:
       trace "Autotls management cancelled"
 
@@ -270,3 +287,7 @@ method stop*(
   if not self.managerFut.isNil():
     await self.managerFut.cancelAndWait()
     self.managerFut = nil
+
+when defined(libp2p_testing):
+  func ipAddress*(config: AutotlsConfig): Opt[IpAddress] =
+    config.ipAddress

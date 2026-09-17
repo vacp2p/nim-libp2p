@@ -43,6 +43,9 @@ import
 when defined(libp2p_agents_metrics):
   import utils/agents
 
+const IdentifyCloseTimeout* = 5.seconds
+  ## Grace for the remote's EOF once identify is done.
+
 type
   #################
   # Handler types #
@@ -110,8 +113,8 @@ type
     capacity*: int
     toClean*: seq[PeerId]
     addressPolicy*: PeerAddressPolicy
-      ## When set, inbound peer addresses are filtered through the shared
-      ## policy before they are stored or redistributed.
+      ## Gate on an inbound peer address: storage, redistribution, hole punch, lookup.
+    allowUndialableAddrs*: bool ## Local test setups store a wildcard host too.
     addressTtls*: AddressConfidenceTtls ## Per-confidence TTLs for address expiry.
     pruneHandle*: Future[void]
 
@@ -121,7 +124,7 @@ proc new*(
     capacity = 1000,
     addressTtls = AddressConfidenceTtls(),
 ): PeerStore =
-  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  # Self instead of T to avoid clashing with ifValue[T]'s type param under --lineDir:on
   Self(
     identify: identify,
     capacity: capacity,
@@ -486,7 +489,8 @@ proc updatePeerInfo*(
     direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
-    let addrs = peerStore.addressPolicy.filterAddrs(info.addrs)
+    let addrs =
+      peerStore.addressPolicy.dialableAddrs(info.addrs, peerStore.allowUndialableAddrs)
     if addrs.len > 0:
       peerStore[AddressBook].set(info.peerId, addrs, AddressConfidence.Medium)
     else:
@@ -495,23 +499,23 @@ proc updatePeerInfo*(
   peerStore[LastSeenBook][info.peerId] = observedAddr
 
   # Update LastSeenOutboundBook only for outbound connections
-  direction.withValue(dir):
+  direction.ifValue(dir):
     if dir == Direction.Out:
       peerStore[LastSeenOutboundBook][info.peerId] = observedAddr
 
-  info.pubkey.withValue(pubkey):
+  info.pubkey.ifValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
 
-  info.agentVersion.withValue(agentVersion):
+  info.agentVersion.ifValue(agentVersion):
     peerStore[AgentBook][info.peerId] = agentVersion
 
-  info.protoVersion.withValue(protoVersion):
+  info.protoVersion.ifValue(protoVersion):
     peerStore[ProtoVersionBook][info.peerId] = protoVersion
 
   if info.protos.len > 0:
     peerStore[ProtoBook][info.peerId] = info.protos
 
-  info.signedPeerRecord.withValue(signedPeerRecord):
+  info.signedPeerRecord.ifValue(signedPeerRecord):
     let sprBook = peerStore[SPRBook]
     if sprBook.shouldStoreSignedPeerRecord(info.peerId, signedPeerRecord):
       sprBook[info.peerId] = signedPeerRecord
@@ -529,7 +533,17 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
 
   peerStore.toClean.add(peerId)
   while peerStore.toClean.len > peerStore.capacity:
-    peerStore.del(peerStore.toClean[0])
+    # `del` shifts `toClean` down, so own the id before it frees the slot.
+    let oldest = move(peerStore.toClean[0])
+    peerStore.toClean.delete(0)
+    peerStore.del(oldest)
+
+proc retireStream(stream: Stream, identified: bool) {.async: (raises: []).} =
+  ## `noCancel` swallows the caller's deadline, so the close carries its own.
+  if identified:
+    if await noCancel stream.closeWithEOF().withTimeout(IdentifyCloseTimeout):
+      return
+  await noCancel stream.reset()
 
 proc identify*(
     peerStore: PeerStore, muxer: Muxer, dir: Direction
@@ -565,16 +579,17 @@ proc identify*(
   except CancelledError as exc:
     raise exc
   finally:
-    if identifyCompleted:
-      await noCancel stream.closeWithEOF()
-    else:
-      await noCancel stream.reset()
+    await retireStream(stream, identifyCompleted)
 
-proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
-  return self.identify.observedAddrManager.getMostObservedProtosAndPorts()
+proc getMostObservedProtosAndPorts*(
+    self: PeerStore
+): seq[MultiAddress] {.deprecated: "use switch.addressManager".} =
+  return self.identify.addressManager.mostObservedProtosAndPorts()
 
-proc guessDialableAddr*(self: PeerStore, ma: MultiAddress): MultiAddress =
-  return self.identify.observedAddrManager.guessDialableAddr(ma)
+proc guessDialableAddr*(
+    self: PeerStore, ma: MultiAddress
+): MultiAddress {.deprecated: "use switch.addressManager.externalAddrFor".} =
+  return self.identify.addressManager.externalAddrFor(ma)
 
 proc extend*[T](self: SeqPeerBook[T], key: PeerId, new: seq[T]) =
   var extended: HashSet[T]

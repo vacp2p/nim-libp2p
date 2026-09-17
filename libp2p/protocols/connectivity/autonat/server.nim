@@ -46,7 +46,7 @@ proc sendResponseError(
   try:
     await stream.writeLp(pb)
   except LPStreamError as exc:
-    trace "autonat failed to send response error", description = exc.msg, stream
+    trace "autonat failed to send response error", err = exc.msg, stream
 
 proc sendResponseOk(
     stream: Stream, ma: MultiAddress
@@ -62,7 +62,7 @@ proc sendResponseOk(
   try:
     await stream.writeLp(pb)
   except LPStreamError as exc:
-    trace "autonat failed to send response ok", description = exc.msg, stream
+    trace "autonat failed to send response ok", err = exc.msg, stream
 
 proc tryDial(
     autonat: Autonat, stream: Stream, addrs: seq[MultiAddress]
@@ -85,17 +85,17 @@ proc tryDial(
     futs = addrs.mapIt(autonat.switch.dialer.tryDial(stream.peerId, @[it]))
     let fut = await anyCompleted(futs).wait(autonat.dialTimeout)
     let ma = await fut
-    ma.withValue(maddr):
+    ma.ifValue(maddr):
       await stream.sendResponseOk(maddr)
     else:
       await stream.sendResponseError(DialError, "Missing observed address")
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", addrs, description = exc.msg
+    debug "All dial attempts failed", err = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", addrs, description = exc.msg
+    debug "Dial timeout", err = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "Dial timeout")
   finally:
     try:
@@ -109,7 +109,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
     return stream.sendResponseError(BadRequest, "Missing Dial")
   let peerInfo = dial.peerInfo.valueOr:
     return stream.sendResponseError(BadRequest, "Missing Peer Info")
-  peerInfo.id.withValue(id):
+  peerInfo.id.ifValue(id):
     if id != stream.peerId:
       return stream.sendResponseError(BadRequest, "PeerId mismatch")
 
@@ -128,7 +128,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
     return stream.sendResponseError(InternalError, "Expected an IP address")
   var addrs = initHashSet[MultiAddress]()
   addrs.incl(observedAddr)
-  trace "addrs received", addrs = peerInfo.addrs
+  trace "addrs received", addresses = peerInfo.addrs
   for ma in peerInfo.addrs:
     isRelayed = ma.contains(multiCodec("p2p-circuit")).valueOr:
       continue
@@ -154,7 +154,7 @@ proc handleDial(autonat: Autonat, stream: Stream, msg: AutonatMsg): Future[void]
   if len(addrs) == 0:
     return stream.sendResponseError(DialRefused, "No dialable address")
   let addrsSeq = toSeq(addrs)
-  trace "trying to dial", addrs = addrsSeq
+  trace "trying to dial", addresses = addrsSeq
   return autonat.tryDial(stream, addrsSeq)
 
 proc new*(
@@ -166,8 +166,7 @@ proc new*(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let msg = AutonatMsg.decode(await stream.readLp(1024)).valueOr:
-        raise newException(AutonatError, error)
+      let msg = AutonatMsg.decode(await stream.readLp(1024)).valueOrRaise(AutonatError)
       if msg.msgType.get(MsgType.Dial) != MsgType.Dial:
         raise newException(AutonatError, "Message type should be dial")
       await autonat.handleDial(stream, msg)
@@ -175,7 +174,7 @@ proc new*(
       trace "cancelled autonat handler"
       raise exc
     except CatchableError as exc:
-      debug "exception in autonat handler", description = exc.msg, stream
+      debug "exception in autonat handler", err = exc.msg, stream
     finally:
       trace "exiting autonat handler", stream
       await stream.close()

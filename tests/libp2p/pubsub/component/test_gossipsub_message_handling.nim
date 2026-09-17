@@ -90,7 +90,7 @@ suite "GossipSub Component - Message Handling":
     let (iwantMessageIds, sentMessages) =
       createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
-    gossip1.broadcast(
+    gossip1.broadcastResponse(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, iwantMessageIds)),
       MessagePriority.High,
@@ -110,7 +110,7 @@ suite "GossipSub Component - Message Handling":
     let (bigIWantMessageIds, _) =
       createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
-    gossip1.broadcast(
+    gossip1.broadcastResponse(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       MessagePriority.High,
@@ -133,7 +133,7 @@ suite "GossipSub Component - Message Handling":
     let (bigIWantMessageIds, sentMessages) =
       createMessages(gossip0, gossip1, topic, size1, size2)
 
-    gossip1.broadcast(
+    gossip1.broadcastResponse(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       MessagePriority.High,
@@ -154,7 +154,7 @@ suite "GossipSub Component - Message Handling":
     let (bigIWantMessageIds, sentMessages) =
       createMessages(gossip0, gossip1, topic, size1, size2)
 
-    gossip1.broadcast(
+    gossip1.broadcastResponse(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       MessagePriority.High,
@@ -557,6 +557,7 @@ suite "GossipSub Component - Message Handling":
         20,
         gossip = true,
         address = TcpAutoAddress, # use TCP because it's more reliable (temporarily)
+        maxMessageSize = 4_000_000, # 2.5MB messages must fit
       )
       .toGossipSub()
 
@@ -582,7 +583,8 @@ suite "GossipSub Component - Message Handling":
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
   asyncTest "GossipSub floodPublish limit without bandwidthEstimatebps":
-    let nodes = generateNodes(20, gossip = true).toGossipSub()
+    let nodes =
+      generateNodes(20, gossip = true, maxMessageSize = 4_000_000).toGossipSub()
 
     nodes[0].parameters.floodPublish = true
     # should flood publish to all, when bandwidthEstimatebps is disabled

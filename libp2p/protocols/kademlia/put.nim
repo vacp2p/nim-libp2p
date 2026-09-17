@@ -6,17 +6,17 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/[heartbeat, future]
 import ../protocol
-import ./[protobuf, types, find, kademlia_metrics]
+import ./[protobuf, types, find, rpc, kademlia_metrics]
 
 logScope:
-  topics = "kad-dht put"
+  topics = "libp2p kademlia"
 
 proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally
   ## Always returns `true` if we don't have the value locally
 
-  kad.dataTable.get(key).withValue(existing):
-    kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
+  kad.dataTable.get(key).ifValue(existing):
+    kad.config.selector.select(key, @[record, existing]).ifValue(selectedIdx):
       return selectedIdx == 0
   return true
 
@@ -28,7 +28,7 @@ proc isExpired*(
   ## Returns true when the record's stored timestamp is older than `interval`.
   ## Records whose timestamp cannot be parsed are treated as expired.
   let storedUnix = record.time.toUnixSeconds().valueOr:
-    warn "Failed to parse record timestamp, treating as expired", time = record.time
+    trace "Failed to parse record timestamp, treating as expired", time = record.time
     return true
 
   (currentUnixSeconds - storedUnix).seconds > interval
@@ -45,62 +45,36 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)
-      debug "Expired record removed", key = key
+      trace "Expired record removed", key
 
 proc dispatchPutVal*(
-    kad: KadDHT, peer: PeerId, key: Key, value: seq[byte]
+    kad: KadDHT, peer: PeerId, key: Key, value: Value
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  withRpcSlot(kad)
-  let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await stream.close()
   let msg = Message(
     msgType: Opt.some(MessageType.putValue),
     key: Opt.some(key),
     record: Opt.some(Record(key: Opt.some(key), value: Opt.some(value))),
   )
-  let encoded = msg.encode()
+  let reply = ?await kad.dispatchRpc(peer, msg)
 
-  kad_messages_sent.inc(labelValues = [$MessageType.putValue])
-  kad_message_bytes_sent.inc(encoded.len.int64, labelValues = [$MessageType.putValue])
-
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
-    ioRes = catch:
-      await stream.writeLp(encoded)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
-
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.putValue]
-  )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("PutValue reply decode fail")
-
-  debug "Got PutValue reply", msg = msg, reply = reply, stream = stream
+  trace "Kademlia put-value RPC completed",
+    peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
   if reply != msg:
-    error "Unexpected change between msg and reply: ",
-      msg = msg, reply = reply, stream = stream
+    trace "Kademlia put-value RPC reply rejected",
+      peerId = peer, messageType = "putValue", replyType = $reply.msgType
 
-  return ok()
+  ok()
 
 proc canStoreLocalRecord*(kad: KadDHT, key: Key): bool {.raises: [].} =
   if kad.dataTable.hasKey(key):
     return true
-  kad.config.limits.maxLocalRecords.withValue(limit):
+  kad.config.limits.maxLocalRecords.ifValue(limit):
     return kad.dataTable.len < limit
   true
 
 proc putValue*(
-    kad: KadDHT, key: Key, value: seq[byte]
+    kad: KadDHT, key: Key, value: Value
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   if value.len > kad.config.limits.maxValueSize:
     return err(
@@ -118,39 +92,70 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  if kad.canStoreLocalRecord(key):
+  let storedLocally = kad.canStoreLocalRecord(key)
+  if storedLocally:
     kad.dataTable.insert(key, value, Timestamp.now())
   else:
-    debug "PutValue: local record limit reached", current = kad.dataTable.len
+    trace "PutValue: local record limit reached", current = kad.dataTable.len
+
+  var attempted, succeeded, failed, cancelled, pending: int
+  var outcome = "cancelled"
+  defer:
+    debug "Put-value replication finished",
+      key,
+      outcome,
+      storedLocally,
+      peers = peers.len,
+      attempted,
+      succeeded,
+      failed,
+      cancelled,
+      pending
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.dispatchPutVal(it, key, value))
-    await batch.allFuturesWaitOrTimeout(kad.config.timeout)
-
+    attempted += batch.len
+    try:
+      await batch.allFuturesWaitOrTimeout(kad.config.timeout)
+    finally:
+      let results = countFutureOutcomes(batch)
+      var rejected: int
+      for fut in batch:
+        if fut.completed() and fut.value().isErr():
+          rejected.inc()
+      succeeded += results.succeeded - rejected
+      failed += results.failed + rejected
+      cancelled += results.cancelled
+      pending += results.pending
+  outcome = "completed"
   ok()
 
 proc handlePutValue*(
     kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let record = msg.record.valueOr:
-    error "No record in message buffer", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingRecord", messageType = "putValue", stream
     return
 
   let msgKey = msg.key.valueOr:
-    error "Key not set: handlePutValue", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingKey", messageType = "putValue", stream
     return
 
   if record.key.isNone or record.key.get() != msgKey:
-    error "Record key is different than Message key", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "keyMismatch", messageType = "putValue", stream
     return
 
   let value = record.value.valueOr:
-    error "No value in record", msg = msg, stream = stream
+    trace "Put-value request rejected",
+      reason = "missingValue", messageType = "putValue", stream
     return
 
   if value.len > kad.config.limits.maxValueSize:
-    debug "PUT_VALUE dropped: value exceeds maxValueSize",
-      stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
+    trace "PUT_VALUE dropped: value exceeds maxValueSize",
+      stream, size = value.len, cap = kad.config.limits.maxValueSize
     await stream.reset()
     return
 
@@ -158,17 +163,17 @@ proc handlePutValue*(
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msgKey, entryRecord):
-    debug "Record is not valid", msg = msg, entryRecord = entryRecord
+    trace "Put-value request rejected",
+      reason = "invalidRecord", messageType = "putValue", stream
     return
 
   if not kad.isBestValue(msgKey, entryRecord):
-    error "Dropping received value, we have a better one"
+    trace "Dropping received value, we have a better one"
     await stream.reset()
     return
 
   if not kad.canStoreLocalRecord(msgKey):
-    debug "PutValue: local record limit reached",
-      stream = stream, current = kad.dataTable.len
+    debug "PutValue: local record limit reached", stream, current = kad.dataTable.len
     await stream.reset()
     return
 
@@ -180,5 +185,6 @@ proc handlePutValue*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send find-node RPC reply", stream = stream, err = exc.msg
+    trace "Kademlia put-value RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.putValue
     return

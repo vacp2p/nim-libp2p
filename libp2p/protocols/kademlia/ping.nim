@@ -6,14 +6,17 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, kademlia_metrics]
 
+logScope:
+  topics = "libp2p kademlia"
+
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[bool] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let stream = await kad.switch.dial(peerId, addrs, kad.codec)
+  let stream = await noCancel kad.switch.dial(peerId, addrs, kad.codec)
   defer:
-    await stream.close()
+    await noCancel stream.close()
 
   let request = Message(msgType: Opt.some(MessageType.ping))
   let encoded = request.encode(kad.config.hideConnectionStatus)
@@ -41,5 +44,6 @@ proc handlePing*(
   try:
     await stream.writeLp(encoded)
   except LPStreamError as exc:
-    debug "Failed to send ping reply", stream = stream, err = exc.msg
+    debug "Kademlia ping RPC reply write failed",
+      err = exc.msg, stream, messageType = $MessageType.ping
     return

@@ -5,10 +5,10 @@
 
 import std/[sets, sequtils, strutils]
 import chronos, chronicles, stew/endians2
-import ".."/[multiaddress, multicodec]
+import ../[multiaddress, multicodec]
 
 logScope:
-  topics = "libp2p nameresolver"
+  topics = "libp2p name-resolution"
 
 type NameResolver* = ref object of RootObj
 
@@ -77,16 +77,16 @@ proc resolveDnsAddr*(
   if not DNSADDR.matchPartial(ma):
     return @[ma]
 
-  trace "Resolving dnsaddr", ma
+  trace "DNSADDR resolution started", address = ma
   if depth > 6:
-    info "Stopping DNSADDR recursion, probably malicious", ma
+    trace "DNSADDR resolution stopped at recursion limit", address = ma
     return @[]
 
   let
     dnsval = getHostname(ma)
     txt = await self.resolveTxt("_dnsaddr." & dnsval)
 
-  trace "txt entries", txt
+  trace "DNSADDR TXT records received", address = ma, recordCount = txt.len
 
   const codec = multiCodec("p2p")
   let maCodec = block:
@@ -114,7 +114,7 @@ proc resolveDnsAddr*(
       res.add(r)
 
   if res.len == 0:
-    debug "Failed to resolve a DNSADDR", ma
+    trace "DNSADDR resolution failed", address = ma
   res
 
 proc resolveMAddress*(

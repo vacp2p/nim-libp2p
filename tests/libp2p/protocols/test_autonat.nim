@@ -65,9 +65,9 @@ suite "Autonat":
     await dst.start()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma =
+    let maddr =
       await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
-    check ma in src.peerInfo.addrs
+    check maddr in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())
 
   asyncTest "dialMe handles dial error msg":
@@ -94,7 +94,7 @@ suite "Autonat":
     dst.mount(autonat)
     await src.start()
     await dst.start()
-    await doesNothingListener.start(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    await doesNothingListener.start(@[TcpWildcardAddress])
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
@@ -130,7 +130,7 @@ suite "Autonat":
     dst.mount(autonat)
     await src.start()
     await dst.start()
-    await doesNothingListener.start(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    await doesNothingListener.start(@[TcpWildcardAddress])
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
     let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
@@ -159,11 +159,10 @@ suite "Autonat":
     await src.start()
     await dst.start()
 
-    let testAddr =
-      MultiAddress.init("/dns4/localhost/").tryGet() & dst.peerInfo.addrs[0][1].tryGet()
+    let testAddr = ma("/dns4/localhost/") & dst.peerInfo.addrs[0][1].tryGet()
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let ma = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, @[testAddr])
+    let maddr = await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, @[testAddr])
 
-    check ma in src.peerInfo.addrs
+    check maddr in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())

@@ -126,6 +126,10 @@ func len*[K](t: TimedCache[K]): int =
   ## Returns the number of entries in the cache.
   t.entries.len
 
+func maxSize*[K](t: TimedCache[K]): int =
+  ## Returns the entry limit of the cache, 0 meaning unlimited.
+  t.maxSize
+
 func addedAt*[K](t: var TimedCache[K], k: K): Moment =
   let tmp = TimedEntry[K](key: k)
   try:

@@ -16,38 +16,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install build dependencies (Linux i386)
-      shell: ${{ inputs.shell }}
-      if: inputs.os == 'Linux' && inputs.cpu == 'i386'
-      run: |
-        sudo dpkg --add-architecture i386
-        sudo apt-get update -qq
-        sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
-          --no-install-recommends -yq gcc-multilib g++-multilib \
-          libssl-dev:i386
-        mkdir -p external/bin
-        cat << EOF > external/bin/gcc
-        #!/bin/bash
-        exec $(which gcc) -m32 "\$@"
-        EOF
-        cat << EOF > external/bin/g++
-        #!/bin/bash
-        exec $(which g++) -m32 "\$@"
-        EOF
-        chmod 755 external/bin/gcc external/bin/g++
-        echo '${{ github.workspace }}/external/bin' >> $GITHUB_PATH
-
-    - name: MSYS2 (Windows i386)
-      if: inputs.os == 'Windows' && inputs.cpu == 'i386'
-      uses: msys2/setup-msys2@v2
-      with:
-        path-type: inherit
-        msystem: MINGW32
-        install: >-
-          base-devel
-          git
-          mingw-w64-i686-toolchain
-
     - name: MSYS2 (Windows amd64)
       if: inputs.os == 'Windows' && inputs.cpu == 'amd64'
       uses: msys2/setup-msys2@v2
@@ -61,7 +29,7 @@ runs:
     - name: Restore Nim DLLs dependencies (Windows) from cache
       if: inputs.os == 'Windows'
       id: windows-dlls-cache
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
         path: external/dlls
         key: 'dlls'
@@ -76,6 +44,18 @@ runs:
         curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
         7z x external/windeps.zip -oexternal/dlls
 
+    - name: Save Nim DLLs dependencies (Windows) to cache
+      if: >
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/master' &&
+        inputs.os == 'Windows' &&
+        steps.windows-dlls-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      continue-on-error: true
+      with:
+        path: external/dlls
+        key: 'dlls'
+
     - name: Path to cached dependencies (Windows)
       shell: ${{ inputs.shell }}
       if: >
@@ -86,13 +66,18 @@ runs:
     - name: Derive environment variables
       shell: ${{ inputs.shell }}
       run: |
-        if [[ '${{ inputs.cpu }}' == 'amd64' ]]; then
+        case '${{ inputs.cpu }}' in
+        'amd64')
           PLATFORM=x64
-        elif [[ '${{ inputs.cpu }}' == 'arm64' ]]; then
+          ;;
+        'arm64')
           PLATFORM=arm64
-        else
-          PLATFORM=x86
-        fi
+          ;;
+        *)
+          echo "unsupported cpu: ${{ inputs.cpu }}" >&2
+          exit 1
+          ;;
+        esac
         echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
 
         ncpu=
@@ -116,7 +101,7 @@ runs:
 
     - name: Restore Nim from cache
       id: nim-cache
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
         path: '${{ github.workspace }}/nim'
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}-${{ env.NIMBLE_COMMIT }}
@@ -142,3 +127,14 @@ runs:
           bash build_nim.sh nim csources dist/nimble NimBinaries
 
         mv "$tmpdir/nim" "${{ github.workspace }}/nim"
+
+    - name: Save Nim to cache
+      if: >
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/master' &&
+        steps.nim-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      continue-on-error: true
+      with:
+        path: '${{ github.workspace }}/nim'
+        key: ${{ steps.nim-cache.outputs.cache-primary-key }}

@@ -19,12 +19,18 @@ import
     vbuffer,
     varint,
   ]
-import ../../tools/[unittest, trackers, futures, bufferstream, compare]
+import ../../tools/[unittest, trackers, futures, bufferstream, compare, multiaddress]
 
 proc noopWriteHandler(
     data: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
+
+proc encodeMessage(id: uint64, msgType: MessageType, data: seq[byte]): seq[byte] =
+  var buf = initVBuffer()
+  buf.writePBVarint(id shl 3 or ord(msgType).uint64)
+  buf.writeSeq(data)
+  buf.buffer
 
 suite "Mplex":
   teardown:
@@ -189,6 +195,69 @@ suite "Mplex":
 
       await chann.close()
       await conn.close()
+
+    asyncTest "(connection down) - should read buffered data and EOF":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      let closeFut = chann.pushEof() # queue is full, so the marker waits
+      await conn.close()
+
+      var data = newSeq[byte](6)
+      await chann.readExactly(addr data[0], 6)
+      check string.fromBytes(data) == "Hello!"
+
+      var buf: array[1, byte]
+      check (await chann.readOnce(addr buf[0], 1)) == 0
+
+      await chann.close()
+      await closeFut
+
+    asyncTest "(connection down) - canceled EOF push should not stall reads":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      let eofFut = chann.pushEof() # blocks, queue is full
+      check not eofFut.finished()
+      await eofFut.cancelAndWait()
+
+      var data = newSeq[byte](6)
+      await chann.readExactly(addr data[0], 6)
+      check string.fromBytes(data) == "Hello!"
+
+      await conn.close()
+      var buf: array[1, byte]
+      expect LPStreamConnDownError:
+        discard await chann.readOnce(addr buf[0], 1).wait(100.millis)
+
+      await chann.reset()
+
+    asyncTest "(connection down) - should drain a partial read buffer":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(("Hello!").toBytes)
+      var prefix: array[3, byte]
+      await chann.readExactly(addr prefix[0], 3)
+      check string.fromBytes(prefix) == "Hel"
+
+      await conn.close() # 3 bytes left in readBuf
+
+      var remainder: array[4, byte]
+      check:
+        (await chann.readOnce(addr remainder[0], 4).wait(100.millis)) == 3
+        string.fromBytes(remainder[0 ..< 3]) == "lo!"
+
+      var buf: array[1, byte]
+      expect LPStreamConnDownError:
+        discard await chann.readOnce(addr buf[0], 1).wait(100.millis)
+
+      await chann.reset()
 
   suite "channel reset":
     asyncTest "channel should fail reading":
@@ -361,6 +430,23 @@ suite "Mplex":
 
       await conn.close()
 
+    asyncTest "reset should clear buffered data":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.pushData(@[0'u8, 1, 2, 3, 4])
+      var first: array[1, byte]
+      check 1 == await chann.readOnce(addr first[0], first.len)
+      check chann.len == 4
+
+      await chann.reset()
+
+      check chann.len == 0
+      check chann.atEof()
+
+      await conn.close()
+
     asyncTest "channel should reset on timeout":
       let
         conn = TestBufferStream.new(noopWriteHandler)
@@ -369,13 +455,79 @@ suite "Mplex":
       check await chann.join().withTimeout(1.minutes)
       await conn.close()
 
+  suite "mplex limits":
+    asyncTest "does not retain remote stream names":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn)
+        handleFut = mplex.handle()
+        remoteName = "attacker-controlled-name"
+
+      await conn.pushData(encodeMessage(0, MessageType.New, remoteName.toBytes()))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+
+      check LPChannel(mplex.getStreams()[0]).name != remoteName
+
+      await mplex.close()
+      await handleFut
+
+    asyncTest "resets a stream that exceeds the connection buffer limit":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn, maxBufferedBytes = 4)
+
+      mplex.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+        await noCancel stream.join()
+
+      let handleFut = mplex.handle()
+      await conn.pushData(
+        encodeMessage(0, MessageType.New, @[]) &
+          encodeMessage(0, MessageType.MsgOut, @[0'u8, 1, 2, 3]) &
+          encodeMessage(1, MessageType.New, @[]) &
+          encodeMessage(1, MessageType.MsgOut, @[4'u8])
+      )
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+        LPChannel(mplex.getStreams()[0]).len == 4
+
+      await mplex.close()
+      await handleFut
+
+    asyncTest "does not limit negotiated stream buffers":
+      let
+        conn = TestBufferStream.new(noopWriteHandler)
+        mplex = Mplex.new(conn, maxBufferedBytes = 4)
+
+      mplex.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+        await noCancel stream.join()
+
+      let handleFut = mplex.handle()
+      await conn.pushData(encodeMessage(0, MessageType.New, @[]))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        mplex.getStreams().len == 1
+
+      let stream = LPChannel(mplex.getStreams()[0])
+      stream.protocol = "/test/1.0.0"
+      await conn.pushData(encodeMessage(0, MessageType.MsgOut, @[0'u8, 1, 2, 3, 4]))
+
+      checkUntilTimeoutCustom(1.seconds, 10.millis):
+        stream.len == 5
+
+      check not stream.localReset
+
+      await mplex.close()
+      await handleFut
+
   suite "mplex e2e":
-    asyncTest "read/write receiver":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
+    asyncTest "read/write receiver", timeout = 20.seconds:
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
+      let received = newFuture[void]()
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
@@ -383,6 +535,7 @@ suite "Mplex":
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
+            received.complete()
           except CancelledError, LPStreamError:
             return
           finally:
@@ -401,6 +554,7 @@ suite "Mplex":
       await stream.writeLp("HELLO")
       check LPChannel(stream).isOpen # not lazy
       await stream.close()
+      await received
 
       await conn.close()
       await allFuturesRaising(transport1.stop(), transport2.stop())
@@ -408,12 +562,11 @@ suite "Mplex":
       await listenFut
       await mplexDialFut
 
-    asyncTest "read/write receiver lazy":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
+    asyncTest "read/write receiver lazy", timeout = 20.seconds:
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
+      let received = newFuture[void]()
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
         let mplexListen = Mplex.new(conn)
@@ -421,6 +574,7 @@ suite "Mplex":
           try:
             let msg = await stream.readLp(1024)
             check string.fromBytes(msg) == "HELLO"
+            received.complete()
           except CancelledError, LPStreamError:
             return
           finally:
@@ -440,6 +594,7 @@ suite "Mplex":
       await stream.writeLp("HELLO")
       check LPChannel(stream).isOpen # assert lazy
       await stream.close()
+      await received
 
       await conn.close()
       await allFuturesRaising(transport1.stop(), transport2.stop())
@@ -448,16 +603,14 @@ suite "Mplex":
       await mplexDialFut
 
     asyncTest "write fragmented":
-      let
-        ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-        listenJob = newFuture[void]()
+      let listenJob = newFuture[void]()
 
       var bigseq = newSeqOfCap[uint8](MaxMsgSize * 2)
       for _ in 0 ..< MaxMsgSize:
         bigseq.add(uint8(rand(uint('A') .. uint('z'))))
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
       proc acceptHandler() {.async.} =
         try:
@@ -505,10 +658,8 @@ suite "Mplex":
       await listenFut
 
     asyncTest "read/write initiator":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
@@ -542,10 +693,8 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple streams":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
       let transport1 = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
       let done = newFuture[void]()
       proc acceptHandler() {.async.} =
@@ -590,10 +739,8 @@ suite "Mplex":
       await listenFut
 
     asyncTest "multiple read/write streams":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      let listenFut = transport1.start(ma)
+      let listenFut = transport1.start(@[TcpWildcardAddress])
 
       let done = newFuture[void]()
       proc acceptHandler() {.async.} =
@@ -641,8 +788,6 @@ suite "Mplex":
       await listenFut
 
     asyncTest "channel closes listener with EOF":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       var listenStreams: seq[MuxedStream]
       proc acceptHandler() {.async.} =
@@ -663,7 +808,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let conn = await transport2.dial(transport1.addrs[0])
@@ -688,7 +833,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var count = 0
@@ -708,7 +852,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -744,7 +888,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "Connection.reset aborts the dialer stream":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       proc acceptHandler() {.async.} =
@@ -756,7 +899,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -781,7 +924,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[MuxedStream]
@@ -795,7 +937,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -819,7 +961,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexListen: Mplex
@@ -834,7 +975,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -861,7 +1002,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var mplexHandle: Future[void]
@@ -877,7 +1017,7 @@ suite "Mplex":
         await mplexHandle
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -904,7 +1044,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "closing dialing connection should close both ends":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenStreams: seq[MuxedStream]
@@ -918,7 +1057,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -945,7 +1084,6 @@ suite "Mplex":
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
       var listenConn: MuxedStream
@@ -960,7 +1098,7 @@ suite "Mplex":
         await mplexListen.handle()
         await mplexListen.close()
 
-      await transport1.start(ma)
+      await transport1.start(@[TcpWildcardAddress])
       let acceptFut = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -988,10 +1126,8 @@ suite "Mplex":
 
     suite "jitter":
       asyncTest "channel should be able to handle erratic read/writes":
-        let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-        let listenFut = transport1.start(ma)
+        let listenFut = transport1.start(@[TcpWildcardAddress])
 
         var complete = newFuture[void]()
         const MsgSize = 1024
@@ -1061,10 +1197,8 @@ suite "Mplex":
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
-        let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-        let listenFut = transport1.start(ma)
+        let listenFut = transport1.start(@[TcpWildcardAddress])
 
         var complete = newFuture[void]()
         const MsgSize = 512

@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   pick-platform:
     runs-on: ubuntu-latest
@@ -27,12 +30,12 @@ jobs:
       - name: Pick random platform
         id: pick
         run: |
-          declare -a OSS=("linux" "linux" "linux-gcc-14" "macos-15" "windows" "windows")
-          declare -a CPUS=("amd64" "i386" "amd64" "arm64" "amd64" "amd64")
-          declare -a CCS=("gcc" "gcc" "gcc" "clang" "clang" "gcc")
-          declare -a BUILDERS=("ubuntu-22.04" "ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
-          declare -a SHELLS=("bash" "bash" "bash" "bash" "bash" "msys2 {0}")
-          PLATFORM_INDEX=$((RANDOM % 6))
+          declare -a OSS=("linux" "linux-gcc-14" "macos-15" "windows" "windows")
+          declare -a CPUS=("amd64" "amd64" "arm64" "amd64" "amd64")
+          declare -a CCS=("gcc" "gcc" "clang" "clang" "gcc")
+          declare -a BUILDERS=("ubuntu-22.04" "ubuntu-24.04" "macos-15" "windows-2022" "windows-2022")
+          declare -a SHELLS=("bash" "bash" "bash" "bash" "msys2 {0}")
+          PLATFORM_INDEX=$((RANDOM % ${#OSS[@]}))
           echo "os=${OSS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
           echo "cpu=${CPUS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
           echo "cc=${CCS[$PLATFORM_INDEX]}" >> $GITHUB_OUTPUT
@@ -47,9 +50,12 @@ jobs:
 
   test:
     needs: pick-platform
+    permissions:
+      checks: write
+      contents: read
     env:
-      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
-    timeout-minutes: 55
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
+    timeout-minutes: 30
     runs-on: ${{ needs.pick-platform.outputs.builder }}
     name: "test_multiformat_exts"
     defaults:
@@ -64,6 +70,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: true
 
       - name: Setup Nim
@@ -74,35 +81,12 @@ jobs:
           shell: ${{ needs.pick-platform.outputs.shell }}
           nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
 
-      - name: Restore dependencies from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Setup Windows dependencies
+        uses: "./.github/actions/setup_windows"
         with:
-          path: |
-            nimbledeps
-            tests/nimbledeps
-          key: nimbledeps-${{ needs.pick-platform.outputs.os }}-${{ needs.pick-platform.outputs.cpu }}-${{ needs.pick-platform.outputs.cc }}-${{ hashFiles('.pinned', 'tests/.pinned') }}
-
-      - name: Restore llvm-mingw (Windows) from cache
-        if: runner.os == 'Windows' && needs.pick-platform.outputs.cc == 'clang'
-        id: windows-mingw-cache
-        uses: actions/cache@v5
-        with:
-          path: external/mingw-${{ needs.pick-platform.outputs.cpu }}
-          key: 'mingw-llvm-17-${{ needs.pick-platform.outputs.cpu }}'
-
-      - name: Install llvm-mingw dependency (Windows)
-        if: >
-          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows' &&
-          needs.pick-platform.outputs.cc == 'clang'
-        run: |
-          mkdir -p external
-          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
-          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
-          curl -L "$MINGW_URL" -o "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip"
-          7z x -y "external/mingw-${{ needs.pick-platform.outputs.cpu }}.zip" -oexternal/mingw-${{ needs.pick-platform.outputs.cpu }}/
-          mv external/mingw-${{ needs.pick-platform.outputs.cpu }}/**/* ./external/mingw-${{ needs.pick-platform.outputs.cpu }}
+          cpu: ${{ needs.pick-platform.outputs.cpu }}
+          cc: ${{ needs.pick-platform.outputs.cc }}
+          shell: ${{ needs.pick-platform.outputs.shell }}
 
       - name: Use gcc 14
         if: needs.pick-platform.outputs.os == 'linux-gcc-14'
@@ -110,34 +94,26 @@ jobs:
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
-      - name: Path to cached dependencies (Windows)
-        if: >
-          runner.os == 'Windows' &&
-          needs.pick-platform.outputs.cc == 'clang'
-        run: |
-          echo '${{ github.workspace }}'"/external/mingw-${{ needs.pick-platform.outputs.cpu }}/bin" >> $GITHUB_PATH
-          echo "." >> $GITHUB_PATH
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_test_deps"
+        with:
+          os: ${{ needs.pick-platform.outputs.os }}
+          cpu: ${{ needs.pick-platform.outputs.cpu }}
+          cc: ${{ needs.pick-platform.outputs.cc }}
+          nim_ref: ${{ needs.pick-platform.outputs.nim_ref }}
+          shell: ${{ needs.pick-platform.outputs.shell }}
 
-      - name: Install nasm (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Setup deps
         run: |
-          choco install nasm --no-progress -y
-          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
-          cd tests && nimble install_pinned
-
-      - name: Build prerequisites
-        run: make nimble.paths tests/nimble.paths
+          NIM_VERSION="${{ needs.pick-platform.outputs.nim_ref }}"
+          NIM_VERSION="${NIM_VERSION#v}"
+          make NIM_VERSION="$NIM_VERSION" setup
 
       - name: Build test_multiformat_exts
         id: build-test
         run: |
           NIMFLAGS="--mm:${{ needs.pick-platform.outputs.nim_mm }} --opt:speed --styleCheck:usages --styleCheck:error --parallelBuild:0 --threads:on --skipUserCfg"
+          NIMFLAGS="$NIMFLAGS -d:chronicles_log_level=INFO"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim"
           NIMFLAGS="$NIMFLAGS -d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim"

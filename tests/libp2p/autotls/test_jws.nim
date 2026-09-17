@@ -46,8 +46,15 @@ suite "ACME JWS":
       check not jws[field].getStr.contains('+')
       check not jws[field].getStr.contains('/')
 
-  test "an empty payload still signs and verifies":
+  test "an empty JSON payload still signs and verifies":
     let jws = toFlattenedJws(%*{"alg": "RS256"}, %*{}, key)
+    let signingInput = jws["protected"].getStr & "." & jws["payload"].getStr
+    let sig = RsaSignature.init(b64UrlDecode(jws["signature"].getStr)).get()
+    check rsa.verify(sig, signingInput, key.getPublicKey())
+
+  test "a zero-length payload still signs and verifies":
+    let jws = toFlattenedJws(%*{"alg": "RS256"}, "", key)
+    check jws["payload"].getStr == ""
     let signingInput = jws["protected"].getStr & "." & jws["payload"].getStr
     let sig = RsaSignature.init(b64UrlDecode(jws["signature"].getStr)).get()
     check rsa.verify(sig, signingInput, key.getPublicKey())

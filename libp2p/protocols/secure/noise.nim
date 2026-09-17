@@ -11,7 +11,7 @@ import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
 import ../../peerid
 import ../../peerinfo
-import ../../utils/[opt, shortlog, bytesview, protobuf]
+import ../../utils/[opt, shortlog, bytesview, protobuf, redact]
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 
@@ -92,6 +92,13 @@ type
     identityKey* {.fieldNumber: 1.}: Opt[seq[byte]]
     identitySig* {.fieldNumber: 2.}: Opt[seq[byte]]
 
+redactType(KeyPair, exported = false)
+redactType(CipherState, exported = false)
+redactType(SymmetricState, exported = false)
+redactType(HandshakeState, exported = false)
+redactType(HandshakeResult, exported = false)
+redactType(Noise)
+
 # Utility
 
 Protobuf.serializerFor([NoiseHandshakePayloadMsg], withMetrics = true, domain = "noise")
@@ -158,8 +165,7 @@ proc encryptWithAd(
 
   buf.add(tag)
 
-  trace "encryptWithAd",
-    tag = byteutils.toHex(tag), data = buf.shortLog, nonce = state.n - 1
+  trace "Noise frame encrypted", messageSize = buf.len, nonce = state.n - 1
   buf
 
 proc decryptWithAd(
@@ -172,14 +178,13 @@ proc decryptWithAd(
     buf = data[0 .. (data.high - ChaChaPolyTag.len)]
   nonce[4 ..< 12] = toBytesLE(state.n)
   ChaChaPoly.decrypt(state.k, nonce, tagOut, buf, ad)
-  trace "decryptWithAd",
-    tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
-    debug "decryptWithAd failed", data = shortLog(data)
+    debug "Noise frame authentication failed", messageSize = data.len
     raise (ref NoiseDecryptTagError)(msg: "decryptWithAd failed tag authentication.")
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  trace "Noise frame decrypted", messageSize = data.len
   buf
 
 # Symmetricstate
@@ -196,7 +201,7 @@ proc mixKey*(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   sha256.hkdf(ss.ck, ikm, [], temp_keys)
   ss.ck = temp_keys[0]
   ss.cs = CipherState(k: temp_keys[1])
-  trace "mixKey", key = ss.cs.k.shortLog
+  trace "Noise handshake key mixed"
 
 proc mixHash*(ss: var SymmetricState, data: openArray[byte]) =
   var ctx: sha256
@@ -204,7 +209,7 @@ proc mixHash*(ss: var SymmetricState, data: openArray[byte]) =
   ctx.update(ss.h.data)
   ctx.update(data)
   ss.h = ctx.finish()
-  trace "mixHash", hash = ss.h.data.shortLog
+  trace "Noise handshake hash mixed"
 
 # We might use this for other handshake patterns/tokens
 proc mixKeyAndHash(ss: var SymmetricState, ikm: openArray[byte]) {.used.} =
@@ -247,7 +252,7 @@ proc init(_: type[HandshakeState]): HandshakeState =
   HandshakeState(ss: SymmetricState.init())
 
 template write_e(): untyped =
-  trace "noise write e"
+  trace "Noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR().
   # Appends e.public_key to the buffer. Calls MixHash(e.public_key).
   hs.e = genKeyPair(p.rng)
@@ -256,17 +261,17 @@ template write_e(): untyped =
   hs.e.publicKey.getBytes
 
 template write_s(): untyped =
-  trace "noise write s"
+  trace "Noise write s"
   # Appends EncryptAndHash(s.public_key) to the buffer.
   hs.ss.encryptAndHash(hs.s.publicKey)
 
 template dh_ee(): untyped =
-  trace "noise dh ee"
+  trace "Noise dh ee"
   # Calls MixKey(DH(e, re)).
   hs.ss.mixKey(dh(hs.e.privateKey, hs.re))
 
 template dh_es(): untyped =
-  trace "noise dh es"
+  trace "Noise dh es"
   # Calls MixKey(DH(e, rs)) if initiator, MixKey(DH(s, re)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.e.privateKey, hs.rs))
@@ -274,7 +279,7 @@ template dh_es(): untyped =
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
 
 template dh_se(): untyped =
-  trace "noise dh se"
+  trace "Noise dh se"
   # Calls MixKey(DH(s, re)) if initiator, MixKey(DH(e, rs)) if responder.
   when initiator:
     hs.ss.mixKey(dh(hs.s.privateKey, hs.re))
@@ -283,12 +288,12 @@ template dh_se(): untyped =
 
 # might be used for other token/handshakes
 template dh_ss(): untyped {.used.} =
-  trace "noise dh ss"
+  trace "Noise dh ss"
   # Calls MixKey(DH(s, rs)).
   hs.ss.mixKey(dh(hs.s.privateKey, hs.rs))
 
 template read_e(): untyped =
-  trace "noise read e", size = msg.len
+  trace "Noise read e", size = msg.len
 
   if msg.len < Curve25519Key.len:
     raise (ref NoiseHandshakeError)(msg: "Noise E, expected more data")
@@ -301,7 +306,7 @@ template read_e(): untyped =
   Curve25519Key.len
 
 template read_s(): untyped =
-  trace "noise read s", size = msg.len
+  trace "Noise read s", size = msg.len
   # Sets temp to the next DHLEN + 16 bytes of the message if HasKey() == True,
   # or to the next DHLEN bytes otherwise.
   # Sets rs (which must be empty) to DecryptAndHash(temp).
@@ -324,7 +329,7 @@ proc readFrame*(
   var besize {.noinit.}: array[2, byte]
   await sconn.readExactly(addr besize[0], besize.len)
   let size = uint16.fromBytesBE(besize).int
-  trace "readFrame", sconn, size
+  trace "Noise handshake frame received", sconn, messageSize = size
   if size == 0:
     return
 
@@ -345,7 +350,7 @@ template sendHSMessage*(sconn: RawConn, parts: varargs[seq[byte]]): untyped =
   for p in parts:
     msgSize += p.len
 
-  trace "sendHSMessage", sconn, size = msgSize
+  trace "Noise handshake frame sending", sconn, messageSize = msgSize
   doAssert msgSize <= uint16.high.int
 
   await sconn.write(@(msgSize.uint16.toBytesBE))
@@ -511,7 +516,7 @@ method write*(
 method handshake*(
     p: Noise, conn: RawConn, initiator: bool, peerId: Opt[PeerId]
 ): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "Starting Noise handshake", conn, initiator
+  trace "Noise handshake started", conn, initiator
 
   let timeout = conn.timeout
   conn.timeout = HandshakeTimeout
@@ -542,8 +547,9 @@ method handshake*(
         remotePubKey: PublicKey
         remoteSig: Signature
 
-      remoteMsg = NoiseHandshakePayloadMsg.decode(handshakeRes.remoteP2psecret).valueOr:
-        raise newException(NoiseHandshakeError, error)
+      remoteMsg = NoiseHandshakePayloadMsg
+        .decode(handshakeRes.remoteP2psecret)
+        .valueOrRaise(NoiseHandshakeError)
 
       if remoteMsg.identityKey.isNone or remoteMsg.identitySig.isNone:
         raise newException(
@@ -563,21 +569,21 @@ method handshake*(
       if not remoteSig.verify(verifyPayload, remotePubKey):
         raise (ref NoiseHandshakeError)(msg: "Noise handshake signature verify failed.")
       else:
-        trace "Remote signature verified", conn
+        trace "Remote Noise signature verified", conn
 
       let pid = PeerId.init(remotePubKey).valueOr:
         raise (ref NoiseHandshakeError)(msg: "Invalid remote peer id: " & $error)
 
-      trace "Remote peer id", pid = $pid
+      trace "Remote Noise peer identified", peerId = pid
 
-      peerId.withValue(targetPid):
+      peerId.ifValue(targetPid):
         if not targetPid.validate():
           raise (ref NoiseHandshakeError)(msg: "Failed to validate expected peerId.")
 
         if pid != targetPid:
           var failedKey: PublicKey
           discard extractPublicKey(targetPid, failedKey)
-          debug "Noise handshake, peer id doesn't match!",
+          trace "Noise handshake peer identity rejected",
             initiator,
             dealt_peer = conn,
             dealt_key = $failedKey,
@@ -600,7 +606,7 @@ method handshake*(
     finally:
       burnMem(handshakeRes)
 
-  trace "Noise handshake completed!", initiator, peer = shortLog(secure.peerId)
+  trace "Noise handshake completed", initiator, peerId = secure.peerId
 
   conn.timeout = timeout
 

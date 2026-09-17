@@ -6,31 +6,61 @@
 import chronos, std/sequtils
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/kademlia
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 import ./utils.nim
+
+proc buildKadSwitch(mode: KadMode): Switch {.raises: [LPError].} =
+  makeStandardSwitchBuilder(TcpAutoAddress).withKademlia(mode = mode).build()
+
+proc buildAutoKadSwitch(): Switch {.raises: [LPError].} =
+  ## Auto mode plus the AutoNAT v1 probing that drives it.
+  makeStandardSwitchBuilder(TcpAutoAddress)
+    .withAutonat()
+    .withNAT(autonatConfig(AutonatV1, Opt.some(1.seconds)))
+    .withKademlia(mode = KadMode.Auto)
+    .build()
+
+proc buildAutonatPeer(): Switch {.raises: [LPError].} =
+  ## Answers the dial-back probes of `buildAutoKadSwitch`.
+  makeStandardSwitchBuilder(TcpAutoAddress).withAutonat().build()
+
+proc mountedKad(switch: Switch): Opt[KadDHT] =
+  for handler in switch.ms.handlers:
+    if KadCodec in handler.protos:
+      return Opt.some(KadDHT(handler.protocol))
+  Opt.none(KadDHT)
 
 suite "KadDHT Switch Builder":
   teardown:
     checkTrackers()
 
-  asyncTest "Build switch with withKademlia":
-    var switch1 = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withKademlia()
-      .build()
+  test "Configured mode sets the initial serving flag":
+    check:
+      buildKadSwitch(KadMode.Server).mountedKad().get().isServer
+      not buildKadSwitch(KadMode.Client).mountedKad().get().isServer
+      # Auto serves nothing until autonat proves the node reachable.
+      not buildKadSwitch(KadMode.Auto).mountedKad().get().isServer
 
-    var switch2 = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
+  asyncTest "Auto mode starts serving once autonat reports the node reachable":
+    let node = buildAutoKadSwitch()
+    let peers = @[buildAutonatPeer(), buildAutonatPeer(), buildAutonatPeer()]
+    let kad = node.mountedKad().get()
+    check not kad.isServer
+
+    await allFutures(@[node.start()] & peers.mapIt(it.start()))
+    defer:
+      await allFutures(@[node.stop()] & peers.mapIt(it.stop()))
+
+    for peer in peers:
+      await node.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
+
+    checkUntilTimeout:
+      kad.isServer
+
+  asyncTest "Build switch with withKademlia":
+    var switch1 = makeStandardSwitchBuilder(TcpAutoAddress).withKademlia().build()
+
+    var switch2 = makeStandardSwitchBuilder(TcpAutoAddress)
       .withKademlia(
         bootstrapNodes = @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)]
       )
@@ -43,30 +73,14 @@ suite "KadDHT Switch Builder":
       switch1.ms.handlers.anyIt(KadCodec in it.protos)
 
   asyncTest "Use Kad as a client only":
-    var switch1 = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withKademlia()
-      .build()
-
-    var switch2 = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+    var switch1 = makeStandardSwitchBuilder(TcpAutoAddress).withKademlia().build()
+    var switch2 = makeStandardSwitch(TcpAutoAddress)
 
     let kad2 = KadDHT.new(
       switch2,
       bootstrapNodes = @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
       rng = rng(),
-      client = true,
+      isServer = false,
     )
 
     await allFutures(switch1.start(), switch2.start())

@@ -4,6 +4,7 @@
 {.used.}
 
 import sequtils, tables, sets, chronos, stew/byteutils
+import chronos/ratelimit
 import
   ../utils,
   ../../../../libp2p/[
@@ -11,6 +12,8 @@ import
     stream/connection,
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
+    protocols/pubsub/timedcache,
+    protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
     protocols/pubsub/peertable,
@@ -18,6 +21,23 @@ import
   ]
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../../tools/[lifecycle, topology, unittest, futures]
+
+proc addRateLimitedPeer(f: FloodSub, bucket: TokenBucket): PubSubPeer =
+  let peerId = randomPeerId()
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
+  .} =
+    raise (ref GetStreamDialError)(msg: "unused")
+
+  let peer =
+    PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler)
+  peer.overheadRateLimitOpt = Opt.some(bucket)
+  f.peers[peerId] = peer
+
+  peer
+
+func failingMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
+  err(ValidationResult.Reject)
 
 suite "FloodSub Component":
   const topic = "foobar"
@@ -164,7 +184,10 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    # A full star of numberOfNodes needs numberOfNodes * (numberOfNodes - 1)
+    # pubsub streams to be dialed and negotiated; give this more headroom
+    # than the 30s default on loaded CI runners (see #2798).
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -200,7 +223,7 @@ suite "FloodSub Component":
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
-    waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic, timeout = 90.seconds)
 
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
@@ -211,12 +234,18 @@ suite "FloodSub Component":
     await allFuturesRaising(futs.mapIt(it[0]))
 
     # test calling unsubscribeAll for coverage
+    #
+    # This assertion must run synchronously, immediately after unsubscribeAll.
+    # `unsubscribeAll` broadcasts "unsubscribe" RPC messages to every connected 
+    # peer. If we polled/awaited here (e.g. via checkUntilTimeout), earlier nodes'
+    # broadcasts could reach later nodes before they're checked, eventually removing
+    #  their `floodsub[topic]` entry and crashing with an unhandled KeyError.
     for node in nodes:
       node.unsubscribeAll(topic)
-      let n = node
-      checkUntilTimeout:
-        n.floodsub[topic].len == numberOfNodes - 1 # we keep the peers in table
-        n.topics.len == 0 # remove the topic tho
+      check:
+        node.floodsub.getOrDefault(topic).len == numberOfNodes - 1
+          # we keep the peers in table
+        node.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
@@ -247,7 +276,11 @@ suite "FloodSub Component":
     checkUntilTimeout:
       messageReceived == 2
 
-    check (await smallNode.publish(topic, bigMessage)) > 0
+    # Publishing a message larger than the configured maxMessageSize will not publish.
+    check (await smallNode.publish(topic, bigMessage)) == 0
+
+    # The larger node can still publish, but the smaller node cannot receive it
+    # because its maxMessageSize is exceeded on the wire.
     check (await bigNode.publish(topic, bigMessage)) > 0
 
     await sleepAsync(300.milliseconds) # Wait before checking
@@ -286,7 +319,9 @@ suite "FloodSub Component":
     .} =
       raise (ref GetStreamDialError)(msg: "unused")
 
-    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    let peer = PubSubPeer.new(
+      peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler
+    )
     node.peers[peerId] = peer
 
     for i in 0 .. node.topicsHigh + 10:
@@ -319,7 +354,9 @@ suite "FloodSub Component":
     .} =
       raise (ref GetStreamDialError)(msg: "unused")
 
-    let peer = PubSubPeer.new(peerId, getStream, nil, FloodSubCodec, 1024 * 1024)
+    let peer = PubSubPeer.new(
+      peerId, getStream, nil, FloodSubCodec, 1024 * 1024, voidPeerHandler
+    )
     node.peers[peerId] = peer
 
     for i in 0 ..< 5:
@@ -329,3 +366,64 @@ suite "FloodSub Component":
 
     node.unsubscribePeer(peerId)
     check node.floodsub.len == 0
+
+  asyncTest "FloodSub charges the overhead budget when message id generation fails":
+    const budget = 1024
+
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(budget, 1.hours))
+
+    node.msgIdProvider = failingMsgIdProvider
+
+    let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
+    await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
+
+    let bucket = peer.overheadRateLimitOpt.get()
+    check:
+      bucket.tryConsume(budget - msg.byteSize())
+      not bucket.tryConsume(1)
+
+  asyncTest "FloodSub disconnects a peer above the overhead budget":
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(1, 1.millis))
+
+    node.msgIdProvider = failingMsgIdProvider
+    node.disconnectPeerAboveRateLimit = true
+
+    let msg = Message.init(peer.peerId, "bar".toBytes(), topic, Opt.some(1'u64))
+
+    expect PeerRateLimitError:
+      await node.rpcHandler(peer, RPCMsg.withMessages(msg).encode(false))
+
+  asyncTest "FloodSub gives a new peer a bucket built from overheadRateLimit":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 10, interval: 1.hours))
+
+    let peer = node.getOrCreatePeer(randomPeerId(), @[FloodSubCodec])
+    check peer.overheadRateLimitOpt.isSome()
+
+  asyncTest "FloodSub keeps the bucket a known peer already spent":
+    let
+      node = generateNodes(1).toFloodSub()[0]
+      peer = node.addRateLimitedPeer(TokenBucket.new(10, 1.hours))
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 10, interval: 1.hours))
+
+    check peer.tryCharge(10)
+    discard node.getOrCreatePeer(peer.peerId, @[FloodSubCodec])
+
+    check not peer.tryCharge(1)
+
+  asyncTest "FloodSub ignores an overheadRateLimit that refuses every charge":
+    let node = generateNodes(1).toFloodSub()[0]
+    node.overheadRateLimit = Opt.some(RateLimit(bytes: 0, interval: 1.hours))
+
+    let peer = node.getOrCreatePeer(randomPeerId(), @[FloodSubCodec])
+    check:
+      peer.overheadRateLimitOpt.isNone()
+      peer.tryCharge(1024)
+
+  asyncTest "FloodSub caps the entry count of the seen cache":
+    let node = generateNodes(1).toFloodSub()[0]
+    check node.seen.maxSize == FloodSubSeenMaxSize

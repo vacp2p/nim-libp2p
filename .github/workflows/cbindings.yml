@@ -12,24 +12,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   c-bindings:
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
+      matrix:
+        san: [asan, tsan]
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
     defaults:
       run:
         shell: bash
 
-    name: "Build C bindings"
+    name: "Build C bindings (${{ matrix.san }})"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: true
 
       - name: Setup Nim
@@ -40,35 +46,36 @@ jobs:
           cpu: amd64
           nim_ref: v2.2.10
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_cbind_deps"
         with:
-          path: nimbledeps
-          # Keep this in sync with ci.yml's cache key so entries are
-          # reusable. See ci.yml for the rationale on os/cpu/cc scoping.
-          key: nimbledeps-linux-amd64-gcc-${{ hashFiles('.pinned') }}
+          os: linux
+          cpu: amd64
+          cc: gcc
+          nim_ref: v2.2.10
 
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
-
-      - name: Build FFI library and generate C/CDDL bindings
+      - name: Generate C/CDDL bindings
         run: |
           nim --version
           nimble --version
           gcc --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble install_pinned
-          nimble setup
-          nimble buildffi
+          nimble -l setup -y
           nimble genbindings_c
           nimble genbindings_cddl
 
+      # The only linux build of the shipped refc library; `examples` builds orc.
+      - name: Build FFI library
+        if: matrix.san == 'asan'
+        run: |
+          cd cbind
+          nimble buildffi
+
       - name: Build and run C bindings examples
+        env:
+          LIBP2P_SAN: ${{ matrix.san }}
         run: |
           cd cbind
           nimble examples
@@ -80,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: aa8e6ea09ecac774b6fad42552569ce07bef37ec # v0.24.1
 
     defaults:
       run:
@@ -92,6 +99,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           submodules: true
 
       - name: Setup Nim
@@ -102,17 +110,13 @@ jobs:
           cpu: arm64
           nim_ref: v2.2.10
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v5
+      - name: Restore dependencies from cache
+        uses: "./.github/actions/install_cbind_deps"
         with:
-          path: nimbledeps
-          key: nimbledeps-macos-15-arm64-clang-${{ hashFiles('.pinned', 'cbind/.pinned') }}
-
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
+          os: macos-15
+          cpu: arm64
+          cc: clang
+          nim_ref: v2.2.10
 
       - name: Build FFI library and generate C/CDDL bindings
         run: |
@@ -120,10 +124,9 @@ jobs:
           nimble --version
           clang --version
 
-          nimble setup
+          nimble --lockFile:nix/libp2p.lock -l setup -y
           cd cbind
-          nimble install_pinned
-          nimble setup
+          nimble -l setup -y
           nimble buildffi
           nimble genbindings_c
           nimble genbindings_cddl

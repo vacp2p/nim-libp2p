@@ -34,7 +34,17 @@ suite "Hole Punching":
   teardown:
     checkTrackers()
 
-  asyncTest "Direct connection must work when peer address is public":
+  test "HPService shares the observers of its AutonatService":
+    # HPService produces no reachability of its own, so it hands out the
+    # observers of the AutoNAT v1 service that it drives.
+    # A nil client and a nil AutoRelayService are safe here: only setup() and
+    # the probe loop dereference them.
+    let autonatService = AutonatService.new(nil, rng())
+    let hpService = HPService.new(autonatService, nil)
+
+    check hpService.reachabilityObservers == autonatService.reachabilityObservers
+
+  template directConnection(restart: bool) =
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
     let autonatService = AutonatService.new(autonatClientStub, rng(), maxQueueSize = 1)
@@ -63,11 +73,12 @@ suite "Hole Punching":
       publicPeerSwitch.start(),
       peerSwitch.start(),
     )
+    if restart:
+      await hpservice.stop(privatePeerSwitch)
+      await hpservice.start(privatePeerSwitch)
+
     publicPeerSwitch.peerInfo.addrs.add(
-      [
-        MultiAddress.init("/dns4/localhost/").tryGet() &
-          publicPeerSwitch.peerInfo.addrs[0][1].tryGet()
-      ]
+      [ma("/dns4/localhost/") & publicPeerSwitch.peerInfo.addrs[0][1].tryGet()]
     )
 
     await privatePeerSwitch.connect(
@@ -93,6 +104,12 @@ suite "Hole Punching":
       switchRelay.stop(),
       peerSwitch.stop(),
     )
+
+  asyncTest "Direct connection must work when peer address is public":
+    directConnection(false)
+
+  asyncTest "Direct connection works after restarting HPService":
+    directConnection(true)
 
   asyncTest "Direct connection must work when peer address is public and dns is used":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
@@ -124,10 +141,7 @@ suite "Hole Punching":
       peerSwitch.start(),
     )
     publicPeerSwitch.peerInfo.addrs.add(
-      [
-        MultiAddress.init("/dns4/localhost/").tryGet() &
-          publicPeerSwitch.peerInfo.addrs[0][1].tryGet()
-      ]
+      [ma("/dns4/localhost/") & publicPeerSwitch.peerInfo.addrs[0][1].tryGet()]
     )
 
     await privatePeerSwitch.connect(

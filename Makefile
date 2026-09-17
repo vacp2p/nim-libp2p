@@ -1,6 +1,6 @@
 .PHONY: all build deps cbind clean test \
-        test_multiformat_exts test_integration \
-        install_pinned pin unpin gen_multicodec format clean-nim
+        test_multiformat_exts test_integration test_autotls_docker_integration \
+        setup lock gen_multicodec format clean-nim
 
 NIM_VERSION  ?= 2.2.10
 NPH_VERSION  ?= 0.7.0
@@ -15,6 +15,19 @@ else
 VERBOSITY_FLAG =
 endif
 
+# Off by default: mingw gcc ships no ASan runtime.
+ASAN ?= 0
+ifeq ($(ASAN),1)
+ASAN_FLAGS = \
+  --mm:orc \
+  -d:useMalloc \
+  --debugger:native \
+  --passC:-fno-omit-frame-pointer \
+  --passC:-fsanitize=address \
+  --passL:-fsanitize=address
+export ASAN_OPTIONS = detect_leaks=0
+endif
+
 NIM_FLAGS = \
   --styleCheck:usages --styleCheck:error \
   $(VERBOSITY_FLAG) \
@@ -22,6 +35,7 @@ NIM_FLAGS = \
   -f \
   --threads:on \
   --opt:speed \
+  $(ASAN_FLAGS) \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
@@ -39,21 +53,15 @@ endif
 
 TEST_PATH ?=
 
-all: build
+all: setup
 
-nimble.lock:
-	nimble lock
+nix/libp2p.lock: libp2p.nimble
+	nimble --lockFile:$@ --requires:"nim == $(NIM_VERSION)" lock
 
-nix/deps.nix: nimble.lock
-	./tools/gen-deps.sh nimble.lock nix/deps.nix
+nix/deps.nix: nix/libp2p.lock
+	./tools/gen-deps.sh nix/libp2p.lock nix/deps.nix
 
-tests/nimble.lock: tests/tests.nimble
-	cd tests && nimble lock
-
-nix/tests-deps.nix: tests/nimble.lock
-	./tools/gen-deps.sh tests/nimble.lock nix/tests-deps.nix
-
-deps: nix/deps.nix nix/tests-deps.nix
+deps: nix/deps.nix
 
 build: deps
 	nix build
@@ -62,45 +70,14 @@ cbind:
 	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock tests/nimble.lock nix/deps.nix nix/tests-deps.nix nimble.paths tests/nimble.paths
+	$(RM) nix/deps.nix nimble.paths tests/nimble.paths
 	$(MAKE) -C cbind clean
 
-# Generate nimble.paths so config.nims can include it.
-# nimble injects per-package srcDir paths that --NimblePath alone doesn't provide;
-# this replicates that by reading srcDir from each package's .nimble file.
-nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs/*/*.nimble)
-	@rm -f $@
-	@for pkgdir in nimbledeps/pkgs2 nimbledeps/pkgs; do \
-	  [ -d "$$pkgdir" ] || continue; \
-	  for f in "$$pkgdir"/*/*.nimble; do \
-	    [ -f "$$f" ] || continue; \
-	    pkg=$$(dirname "$$f"); \
-	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
-	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
-	      path="$$pkg/$$src"; \
-	    else \
-	      path="$$pkg"; \
-	    fi; \
-	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
-	  done; \
-	done
+nimble.paths: libp2p.nimble
+	nimble --noLockfile --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
-tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tests/nimbledeps/pkgs/*/*.nimble)
-	@rm -f $@
-	@for pkgdir in tests/nimbledeps/pkgs2 tests/nimbledeps/pkgs; do \
-	  [ -d "$$pkgdir" ] || continue; \
-	  for f in "$$pkgdir"/*/*.nimble; do \
-	    [ -f "$$f" ] || continue; \
-	    pkg=$$(dirname "$$f"); \
-	    src=$$(sed -n 's/^[[:space:]]*srcDir[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$$f" | head -1); \
-	    if [ -n "$$src" ] && [ "$$src" != "." ]; then \
-	      path="$$pkg/$$src"; \
-	    else \
-	      path="$$pkg"; \
-	    fi; \
-	    printf 'switch("path", "%s")\n' "$$path" >> $@; \
-	  done; \
-	done
+tests/nimble.paths: tests/tests.nimble libp2p.nimble
+	cd tests && nimble --requires:"nim == $(NIM_VERSION)" --resolver:minver -l setup -y
 
 # nim-libplum vendors libplum (PCP / NAT-PMP / UPnP-IGD) as a git submodule and
 # compiles its C sources into libp2p via nim's {.compile.} pragmas, so there is
@@ -109,13 +86,13 @@ tests/nimble.paths: $(wildcard tests/nimbledeps/pkgs2/*/*.nimble) $(wildcard tes
 test: nimble.paths tests/nimble.paths
 ifeq ($(TEST_PATH),)
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  --nimcache:nimcache/test_all \
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 	$(MAKE) test_multiformat_exts
 else
 	$(NIMC) c $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  --nimcache:nimcache/test_all \
 	  -d:path=$(TEST_PATH) \
 	  tests/test_all.nim
 	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
@@ -139,23 +116,26 @@ test_integration: nimble.paths tests/nimble.paths
 	  tests/integration/test_all.nim
 	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-install_pinned:
-	nimble install_pinned
-	cd tests && nimble install_pinned
+test_autotls_docker_integration:
+	docker compose -f tests/integration/autotls_docker/docker-compose.yml build test
+	status=0; docker compose -f tests/integration/autotls_docker/docker-compose.yml run --rm test || status=$$?; \
+	  [ $$status -eq 0 ] || docker compose -f tests/integration/autotls_docker/docker-compose.yml logs; \
+	  docker compose -f tests/integration/autotls_docker/docker-compose.yml down -v; \
+	  exit $$status
 
-pin:
-	nimble pin
+setup:
+	$(MAKE) nimble.paths tests/nimble.paths
 
-unpin:
-	nimble unpin
+lock: nix/libp2p.lock
+	$(MAKE) -C cbind nimble.lock
 
 gen_multicodec:
 	nimble gen_multicodec
 
 format:
-	find . -name '*.nim' -not -path './nimbledeps/*' -not -path './tests/nimbledeps/*' | xargs nph
+	find . \( -name '*.nim' -o -name '*.nimble' \) -not -path './nimbledeps/*' -not -path './tests/nimbledeps/*' | xargs nph
 
 clean-nim:
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
 	[ ! -d tests/nimbledeps ] || rm -rf tests/nimbledeps
-	rm nimble.locks nimble.paths tests/nimble.paths 2>/dev/null || true
+	rm nimble.paths tests/nimble.paths 2>/dev/null || true

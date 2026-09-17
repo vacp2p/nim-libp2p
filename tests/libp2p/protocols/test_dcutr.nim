@@ -42,10 +42,7 @@ suite "Dcutr":
   asyncTest "Connect msg Encode / Decode":
     const pbHexReference = "08641208040000000006000012080400000000060000"
 
-    let addrs = @[
-      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-    ]
+    let addrs = @[TcpWildcardAddress, TcpWildcardAddress]
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
@@ -58,10 +55,7 @@ suite "Dcutr":
   asyncTest "Sync msg Encode / Decode":
     const pbHexReference = "08ac021208040000000006000012080400000000060000"
 
-    let addrs = @[
-      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-    ]
+    let addrs = @[TcpWildcardAddress, TcpWildcardAddress]
     let syncMsg = DcutrMsg(msgType: MsgType.Sync, addrs: addrs)
 
     let pb = syncMsg.encode()
@@ -273,19 +267,19 @@ suite "Dcutr":
 
   test "should return valid TCP and QUIC-v1 addresses only":
     let testAddrs = @[
-      MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
+      ma("/ip4/192.0.2.1/tcp/1234"),
       MultiAddress
         .init(
           "/ip4/203.0.113.5/tcp/5678/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
-      MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
+      ma("/ip6/::1/tcp/9012"),
       MultiAddress
         .init(
           "/dns4/example.com/tcp/3456/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
-      MultiAddress.init("/ip4/192.0.2.2/udp/3456/quic-v1").tryGet(),
+      ma("/ip4/192.0.2.2/udp/3456/quic-v1"),
       MultiAddress
         .init(
           "/ip4/203.0.113.6/udp/4567/quic-v1/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
@@ -296,18 +290,18 @@ suite "Dcutr":
           "/dns4/example.org/udp/5678/quic-v1/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
-      MultiAddress.init("/ip4/198.51.100.42/udp/7890").tryGet(),
-      MultiAddress.init("/ip4/198.51.100.43/udp/7890/quic").tryGet(),
+      ma("/ip4/198.51.100.42/udp/7890"),
+      ma("/ip4/198.51.100.43/udp/7890/quic"),
     ]
 
     let expected = @[
-      MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
-      MultiAddress.init("/ip4/203.0.113.5/tcp/5678").tryGet(),
-      MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
-      MultiAddress.init("/dns4/example.com/tcp/3456").tryGet(),
-      MultiAddress.init("/ip4/192.0.2.2/udp/3456/quic-v1").tryGet(),
-      MultiAddress.init("/ip4/203.0.113.6/udp/4567/quic-v1").tryGet(),
-      MultiAddress.init("/dns4/example.org/udp/5678/quic-v1").tryGet(),
+      ma("/ip4/192.0.2.1/tcp/1234"),
+      ma("/ip4/203.0.113.5/tcp/5678"),
+      ma("/ip6/::1/tcp/9012"),
+      ma("/dns4/example.com/tcp/3456"),
+      ma("/ip4/192.0.2.2/udp/3456/quic-v1"),
+      ma("/ip4/203.0.113.6/udp/4567/quic-v1"),
+      ma("/dns4/example.org/udp/5678/quic-v1"),
     ]
 
     let res = getHolePunchableAddrs(testAddrs)

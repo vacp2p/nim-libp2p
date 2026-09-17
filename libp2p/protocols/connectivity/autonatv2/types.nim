@@ -19,6 +19,9 @@ const
   DefaultDialTimeout*: Duration = 15.seconds
   DefaultAmplificationAttackDialTimeout*: Duration = 3.seconds
   DefaultDialDataSize*: uint64 = 50 * 1024 # 50 KiB > 50 KB
+  DefaultMaxConcurrentDialBacks*: int = 8
+  DefaultMaxConcurrentRequestsPerPeer*: int = 2
+  DefaultMaxConcurrentRequestsTotal*: int = 16
   AutonatV2MsgLpSize*: int = 1024
   DialBackLpSize*: int = 1024
   # readLp needs to receive more than 4096 bytes (since it's a DialDataResponse) + overhead

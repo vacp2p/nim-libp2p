@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, tables, hashes]
+import std/[sequtils, sets, tables, hashes, net]
 import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
@@ -11,9 +11,11 @@ import
 import ../../utils/iptree
 import ../kademlia/[types, protobuf]
 
+export iptree
 export extended_peer_record.MaxServiceDataSize
 export extended_peer_record.MaxXPRSize
 export extended_peer_record.isValid
+export types
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
@@ -32,28 +34,41 @@ const
   Default_Delta* = 1.secs
   Default_M_buckets* = 16
   Default_IpSimCoefficient* = 1.0
+  Default_DialBackoffBase* = 30.secs
+  Default_DialBackoffMax* = 30.minutes
+  Default_MaxDialFailures* = 5
 
 type
   ServiceId* = Key
 
   ServiceStatus* = enum
-    Interest = 0
-    Provided = 1
-    Both = 2
+    Interest
+    Provided
+    Registered
 
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
-    serviceStatus*: Table[ServiceId, ServiceStatus]
+    serviceStatus*: Table[ServiceId, set[ServiceStatus]]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
-
-  AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
+    onServiceTableRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   Advertisement* = SignedExtendedPeerRecord
 
-  Registrar* = ref object
-    cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, Moment]
+  CachedAd* = object
+    ad*: Advertisement
+    advertiser*: PeerId
+    ips*: seq[IpAddress]
+    timestamp*: Moment
+
+  AdvertisementCache* = ref object
+    byService*: Table[ServiceId, Table[PeerId, CachedAd]]
     ipTree*: IpTree
+    capacity*: uint64
+    count*: int
+    onServiceRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
+
+  Registrar* = ref object
+    ads*: AdvertisementCache
     boundService*: Table[ServiceId, Moment]
     timestampService*: Table[ServiceId, Moment]
     boundIp*: Table[string, Moment]
@@ -65,10 +80,14 @@ type
     registrar*: PeerId
     bucketIdx*: int
 
+  ProvidedAdvert* = object
+    bytes*: seq[byte]
+    callerSupplied*: bool ## Bytes we did not build carry addresses we cannot refresh.
+
   Advertiser* = ref object
     running*: HashSet[AdvertiseTask]
     seqNo*: uint64
-    providedAdverts*: Table[ServiceId, seq[byte]]
+    providedAdverts*: Table[ServiceId, ProvidedAdvert]
 
   ServiceDiscoveryConfig* = object
     kRegister*: int
@@ -82,22 +101,50 @@ type
     ipSimCoefficient*: float64
     registrationWindow*: Duration
     bucketsCount*: int
+    dialBackoffBase*: Duration
+    dialBackoffMax*: Duration ## Cap of the exponential dial backoff.
+    maxDialFailures*: int
+      ## Consecutive failed dials before the peer leaves every service table.
+
+  DiscoverySource* = enum
+    FromLookup
+    FromRegistration
+
+  ProviderDiscovery* = object
+    provider*: PeerId
+    rank*: int
+    elapsed*: Duration
+    source*: DiscoverySource
+
+  ServiceInterest* = object
+    active*: bool
+    startedAt*: Moment
+    seen*: HashSet[PeerId]
+    found*: seq[ProviderDiscovery]
+
+  DiscoveryTracker* = ref object
+    selfId*: PeerId
+    maxProviders*: int
+    interests*: Table[ServiceId, ServiceInterest]
 
   ServiceDiscovery* = ref object of KadDHT
     advertiser*: Advertiser
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
+    tracker*: DiscoveryTracker
     services*: HashSet[ServiceInfo]
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
-    selfSignedPeerRecordLoop*: Future[void]
+    signedPeerRecordLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
     advertiserMaintenanceLoop*: Future[void]
     localRegistrationLoop*: Future[void]
-    serviceBootstrapFuts*: seq[Future[void]]
-    clientMode*: bool
+    serviceBootstrapFuts*: Table[ServiceId, Future[void]]
+    addressRepublish*: Future[void]
+    addressObserver*: PeerInfoObserver
+    dialFailures*: Table[PeerId, ProbeFailure]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
@@ -112,9 +159,15 @@ proc new*(
     ipSimCoefficient = Default_IpSimCoefficient,
     registrationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
+    dialBackoffBase = Default_DialBackoffBase,
+    dialBackoffMax = Default_DialBackoffMax,
+    maxDialFailures = Default_MaxDialFailures,
 ): T {.raises: [].} =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   doAssert ipSimCoefficient >= 0.0, "ipSimCoefficient must be >= 0"
+  doAssert maxDialFailures > 0, "maxDialFailures must be > 0"
+  doAssert dialBackoffBase > 0.nanoseconds, "dialBackoffBase must be > 0"
+  doAssert dialBackoffMax > 0.nanoseconds, "dialBackoffMax must be > 0"
   ServiceDiscoveryConfig(
     kRegister: kRegister,
     kLookup: kLookup,
@@ -127,16 +180,27 @@ proc new*(
     ipSimCoefficient: ipSimCoefficient,
     registrationWindow: registrationWindow,
     bucketsCount: bucketsCount,
+    dialBackoffBase: dialBackoffBase,
+    dialBackoffMax: dialBackoffMax,
+    maxDialFailures: maxDialFailures,
   )
 
 proc hash*(t: AdvertiseTask): Hash =
   hash(cast[pointer](t))
 
-proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
-  (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
-
 proc hash*(ad: Advertisement): Hash {.raises: [].} =
   hash(ad.envelope.signature.data)
+
+proc new*(
+    T: typedesc[AdvertisementCache], capacity: uint64 = Default_C
+): T {.raises: [].} =
+  doAssert capacity > 0, "capacity must be > 0"
+  T(
+    byService: initTable[ServiceId, Table[PeerId, CachedAd]](),
+    ipTree: IpTree.new(),
+    capacity: capacity,
+    count: 0,
+  )
 
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
   var adBytes: seq[seq[byte]]
@@ -148,16 +212,14 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
 
 proc hashServiceId*(serviceStr: string): ServiceId =
   let digest = sha256.digest(serviceStr)
-  @(digest.data)
+  ServiceId.fromBytes(@(digest.data))
 
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   ad.data.services.anyIt(hashServiceId(it.id) == serviceId)
 
-proc new*(T: typedesc[Registrar]): T =
+proc new*(T: typedesc[Registrar], advertCacheCap: uint64 = Default_C): T =
   T(
-    cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, Moment](),
-    ipTree: IpTree.new(),
+    ads: AdvertisementCache.new(advertCacheCap),
     boundService: initTable[ServiceId, Moment](),
     timestampService: initTable[ServiceId, Moment](),
     boundIp: initTable[string, Moment](),
@@ -167,8 +229,8 @@ proc new*(T: typedesc[Registrar]): T =
 proc new*(T: typedesc[Advertiser]): T =
   T(
     running: initHashSet[AdvertiseTask](),
-    seqNo: Moment.now().epochSeconds.uint64,
-    providedAdverts: initTable[ServiceId, seq[byte]](),
+    seqNo: nowUnixSeconds().uint64,
+    providedAdverts: initTable[ServiceId, ProvidedAdvert](),
   )
 
 proc toKey*(service: ServiceInfo): Key =
@@ -177,7 +239,7 @@ proc toKey*(service: ServiceInfo): Key =
 proc init*(
     T: typedesc[ExtendedPeerRecord],
     peerInfo: PeerInfo,
-    seqNo: uint64 = Moment.now().epochSeconds.uint64,
+    seqNo: uint64 = nowUnixSeconds().uint64,
     services: seq[ServiceInfo] = @[],
 ): T =
   T(
@@ -187,17 +249,24 @@ proc init*(
     services: services,
   )
 
+proc boundXpr*(key: Key, value: Value): Opt[SignedExtendedPeerRecord] =
+  ## Accepts a valid signed XPR only when its subject is the peer that `key` names.
+  let expectedPeerId = key.toPeerId().valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  let sxpr = SignedExtendedPeerRecord.decode(value.toBytes()).valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  if sxpr.data.peerId != expectedPeerId or not sxpr.isValid():
+    return Opt.none(SignedExtendedPeerRecord)
+
+  Opt.some(sxpr)
+
 type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedExtendedPeerRecord.decode(record.value).valueOr:
-    return false
-
-  let expectedPeerId = key.toPeerId().valueOr:
-    return false
-
-  return spr.data.peerId == expectedPeerId
+  boundXpr(key, record.value).isSome()
 
 type ExtEntrySelector* = ref object of EntrySelector
 method select*(
@@ -210,7 +279,7 @@ method select*(
   var bestIdx: int = -1
 
   for i, rec in records:
-    let spr = SignedExtendedPeerRecord.decode(rec.value).valueOr:
+    let spr = SignedExtendedPeerRecord.decode(rec.value.toBytes()).valueOr:
       continue
 
     let seqNo = spr.data.seqNo
@@ -225,12 +294,17 @@ method select*(
 
 proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
   let peerInfo = disco.switch.peerInfo
-  let filteredAddresses = disco.config.addressPolicy.filterAddrs(peerInfo.addrs)
+  let filteredAddresses = disco.config.addressPolicy.dialableAddrs(
+    peerInfo.addrs, disco.switch.peerStore.allowUndialableAddrs
+  )
+  # Before the transports bind, `addrs` still holds the raw listen address.
+  if filteredAddresses.len == 0:
+    return err("no dialable address to publish yet")
 
   let peerRecord = ExtendedPeerRecord.init(
     peerId = peerInfo.peerId,
     addresses = filteredAddresses,
-    seqNo = Moment.now().epochSeconds.uint64,
+    seqNo = nowUnixSeconds().uint64,
     services = disco.services.toSeq(),
   )
 

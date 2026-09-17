@@ -36,7 +36,7 @@ method dialMe*(
       msg: AutonatMsg
   ): AutonatDialResponse {.raises: [AutonatError].} =
     if msg.msgType.get(MsgType.Dial) == MsgType.DialResponse:
-      msg.response.withValue(res):
+      msg.response.ifValue(res):
         if not (res.status.get(Ok) == Ok and res.ma.isNone()):
           return res
     raise newException(AutonatError, "Unexpected response")
@@ -67,10 +67,10 @@ method dialMe*(
         await (await incomingConnection).connection.close()
       except AlreadyExpectingConnectionError as e:
         # this err is already handled above and could not happen later
-        error "Unexpected error", description = e.msg
+        trace "Unexpected error", err = e.msg
 
   try:
-    trace "sending Dial", addrs = switch.peerInfo.addrs
+    trace "sending Dial", addresses = switch.peerInfo.addrs
     await stream.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   except CancelledError as e:
     raise e
@@ -85,8 +85,7 @@ method dialMe*(
   except CatchableError as e:
     raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 
-  let msg = AutonatMsg.decode(move(respBytes)).valueOr:
-    raise newException(AutonatError, error)
+  let msg = AutonatMsg.decode(move(respBytes)).valueOrRaise(AutonatError)
   let response = getResponseOrRaise(msg)
 
   return

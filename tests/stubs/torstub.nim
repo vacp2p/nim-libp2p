@@ -9,14 +9,13 @@ import std/net, tables, chronos, stew/[byteutils, endians2]
 import
   ../../libp2p/[
     stream/connection,
-    protocols/connectivity/relay/utils,
     transports/tcptransport,
     transports/tortransport,
     upgrademngrs/upgrade,
     multiaddress,
     errors,
-    builders,
   ]
+import ../tools/multiaddress
 
 type TorServerStub* = ref object of RootObj
   tcpTransport: TcpTransport
@@ -31,14 +30,71 @@ proc new*(T: typedesc[TorServerStub]): T =
 proc registerAddr*(self: TorServerStub, key: string, val: string) =
   self.addrTable[key] = val
 
-proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
-  let ma = @[MultiAddress.init(address).tryGet()]
+proc bridge(
+    srcStream: Stream, dstStream: Stream
+) {.async: (raises: [CancelledError]).} =
+  ## Relay bytes between the client and destination, propagating half-closes
+  ## so that closeWrite from one side is forwarded to the other.
+  const bufferSize = 4096
+  var
+    bufSrcToDst: array[bufferSize, byte]
+    bufDstToSrc: array[bufferSize, byte]
+    futSrc = srcStream.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
+    futDst = dstStream.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
+    srcEof = false
+    dstEof = false
+    bufRead: int
 
-  await self.tcpTransport.start(ma)
+  defer:
+    await noCancel allFutures(futSrc.cancelAndWait(), futDst.cancelAndWait())
+
+  try:
+    while (not srcEof or not dstEof) and not srcStream.closed() and
+        not dstStream.closed():
+      try:
+        if srcEof:
+          discard await futDst
+        elif dstEof:
+          discard await futSrc
+        else:
+          discard await race(futSrc, futDst)
+      except ValueError as e:
+        raiseAssert("Futures list is not empty: " & e.msg)
+
+      if not srcEof and futSrc.finished():
+        bufRead = await futSrc
+        if bufRead > 0:
+          await dstStream.write(@bufSrcToDst[0 ..< bufRead])
+          zeroMem(addr bufSrcToDst[0], bufSrcToDst.len)
+          futSrc = srcStream.readOnce(addr bufSrcToDst[0], bufSrcToDst.len)
+        else:
+          # src half-closed its write side - propagate EOF to dst and keep
+          # relaying data from dst to src
+          srcEof = true
+          await dstStream.closeWrite()
+
+      if not dstEof and futDst.finished():
+        bufRead = await futDst
+        if bufRead > 0:
+          await srcStream.write(bufDstToSrc[0 ..< bufRead])
+          zeroMem(addr bufDstToSrc[0], bufDstToSrc.len)
+          futDst = dstStream.readOnce(addr bufDstToSrc[0], bufDstToSrc.len)
+        else:
+          dstEof = true
+          await srcStream.closeWrite()
+  except CancelledError as exc:
+    raise exc
+  except LPStreamError:
+    discard
+
+proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
+  await self.tcpTransport.start(@[ma(address)])
 
   var msg = newSeq[byte](3)
   while self.tcpTransport.running:
     let connSrc = await self.tcpTransport.accept()
+    defer:
+      await noCancel connSrc.close()
     await connSrc.readExactly(addr msg[0], 3)
 
     await connSrc.write(@[05'u8, 00])
@@ -80,11 +136,11 @@ proc start*(self: TorServerStub, address: TransportAddress) {.async.} =
 
     await connSrc.write(@[05'u8, 00, 00, 01, 00, 00, 00, 00, 00, 00])
 
-    let connDst =
-      await self.tcpTransport.dial("", MultiAddress.init(tcpIpAddr).tryGet())
+    let connDst = await self.tcpTransport.dial("", ma(tcpIpAddr))
+    defer:
+      await noCancel connDst.close()
 
     await bridge(connSrc, connDst)
-    await allFutures(connSrc.close(), connDst.close())
 
 proc stop*(self: TorServerStub) {.async.} =
   await self.tcpTransport.stop()

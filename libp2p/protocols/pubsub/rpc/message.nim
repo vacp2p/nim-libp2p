@@ -15,7 +15,7 @@ import
 export errors, messages
 
 logScope:
-  topics = "pubsubmessage"
+  topics = "libp2p pubsub"
 
 const PubSubPrefix = toBytes("libp2p-pubsub:")
 
@@ -25,8 +25,8 @@ declareCounter(
 declareCounter(libp2p_pubsub_sig_verify_failure, "pubsub failed validated messages")
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
-  if m.seqno.isSome and m.fromPeer.isSome:
-    let mid = byteutils.toHex(m.seqno.get()) & $m.fromPeer.get()
+  if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+    let mid = byteutils.toHex(m.seqno) & $m.fromPeer
     ok mid.toBytes()
   else:
     err ValidationResult.Reject
@@ -36,36 +36,34 @@ proc sign*(msg: Message, privateKey: PrivateKey): CryptoResult[seq[byte]] =
 
 proc extractPublicKey(m: Message): Opt[PublicKey] =
   var pubkey: PublicKey
-  if m.fromPeer.isSome and m.fromPeer.get().hasPublicKey() and
-      m.fromPeer.get().extractPublicKey(pubkey):
-    Opt.some(pubkey)
-  elif m.key.isSome and pubkey.init(m.key.get()):
-    # check if peerId extracted from m.key is the same as m.fromPeer
-    let derivedPeerId = PeerId.init(pubkey).valueOr:
-      warn "could not derive peerId from key field"
-      return Opt.none(PublicKey)
+  if m.fromPeer.extractPublicKey(pubkey):
+    discard
+  elif not (m.key.len > 0 and pubkey.init(m.key)):
+    return Opt.none(PublicKey)
 
-    if m.fromPeer.isSome and derivedPeerId != m.fromPeer.get():
-      warn "peerId derived from msg.key is not the same as msg.fromPeer",
-        derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
-      return Opt.none(PublicKey)
-    Opt.some(pubkey)
-  else:
-    Opt.none(PublicKey)
+  let derivedPeerId = PeerId.init(pubkey).valueOr:
+    trace "could not derive peerId from message public key"
+    return Opt.none(PublicKey)
+
+  if derivedPeerId != m.fromPeer:
+    trace "peerId derived from message public key is not the same as msg.fromPeer",
+      derivedPeerId = derivedPeerId, fromPeer = m.fromPeer
+    return Opt.none(PublicKey)
+  Opt.some(pubkey)
 
 proc verify*(m: Message): bool =
   var verified = false
-  if m.signature.isSome:
+  if m.signature.len > 0:
     var msg = m
-    msg.signature = Opt.none(seq[byte])
-    msg.key = Opt.none(seq[byte])
+    msg.signature = @[]
+    msg.key = @[]
 
     var remote: Signature
     let key = m.extractPublicKey().valueOr:
-      warn "could not extract public key", msg = m
+      trace "could not extract public key", msg = m
       return false
 
-    if remote.init(m.signature.get()):
+    if remote.init(m.signature):
       trace "verifying signature", remoteSignature = remote
       verified = remote.verify(PubSubPrefix & msg.encode(false), key)
 
@@ -86,18 +84,21 @@ proc init*(
   if sign and peer.isNone():
     doAssert(false, "Cannot sign message without peer info")
 
-  var msg = Message(data: Opt.some(move(data)), topic: topic)
+  var msg = Message(data: move(data), topic: topic)
 
   # order matters, we want to include seqno in the signature
-  seqno.withValue(seqn):
-    msg.seqno = Opt.some(@(seqn.toBytesBE()))
+  seqno.ifValue(seqn):
+    msg.seqno = @(seqn.toBytesBE())
 
-  peer.withValue(peer):
-    msg.fromPeer = Opt.some(peer.peerId)
+  peer.ifValue(peer):
+    msg.fromPeer = peer.peerId
     if sign:
-      msg.signature = sign(msg, peer.privateKey).toOpt()
-      msg.key =
-        peer.privateKey.getPublicKey().expect("Invalid private key!").getBytes().toOpt()
+      msg.signature = sign(msg, peer.privateKey).expect("Couldn't sign message!")
+      msg.key = peer.privateKey
+        .getPublicKey()
+        .expect("Invalid private key!")
+        .getBytes().valueOr:
+          @[]
 
   msg
 
@@ -108,9 +109,8 @@ proc init*(
     topic: string,
     seqno: Opt[uint64],
 ): Message {.gcsafe, raises: [].} =
-  var msg =
-    Message(fromPeer: Opt.some(peerId), data: Opt.some(move(data)), topic: topic)
+  var msg = Message(fromPeer: peerId, data: move(data), topic: topic)
 
-  seqno.withValue(seqn):
-    msg.seqno = Opt.some(@(seqn.toBytesBE()))
+  seqno.ifValue(seqn):
+    msg.seqno = @(seqn.toBytesBE())
   msg

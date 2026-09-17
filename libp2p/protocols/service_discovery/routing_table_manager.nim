@@ -3,12 +3,14 @@
 
 import std/[tables, sequtils]
 import chronos, chronicles, results
+import ../../[switch, peerid, peerinfo, peeraddrpolicy]
+import ../../utils/future
 import ../kademlia
 import ../kademlia/[types, routing_table]
 import ./[types, service_discovery_metrics]
 
 logScope:
-  topics = "service-disco service-routing-tables"
+  topics = "libp2p service-discovery"
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)
@@ -21,7 +23,7 @@ proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [
 proc new*(T: typedesc[ServiceRoutingTableManager]): T =
   T(
     tables: initTable[ServiceId, RoutingTable](),
-    serviceStatus: initTable[ServiceId, ServiceStatus](),
+    serviceStatus: initTable[ServiceId, set[ServiceStatus]](),
   )
 
 proc addService*(
@@ -32,33 +34,32 @@ proc addService*(
     bucketsCount: int,
     status: ServiceStatus,
 ): bool =
-  # Fast path: service already exists
   manager.serviceStatus.withValue(serviceId, currentStatus):
-    # No change needed
-    if currentStatus[] == status or currentStatus[] == Both:
+    if status in currentStatus[]:
       return false
 
-    # Merge states
-    manager.serviceStatus[serviceId] = Both
-    manager.updateServiceTablesMetrics()
+    currentStatus[].incl(status)
     return true
 
-  # Create new routing table
+  # Create new routing table as an index over the same peer registry.
   var rtable = RoutingTable.new(
     serviceId,
     config = RoutingTableConfig.new(
-      replication = replication, maxBuckets = bucketsCount, selfIdPreHashed = true
+      replication = replication,
+      hasher = mainRoutingTable.config.hasher,
+      maxBuckets = bucketsCount,
+      selfIdPreHashed = true,
     ),
     localNodeId = Opt.some(mainRoutingTable.localNodeId),
+    registry = mainRoutingTable.registry,
   )
 
-  # Seed from main table
-  for bucket in mainRoutingTable.buckets:
-    for peer in bucket.peers:
-      discard rtable.insert(peer.nodeId)
+  # Seed by referencing peers already in the main index (no peer-row copies).
+  for nodeId in mainRoutingTable.allKeys():
+    discard rtable.insert(nodeId)
 
   manager.tables[serviceId] = rtable
-  manager.serviceStatus[serviceId] = status
+  manager.serviceStatus[serviceId] = {status}
 
   manager.updateServiceTablesMetrics()
 
@@ -71,16 +72,18 @@ proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
 ) =
   manager.serviceStatus.withValue(serviceId, currentStatus):
-    if currentStatus[] == status:
-      manager.tables.del(serviceId)
-      manager.serviceStatus.del(serviceId)
-      manager.updateServiceTablesMetrics()
+    currentStatus[].excl(status)
+    if currentStatus[].card > 0:
       return
 
-    if (currentStatus[], status) == (Both, Interest):
-      currentStatus[] = Provided
-    elif (currentStatus[], status) == (Both, Provided):
-      currentStatus[] = Interest
+    manager.tables.withValue(serviceId, table):
+      # Drop reverse memberships so the shared registry does not leak rows.
+      table[].detachAll()
+    manager.tables.del(serviceId)
+    manager.serviceStatus.del(serviceId)
+    manager.updateServiceTablesMetrics()
+    if not manager.onServiceTableRemoved.isNil():
+      manager.onServiceTableRemoved(serviceId)
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -92,30 +95,81 @@ proc getTable*(
 
   return Opt.some(table)
 
+proc removePeer*(manager: ServiceRoutingTableManager, peerId: PeerId, reason: string) =
+  ## The main Kad table is left alone; it runs its own liveness probes.
+  for table in manager.tables.values:
+    discard table.removePeer(peerId, reason)
+  manager.updateServiceTablesMetrics()
+
 proc insertPeer*(
-    manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
+    disco: ServiceDiscovery, serviceId: ServiceId, peerInfo: PeerInfo
+): bool =
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    return false
+
+  let addressBook = disco.switch.peerStore[AddressBook]
+  let addrs = disco.config.addressPolicy.dialableAddrs(
+    peerInfo.addrs, disco.switch.peerStore.allowUndialableAddrs
+  )
+  if addrs.len == 0:
+    return false
+  if not addressBook.hasIpDiversity(
+    table, peerInfo.peerId, addrs, disco.config.limits.diversityCaps()
+  ):
+    return false
+
+  let inserted = table.insert(peerInfo.peerId)
+  if inserted:
+    addressBook.extend(peerInfo.peerId, addrs, AddressConfidence.Low)
+    cd_service_table_insertions.inc()
+    disco.rtManager.updateServiceTablesMetrics()
+  inserted
+
+proc admitPeers*(
+    manager: ServiceRoutingTableManager,
+    kad: KadDHT,
+    serviceId: ServiceId,
+    peerInfos: seq[PeerInfo],
 ) =
-  let res = catch:
-    manager.tables[serviceId]
-  var table = res.valueOr:
+  let table = manager.getTable(serviceId).valueOr:
     return
 
-  let inserted = table.insert(peerKey)
-  if inserted:
+  let onAdmit = proc(peerId: PeerId) {.gcsafe, raises: [].} =
     cd_service_table_insertions.inc()
     manager.updateServiceTablesMetrics()
+
+  kad.admitPeers(table, peerInfos, onAdmit)
+
+proc removePeer*(disco: ServiceDiscovery, peerId: PeerId, reason: string): int =
+  var removed = ord(disco.rtable.removePeer(peerId, reason))
+  for table in disco.rtManager.tables.values:
+    removed += ord(table.removePeer(peerId, reason))
+  if removed > 0:
+    disco.rtManager.updateServiceTablesMetrics()
+  removed
 
 proc hasService*(manager: ServiceRoutingTableManager, serviceId: ServiceId): bool =
   ## Check if routing table exists for a service
   serviceId in manager.tables
 
+proc hasPeerInServiceTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId
+): bool =
+  let table = disco.rtManager.getTable(serviceId).valueOr:
+    return false
+  peerId.toKey() in table.allKeys()
+
 proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT
 ) {.async: (raises: [CancelledError]).} =
   let tables = manager.tables.values.toSeq()
+  let futs = tables.mapIt(kad.refreshTable(it))
 
-  for rtable in tables:
-    await kad.refreshTable(rtable)
+  try:
+    await allFutures(futs)
+  except CancelledError as exec:
+    await noCancel futs.cancelAndWait()
+    raise exec
 
 proc count*(manager: ServiceRoutingTableManager): int =
   return manager.tables.len
@@ -124,6 +178,8 @@ proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] =
   return manager.tables.keys.toSeq()
 
 proc clear*(manager: ServiceRoutingTableManager) =
+  for table in manager.tables.values:
+    table.detachAll()
   manager.tables.clear()
   manager.serviceStatus.clear()
   manager.updateServiceTablesMetrics()

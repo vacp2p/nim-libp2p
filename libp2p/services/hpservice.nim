@@ -9,18 +9,20 @@ import chronos, chronicles
 
 import ../switch, ../wire
 import ../protocols/rendezvous
-import ../services/autorelayservice
+import ../services/[autorelayservice, reachabilityobservers]
 import ../protocols/connectivity/relay/relay
 import ../protocols/connectivity/autonat/service
 import ../protocols/connectivity/dcutr/[client, server]
 import ../multicodec
 
+export reachabilityobservers
+
 logScope:
-  topics = "libp2p hpservice"
+  topics = "libp2p hole-punching"
 
 type HPService* = ref object of Service
   newConnectedPeerHandler: PeerEventHandler
-  onNewStatusHandler: StatusAndConfidenceHandler
+  onNewStatusHandler: ReachabilityHandler
   autoRelayService: AutoRelayService
   autonatService: AutonatService
 
@@ -31,18 +33,33 @@ proc new*(
 ): T =
   return T(autonatService: autonatService, autoRelayService: autoRelayService)
 
+func natAddrs(switch: Switch): seq[MultiAddress] =
+  ## The addresses the peer should punch to, best proof first.
+  let manager = switch.addressManager
+  let confirmed = manager.confirmedAddrs()
+  if confirmed.len > 0:
+    return confirmed
+
+  let observed = manager.mostObservedProtosAndPorts()
+  if observed.len > 0:
+    return observed
+
+  # the announce set honors withAnnouncedAddresses over a per-listen-addr guess
+  if switch.peerInfo.addrs.len > 0:
+    return switch.peerInfo.addrs
+  switch.peerInfo.listenAddrs.mapIt(manager.externalAddrFor(it))
+
 proc tryStartingDirectConn(
     self: HPService, switch: Switch, peerId: PeerId
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   proc tryConnect(
       address: MultiAddress
   ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
-    debug "Trying to create direct connection", peerId, address
+    trace "Trying to create direct connection", peerId, address
     await switch.connect(peerId, @[address], true, false)
-    debug "Direct connection created."
+    debug "Direct connection created", peerId, address
     return true
 
-  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
   for address in switch.peerStore[AddressBook][peerId]:
     try:
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
@@ -51,7 +68,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection.", description = err.msg
+      debug "Failed to create direct connection", err = err.msg, peerId, address
       continue
   return false
 
@@ -78,22 +95,16 @@ proc newConnectedPeerHandler(
       return
 
     let dcutrClient = DcutrClient.new()
-    var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
-    if natAddrs.len == 0:
-      # Prefer the explicit/expanded announce set when nothing has been
-      # observed yet — it honors withAnnouncedAddresses and any address
-      # mappers (UPnP, autonat) over a per-listen-addr guess.
-      natAddrs =
-        if switch.peerInfo.addrs.len > 0:
-          switch.peerInfo.addrs
-        else:
-          switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
-    await dcutrClient.startSync(switch, peerId, natAddrs)
+    await dcutrClient.startSync(switch, peerId, switch.natAddrs())
     await closeRelayConn(relayedConn)
   except CancelledError as err:
     raise err
   except CatchableError as err:
-    debug "Hole punching failed during dcutr", description = err.msg
+    debug "Hole punching failed during dcutr", err = err.msg
+
+proc reachabilityObservers*(self: HPService): ReachabilityObservers =
+  ## The observers of the AutoNAT v1 service that drives hole punching.
+  self.autonatService.reachabilityObservers
 
 method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.autonatService.setup(switch)
@@ -112,12 +123,10 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   ) {.async: (raises: [CancelledError]).} =
     await newConnectedPeerHandler(self, switch, peerId, event)
 
-  switch.connManager.addPeerEventHandler(
-    self.newConnectedPeerHandler, PeerEventKind.Joined
-  )
-
   self.onNewStatusHandler = proc(
-      networkReachability: NetworkReachability, confidence: Opt[float]
+      networkReachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability == NetworkReachability.NotReachable and
         not self.autoRelayService.isRunning():
@@ -130,16 +139,19 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
     for t in switch.transports:
       t.networkReachability = networkReachability
 
-  self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
-
 method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  switch.connManager.addPeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Identified
+  )
+
+  discard self.reachabilityObservers.add(self.onNewStatusHandler)
   await self.autonatService.start(switch)
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  switch.connManager.removePeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Identified
+  )
+  discard self.reachabilityObservers.remove(self.onNewStatusHandler)
   await self.autonatService.stop(switch)
   if self.autoRelayService.isRunning():
     await self.autoRelayService.stop(switch)
-  if not isNil(self.newConnectedPeerHandler):
-    switch.connManager.removePeerEventHandler(
-      self.newConnectedPeerHandler, PeerEventKind.Joined
-    )

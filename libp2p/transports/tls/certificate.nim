@@ -12,7 +12,7 @@ import ./certificate_ffi
 import ../../../libp2p/peerid
 
 logScope:
-  topics = "libp2p tls certificate"
+  topics = "libp2p tls"
 
 # Exception types for TLS certificate errors
 type
@@ -228,7 +228,7 @@ proc parse*(
 
 proc verifiedIdentityKey*(self: P2pCertificate): Opt[PublicKey] =
   ## Returns the embedded identity public key when the certificate is valid.
-  let currentTime = now().utc().toTime()
+  let currentTime = getTime()
   if not (currentTime >= self.validFrom and currentTime < self.validTo):
     return Opt.none(PublicKey)
 

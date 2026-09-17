@@ -10,8 +10,7 @@
 {.push raises: [].}
 
 import std/[tables, sequtils, sets, strutils]
-import chronos, chronicles, metrics
-import chronos/ratelimit
+import chronos, chronicles, metrics, results
 import
   ./errors as pubsub_errors,
   ./pubsubpeer,
@@ -26,14 +25,8 @@ import
   ../../utils/opt,
   ../../utils/future
 
-import results
-export results
-
-export tables, sets
-export PubSubPeer
-export PubSubObserver
-export protocol
-export pubsub_errors
+export tables, sets, results, chronicles
+export PubSubPeer, PubSubObserver, RateLimit, protocol, pubsub_errors
 
 logScope:
   topics = "libp2p pubsub"
@@ -42,6 +35,7 @@ const
   KnownLibP2PTopics* {.strdefine.} = ""
   KnownLibP2PTopicsSeq* = KnownLibP2PTopics.toLowerAscii().split(",")
   DefaultTopicsHigh* = 1024 ## max topics a single peer may subscribe to
+  DefaultPubSubMaxMessageSize* = 1024 * 1024 ## max size of a single pubsub message
 
 declareGauge(libp2p_pubsub_peers, "pubsub peer instances")
 declareGauge(libp2p_pubsub_topics, "pubsub subscribed topics")
@@ -170,6 +164,8 @@ type
     supportsSendingPartial*: bool
 
   PubSub* = ref object of LPProtocol
+    stopping: bool
+    peerStopFuts: seq[Future[void].Raising([])] # cleanup outlives removal from peers
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -220,6 +216,13 @@ method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ##
 
   debug "unsubscribing pubsub peer", peerId
+  p.peers.withValue(peerId, peer):
+    let stopped = peer[].stopTasks()
+    if p.stopping:
+      # Shutdown drains the whole batch; pruning on each removal is quadratic.
+      p.peerStopFuts.add(stopped)
+    else:
+      p.peerStopFuts.trackFut(stopped)
   p.peers.del(peerId)
 
   libp2p_pubsub_peers.set(p.peers.len.int64)
@@ -231,7 +234,11 @@ proc send*(
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
+  ## Sends an application-published `msg` (of type `RPCMsg`) to the specified
+  ## remote peer in the PubSub network.
+  ##
+  ## The message is sent as-is, without splitting - the application is
+  ## responsible for ensuring the message fits within `maxMessageSize`.
   ##
   ## Parameters:
   ## - `p`: The `PubSub` instance.
@@ -241,26 +248,15 @@ proc send*(
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
+  trace "sending pubsub message to peer", peer, msg
   peer.send(msg, p.anonymize, priority, useCustomStream)
 
-proc broadcast*(
+proc countBroadcastMetrics*(
     p: PubSub,
-    sendPeers: auto, # Iteratble[PubSubPeer]
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
     msg: RPCMsg,
-    priority: MessagePriority,
-    useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
-  ##
-  ## Parameters:
-  ## - `p`: The `PubSub` instance.
-  ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
-  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
-  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
-  ##   High priority messages are sent immediately, medium and low priority messages are queued
-  ##   and sent only after all high priority messages have been sent.
-
+  ## Increments the broadcast-related metrics for an outgoing RPC message.
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
     if sub.isSubscribe:
@@ -277,7 +273,7 @@ proc broadcast*(
       npeers, labelValues = [p.topicLabel(smsg.topic)]
     )
 
-  msg.control.withValue(control):
+  msg.control.ifValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
     for ihave in control.ihave:
@@ -293,7 +289,27 @@ proc broadcast*(
         npeers, labelValues = [p.topicLabel(prune.topicID)]
       )
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
+proc broadcast*(
+    p: PubSub,
+    sendPeers: openArray[PubSubPeer] | seq[PubSubPeer] | HashSet[PubSubPeer],
+    msg: RPCMsg,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Sends an application-published `msg` (of type `RPCMsg`) to a specified
+  ## group of peers in the PubSub network.
+  ##
+  ## Parameters:
+  ## - `p`: The `PubSub` instance.
+  ## - `sendPeers`: A sequence of `PubSubPeer` instances to which the message should be sent.
+  ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
+
+  countBroadcastMetrics(p, sendPeers, msg)
+
+  trace "broadcasting messages to peers", peersCount = sendPeers.len, msg
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
@@ -301,6 +317,11 @@ proc broadcast*(
   else:
     # Fast path that only encodes message once
     let encoded = msg.encode(p.anonymize)
+    if encoded.len > p.maxMessageSize:
+      warn "message exceeds maximum message size; message will not be broadcasted",
+        encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
+      return
+
     for peer in sendPeers:
       var peerEncoded = encoded
       peer.trackSend(peer.sendEncoded(move(peerEncoded), priority, useCustomStream))
@@ -319,7 +340,9 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  p.send(peer, RPCMsg.withSubscriptions(subscriptions), MessagePriority.High)
+  peer.sendResponse(
+    RPCMsg.withSubscriptions(subscriptions), p.anonymize, MessagePriority.High
+  )
 
   for topic in subTopics:
     if subscribe:
@@ -342,7 +365,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
   for m in rpcMsg.messages:
     libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(m.topic)])
 
-  rpcMsg.control.withValue(control):
+  rpcMsg.control.ifValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
       libp2p_pubsub_received_ihave.inc(labelValues = [p.topicLabel(ihave.topicID)])
@@ -392,6 +415,8 @@ method getOrCreatePeer*(
   proc getStream(): Future[Stream] {.
       async: (raises: [CancelledError, GetStreamDialError])
   .} =
+    if p.stopping or p.switch.isStopping:
+      raise newException(CancelledError, "pubsub is stopping")
     try:
       return await p.switch.dial(peerId, protos)
     except DialFailedError as e:
@@ -399,6 +424,15 @@ method getOrCreatePeer*(
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
+
+  proc peerHandler(
+      peer: PubSubPeer, data: sink seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError, PeerRateLimitError]).} =
+    try:
+      await p.rpcHandler(peer, move(data))
+    except PeerMessageDecodeError as e:
+      trace "failed to decode message in peerHandler", err = e.msg, peerId = peer
+      # loop continues and invalid messages are swallowed
 
   # create new pubsub peer
   let pubSubPeer = PubSubPeer.new(
@@ -408,6 +442,7 @@ method getOrCreatePeer*(
     protoNegotiated,
     p.maxMessageSize,
     customStreamCallbacks = p.customStreamCallbacks,
+    handler = peerHandler,
   )
   debug "created new pubsub peer", peerId
 
@@ -428,43 +463,96 @@ method getOrCreatePeer*(
 
   return pubSubPeer
 
+proc disconnectPeer*(
+    p: PubSub, peer: PubSubPeer
+) {.async: (raises: [CancelledError]).} =
+  await p.switch.disconnect(peer.peerId)
+
+template punishOverBudget*(
+    p: PubSub, punished: PubSubPeer, invalidBytesSent: int, disconnectAboveLimit: bool
+) =
+  # a template, so that only the disconnect path allocates a future
+  debug "Peer sent application data above the rate limit",
+    peer = punished, overhead = invalidBytesSent
+  if disconnectAboveLimit:
+    await p.disconnectPeer(punished)
+    raise newException(
+      PeerRateLimitError, "Peer disconnected because it's above rate limit."
+    )
+
 proc handleData*(
     p: PubSub, topic: string, data: seq[byte]
 ): Future[void] {.async: (raises: [], raw: true).} =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
-  p.topics.withValue(topic, topicData):
-    var futs = newSeq[Future[void]]()
+  if topic notin p.topics:
+    return newFutureCompleted[void]()
 
-    for handler in topicData[].handlers:
-      if handler != nil: # allow nil handlers
-        let fut = handler(topic, data)
-        if not fut.completed(): # Fast path for successful sync handlers
-          futs.add(fut)
+  var futs = newSeq[Future[void]]()
+  var handlers = 0
+  let handleData =
+    try:
+      p.topics[topic]
+    except KeyError:
+      raiseAssert "checked with if"
 
-    if futs.len() > 0:
-      proc waiter(): Future[void] {.async: (raises: []).} =
-        # slow path - we have to wait for the handlers to complete
-        try:
-          futs = await allFinished(futs)
-        except CancelledError:
-          # propagate cancellation
-          futs.cancelSoon()
+  for handler in handleData.handlers:
+    if handler != nil: # allow nil handlers
+      handlers.inc()
+      let fut = handler(topic, data)
+      if not fut.completed(): # Fast path for successful sync handlers
+        futs.add(fut)
 
-        # check for errors in futures
-        for fut in futs:
-          if fut.failed:
-            let err = fut.error()
-            warn "Error in topic handler", description = err.msg
+  if futs.len() == 0:
+    # Fast path - futures finished synchronously or nobody cared about data
+    trace "Topic handlers finished",
+      topic, handlers, succeeded = handlers, failed = 0, cancelled = 0, pending = 0
+    return newFutureCompleted[void]()
 
-      return waiter()
+  proc waiter(): Future[void] {.async: (raises: []).} =
+    # slow path - we have to wait for the handlers to complete
+    try:
+      futs = await allFinished(futs)
+    except CancelledError:
+      # propagate cancellation
+      futs.cancelSoon()
 
-  # Fast path - futures finished synchronously or nobody cared about data
-  newFutureCompleted[void]()
+    var failed, cancelled, pending: int
+    # check for errors in futures
+    for fut in futs:
+      if fut.cancelled():
+        cancelled.inc()
+      elif fut.failed:
+        failed.inc()
+        trace "Error in topic handler", topic, err = fut.error().msg
+      elif not fut.finished():
+        pending.inc()
+
+    trace "Topic handlers finished",
+      topic,
+      handlers,
+      succeeded = handlers - failed - cancelled - pending,
+      failed,
+      cancelled,
+      pending
+
+  return waiter()
 
 template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
   if p.triggerSelf:
     await handleData(p, topic, data)
+
+method start*(p: PubSub) {.async: (raises: [CancelledError]).} =
+  p.stopping = false
+  await procCall LPProtocol(p).start()
+
+method stop*(p: PubSub) {.async: (raises: []).} =
+  p.stopping = true
+  p.started = false
+  for peerId in toSeq(p.peers.keys):
+    p.unsubscribePeer(peerId)
+  await noCancel allFutures(p.peerStopFuts)
+  p.peerStopFuts = @[]
 
 method handleConn*(
     p: PubSub, stream: Stream, proto: string
@@ -473,32 +561,16 @@ method handleConn*(
   ##
   ## this proc will:
   ## 1) register a new PubSubPeer for the connection
-  ## 2) register a handler with the peer;
-  ##    this handler gets called on every rpc message
-  ##    that the peer receives
-  ## 3) ask the peer to subscribe us to every topic
-  ##    that we're interested in
+  ## 2) handle RPC messages received on this stream
   ##
 
-  proc peerHandler(
-      peer: PubSubPeer, data: sink seq[byte]
-  ): Future[void] {.async: (raises: [CancelledError]).} =
-    try:
-      await p.rpcHandler(peer, data)
-    except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler",
-        description = e.msg, stream, peer = peer
-      # loop continues and invalid messages are swallowed
-    except PeerRateLimitError as e:
-      trace "peer rate limit exceeded in peerHandler",
-        description = e.msg, stream, peer = peer
-      # loop needs to stop. we are doing this by closing connection
-      await stream.closeWithEOF()
+  if p.stopping or p.switch.isStopping:
+    await stream.close()
+    return
 
   let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
   try:
-    peer.handler = peerHandler
     await peer.runHandleLoop(stream)
   except CancelledError as exc:
     raise exc
@@ -509,6 +581,9 @@ method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
   ## messages
   ##
+
+  if p.stopping or p.switch.isStopping:
+    return
 
   let pubSubPeer = p.getOrCreatePeer(peer, p.codecs)
   pubSubPeer.connect()
@@ -611,7 +686,7 @@ proc subscribe*(
     # node has allready sent subscription.
     topicData[].handlers.add(handler)
   do:
-    trace "subscribing to topic", name = topic
+    trace "subscribing to topic", topic
     p.topics[topic] = TopicData(
       handlers: @[handler],
       requestsPartial: requestsPartial,
@@ -672,13 +747,10 @@ method validate*(
     p: PubSub, message: Message
 ): Future[ValidationResult] {.async: (raises: [CancelledError]), base.} =
   var pending: seq[Future[ValidationResult]]
-  trace "about to validate message"
   let topic = message.topic
 
-  trace "looking for validators on topic",
-    topic = topic, registered = toSeq(p.validators.keys)
   if topic in p.validators:
-    trace "running validators for topic", topic = topic
+    trace "running validators for topic", topic
     p.validators.withValue(topic, validators):
       for validator in validators[]:
         pending.add(validator(topic, message))
@@ -695,8 +767,7 @@ method validate*(
         if res == ValidationResult.Reject:
           break
     except CatchableError as e:
-      trace "validator for message could not be executed, ignoring",
-        topic = topic, err = e.msg
+      trace "validator for message could not be executed, ignoring", err = e.msg, topic
       valResult = ValidationResult.Ignore
 
   case valResult
@@ -718,7 +789,7 @@ proc init*[PubParams: object | bool](
     sign: bool = true,
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
-    maxMessageSize: int = 1024 * 1024,
+    maxMessageSize: int = DefaultPubSubMaxMessageSize,
     rng: Rng,
     parameters: PubParams = false,
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),

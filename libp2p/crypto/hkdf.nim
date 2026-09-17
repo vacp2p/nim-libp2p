@@ -5,43 +5,57 @@
 
 {.push raises: [].}
 
-import nimcrypto
-import bearssl/[kdf, hash]
+import nimcrypto/[hash, hmac, sha2, utils]
 
 type HkdfResult*[len: static int] = array[len, byte]
 
-proc hkdf*[T: sha256, len: static int](
+func extract[T: sha256](salt, ikm: openArray[byte]): MDigest[T.bits] =
+  var ctx: HMAC[T]
+  defer:
+    ctx.clear()
+
+  ctx.init(salt)
+  ctx.update(ikm)
+  ctx.finish()
+
+func hkdf*[T: sha256, len: static int](
     _: type[T],
     salt, ikm, info: openArray[byte],
     outputs: var openArray[HkdfResult[len]],
 ) =
-  var ctx: HkdfContext
-  hkdfInit(
-    ctx,
-    addr sha256Vtable,
-    if salt.len > 0:
-      addr salt[0]
-    else:
-      nil,
-    csize_t(salt.len),
-  )
-  hkdfInject(
-    ctx,
-    if ikm.len > 0:
-      addr ikm[0]
-    else:
-      nil,
-    csize_t(ikm.len),
-  )
-  hkdfFlip(ctx)
-  for i in 0 .. outputs.high:
-    discard hkdfProduce(
-      ctx,
-      if info.len > 0:
-        addr info[0]
-      else:
-        nil,
-      csize_t(info.len),
-      addr outputs[i][0],
-      csize_t(outputs[i].len),
-    )
+  ## `outputs` is one continuous OKM stream: `outputs[1]` continues `outputs[0]`.
+  const hashLen = T.bits div 8
+  doAssert outputs.len * len <= 255 * hashLen, "HKDF output is too long"
+
+  var
+    prk = extract[T](salt, ikm)
+    t: MDigest[T.bits]
+    tLen = 0
+    used = 0
+    counter = 1'u8
+
+  defer:
+    burnMem(prk)
+    burnMem(t)
+
+  for output in outputs.mitems:
+    var filled = 0
+    while filled < len:
+      if used == tLen:
+        var ctx: HMAC[T]
+        ctx.init(prk.data)
+        if tLen > 0:
+          ctx.update(t.data)
+        ctx.update(info)
+        ctx.update([counter])
+        t = ctx.finish()
+        ctx.clear()
+
+        tLen = hashLen
+        used = 0
+        inc counter
+
+      let chunk = min(tLen - used, len - filled)
+      copyMem(addr output[filled], addr t.data[used], chunk)
+      filled += chunk
+      used += chunk

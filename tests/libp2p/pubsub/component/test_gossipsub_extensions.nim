@@ -448,14 +448,14 @@ suite "GossipSub Component - Extensions":
     nodes[0].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          msg.pingpongExtension.withValue(ppe):
+          msg.pingpongExtension.ifValue(ppe):
             if ppe.pong.isSome:
               receivedPongFut.complete(ppe.pong.get())
       )
     )
 
     # send ping from nodes[0] to nodes[1]
-    nodes[0].send(
+    nodes[0].sendResponse(
       nodes[0].peers[nodes[1].peerInfo.peerId],
       RPCMsg.withPing(pingBytes),
       MessagePriority.High,
@@ -482,7 +482,7 @@ suite "GossipSub Component - Extensions":
     nodes[1].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
-          msgs.preambleExtension.withValue(pe):
+          msgs.preambleExtension.ifValue(pe):
             for ir in pe.imreceiving:
               receivedImReceiving.add(ir)
       )

@@ -5,10 +5,13 @@
 
 import chronos, results, sets, tables, sequtils
 import
+  ../../../libp2p/[peerinfo, peerid],
   ../../../libp2p/protocols/kademlia,
+  ../../../libp2p/protocols/service_discovery,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, multiaddress, unittest]
 import ../kademlia/[mock_kademlia, utils]
+import ./utils
 
 proc makeKey(x: byte): Key =
   var buf: array[IdLength, byte]
@@ -62,9 +65,9 @@ suite "ServiceRoutingTableManager":
 
     check:
       addedAgain == false
-      manager.serviceStatus[serviceId] == Interest
+      manager.serviceStatus[serviceId] == {Interest}
 
-  test "addService with same service but different status sets Both and returns true":
+  test "addService with same service but different status merges and returns true":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -78,7 +81,7 @@ suite "ServiceRoutingTableManager":
 
     check:
       upgraded == true
-      manager.serviceStatus[serviceId] == Both
+      manager.serviceStatus[serviceId] == {Interest, Provided}
 
   test "addService fires onServiceTableCreated only for brand-new tables":
     let manager = ServiceRoutingTableManager.new()
@@ -107,7 +110,7 @@ suite "ServiceRoutingTableManager":
     )
     check:
       hits.ids.len == 1
-      manager.serviceStatus[serviceId] == Both
+      manager.serviceStatus[serviceId] == {Interest, Provided}
 
     let otherId = makeServiceId(2)
     check manager.addService(
@@ -147,6 +150,63 @@ suite "ServiceRoutingTableManager":
       peer1 in peers
       peer2 in peers
 
+  test "addService shares registry with main table (no peer-row copies)":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let peer2 = makeKey(2)
+    let mainRt = makeMainTable(selfId, @[peer1, peer2])
+    let registryLenBefore = mainRt.registry.len
+
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let serviceTable = manager.getTable(serviceId).get()
+    check:
+      serviceTable.registry == mainRt.registry
+      mainRt.registry.len == registryLenBefore
+      mainRt.registry.tableIds(peer1).len == 2
+      mainRt.registry.tableIds(peer2).len == 2
+
+    mainRt.markUseful(peer1)
+    check serviceTable.registry.get(peer1).get().lastUsefulAt.isSome()
+
+  test "removeService detaches table memberships from shared registry":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let mainRt = makeMainTable(selfId, @[peer1])
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    check mainRt.registry.tableIds(peer1).len == 2
+
+    manager.removeService(serviceId, Interest)
+    check:
+      not manager.hasService(serviceId)
+      peer1 in mainRt
+      peer1 in mainRt.registry
+      mainRt.registry.tableIds(peer1).len == 1
+      serviceId notin mainRt.registry.tableIds(peer1)
+
+  test "clear detaches all service tables from shared registry":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let mainRt = makeMainTable(selfId, @[peer1])
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+    manager.clear()
+    check:
+      manager.count() == 0
+      peer1 in mainRt.registry
+      mainRt.registry.tableIds(peer1).len == 1
+
   test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
@@ -161,7 +221,7 @@ suite "ServiceRoutingTableManager":
       not manager.hasService(serviceId)
       manager.count() == 0
 
-  test "removeService on Both with Interest leaves Provided":
+  test "removeService of Interest leaves Provided":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -172,15 +232,15 @@ suite "ServiceRoutingTableManager":
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
-    check manager.serviceStatus[serviceId] == Both
+    check manager.serviceStatus[serviceId] == {Interest, Provided}
 
     manager.removeService(serviceId, Interest)
 
     check:
       manager.hasService(serviceId)
-      manager.serviceStatus[serviceId] == Provided
+      manager.serviceStatus[serviceId] == {Provided}
 
-  test "removeService on Both with Provided leaves Interest":
+  test "removeService of Provided leaves Interest":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
@@ -191,13 +251,39 @@ suite "ServiceRoutingTableManager":
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
-    check manager.serviceStatus[serviceId] == Both
+    check manager.serviceStatus[serviceId] == {Interest, Provided}
 
     manager.removeService(serviceId, Provided)
 
     check:
       manager.hasService(serviceId)
-      manager.serviceStatus[serviceId] == Interest
+      manager.serviceStatus[serviceId] == {Interest}
+
+  test "removeService keeps the table until every status is removed":
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(1)
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    let removed = HitRecorder()
+    manager.onServiceTableRemoved = proc(sid: ServiceId) =
+      removed.ids.add(sid)
+
+    for status in ServiceStatus:
+      check manager.addService(
+        serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, status
+      )
+
+    manager.removeService(serviceId, Registered)
+    manager.removeService(serviceId, Interest)
+    check:
+      manager.serviceStatus[serviceId] == {Provided}
+      removed.ids.len == 0
+
+    manager.removeService(serviceId, Provided)
+    check:
+      not manager.hasService(serviceId)
+      serviceId notin manager.serviceStatus
+      removed.ids == @[serviceId]
 
   test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
@@ -223,30 +309,55 @@ suite "ServiceRoutingTableManager":
 
     check manager.getTable(serviceId).isNone()
 
-  test "insertPeer adds peer to the service routing table":
-    let selfId = makeKey(0)
-    let manager = ServiceRoutingTableManager.new()
+  test "insertPeer admits a peer with a valid address to the service routing table":
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-    let mainRt = RoutingTable.new(selfId)
-
-    check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peerKey = makeKey(2)
-    manager.insertPeer(serviceId, peerKey)
+    let peerInfo = makePeerInfo(addrs = @[makeMultiAddress("10.0.0.1")])
+    check disco.insertPeer(serviceId, peerInfo)
+    check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
 
-    let table = manager.getTable(serviceId).get()
+  test "insertPeer rejects a peer with no addresses":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
+    )
 
-    check peerKey in table.allKeys()
+    let peerInfo = makePeerInfo()
+    check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+  test "insertPeer rejects an undialable address unless the switch allows it":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    let peerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60000")])
+    check not disco.insertPeer(serviceId, peerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = true
+    check disco.insertPeer(serviceId, peerInfo)
+    check disco.hasPeerInServiceTable(serviceId, peerInfo.peerId)
+
+    disco.switch.peerStore.allowUndialableAddrs = false
+    let otherPeerInfo = makePeerInfo(addrs = @[ma("/ip4/0.0.0.0/tcp/60001")])
+    check not disco.insertPeer(serviceId, otherPeerInfo)
+    check not disco.hasPeerInServiceTable(serviceId, otherPeerInfo.peerId)
 
   test "insertPeer on non-existent service is a no-op":
-    let manager = ServiceRoutingTableManager.new()
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId(1)
-    let peerKey = makeKey(2)
+    let peerInfo = makePeerInfo(addrs = @[makeMultiAddress("10.0.0.1")])
 
-    manager.insertPeer(serviceId, peerKey)
-    check manager.count() == 0
+    check not disco.insertPeer(serviceId, peerInfo)
+    check disco.rtManager.count() == 0
 
   test "hasService returns false for unknown service":
     let manager = ServiceRoutingTableManager.new()
@@ -263,7 +374,7 @@ suite "ServiceRoutingTableManager":
       makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.addService(
-      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Both
+      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Registered
     )
 
     check manager.count() == 3
@@ -324,31 +435,33 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     # only call it once
     check kad.findNodeCalls.len == 1
 
-  asyncTest "calls findNode with service selfId for a single table":
+  asyncTest "walks toward the center of a single service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
     let serviceId = makeServiceId(1)
-    let mainRt = RoutingTable.new(makeKey(2))
+    let mainRt = makeMainTable(makeKey(2), @[makeKey(3), makeKey(4), makeKey(5)])
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
+    let serviceTable = manager.getTable(serviceId).get()
 
     await manager.refreshAllTables(kad)
 
-    # refreshTable calls findNode(serviceTable.selfId) once per table
-    # plus main table's selfId
+    # One self-lookup per service table, plus the main table's own from `start`.
     check:
       kad.findNodeCalls.len == 2
-      kad.findNodeCalls[1] == serviceId
+      kad.findNodeCalls[1] in serviceTable.allKeys()
+      kad.findNodeCalls[1] != serviceId
+      kad.findNodeTables[1] == serviceTable
 
   asyncTest "calls findNode once per registered service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(makeKey(0))
+    let mainRt = makeMainTable(makeKey(0), @[makeKey(4), makeKey(5), makeKey(6)])
     let serviceIds = @[makeKey(1), makeKey(2), makeKey(3)]
     for id in serviceIds:
       check manager.addService(
@@ -357,18 +470,17 @@ suite "ServiceRoutingTableManager - refreshAllTables":
 
     await manager.refreshAllTables(kad)
 
-    # One self-lookup per service table
-    # plus main table's selfId
+    # One self-lookup per service table, plus the main table's own from `start`.
     check kad.findNodeCalls.len == serviceIds.len + 1
     for id in serviceIds:
-      check id in kad.findNodeCalls
+      check manager.getTable(id).get() in kad.findNodeTables
 
   asyncTest "does not call findNode for a removed service table":
     let manager = ServiceRoutingTableManager.new()
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(makeKey(0))
+    let mainRt = makeMainTable(makeKey(0), @[makeKey(3), makeKey(4), makeKey(5)])
     let kept = makeKey(1)
     let removed = makeKey(2)
     check manager.addService(
@@ -377,16 +489,15 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     check manager.addService(
       removed, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
+    let keptTable = manager.getTable(kept).get()
     manager.removeService(removed, Interest)
 
     await manager.refreshAllTables(kad)
 
+    # One self-lookup per service table, plus the main table's own from `start`.
     check:
-      # One self-lookup per service table
-      # plus main table's selfId
       kad.findNodeCalls.len == 2
-      kad.findNodeCalls[1] == kept
-      removed notin kad.findNodeCalls
+      kad.findNodeTables[1] == keptTable
 
   test "addService rejects local node insertion into service table":
     let selfId = makeKey(0)
@@ -400,13 +511,13 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    manager.insertPeer(serviceId, selfId)
-
     let table = manager.getTable(serviceId).get()
+    check not table.insert(selfId) # local node must be rejected
+
     let peers = table.allKeys()
 
     check:
-      selfId notin peers # local node must be rejected
+      selfId notin peers
       peer1 in peers
       peer2 in peers
 
@@ -419,11 +530,10 @@ suite "ServiceRoutingTableManager - service id hashing":
       mainRt = RoutingTable.new(makeKey(0))
     check manager.addService(serviceId, mainRt, 100, DefaultMaxBuckets, Interest)
 
-    manager.insertPeer(serviceId, peer)
+    let serviceTable = manager.getTable(serviceId).get()
+    check serviceTable.insert(peer)
 
-    let
-      serviceTable = manager.getTable(serviceId).get()
-      preHashBucket = serviceTable.bucketIndex(peer)
+    let preHashBucket = serviceTable.bucketIndex(peer)
 
     var nonServiceTable = serviceTable
 
@@ -435,7 +545,36 @@ suite "ServiceRoutingTableManager - service id hashing":
     check:
       preHashBucket != doubleHashBucket
       serviceTable.buckets[preHashBucket].peers.len == 1
-      serviceTable.buckets[preHashBucket].peers[0].nodeId == peer
+      serviceTable.buckets[preHashBucket].peers[0] == peer
+
+  test "service table hashes peers with the main table's hasher":
+    let
+      serviceId = makeServiceId(1)
+      peer = makeKey(3)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(
+        makeKey(0), RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+      )
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    proc bucketWith(hasher: Opt[XorDHasher]): int =
+      RoutingTable
+        .new(
+          serviceId,
+          RoutingTableConfig.new(
+            hasher = hasher, maxBuckets = DefaultMaxBuckets, selfIdPreHashed = true
+          ),
+        )
+        .bucketIndex(peer)
+
+    # With `noOpHasher` the peer differs from the service id in one bit, so the
+    # default hasher puts it in a different bucket.
+    check:
+      bucketWith(Opt.some(noOpHasher)) != bucketWith(Opt.none(XorDHasher))
+      manager.getTable(serviceId).get().bucketIndex(peer) ==
+        bucketWith(Opt.some(noOpHasher))
 
   test "service table with small bucketsCount uses scaled bucket mapping":
     let
@@ -445,9 +584,9 @@ suite "ServiceRoutingTableManager - service id hashing":
       mainRt = RoutingTable.new(makeKey(0))
     check manager.addService(serviceId, mainRt, 20, 16, Interest)
 
-    manager.insertPeer(serviceId, peer)
-
     let table = manager.getTable(serviceId).get()
+    check table.insert(peer)
+
     let expectedScaled = table.bucketIndex(peer)
 
     check:
@@ -456,7 +595,55 @@ suite "ServiceRoutingTableManager - service id hashing":
 
     var actual = -1
     for i, b in table.buckets:
-      if b.peers.anyIt(it.nodeId == peer):
+      if peer in b.peers:
         actual = i
         break
     check actual == expectedScaled
+
+suite "ServiceDiscovery liveness over service tables":
+  asyncTest "maintainableTables includes service tables":
+    let disco = setupServiceDiscoveryNode()
+    startAndDeferStop(@[disco])
+
+    let serviceId = makeServiceId(1)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+      Interest,
+    )
+
+    let tables = disco.maintainableTables()
+    check:
+      tables.len == 2
+      tables.anyIt(it.selfId == disco.rtable.selfId)
+      tables.anyIt(it.selfId == serviceId)
+
+  asyncTest "probeAndEvictPeers removes aged peer from service table":
+    ## Dynamic dispatch through maintainableTables must cover per-service indexes.
+    let grace = 50.milliseconds
+    let disco = setupServiceDiscoveryNode(
+      kadConfig = KadDHTConfig.new(
+        ExtEntryValidator(),
+        ExtEntrySelector(),
+        timeout = 200.milliseconds,
+        livenessGracePeriod = grace,
+        livenessIdleInterval = 1.hours,
+        disableBootstrapping = true,
+      )
+    )
+    startAndDeferStop(@[disco])
+
+    let serviceId = makeServiceId(7)
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+      Interest,
+    )
+    let serviceTable = disco.rtManager.getTable(serviceId).get()
+
+    let peer = randomPeerId()
+    check serviceTable.insert(peer)
+    # No addresses → liveness path evicts without dialling.
+    agePeerPastLivenessGrace(serviceTable, peer.toKey(), grace)
+
+    check peer.toKey() in serviceTable
+    await disco.probeAndEvictPeers(serviceTable)
+    check peer.toKey() notin serviceTable

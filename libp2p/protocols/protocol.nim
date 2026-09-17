@@ -21,6 +21,12 @@ declareGauge(
   "protocol stream instances currently open",
   labels = ["protocol", "direction"],
 )
+declarePublicCounter(
+  libp2p_streams_opened, "protocol streams opened", labels = ["protocol", "direction"]
+)
+declarePublicCounter(
+  libp2p_streams_closed, "protocol streams closed", labels = ["protocol", "direction"]
+)
 
 const
   scopeTotal = "total"
@@ -80,6 +86,29 @@ template `handler`*(p: LPProtocol, stream: Stream, proto: string): Future[void] 
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
+func setStreamLimits*(
+    p: LPProtocol,
+    maxIncomingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsPerPeer: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
+) =
+  ## Sets the stream budgets of a protocol built without `LPProtocol.new`.
+  doAssert(not p.started, "stream limits must be set before the protocol starts")
+
+  p.maxIncomingStreamsTotal = toOpt(maxIncomingStreamsTotal)
+  p.maxIncomingStreamsPerPeer = toOpt(maxIncomingStreamsPerPeer)
+  p.maxOutgoingStreamsTotal = toOpt(maxOutgoingStreamsTotal)
+  p.maxOutgoingStreamsPerPeer = toOpt(maxOutgoingStreamsPerPeer)
+
+  # keeping streamBudget uninitialized makes `reserve` and `release` return early (fast path).
+  p.streamBudget =
+    if p.maxIncomingStreamsTotal.isSome or p.maxIncomingStreamsPerPeer.isSome or
+        p.maxOutgoingStreamsTotal.isSome or p.maxOutgoingStreamsPerPeer.isSome:
+      StreamBudgetState()
+    else:
+      nil
+
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
@@ -92,20 +121,11 @@ proc new*(
   doAssert(codecs.len > 0, "codecs sequence must not be empty")
   doAssert(not handler.isNil, "handler must be set")
 
-  var proto = T(
-    codecs: codecs,
-    handlerImpl: handler,
-    maxIncomingStreamsTotal: toOpt(maxIncomingStreamsTotal),
-    maxIncomingStreamsPerPeer: toOpt(maxIncomingStreamsPerPeer),
-    maxOutgoingStreamsTotal: toOpt(maxOutgoingStreamsTotal),
-    maxOutgoingStreamsPerPeer: toOpt(maxOutgoingStreamsPerPeer),
+  let proto = T(codecs: codecs, handlerImpl: handler)
+  proto.setStreamLimits(
+    maxIncomingStreamsTotal, maxIncomingStreamsPerPeer, maxOutgoingStreamsTotal,
+    maxOutgoingStreamsPerPeer,
   )
-
-  # initialize streamBudget only when there is some limit used.
-  # keeping streamBudget uninitialized makes `reserve` and `release` return early (fast path).
-  if proto.maxIncomingStreamsTotal.isSome or proto.maxIncomingStreamsPerPeer.isSome or
-      proto.maxOutgoingStreamsTotal.isSome or proto.maxOutgoingStreamsPerPeer.isSome:
-    proto.streamBudget = StreamBudgetState()
 
   proto
 
@@ -143,6 +163,7 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirIn])
+    libp2p_streams_opened.inc(labelValues = [p.codec, dirIn])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.In)
@@ -155,12 +176,14 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
   budget.totalIncoming.inc
   budget.perPeerIncoming.inc(peerId)
   libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirIn])
+  libp2p_streams_opened.inc(labelValues = [p.codec, dirIn])
   return true
 
 proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirIn])
+    libp2p_streams_closed.inc(labelValues = [p.codec, dirIn])
     return
 
   let pb = budget.perPeerIncoming[peerId]
@@ -173,6 +196,7 @@ proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
 
   budget.totalIncoming.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirIn])
+  libp2p_streams_closed.inc(labelValues = [p.codec, dirIn])
 
 func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   ## Returns true if an outgoing stream to `peerId` is within all configured
@@ -184,6 +208,7 @@ proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirOut])
+    libp2p_streams_opened.inc(labelValues = [p.codec, dirOut])
     return true
 
   let (canAccept, scope) = p.budgetReason(peerId, Direction.Out)
@@ -196,12 +221,14 @@ proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   budget.totalOutgoing.inc
   budget.perPeerOutgoing.inc(peerId)
   libp2p_protocol_streams_open.inc(labelValues = [p.codec, dirOut])
+  libp2p_streams_opened.inc(labelValues = [p.codec, dirOut])
   return true
 
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirOut])
+    libp2p_streams_closed.inc(labelValues = [p.codec, dirOut])
     return
 
   let pb = budget.perPeerOutgoing[peerId]
@@ -214,3 +241,4 @@ proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
 
   budget.totalOutgoing.dec
   libp2p_protocol_streams_open.dec(labelValues = [p.codec, dirOut])
+  libp2p_streams_closed.inc(labelValues = [p.codec, dirOut])

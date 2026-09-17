@@ -4,10 +4,11 @@
 {.push raises: [].}
 
 import chronos, chronicles, times, tables, sequtils
+import ../logging
 import ../switch, ../protocols/connectivity/relay/[client, utils]
 
 logScope:
-  topics = "libp2p autorelay"
+  topics = "libp2p auto-relay"
 
 type
   OnReservationHandler* = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].}
@@ -24,6 +25,9 @@ type
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
     rng: Rng
+    reservationWarnings: LogRateLimit
+    lifetimeWarnings: LogRateLimit
+    availabilityWarnings: LogRateLimit
 
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
@@ -31,6 +35,7 @@ proc isRunning*(self: AutoRelayService): bool =
 proc addressMapper(
     self: AutoRelayService, listenAddrs: seq[MultiAddress]
 ): Future[seq[MultiAddress]] {.async: (raises: []).} =
+  ## The manager drops a relay address which a confirmed direct address replaces.
   return concat(toSeq(self.relayAddresses.values)) & listenAddrs
 
 proc reserveAndUpdate(
@@ -42,14 +47,19 @@ proc reserveAndUpdate(
     let
       rsvp = await self.client.reserve(relayPid).wait(chronos.seconds(5))
       relayedAddr = rsvp.addrs.mapIt(MultiAddress.init($it & "/p2p-circuit").tryGet())
-      ttl = rsvp.expire.int64 - times.now().utc.toTime.toUnix
+      ttl = rsvp.expire.int64 - times.getTime().toUnix
     if ttl <= 60:
+      if self.lifetimeWarnings.allowLog():
+        warn "Relay reservation lifetime too short", relayPid, ttl, minimumTtl = 61
       # A reservation under a minute is basically useless
       break
     if relayPid notin self.relayAddresses or self.relayAddresses[relayPid] != relayedAddr:
+      let hadAddresses = self.relayAddresses.values.toSeq().anyIt(it.len > 0)
       self.relayAddresses[relayPid] = relayedAddr
       await switch.peerInfo.update()
       debug "Updated relay addresses", relayPid, relayedAddr
+      if not hadAddresses and relayedAddr.len > 0:
+        info "Relay connectivity established", relayPid, addresses = relayedAddr.len
       if self.running and not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
@@ -88,19 +98,33 @@ proc innerRun(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   while self.running:
-    # Remove relayPeers that failed
-    let peers = toSeq(self.relayPeers.keys())
-    for k in peers:
-      try:
-        if self.relayPeers[k].finished():
-          self.relayPeers.del(k)
-          self.relayAddresses.del(k)
-          if self.running and not self.onReservation.isNil():
-            self.onReservation(concat(toSeq(self.relayAddresses.values)))
-          # To avoid ddosing our peers in certain conditions
-          self.backingOff[k] = self.manageBackedOff(k)
-      except KeyError:
-        raiseAssert "checked with in"
+    let addressCount = self.relayAddresses.len
+    for (k, future) in toSeq(self.relayPeers.pairs()):
+      if future.finished():
+        let
+          hadReservation = self.relayAddresses.hasKey(k)
+          hadAddresses = self.relayAddresses.values.toSeq().anyIt(it.len > 0)
+        self.relayPeers.del(k)
+        self.relayAddresses.del(k)
+        let remainingRelays = self.relayAddresses.len
+        if future.failed() and self.reservationWarnings.allowLog():
+          let exc = future.error()
+          warn "Relay reservation task failed",
+            err = exc.msg,
+            errType = exc.name,
+            relayPid = k,
+            hadReservation,
+            remainingRelays
+        if self.running and hadAddresses and
+            not self.relayAddresses.values.toSeq().anyIt(it.len > 0) and
+            self.availabilityWarnings.allowLog():
+          warn "Last usable relay reservation lost", relayPid = k, remainingRelays
+        if self.running and not self.onReservation.isNil():
+          self.onReservation(concat(toSeq(self.relayAddresses.values)))
+        # Avoid immediately retrying a failed reservation.
+        self.backingOff[k] = self.manageBackedOff(k)
+    if self.relayAddresses.len != addressCount:
+      await switch.peerInfo.update()
 
     # Get all connected relayPeers
     self.peerAvailable.clear()
@@ -130,7 +154,7 @@ method start*(
   if self.running:
     return
   self.running = true
-  switch.peerInfo.addressMappers.add(self.addressMapper)
+  switch.addressManager.addMapper(self.addressMapper, AddrSource.Circuit)
   await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
 
@@ -140,11 +164,12 @@ method stop*(
   if not self.running:
     return
   self.running = false
-  self.runner.cancelSoon()
-  for fut in self.backingOff.values:
-    fut.cancelSoon()
+  await noCancel self.runner.cancelAndWait()
+  await noCancel (toSeq(self.relayPeers.values) & toSeq(self.backingOff.values)).cancelAndWait()
+  self.relayPeers.clear()
+  self.relayAddresses.clear()
   self.backingOff.clear()
-  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  switch.addressManager.removeMapper(self.addressMapper)
   await switch.peerInfo.update()
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =

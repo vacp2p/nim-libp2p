@@ -2,17 +2,52 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+from std/times import getTime, toUnix
 import chronos, results
 import
   ../../../../libp2p/[
+    extended_peer_record,
+    multiaddress,
+    protocols/kademlia/put,
     protocols/service_discovery/advertiser,
+    protocols/service_discovery/connection,
     protocols/service_discovery/types,
     stream/connection,
     switch,
   ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, stall_server, unittest]
 import ../utils
+
+type
+  PendingWriteStream = ref object of Stream
+    writeStarted: Future[void].Raising([CancelledError])
+    writePending: Future[void].Raising([CancelledError, LPStreamError])
+    reads: int
+
+  RpcSwitch = ref object of Switch
+    stream: Stream
+
+method dial(
+    self: RpcSwitch,
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    protos: seq[string],
+    forceDial = false,
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError]).} =
+  return self.stream
+
+method write(
+    stream: PendingWriteStream, msg: sink seq[byte]
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  stream.writeStarted.complete()
+  await stream.writePending
+
+method readOnce(
+    stream: PendingWriteStream, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
+  stream.reads.inc()
+  raise newLPStreamEOFError()
 
 proc sendRawMessage(
     clientSwitch: Switch, registrarNode: ServiceDiscovery, msgBytes: seq[byte]
@@ -40,6 +75,84 @@ proc sendMessage(
 suite "Service Discovery Component - Error Handling":
   teardown:
     checkTrackers()
+
+  asyncTest "cancelling an RPC interrupts dialing":
+    let stall = startStallServer()
+    let clientNode = setupServiceDiscoveryNode()
+    await clientNode.switch.start()
+    defer:
+      await stall.stop()
+      await clientNode.switch.stop()
+
+    let peerId = randomPeerId()
+    clientNode.switch.peerStore[AddressBook][peerId] = @[stall.address]
+    let pending = clientNode.send(
+      peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await stall.waitAccepted().wait(2.seconds)
+    await pending.cancelAndWait().wait(2.seconds)
+    check pending.cancelled()
+
+  asyncTest "cancelling an RPC interrupts writing and resets the stream":
+    let clientNode = setupServiceDiscoveryNode()
+    let stream = PendingWriteStream(
+      writeStarted: Future[void].Raising([CancelledError]).init("RPC write started"),
+      writePending:
+        Future[void].Raising([CancelledError, LPStreamError]).init("RPC write pending"),
+    )
+    stream.initStream()
+    defer:
+      await stream.close()
+
+    clientNode.switch =
+      RpcSwitch(peerStore: clientNode.switch.peerStore, stream: stream)
+    let peerId = randomPeerId()
+    clientNode.switch.peerStore[AddressBook][peerId] = @[makeMultiAddress("127.0.0.1")]
+    let pending = clientNode.send(
+      peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await stream.writeStarted.wait(2.seconds)
+    await pending.cancelAndWait().wait(2.seconds)
+    check:
+      pending.cancelled()
+      stream.writePending.cancelled()
+      stream.wasResetLocally()
+      stream.reads == 0
+
+  asyncTest "cancelling an RPC propagates cancellation":
+    let registrarNode = setupServiceDiscoveryNode()
+    let clientNode = setupServiceDiscoveryNode()
+    let received =
+      Future[void].Raising([CancelledError]).init("service discovery request received")
+    registrarNode.handler = proc(
+        stream: Stream, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      try:
+        discard await stream.readLp(ServiceDiscoveryMaxMsgSize)
+        received.complete()
+        discard await stream.readLp(ServiceDiscoveryMaxMsgSize)
+      except LPStreamError:
+        discard
+      finally:
+        await noCancel stream.close()
+
+    startAndDeferStop(@[registrarNode, clientNode])
+    await connect(registrarNode, clientNode)
+    let pending = clientNode.send(
+      registrarNode.switch.peerInfo.peerId,
+      kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: makeServiceId()
+      ),
+    )
+    await received.wait(2.seconds)
+    await pending.cancelAndWait()
+    check pending.cancelled()
 
   asyncTest "message with unknown MessageType is rejected without a reply":
     let registrarNode = setupServiceDiscoveryNode()
@@ -162,7 +275,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "REGISTER with non-32-byte key returns Rejected":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, the key reaches the service-membership check.
+    # The handler rejects the key on its length, before seating the sender.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])
@@ -176,7 +289,7 @@ suite "Service Discovery Component - Error Handling":
 
       let msg = kad_protobuf.Message(
         msgType: kad_protobuf.MessageType.register,
-        key: key,
+        key: Key.fromBytes(key),
         register: Opt.some(
           kad_protobuf.RegisterMessage(
             advertisement: adBytes,
@@ -189,7 +302,7 @@ suite "Service Discovery Component - Error Handling":
       let response = await clientNode.sendMessage(registrarNode, msg)
       check:
         response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
-        registrarNode.countAdsInCache(key) == 0
+        registrarNode.countAdsInCache(Key.fromBytes(key)) == 0
 
   asyncTest "REGISTER with ticket that has mismatched advertisement returns Rejected":
     # A ticket whose embedded advertisement does not match the registration's
@@ -207,8 +320,8 @@ suite "Service Discovery Component - Error Handling":
 
     var badTicket = kad_protobuf.Ticket(
       advertisement: otherAdBytes,
-      tInit: Moment.now() - 10.secs,
-      tMod: Moment.now() - 5.secs,
+      tInit: getTime().toUnix() - 10,
+      tMod: getTime().toUnix() - 5,
       tWaitFor: 1.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -247,8 +360,8 @@ suite "Service Discovery Component - Error Handling":
     let otherNode = setupServiceDiscoveryNode()
     var badTicket = kad_protobuf.Ticket(
       advertisement: adBytes,
-      tInit: Moment.now() - 1000.secs,
-      tMod: Moment.now() - 500.secs,
+      tInit: getTime().toUnix() - 1000,
+      tMod: getTime().toUnix() - 500,
       tWaitFor: 10.secs,
       signature: Opt.none(seq[byte]),
     )
@@ -273,7 +386,7 @@ suite "Service Discovery Component - Error Handling":
 
   asyncTest "GET_ADS with non-32-byte key returns empty response":
     # Spec calls for rejection on bad key length.
-    # Impl has no length check, cache lookup misses on the arbitrary key.
+    # The handler returns an empty response before the cache lookup.
     let registrarNode = setupServiceDiscoveryNode()
     let clientNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, clientNode])
@@ -282,10 +395,27 @@ suite "Service Discovery Component - Error Handling":
     for keyLen in [0, 31, 33, 64]:
       let key = newSeq[byte](keyLen)
 
-      let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.getAds, key: key)
+      let msg = kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.getAds, key: Key.fromBytes(key)
+      )
 
       let response = await clientNode.sendMessage(registrarNode, msg)
       check:
         response.msgType == kad_protobuf.MessageType.getAds
         response.getAds.isSome()
         response.getAds.get().advertisements.len == 0
+
+  asyncTest "PUT_VALUE signed by another peer is rejected with a default validator config":
+    let kadConfig = KadDHTConfig.new(timeout = 1.seconds, disableBootstrapping = true)
+    let storeNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    let clientNode =
+      setupServiceDiscoveryNode(xprPublishing = false, kadConfig = kadConfig)
+    startAndDeferStop(@[storeNode, clientNode])
+    await connect(storeNode, clientNode)
+
+    let storePeerId = storeNode.switch.peerInfo.peerId
+    let value = Value.fromBytes(makeAdvertisement().encode())
+    discard await clientNode.dispatchPutVal(storePeerId, storePeerId.toKey(), value)
+
+    check storeNode.dataTable.get(storePeerId.toKey()).isNone()

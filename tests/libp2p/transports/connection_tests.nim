@@ -7,7 +7,7 @@ import chronos, results, stew/byteutils
 import
   ../../../libp2p/
     [stream/connection, transports/transport, upgrademngrs/upgrade, multiaddress]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 import ./utils
 
 template connectionTransportTest*(
@@ -19,8 +19,6 @@ template connectionTransportTest*(
       "Transparent, immutable records, as we will see, are critical to good governance"
 
     asyncTest "handle write":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         defer:
@@ -41,7 +39,7 @@ template connectionTransportTest*(
         check string.fromBytes(buffer) == message
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -49,8 +47,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "handle read":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         defer:
@@ -71,7 +67,7 @@ template connectionTransportTest*(
         await conn.write(message)
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
@@ -79,10 +75,7 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "should allow multiple local addresses":
-      let addrs = @[
-        MultiAddress.init(ma1).tryGet(),
-        MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
-      ]
+      let addrs = @[ma(ma1), ma(if ma2 == "": ma1 else: ma2)]
 
       proc serverHandler(server: Transport) {.async.} =
         while true:
@@ -99,8 +92,8 @@ template connectionTransportTest*(
           server.addrs.len == 2
           server.addrs[0] != server.addrs[1]
 
-        proc dialAndVerify(ma: MultiAddress) {.async.} =
-          let conn = await client.dial(ma)
+        proc dialAndVerify(maddr: MultiAddress) {.async.} =
+          let conn = await client.dial(maddr)
           defer:
             await conn.close()
 
@@ -128,8 +121,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "read or write on closed connection":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
         await conn.close()
@@ -145,28 +136,54 @@ template connectionTransportTest*(
         expect LPStreamEOFError:
           await conn.readExactly(addr buffer[0], 1)
 
-        # TODO(nim-libp2p#1788): Unify behaviour between transports
         if isWsTransport(server.addrs[0]):
           # WS throws on write after EOF
           expect LPStreamEOFError:
             await conn.write(buffer)
         else:
-          when defined(windows):
-            if isTorTransport(server.addrs[0]):
-              # TOR on Windows throws on write after EOF
-              expect LPStreamEOFError:
-                await conn.write(buffer)
-            else:
-              # TCP on Windows doesn't throw on write after EOF
-              await conn.write(buffer)
-          else:
-            # TCP and TOR on non-Windows don't throw on write after EOF
-            await conn.write(buffer)
+          await conn.write(buffer)
 
       let server = transportProvider()
-      await server.start(ma)
+      await server.start(@[ma(ma1)])
       let serverFut = serverHandler(server)
 
       await runClient(server)
       await serverFut
       await server.stop()
+
+    asyncTest "write after remote half-close":
+      let server = transportProvider()
+      await server.start(@[ma(ma1)])
+      let acceptFut = server.accept()
+      let client = transportProvider()
+      let clientConn = await client.dial(server.addrs[0])
+      let serverConn = await acceptFut
+      defer:
+        await clientConn.close()
+        await serverConn.close()
+        await client.stop()
+        await server.stop()
+
+      if isWsTransport(server.addrs[0]):
+        # WebSocket has no half-close: closeWrite fully closes the session.
+        # Read concurrently so the WS close handshake completes, then the read
+        # fails with EOF and subsequent writes also fail with EOF.
+        var wb: byte
+        let readFut = clientConn.readExactly(addr wb, 1)
+        await serverConn.closeWrite()
+        expect LPStreamEOFError:
+          await readFut
+        expect LPStreamEOFError:
+          await clientConn.write(@[1'u8])
+        return
+
+      await serverConn.closeWrite()
+
+      var b: byte
+      expect LPStreamEOFError:
+        await clientConn.readExactly(addr b, 1)
+
+      # Remote EOF only closes our read half. We still can write
+      await clientConn.write(@[1'u8])
+      await serverConn.readExactly(addr b, 1)
+      check b == 1

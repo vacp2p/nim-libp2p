@@ -36,6 +36,18 @@ suite "Discoverer - lookup":
     check res.isOk()
     check res.get().len == 0
 
+  asyncTest "empty routing table still returns cached advertisements":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo("local-service")
+    let serviceId = service.id.hashServiceId()
+    let ad = makeAdvertisement(service.id)
+    disco.registrar.seedAd(serviceId, ad)
+
+    let res = await disco.lookup(serviceId)
+
+    check res.isOk()
+    check res.get() == @[ad]
+
   asyncTest "calling lookup twice for same service is idempotent":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()

@@ -15,7 +15,9 @@ suite "GossipSubParams validation":
 
   test "default parameters are valid":
     var params = newDefaultValidParams()
-    check params.validateParameters().isOk()
+    check:
+      params.validateParameters().isOk()
+      params.seenMaxSize == GossipSubSeenMaxSize
 
   test "dOut fails when equal to dLow":
     const errorMessage =
@@ -92,6 +94,19 @@ suite "GossipSubParams validation":
   test "historyGossip succeeds when zero":
     var params = newDefaultValidParams()
     params.historyGossip = 0
+    check params.validateParameters().isOk()
+
+  test "seenMaxSize fails when zero":
+    const errorMessage = "gossipsub: seenMaxSize parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.seenMaxSize = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "seenMaxSize succeeds when positive":
+    var params = newDefaultValidParams()
+    params.seenMaxSize = 1
     check params.validateParameters().isOk()
 
   test "publishThreshold fails when equal to gossipThreshold":
@@ -376,6 +391,44 @@ suite "GossipSubParams validation":
   test "maxLowPriorityQueueLen succeeds when positive":
     var params = newDefaultValidParams()
     params.maxLowPriorityQueueLen = 1
+    check params.validateParameters().isOk()
+
+  test "overheadRateLimit.bytes fails when zero":
+    const errorMessage =
+      "gossipsub: overheadRateLimit.bytes parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 0, interval: 1.seconds))
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "overheadRateLimit.interval fails when zero":
+    const errorMessage =
+      "gossipsub: overheadRateLimit.interval parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: ZeroDuration))
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "overheadRateLimit succeeds when both fields are positive":
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: 1.seconds))
+    check params.validateParameters().isOk()
+
+  test "disconnectPeerAboveRateLimit fails without overheadRateLimit":
+    const errorMessage =
+      "gossipsub: disconnectPeerAboveRateLimit parameter error, Requires overheadRateLimit"
+    var params = newDefaultValidParams()
+    params.disconnectPeerAboveRateLimit = true
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "disconnectPeerAboveRateLimit succeeds with overheadRateLimit":
+    var params = newDefaultValidParams()
+    params.overheadRateLimit = Opt.some(RateLimit(bytes: 1, interval: 1.seconds))
+    params.disconnectPeerAboveRateLimit = true
     check params.validateParameters().isOk()
 
 suite "TopicParams validation":

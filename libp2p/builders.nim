@@ -27,21 +27,24 @@ import
   services/[identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
-  observedaddrmanager,
+  address_manager,
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utils/opt
+  utils/[opt, tlsredact]
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
-  TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig,
-  natservice.PortMappingMode, natservice.AutonatVersion, natservice.PortMapperFactory,
-  natservice.NATService, natservice.natConfig, natservice.upnpConfig,
-  natservice.natPmpConfig, natservice.explicitIpConfig, natservice.autonatConfig,
-  natservice.holePunchingConfig, natservice.AutonatV2ServiceConfig,
-  natservice.AutonatV2Service, natservice.natService
+  tlsredact, TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags,
+  connmanager.ConnectionLimits, connmanager.maxTotal, connmanager.maxInOut,
+  natservice.NATConfig, natservice.PortMappingMode, natservice.AutonatVersion,
+  natservice.PortMapperFactory, natservice.NATService, natservice.natConfig,
+  natservice.upnpConfig, natservice.natPmpConfig, natservice.explicitIpConfig,
+  natservice.autonatConfig, natservice.holePunchingConfig,
+  natservice.AutonatV2ServiceConfig, natservice.AutonatV2Service, natservice.natService
+
+logScope:
+  topics = "libp2p builders"
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -65,9 +68,15 @@ type
       ## negotiate the quantum-resistant handshake while classical-only
       ## peers still fall back to `/noise` transparently.
 
+  KadMode* {.pure.} = enum
+    Client ## never serves queries; only issues them
+    Server ## always serves queries
+    Auto ## serves queries while autonat reports the node reachable
+
   KadInfo = object
     config*: KadDHTConfig
     bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+    mode*: KadMode
 
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
@@ -85,6 +94,8 @@ type
     protoVersion: string
     agentVersion: string
     nameResolver: NameResolver
+    dialRanking: bool
+    dialBackoff: Opt[DialBackoffConfig]
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
@@ -96,9 +107,10 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     identifyPusherEnabled: bool
-    observedAddrManager: ObservedAddrManager
+    addressManagerConfig: Opt[AddressManagerConfig]
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
+    allowUndialableAddrs: bool
 
 proc new*(T: type[SwitchBuilder]): T =
   ## Creates a SwitchBuilder
@@ -122,7 +134,9 @@ proc new*(T: type[SwitchBuilder]): T =
     identifyPusherEnabled: false,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    allowUndialableAddrs: false,
     addressTtls: AddressConfidenceTtls(),
+    addressManagerConfig: Opt.none(AddressManagerConfig),
   )
 
 proc withPrivateKey*(
@@ -179,12 +193,16 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b
 
 proc withMplex*(
-    b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
+    b: SwitchBuilder,
+    inTimeout = 5.minutes,
+    outTimeout = 5.minutes,
+    maxChannCount = 200,
+    maxBufferedBytes = MaxBufferedBytes,
 ): SwitchBuilder =
   ## Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
   ## `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: RawConn): Muxer =
-    Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
+    Mplex.new(conn, inTimeout, outTimeout, maxChannCount, maxBufferedBytes)
 
   doAssert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
@@ -251,10 +269,17 @@ proc withWsTransport*(
       )
   )
 
-proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder =
+proc withQuicTransport*(
+    b: SwitchBuilder,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
+): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      QuicTransport.new(config.upgr, config.privateKey, config.rng, config.connManager)
+      QuicTransport.new(
+        config.upgr, config.privateKey, config.rng, config.connManager, inTimeout,
+        outTimeout,
+      )
   )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =
@@ -344,6 +369,15 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
+proc withDialRanking*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.dialRanking = enabled
+  b
+
+proc withDialBackoff*(b: SwitchBuilder, config = DefaultDialBackoff): SwitchBuilder =
+  ## Hold off dialing an address, and a peer, that keeps failing.
+  b.dialBackoff = Opt.some(config)
+  b
+
 proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   b.autonatEnabled = enabled
   b
@@ -406,8 +440,9 @@ proc withKademlia*(
     b: SwitchBuilder,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
+    mode: KadMode = KadMode.Server,
 ): SwitchBuilder =
-  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
+  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes, mode: mode))
   b
 
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -418,10 +453,11 @@ proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder 
   b.identifyPusherEnabled = enabled
   b
 
-proc withObservedAddrManager*(
-    b: SwitchBuilder, observedAddrManager: ObservedAddrManager
+proc withAddressManager*(
+    b: SwitchBuilder, config: AddressManagerConfig
 ): SwitchBuilder =
-  b.observedAddrManager = observedAddrManager
+  ## Set the thresholds of the address manager.
+  b.addressManagerConfig = Opt.some(config)
   b
 
 proc withAddressPolicy*(
@@ -430,6 +466,11 @@ proc withAddressPolicy*(
   ## Applies a single address visibility policy across local address
   ## announcements and all discovery/storage paths configured by the builder.
   b.addressPolicy = addressPolicy
+  b
+
+proc withUndialableAddresses*(b: SwitchBuilder, allow = true): SwitchBuilder =
+  ## Publishes, stores and dials a wildcard host and a port `0`, for a local test only.
+  b.allowUndialableAddrs = allow
   b
 
 proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
@@ -451,7 +492,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     PrivateKey.random(b.rng).expect("Expected default Private Key")
 
   if b.secureManagers.len == 0:
-    debug "no secure managers defined. Adding noise by default"
+    debug "No secure managers configured; using Noise by default"
     b.secureManagers.add(SecureProtocol.Noise)
 
   var secureManagerInstances: seq[Secure]
@@ -469,18 +510,17 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     announcedAddrs = b.announcedAddrs,
   )
 
-  let identify =
-    if b.observedAddrManager != nil:
-      Identify.new(peerInfo, b.sendSignedPeerRecord, b.observedAddrManager)
-    else:
-      Identify.new(peerInfo, b.sendSignedPeerRecord)
+  let addressManager =
+    AddressManager.new(b.addressManagerConfig.get(AddressManagerConfig()))
+  let identify = Identify.new(peerInfo, b.sendSignedPeerRecord, addressManager)
 
   var peerStore = block:
-    b.peerStoreCapacity.withValue(capacity):
+    b.peerStoreCapacity.ifValue(capacity):
       PeerStore.new(identify, capacity, b.addressTtls)
     else:
       PeerStore.new(identify, addressTtls = b.addressTtls)
   peerStore.addressPolicy = b.addressPolicy
+  peerStore.allowUndialableAddrs = b.allowUndialableAddrs
 
   var connManager = ConnManager.new(
     maxConnsPerPeer = b.maxConnsPerPeer,
@@ -495,7 +535,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
-  b.autotlsConfig.withValue(config):
+  b.autotlsConfig.ifValue(config):
     let autotlsService = AutotlsService.new(b.rng, config)
     autotlsOpt = Opt.some(autotlsService)
     services.add(autotlsService)
@@ -514,8 +554,16 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
       )
     )
 
-  let dialer =
-    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, ms, b.nameResolver)
+  let dialer = Dialer.new(
+    peerInfo.peerId,
+    connManager,
+    peerStore,
+    transports,
+    ms,
+    b.nameResolver,
+    dialRanking = b.dialRanking,
+    dialBackoff = b.dialBackoff,
+  )
 
   let switch = Switch(
     peerInfo: peerInfo,
@@ -528,6 +576,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
     services: services,
+    addressManager: addressManager,
   )
 
   return switch
@@ -536,7 +585,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.natConfig.withValue(natCfg):
+  b.natConfig.ifValue(natCfg):
     switch.services.add(NATService.new(natCfg, b.rng, b.natPortMapperFactory))
 
   if b.identifyPusherEnabled:
@@ -545,34 +594,64 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   for service in switch.services:
     service.setup(switch)
 
+proc makeKadReachabilityHandler(kad: KadDHT): ReachabilityHandler =
+  ## Handler for ``KadMode.Auto``: the node serves queries while it is
+  ## reachable, and stops serving when it is not. ``Unknown`` keeps the current
+  ## mode, since it means autonat has no verdict yet.
+  proc(
+      reachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
+  ) {.async: (raises: [CancelledError]).} =
+    case reachability
+    of NetworkReachability.Reachable:
+      discard await kad.changeMode(isServer = true)
+    of NetworkReachability.NotReachable:
+      discard await kad.changeMode(isServer = false)
+    of NetworkReachability.Unknown:
+      discard
+
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
     switch.mount(switch.peerStore.identify)
 
-  b.rdvConfig.withValue(rdvCfg):
+  b.rdvConfig.ifValue(rdvCfg):
     let rend = RendezVous.new(b.rng, rdvCfg)
     rend.setup(switch)
     switch.mount(rend)
 
-  b.autonatV2ServerConfig.withValue(config):
+  b.autonatV2ServerConfig.ifValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
 
   if b.autonatEnabled:
     switch.mount(Autonat.new(switch))
 
-  b.circuitRelay.withValue(relay):
+  b.circuitRelay.ifValue(relay):
     if relay of RelayClient:
       switch.addTransport(RelayTransport.new(RelayClient(relay), switch.muxedUpgrade))
     relay.setup(switch)
     switch.mount(relay)
 
-  b.kad.withValue(kadInfo):
+  b.kad.ifValue(kadInfo):
     var config = kadInfo.config
     config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = config,
+      rng = b.rng,
+      # Auto starts as a client until autonat proves the node reachable.
+      isServer = kadInfo.mode == KadMode.Server,
     )
     switch.mount(kad)
+
+    if kadInfo.mode == KadMode.Auto:
+      var wired = false
+      switch.natService().ifValue(nat):
+        wired = nat.addReachabilityHandler(makeKadReachabilityHandler(kad))
+      if not wired:
+        warn "Kad-DHT auto mode has no reachability service; it stays a client",
+          hint = "configure withNAT reachability or hole-punching"
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var switch = b.buildSwitch()

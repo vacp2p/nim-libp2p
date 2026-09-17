@@ -106,7 +106,7 @@ proc dumpMessage*(conn: SecureConn, direction: FlowDirection, data: openArray[by
   try:
     if open(handle, pathName, fmAppend):
       if bytes.len > 0:
-        discard writeBuffer(handle, unsafeAddr bytes[0], bytes.len)
+        discard writeBuffer(handle, addr bytes[0], bytes.len)
   finally:
     close(handle)
 
@@ -212,23 +212,23 @@ proc toString*(msg: ProtoMessage, dump = true): string =
     of Outgoing: " >> "
   let address = block:
     let local = block:
-      msg.local.withValue(loc):
+      msg.local.ifValue(loc):
         "[" & $loc & "]"
       else:
         "[LOCAL]"
     let remote = block:
-      msg.remote.withValue(rem):
+      msg.remote.ifValue(rem):
         "[" & $rem & "]"
       else:
         "[REMOTE]"
     local & direction & remote
   let seqid = block:
-    msg.seqID.withValue(seqid):
+    msg.seqID.ifValue(seqid):
       "seqID = " & $seqid & " "
     else:
       ""
   let mtype = block:
-    msg.mtype.withValue(typ):
+    msg.mtype.ifValue(typ):
       "type = " & $typ & " "
     else:
       ""

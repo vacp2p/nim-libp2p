@@ -121,7 +121,7 @@ suite "KadDHT Put":
     let msg = Message(
       msgType: MessageType.putValue,
       key: msgKey,
-      record: Record(key: recordKey, value: @[1.byte, 2, 3, 4, 5]),
+      record: Record(key: recordKey, value: Value.init([1.byte, 2, 3, 4, 5])),
     )
 
     # Send directly via handlePutValue to test the validation logic
@@ -160,7 +160,7 @@ suite "KadDHT Put":
     let msgNoValue = Message(
       msgType: MessageType.putValue,
       key: key,
-      record: Record(key: key, value: Opt.none(seq[byte])),
+      record: Record(key: key, value: Opt.none(Value)),
     )
 
     await kads[0].handlePutValue(conn, msgNoValue)
@@ -179,7 +179,9 @@ suite "KadDHT Put":
 
     # Build the PUT_VALUE request message
     let request = Message(
-      msgType: MessageType.putValue, key: key, record: Record(key: key, value: value)
+      msgType: MessageType.putValue,
+      key: key,
+      record: Record(key: key, value: Value.init(value)),
     )
 
     let conn = await kads[1].switch.dial(
@@ -193,7 +195,7 @@ suite "KadDHT Put":
     let responseBytes = await conn.readLp(MaxMsgSize)
     let response = Message.decode(responseBytes).value()
 
-    # Response should be identical to the request
+    # response should be identical to the request
     check response == request
 
   asyncTest "PUT_VALUE stores binary data with null and high bytes":

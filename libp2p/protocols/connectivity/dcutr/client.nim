@@ -19,7 +19,7 @@ type DcutrClient* = ref object
   maxDialableAddrs: int
 
 logScope:
-  topics = "libp2p dcutrclient"
+  topics = "libp2p hole-punching"
 
 proc new*(
     T: typedesc[DcutrClient], connectTimeout = 15.seconds, maxDialableAddrs = 8
@@ -38,42 +38,45 @@ proc startSync*(
   try:
     var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:
-      debug "Dcutr initiator has no supported dialable addresses. Aborting Dcutr.",
-        addrs
+      trace "Aborting Dcutr because the initiator has no supported dialable addresses",
+        addresses = addrs
       return
 
     stream = await switch.dial(remotePeerId, DcutrCodec)
     await stream.send(MsgType.Connect, addrs)
-    debug "Dcutr initiator has sent a Connect message."
+    trace "Dcutr initiator sent a Connect message"
     let rttStart = Moment.now()
-    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
-      raise newException(DcutrError, error)
+    let connectAnswer =
+      DcutrMsg.decode(await stream.readLp(1024)).valueOrRaise(DcutrError)
 
-    peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
+    peerDialableAddrs = switch.peerStore.addressPolicy.filterAddrs(
+      getHolePunchableAddrs(connectAnswer.addrs)
+    )
     if peerDialableAddrs.len == 0:
-      debug "Dcutr receiver has no supported dialable addresses to connect to. Aborting Dcutr.",
-        addrs = connectAnswer.addrs
+      trace "Aborting Dcutr because the receiver has no supported dialable addresses",
+        addresses = connectAnswer.addrs
       return
 
     let rttEnd = Moment.now()
-    debug "Dcutr initiator has received a Connect message back.", connectAnswer
+    trace "Dcutr initiator received a Connect message back",
+      connectAnswer = connectAnswer
     let halfRtt = (rttEnd - rttStart) div 2'i64
 
     # Expected DCUtR connections bypass ConnManager limits.
-    debug "Dcutr initiator registering expected incoming connection",
+    trace "Dcutr initiator registering expected incoming connection",
       remotePeerId = stream.peerId
     let expectedIncoming = switch.connManager.expectDcutrConnection(stream.peerId, In)
     defer:
       expectedIncoming.cancelSoon()
 
     await stream.send(MsgType.Sync, @[])
-    debug "Dcutr initiator has sent a Sync message."
+    trace "Dcutr initiator sent a Sync message"
     await sleepAsync(halfRtt)
 
     if peerDialableAddrs.len > self.maxDialableAddrs:
       peerDialableAddrs = peerDialableAddrs[0 ..< self.maxDialableAddrs]
-    debug "Dcutr initiator starting direct dial attempts",
-      peerDialableAddrs, connectTimeout = self.connectTimeout
+    trace "Dcutr initiator starting direct dial attempts",
+      addresses = peerDialableAddrs, connectTimeout = self.connectTimeout
     let dialFuts = peerDialableAddrs.mapIt(
       switch.connect(
         stream.peerId,
@@ -85,7 +88,7 @@ proc startSync*(
     )
     var futs = dialFuts
     futs.add(waitExpectedConnection(expectedIncoming))
-    debug "Dcutr initiator waiting for direct dial or incoming connection",
+    trace "Dcutr initiator waiting for direct dial or incoming connection",
       attempts = futs.len
     try:
       try:
@@ -94,33 +97,33 @@ proc startSync*(
         if dialFuts.allIt(it.finished and not it.completed()):
           raise newException(AllFuturesFailedError, "all direct dial attempts failed")
         raise err
-      debug "Dcutr initiator has directly connected to the remote peer."
+      trace "Dcutr initiator connected directly to the remote peer"
     finally:
-      debug "Dcutr initiator cancelling remaining direct dial attempts",
+      trace "Dcutr initiator cancelling remaining direct dial attempts",
         attempts = futs.len
       await futs.cancelAndWait()
-      debug "Dcutr initiator finished direct dial cleanup"
+      trace "Dcutr initiator finished direct dial cleanup"
   except CancelledError as err:
     raise err
   except AllFuturesFailedError as err:
-    debug "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
-      peerDialableAddrs, description = err.msg
+    trace "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
+      err = err.msg, addresses = peerDialableAddrs
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts failed",
       err,
     )
   except AsyncTimeoutError as err:
-    debug "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
-      peerDialableAddrs, description = err.msg
+    trace "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
+      err = err.msg, addresses = peerDialableAddrs
     raise newException(
       DcutrError,
       "Dcutr initiator could not connect to the remote peer, all connect attempts timed out",
       err,
     )
   except CatchableError as err:
-    debug "Unexpected error when Dcutr initiator tried to connect to the remote peer",
-      description = err.msg
+    trace "Unexpected error when Dcutr initiator tried to connect to the remote peer",
+      err = err.msg
     raise newException(
       DcutrError,
       "Unexpected error when Dcutr initiator tried to connect to the remote peer: " &

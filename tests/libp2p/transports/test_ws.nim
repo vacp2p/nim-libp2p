@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos, stew/byteutils
+from times import now
 import
   ../../../libp2p/[
     autotls/service,
@@ -18,8 +19,9 @@ import
     muxers/muxer,
     muxers/mplex/mplex,
   ]
-import ../../tools/[crypto, unittest]
+import ../../tools/[crypto, unittest, multiaddress]
 import ./basic_tests
+import ./cancellation_tests
 import ./connection_tests
 import ./stream_tests
 
@@ -57,6 +59,7 @@ const
     # Secure WebSocket
     "/ip4/127.0.0.1/tcp/1234/wss",
     "/ip4/127.0.0.1/tcp/1234/tls/ws",
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/example.com/ws",
     "/ip6/::1/tcp/1234/wss",
   ]
   validNonWireAddresses = @[
@@ -65,12 +68,18 @@ const
     # Secure WebSocket
     "/dns/example.com/tcp/1234/wss",
     "/dns/example.com/tcp/1234/tls/ws",
+    "/dns/example.com/tcp/1234/tls/sni/ws.example.com/ws",
   ]
   invalidAddresses = @[
     "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
     "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
     "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
     "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
+    "/ip4/127.0.0.1/tcp/1234/sni/example.com/ws", # SNI without TLS
+    "/ip4/127.0.0.1/tcp/1234/tls/ws/sni/example.com", # SNI after WebSocket
+    "/ip4/127.0.0.1/tcp/1234/wss/sni/example.com", # SNI with deprecated alias
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/one/sni/two/ws", # Repeated SNI
+    "/ip4/127.0.0.1/tcp/1234/tls/sni/example.com", # Missing WebSocket
   ]
 
 suite "WebSocket transport":
@@ -89,11 +98,14 @@ suite "WebSocket transport":
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
+  cancellationTransportTest(wsTransProvider, wsAddress)
+  cancellationTransportTest(wsSecureTransProvider, wsSecureAddress)
+
   asyncTest "slow WebSocket headers do not block valid accepts":
     let server = WsTransport.new(
       Upgrade(), rng(), headersTimeout = 3.seconds, concurrentAccepts = 2
     )
-    await server.start(@[MultiAddress.init(wsAddress).get()])
+    await server.start(@[ma(wsAddress)])
     defer:
       await server.stop()
 
@@ -133,21 +145,13 @@ suite "WebSocket transport":
     await outboundClosing
 
   streamTransportTest(
-    wsTransProvider,
-    MultiAddress.init(wsAddress).get(),
-    Opt.none(MultiAddress),
-    streamProvider,
+    wsTransProvider, ma(wsAddress), Opt.none(MultiAddress), streamProvider
   )
   streamTransportTest(
-    wsTransProvider,
-    MultiAddress.init(wsSecureAddress).get(),
-    Opt.none(MultiAddress),
-    streamProvider,
+    wsTransProvider, ma(wsSecureAddress), Opt.none(MultiAddress), streamProvider
   )
 
   asyncTest "Hostname verification":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
-
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
     let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
@@ -163,7 +167,7 @@ suite "WebSocket transport":
     )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
-    await transport1.start(ma)
+    await transport1.start(@[ma("/ip4/0.0.0.0/tcp/0/wss")])
     defer:
       await transport1.stop()
     check correctPattern.match(transport1.addrs[0])
@@ -185,10 +189,9 @@ suite "WebSocket transport":
       discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
   asyncTest "handles tls/ws":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
     let transport1 = wsSecureTransProvider()
     const correctPattern = mapAnd(TCP, mapEq("tls"), mapEq("ws"))
-    await transport1.start(ma)
+    await transport1.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     check transport1.handles(transport1.addrs[0])
     check correctPattern.match(transport1.addrs[0])
 
@@ -202,10 +205,44 @@ suite "WebSocket transport":
 
     await transport1.stop()
 
-suite "WebSocket transport with autotls":
-  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+  asyncTest "explicit SNI is preserved and controls hostname verification":
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
+    let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
+    let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
 
+    let transport1 = WsTransport.new(
+      Upgrade(),
+      secureKey,
+      secureCert,
+      Opt.none(AutotlsService),
+      rng(),
+      tlsFlags = {TLSFlags.NoVerifyHost},
+    )
+    let
+      sniSuffix = ma("/tls/sni/" & $expectedPeerId & "/ws")
+      listenAddr = TcpAutoAddress & sniSuffix
+    await transport1.start(@[listenAddr])
+    defer:
+      await transport1.stop()
+
+    let
+      base = ma(transport1.addrs[0].initTAddress().tryGet())
+      wrongAddress = base & ma("/tls/sni/ws.wronghostname/ws")
+    check transport1.addrs[0][2 .. ^1].tryGet() == sniSuffix
+
+    let inboundFut = transport1.accept()
+    let outbound = await transport1.dial("different.http.host", transport1.addrs[0])
+    let inbound = await inboundFut
+    await allFutures(outbound.close(), inbound.close())
+
+    expect TransportDialError:
+      discard await transport1.dial("different.http.host", wrongAddress)
+
+suite "WebSocket transport with autotls":
+  teardown:
+    checkTrackers()
+
+  asyncTest "autotls certificate is used when manual tlscertificate is not specified":
     let key = KeyPair.random(PKScheme.RSA, rng()).get()
     let (privkey, cert) = tlsCertGenerator(Opt.some(key))
     let autotls = MockAutotlsService.new(rng())
@@ -220,7 +257,7 @@ suite "WebSocket transport with autotls":
       Opt.some(AutotlsService(autotls)),
       rng(),
     )
-    await wstransport.start(ma)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
@@ -230,10 +267,9 @@ suite "WebSocket transport with autotls":
     # autotls should be used
     let autotlsCert = await autotls.getCertWhenReady()
     check wstransport.tlsCertificate == autotlsCert.cert
+    check wstransport.tlsPrivateKey == autotlsCert.privkey
 
   asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
-
     let key = KeyPair.random(PKScheme.RSA, rng()).get()
     let (privkey, cert) = tlsCertGenerator(Opt.some(key))
     let autotls = MockAutotlsService.new(rng())
@@ -247,7 +283,7 @@ suite "WebSocket transport with autotls":
     let wstransport = WsTransport.new(
       Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
     )
-    await wstransport.start(ma)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
@@ -259,7 +295,6 @@ suite "WebSocket transport with autotls":
     check wstransport.tlsPrivateKey == manualKey
 
   asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
-    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
     let wstransport = WsTransport.new(
       Upgrade(),
       nil, # TLSPrivateKey
@@ -267,9 +302,83 @@ suite "WebSocket transport with autotls":
       Opt.none(AutotlsService),
       rng(),
     )
-    await wstransport.start(ma)
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
     defer:
       await wstransport.stop()
 
     # TLSPrivateKey and TLSCertificate should not be set
     check not wstransport.secure
+
+    # the address it listens on and advertises drops to /ws
+    check:
+      WS.match(wstransport.addrs[0])
+      not WSS.match(wstransport.addrs[0])
+
+  asyncTest "the transport stops when the autotls service never runs":
+    let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+
+    # The wait for a running service is bounded by DefaultAutotlsWaitTimeout, 3 seconds.
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")]).wait(5.seconds)
+
+    check:
+      not wstransport.running
+      wstransport.addrs.len == 0
+
+    let acceptFut = wstransport.accept()
+    check await acceptFut.withTimeout(200.milliseconds)
+    expect TransportClosedError:
+      discard await acceptFut
+
+  asyncTest "start never returns when the autotls certificate never arrives":
+    # TODO: vacp2p/nim-libp2p#2957
+    let autotls = AutotlsService(certReady: newAsyncEvent(), running: newAsyncEvent())
+    autotls.running.fire()
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+
+    let startFut = wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
+    check not (await startFut.withTimeout(200.milliseconds))
+
+  asyncTest "a renewed certificate does not reach a running transport":
+    # TODO: vacp2p/nim-libp2p#2994
+    let autotls = AutotlsService(
+      cert: Opt.some(AutotlsCert.new(secureCert, secureKey, now())),
+      certReady: newAsyncEvent(),
+      running: newAsyncEvent(),
+    )
+    autotls.running.fire()
+    autotls.certReady.fire()
+
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(autotls),
+      rng(),
+    )
+    await wstransport.start(@[ma("/ip4/0.0.0.0/tcp/0/tls/ws")])
+    defer:
+      await wstransport.stop()
+
+    check wstransport.tlsCertificate == secureCert
+
+    # what issueCertificate does once a renewal completes
+    let (renewedKey, renewedCert) = tlsCertGenerator()
+    autotls.cert = Opt.some(AutotlsCert.new(renewedCert, renewedKey, now()))
+    autotls.certReady.fire()
+
+    check:
+      wstransport.tlsCertificate == secureCert
+      wstransport.tlsPrivateKey == secureKey

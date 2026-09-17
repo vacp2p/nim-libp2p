@@ -3,19 +3,19 @@
 
 {.used.}
 
-import chronos, results, algorithm
+import chronos, results, algorithm, sets
 import ../../../libp2p/[protocols/kademlia, crypto/crypto]
 import ../../tools/[unittest, crypto]
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return @buf
+  return Key(@buf)
 
 proc randomTestKey(): Key =
   var buf = newSeqUninit[byte](IdLength)
   rng().generate(buf)
-  buf
+  Key(buf)
 
 proc keyWithLeadingZeros(n: int): Key =
   ## Key whose XOR distance to an all-zero selfId under `noOpHasher` has
@@ -23,13 +23,24 @@ proc keyWithLeadingZeros(n: int): Key =
   doAssert n < IdLength * 8, "an all-zero key has no first set bit"
   var buf: array[IdLength, byte]
   buf[n div 8] = 0x80'u8 shr (n mod 8)
-  return @buf
+  return Key(@buf)
 
 suite "KadDHT Routing Table":
   const TargetBucket = 6
 
   proc keyInBucket(rt: RoutingTable, bucket: int): Key =
     randomKeyInBucket(rt, bucket, rng()).expect("bucket is reachable")
+
+  proc agePastGrace(rt: RoutingTable, bucketIdx: int) =
+    ## Push every peer past the usefulness grace period so eviction can act.
+    let past = Moment.now() - 2.hours
+    for nodeId in rt.buckets[bucketIdx].peers:
+      rt.registry.withRecord(nodeId, record):
+        record[].lastUsefulAt = Opt.none(Moment)
+        record[].lastSeen = past
+      rt.registry.tablesByPeer.withValue(nodeId, tables):
+        tables[].withValue(rt.selfId, m):
+          m[].addedAt = past
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
@@ -41,13 +52,58 @@ suite "KadDHT Routing Table":
     check:
       rt.buckets.len > idx
       rt.buckets[idx].peers.len == 1
-      rt.buckets[idx].peers[0].nodeId == other
+      rt.buckets[idx].peers[0] == other
+      other in rt.registry
 
   test "does not insert self":
     let selfId = testKey(0)
     var rt = RoutingTable.new(selfId)
 
     check not rt.insert(selfId)
+
+  test "samples peers closest to a target instead of closest to self":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    # With `noOpHasher` a key is its own hash, so a peer is at distance 0 from
+    # itself and lands in the last bucket of a view centred on it.
+    let target = rt.buckets[1].peers[0]
+    check rt.randomPeersClosestFirst(target, rng(), 1) == @[target]
+
+    # Centred on self, the same table starts from its own closest bucket.
+    check rt.randomPeersClosestFirst(rng(), 1) == @[rt.buckets[TargetBucket].peers[0]]
+
+  test "a view centred on a target clamps deep peers into its last bucket":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [0, 1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    # Seen from the bucket-1 peer, the bucket-0 peer shares no prefix bit, and
+    # the peer itself and the bucket-3 and bucket-6 peers share at least one. A
+    # 2-bucket view puts those three together in its last bucket.
+    let target = rt.buckets[1].peers[0]
+    let farPeer = rt.buckets[0].peers[0]
+    let nearPeers = [target, rt.buckets[3].peers[0], rt.buckets[TargetBucket].peers[0]]
+
+    let all = rt.randomPeersClosestFirst(target, rng(), 4, maxBuckets = 2)
+    check:
+      all.len == 4
+      all[0 .. 2].toHashSet() == nearPeers.toHashSet()
+      all[3] == farPeer
+
+    let capped =
+      rt.randomPeersClosestFirst(target, rng(), 4, maxPerBucket = 1, maxBuckets = 2)
+    check:
+      capped.len == 2
+      capped[0] in nearPeers
+      capped[1] == farPeer
+
+    check rt.randomPeersClosestFirst(target, rng(), 0, maxBuckets = 2).len == 0
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
@@ -61,7 +117,7 @@ suite "KadDHT Routing Table":
     let bucket = rt.buckets[TargetBucket]
     check bucket.peers.len <= config.replication
 
-  test "evicts oldest key at max capacity":
+  test "evicts oldest replaceable key at max capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
@@ -71,15 +127,48 @@ suite "KadDHT Routing Table":
 
     check rt.buckets[TargetBucket].peers.len == config.replication
 
-    # new entry should evict oldest entry
-    let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
+    # Age fresh peers past the grace period so they become evictable.
+    rt.agePastGrace(TargetBucket)
+
+    let (oldest, _) = rt.oldestPeer(TargetBucket)
 
     check rt.insert(rt.keyInBucket(TargetBucket))
 
-    let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
+    check:
+      rt.buckets[TargetBucket].peers.len == config.replication
+      not rt.buckets[TargetBucket].allKeys().contains(oldest)
 
-    # oldest was evicted
-    check oldest.nodeId != oldestAfterInsert.nodeId
+  test "retains peers still within the usefulness grace period":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(rt.keyInBucket(TargetBucket))
+
+    let before = rt.buckets[TargetBucket].allKeys()
+    let newcomer = rt.keyInBucket(TargetBucket)
+
+    # Full of fresh, unproven peers: the newcomer is rejected, none evicted.
+    check:
+      not rt.insert(newcomer)
+      rt.buckets[TargetBucket].allKeys() == before
+      not rt.buckets[TargetBucket].allKeys().contains(newcomer)
+
+  test "markUseful protects a peer from eviction":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(rt.keyInBucket(TargetBucket))
+
+    rt.agePastGrace(TargetBucket)
+
+    # Marking the oldest-seen peer useful spares it and evicts a different one.
+    let (oldest, _) = rt.oldestPeer(TargetBucket)
+    rt.markUseful(oldest)
+
+    check rt.insert(rt.keyInBucket(TargetBucket))
+    check rt.buckets[TargetBucket].allKeys().contains(oldest)
 
   test "re-insert existing key updates lastSeen":
     let selfId = testKey(0)
@@ -94,16 +183,16 @@ suite "KadDHT Routing Table":
     discard rt.insert(key2)
     discard rt.insert(key3)
 
-    check rt.buckets[TargetBucket].peers[0].nodeId == key1
+    check rt.buckets[TargetBucket].peers[0] == key1
 
-    let previousLastSeen = rt.buckets[TargetBucket].peers[0].lastSeen
+    let previousLastSeen = rt.registry.get(key1).get().lastSeen
 
     discard rt.insert(key1)
 
-    # Re-inserting existing key updates lastSeen timestamp without changing bucket position
+    # Re-inserting existing key updates lastSeen without changing bucket position
     check:
-      rt.buckets[TargetBucket].peers[0].nodeId == key1
-      rt.buckets[TargetBucket].peers[0].lastSeen > previousLastSeen
+      rt.buckets[TargetBucket].peers[0] == key1
+      rt.registry.get(key1).get().lastSeen > previousLastSeen
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
@@ -136,9 +225,8 @@ suite "KadDHT Routing Table":
       res.len == ids.len
       res == @[testKey(1), testKey(3), testKey(2)]
 
-  test "findClosest respects selfIdPreHashed=true (avoids double-hashing target)":
-    # Service discovery tables use pre-hashed serviceId as self + targets.
-    # findClosest must compute dist(target_raw, H(peer)) not H(target) to match bucketIndex.
+  test "findClosest hashes the target on a selfIdPreHashed table too":
+    # Only selfId is pre-hashed, so a raw target key is hashed like the peers are.
     let selfId = testKey(0)
     let config =
       RoutingTableConfig.new(hasher = Opt.none(XorDHasher), selfIdPreHashed = true)
@@ -150,30 +238,184 @@ suite "KadDHT Routing Table":
       discard rt.insert(p)
 
     let target = testKey(0x10)
-      # stands in for a hashServiceId() result (already in ID space)
     let res = rt.findClosest(target, 3)
 
-    # Expected order uses the *correct* prehashed metric (raw target vs hashed peers).
-    # This is what bucketIndex(selfIdPreHashed=true) + the service RegT invariant require.
     var expected = @[p1, p2, p3]
     let hasher = config.hasher
     expected.sort(
       proc(a, b: Key): int =
         cmp(
-          xorDistance(a.hashFor(hasher), target), xorDistance(b.hashFor(hasher), target)
+          xorDistance(
+            Key.fromBytes(a.hashFor(hasher)), Key.fromBytes(target.hashFor(hasher))
+          ),
+          xorDistance(
+            Key.fromBytes(b.hashFor(hasher)), Key.fromBytes(target.hashFor(hasher))
+          ),
         )
     )
     check res == expected
 
   test "isStale returns true for empty or old keys":
+    let registry = PeerRegistry.new()
     var bucket: Bucket
-    check isStale(bucket) == true
+    check isStale(bucket, registry) == true
 
-    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now() - 40.minutes)]
-    check isStale(bucket) == true
+    let oldKey = testKey(1)
+    discard registry.upsert(oldKey)
+    registry.peers.withValue(oldKey, record):
+      record[].lastSeen = Moment.now() - 40.minutes
+    bucket.peers = @[oldKey]
+    check isStale(bucket, registry) == true
 
-    bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now())]
-    check isStale(bucket) == false
+    let freshKey = testKey(2)
+    discard registry.upsert(freshKey)
+    bucket.peers = @[freshKey]
+    check isStale(bucket, registry) == false
+
+  test "removePeer removes an existing entry":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(
+      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    )
+    let key = rt.keyInBucket(TargetBucket)
+    check:
+      rt.insert(key)
+      key in rt
+      key in rt.registry
+
+    check:
+      rt.removePeer(key)
+      key notin rt
+      key notin rt.registry
+
+    check not rt.removePeer(key) # already gone
+
+  test "removePeer rejects self and localNodeId":
+    let selfId = testKey(0)
+    let localNodeId = testKey(99)
+    var rt = RoutingTable.new(selfId, localNodeId = Opt.some(localNodeId))
+    check:
+      not rt.removePeer(selfId)
+      not rt.removePeer(localNodeId)
+
+  test "isReplaceable follows grace period from membership addedAt":
+    let now = Moment.now()
+    let record =
+      PeerRecord(nodeId: testKey(1), lastSeen: now, lastUsefulAt: Opt.none(Moment))
+    let oldMembership = Membership(addedAt: now - 2.hours)
+    check record.isReplaceable(oldMembership, 1.hours, now)
+
+    let useful = PeerRecord(
+      nodeId: testKey(1), lastSeen: now, lastUsefulAt: Opt.some(now - 30.minutes)
+    )
+    check not useful.isReplaceable(oldMembership, 1.hours, now)
+
+  test "shared registry: one peer row across two tables":
+    let registry = PeerRegistry.new()
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var mainRt = RoutingTable.new(testKey(0), config, registry = registry)
+    var serviceRt = RoutingTable.new(
+      testKey(0xFF),
+      RoutingTableConfig.new(
+        hasher = Opt.some(noOpHasher), maxBuckets = 16, selfIdPreHashed = true
+      ),
+      localNodeId = Opt.some(mainRt.localNodeId),
+      registry = registry,
+    )
+
+    let peer = testKey(1)
+    check mainRt.insert(peer)
+    check serviceRt.insert(peer)
+
+    check:
+      registry.len == 1
+      peer in mainRt
+      peer in serviceRt
+      registry.tableIds(peer).len == 2
+
+    mainRt.markUseful(peer)
+    check registry.get(peer).get().lastUsefulAt.isSome()
+
+    check serviceRt.removePeer(peer)
+    check:
+      peer in mainRt
+      peer notin serviceRt
+      peer in registry
+      registry.tableIds(peer).len == 1
+
+    check mainRt.removePeer(peer)
+    check:
+      peer notin registry
+      registry.len == 0
+
+  test "seeded service membership gets fresh grace window":
+    ## An aged main-table peer must not be immediately replaceable in a new
+    ## service table that just indexed it.
+    let registry = PeerRegistry.new()
+    let config = RoutingTableConfig.new(
+      hasher = Opt.some(noOpHasher), usefulnessGracePeriod = 1.hours
+    )
+    var mainRt = RoutingTable.new(testKey(0), config, registry = registry)
+    let peer = testKey(1)
+    check mainRt.insert(peer)
+
+    let past = Moment.now() - 2.hours
+    registry.withRecord(peer, record):
+      record[].lastUsefulAt = Opt.none(Moment)
+      record[].lastSeen = past
+    registry.tablesByPeer.withValue(peer, tables):
+      tables[].withValue(mainRt.selfId, m):
+        m[].addedAt = past
+
+    check mainRt.isReplaceable(peer, 1.hours, Moment.now())
+
+    var serviceRt = RoutingTable.new(
+      testKey(0xFF),
+      RoutingTableConfig.new(
+        hasher = Opt.some(noOpHasher),
+        maxBuckets = 16,
+        selfIdPreHashed = true,
+        usefulnessGracePeriod = 1.hours,
+      ),
+      localNodeId = Opt.some(mainRt.localNodeId),
+      registry = registry,
+    )
+    check serviceRt.insert(peer)
+    check not serviceRt.isReplaceable(peer, 1.hours, Moment.now())
+
+  test "orphan bucket key is replaceable and preferred for eviction":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication:
+      discard rt.insert(rt.keyInBucket(TargetBucket))
+
+    # Corrupt: leave a key in the bucket but drop its registry row.
+    let orphan = rt.buckets[TargetBucket].peers[0]
+    rt.registry.dropPeer(orphan)
+    check rt.registry.isReplaceable(
+      orphan, rt.selfId, config.usefulnessGracePeriod, Moment.now()
+    )
+
+    let newcomer = rt.keyInBucket(TargetBucket)
+    check rt.insert(newcomer)
+    check:
+      newcomer in rt.buckets[TargetBucket].peers
+      orphan notin rt.buckets[TargetBucket].peers
+
+  test "detachAll drops memberships and blocks further inserts":
+    let registry = PeerRegistry.new()
+    var rt = RoutingTable.new(testKey(0), registry = registry)
+    let peer = testKey(1)
+    check rt.insert(peer)
+    check peer in registry
+
+    rt.detachAll()
+    check:
+      rt.detached
+      peer notin registry
+      rt.buckets.len == 0
+      not rt.insert(testKey(2))
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
@@ -276,6 +518,49 @@ suite "KadDHT Routing Table":
     check:
       target != peer
       rt.bucketIndex(target) == TargetBucket
+
+  proc checkNearestToCenter(rt: RoutingTable, target: Key, candidates: seq[Key]) =
+    let targetDist =
+      xorDistance(rt.selfId, Key.fromBytes(target.hashFor(rt.config.hasher)))
+    for candidate in candidates:
+      check targetDist <=
+        xorDistance(rt.selfId, Key.fromBytes(candidate.hashFor(rt.config.hasher)))
+
+  test "refreshSelfTarget is selfId when the table centers on a raw key":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId, RoutingTableConfig.new())
+    discard rt.insert(testKey(1))
+
+    check rt.refreshSelfTarget() == Opt.some(selfId)
+
+  test "refreshSelfTarget stands in for a pre-hashed selfId with the nearest key":
+    let serviceId = testKey(0)
+    var rt = RoutingTable.new(serviceId, RoutingTableConfig.new(selfIdPreHashed = true))
+
+    var peers: seq[Key]
+    for i in 1'u8 .. 8'u8:
+      let peer = testKey(i)
+      discard rt.insert(peer)
+      peers.add(peer)
+
+    let target = rt.refreshSelfTarget().expect("table holds peers")
+    check target in peers
+    rt.checkNearestToCenter(target, peers)
+
+  test "refreshSelfTarget of an empty pre-hashed table falls back to the main table":
+    let serviceId = testKey(0)
+    var rt = RoutingTable.new(serviceId, RoutingTableConfig.new(selfIdPreHashed = true))
+
+    check rt.refreshSelfTarget().isNone()
+
+    var mainRt = RoutingTable.new(testKey(0xFF))
+    let candidates = @[testKey(1), testKey(2), testKey(3)]
+    for candidate in candidates:
+      check mainRt.insert(candidate)
+
+    let target =
+      rt.nearestToCenter(mainRt.allKeys()).expect("the main table holds peers")
+    rt.checkNearestToCenter(target, candidates)
 
   test "randomKey returns none for empty bucket":
     var bucket: Bucket

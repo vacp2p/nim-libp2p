@@ -12,13 +12,13 @@ import ./nat/[portmapper, plum_mapper]
 import ../protocols/connectivity/autonat/[client, service]
 import ../protocols/connectivity/autonatv2/[client, service]
 import ../protocols/connectivity/relay/client as relayclient
-import ./[autorelayservice, hpservice]
+import ./[autorelayservice, hpservice, reachabilityobservers]
 
-export portmapper
+export portmapper, reachabilityobservers
 export OnReservationHandler, AutonatV2ServiceConfig, AutonatV2Service
 
 logScope:
-  topics = "libp2p natservice"
+  topics = "libp2p nat-traversal"
 
 type
   AutonatVersion* = enum
@@ -71,6 +71,7 @@ type
     mappedPorts: seq[(Port, MapProto)]
     externalIp*: Opt[IpAddress]
     reachability: Service # active AutoNAT v1 / v2 / HP, started/stopped polymorphically
+    observers: ReachabilityObservers # shared with the active service at setup
 
 const
   DefaultDiscoveryTimeout* = 10.seconds
@@ -89,13 +90,41 @@ proc new*(
     rng: Rng,
     portMapperFactory: PortMapperFactory = nil,
 ): T =
-  T(config: config, rng: rng, portMapperFactory: portMapperFactory)
+  T(
+    config: config,
+    rng: rng,
+    portMapperFactory: portMapperFactory,
+    observers: ReachabilityObservers.new(),
+  )
 
 proc autonatV2Service*(self: NATService): Opt[AutonatV2Service] =
   ## The live AutoNAT v2 service when reachability uses AutonatV2, else none.
   if self.reachability of AutonatV2Service:
     return Opt.some(AutonatV2Service(self.reachability))
   Opt.none(AutonatV2Service)
+
+func hasReachabilityService(self: NATService): bool =
+  self.config.reachability.isSome() or self.config.holePunching.isSome()
+
+proc addReachabilityHandler*(self: NATService, handler: ReachabilityHandler): bool =
+  ## Subscribes `handler` to the reachability service (AutoNAT v1/v2 or
+  ## hole-punching). False means no subscription, because no reachability
+  ## service is configured, because `handler` is nil, or because it is
+  ## subscribed already. The caller can then log that the subscription had no
+  ## effect.
+  if not self.hasReachabilityService():
+    return false
+
+  self.observers.add(handler)
+
+proc removeReachabilityHandler*(self: NATService, handler: ReachabilityHandler): bool =
+  ## Unsubscribes `handler`. False means it was not subscribed.
+  self.observers.remove(handler)
+
+proc networkReachability*(self: NATService): NetworkReachability =
+  ## The reachability the active service last observed; `Unknown` when no
+  ## reachability service is configured.
+  self.observers.lastReachability()
 
 proc natService*(switch: Switch): Opt[NATService] =
   ## The switch's NATService, if one was configured.
@@ -184,14 +213,14 @@ proc portMapping(self: NATService): PortMappingConfig =
 proc mergeInto*(dst: var NATConfig, src: NATConfig) =
   ## Fold ``src``'s set concerns into ``dst``; setting one concern twice is a
   ## programmer error (build-time misuse), so it fails fast with a Defect.
-  src.portMapping.withValue(v):
+  src.portMapping.ifValue(v):
     doAssert dst.portMapping.isNone(), "withNAT: portMapping configured more than once"
     dst.portMapping = Opt.some(v)
-  src.reachability.withValue(v):
+  src.reachability.ifValue(v):
     doAssert dst.reachability.isNone(),
       "withNAT: reachability configured more than once"
     dst.reachability = Opt.some(v)
-  src.holePunching.withValue(v):
+  src.holePunching.ifValue(v):
     doAssert dst.holePunching.isNone(),
       "withNAT: holePunching configured more than once"
     dst.holePunching = Opt.some(v)
@@ -212,7 +241,7 @@ proc explicitIpMapped*(
       continue
     if ip.family != explicitIp.family:
       continue
-    listenAddr.replaceIp(explicitIp).withValue(remapped):
+    listenAddr.replaceIp(explicitIp).ifValue(remapped):
       if remapped notin addrs:
         addrs.add(remapped)
   addrs
@@ -220,25 +249,22 @@ proc explicitIpMapped*(
 type ListenPort = tuple[port: Port, proto: MapProto, multiAddr: MultiAddress]
 
 proc transportProto(ma: MultiAddress): Opt[MapProto] =
-  if ma[multiCodec("tcp")].isOk:
+  if ma[TcpMultiCodec].isOk:
     Opt.some(mpTcp)
-  elif ma[multiCodec("udp")].isOk:
+  elif ma[UdpMultiCodec].isOk:
     Opt.some(mpUdp)
   else:
     Opt.none(MapProto)
 
 proc replaceTransportPort(ma: MultiAddress, port: Port): Opt[MultiAddress] =
   ## Mirrors ``MultiAddress.replaceIp`` but for the tcp/udp port component.
-  let
-    tcp = multiCodec("tcp")
-    udp = multiCodec("udp")
   var res = MultiAddress.init()
   for item in ma.items:
     let part = item.valueOr:
       return Opt.none(MultiAddress)
     let code = part.protoCode.valueOr:
       return Opt.none(MultiAddress)
-    if code == tcp or code == udp:
+    if code == TcpMultiCodec or code == UdpMultiCodec:
       let portMa = MultiAddress.init(code, int(port)).valueOr:
         return Opt.none(MultiAddress)
       res.append(portMa).isOkOr:
@@ -278,6 +304,9 @@ proc findMappableListenPorts(listenAddrs: seq[MultiAddress]): seq[ListenPort] =
     .filterIt(it.isSome)
     .mapIt(it.get())
 
+type MappingLog = ref object
+  mapped, mapFailed, unmapped, unmapFailed: int
+
 type MappedEntry =
   tuple[entry: (Port, MapProto), externalIp: IpAddress, announced: Opt[MultiAddress]]
 
@@ -286,7 +315,7 @@ proc mapOnePort(
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
-    warn "NAT port mapping failed", port = lp.port, proto = lp.proto, err = error
+    trace "NAT port mapping failed", port = lp.port, protocol = lp.proto, err = error
     return Opt.none(MappedEntry)
 
   Opt.some(
@@ -299,7 +328,7 @@ proc mapOnePort(
   )
 
 proc unmapStale(
-    self: NATService, keep: seq[(Port, MapProto)]
+    self: NATService, keep: seq[(Port, MapProto)], stats: MappingLog = nil
 ) {.async: (raises: [CancelledError]).} =
   ## Unmap any (extPort, proto) entries that were active in the previous
   ## refresh cycle but are no longer part of the desired mapping set. Covers
@@ -309,9 +338,13 @@ proc unmapStale(
     if entry in keep:
       continue
     let (port, proto) = entry
-    let r = await self.mapper.unmap(port, proto)
-    if r.isErr:
-      warn "Failed to unmap stale port", port, proto, err = r.error
+    (await self.mapper.unmap(port, proto)).isOkOr:
+      if not stats.isNil:
+        stats.unmapFailed.inc()
+      trace "Failed to unmap stale port", port, proto, err = error
+      continue
+    if not stats.isNil:
+      stats.unmapped.inc()
 
 proc unmapAll(self: NATService) {.async: (raises: [CancelledError]).} =
   await self.unmapStale(@[])
@@ -323,14 +356,28 @@ proc setupMappings*(
   ## Request a mapping for every private listen address; updates ``externalIp``
   ## and ``mappedPorts`` as a side-effect, and tears down mappings that are no
   ## longer needed.
+  let stats = MappingLog()
+  var outcome = "cancelled"
+  defer:
+    debug "NAT mapping refresh finished",
+      outcome,
+      listenAddresses = listenAddrs.len,
+      mapped = stats.mapped,
+      mapFailed = stats.mapFailed,
+      unmapped = stats.unmapped,
+      unmapFailed = stats.unmapFailed
+
   if self.mapper.isNil:
-    debug "No port mapper available; skipping NAT port mapping"
+    outcome = "noMapper"
+    trace "No port mapper available; skipping NAT port mapping"
     return @[]
 
   let listenPorts = findMappableListenPorts(listenAddrs)
   if listenPorts.len == 0:
-    debug "No private listen addresses to map; releasing any prior mappings"
-    await self.unmapAll()
+    trace "No private listen addresses to map; releasing any prior mappings"
+    await self.unmapStale(@[], stats)
+    self.mappedPorts.setLen(0)
+    outcome = "completed"
     return @[]
 
   var
@@ -339,18 +386,23 @@ proc setupMappings*(
     externalIp = Opt.none(IpAddress)
 
   for lp in listenPorts:
-    (await self.mapOnePort(lp)).withValue(res):
+    let portRes = await self.mapOnePort(lp)
+    portRes.ifValue(res):
+      stats.mapped.inc()
       externalIp = Opt.some(res.externalIp)
       if res.entry notin nextMapped:
         nextMapped.add(res.entry)
 
-      res.announced.withValue(annAddr):
+      res.announced.ifValue(annAddr):
         if annAddr notin announced:
           announced.add(annAddr)
+    else:
+      stats.mapFailed.inc()
 
   self.externalIp = externalIp
-  await self.unmapStale(nextMapped)
+  await self.unmapStale(nextMapped, stats)
   self.mappedPorts = nextMapped
+  outcome = "completed"
   announced
 
 proc validatePortMapperConfig(cfg: PortMappingConfig) {.raises: [ServiceSetupError].} =
@@ -382,6 +434,8 @@ proc setupHolePunching(
       hp.maxNumRelays, RelayClient.new(), hp.onReservation, self.rng
     )
     hpService = HPService.new(autonatService, autoRelayService)
+  # Share observers before constructing the hole-punching service.
+  autonatService.reachabilityObservers = self.observers
   hpService.setup(switch)
   self.reachability = hpService
 
@@ -390,6 +444,7 @@ proc setupAutonatV1(
 ) {.raises: [].} =
   let autonatService =
     AutonatService.new(AutonatClient(), self.rng, scheduleInterval = r.scheduleInterval)
+  autonatService.reachabilityObservers = self.observers
   autonatService.setup(switch)
   self.reachability = autonatService
 
@@ -409,6 +464,7 @@ proc setupAutonatV2(
     raise newException(
       ServiceSetupError, "NATService failed to mount AutonatV2Client: " & e.msg
     )
+  autonatV2Service.reachabilityObservers = self.observers
   autonatV2Service.setup(switch)
   self.reachability = autonatV2Service
 
@@ -424,10 +480,10 @@ proc setupReachability(
       "NATService: holePunching and reachability are mutually exclusive; " &
         "holePunching already runs AutoNAT v1.",
     )
-  self.config.holePunching.withValue(hp):
+  self.config.holePunching.ifValue(hp):
     self.setupHolePunching(switch, hp)
     return
-  self.config.reachability.withValue(r):
+  self.config.reachability.ifValue(r):
     case r.version
     of AutonatV1:
       self.setupAutonatV1(switch, r)
@@ -435,12 +491,12 @@ proc setupReachability(
       self.setupAutonatV2(switch, r)
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  debug "Setting up NATService",
+  info "Setting up NATService",
     portMapping = self.config.portMapping.isSome(),
     reachability = self.config.reachability.isSome(),
     holePunching = self.config.holePunching.isSome()
 
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     if pm.mode in {Upnp, NatPmp, Auto}:
       validatePortMapperConfig(pm)
 
@@ -470,14 +526,21 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
   let mapper = PlumMapper.new(
     mode.toProtocolFilter(), pm.discoveryTimeout, pm.mappingTimeout
   ).valueOr:
-    error "Failed to construct libplum port mapper", mode, err = error
+    warn "Failed to construct libplum port mapper", mode, err = error
     return Opt.none(PortMapper)
   Opt.some(PortMapper(mapper))
+
+func portMappingSource(mode: PortMappingMode): AddrSource =
+  case mode
+  of ExplicitIp: AddrSource.ExplicitIp
+  of Upnp: AddrSource.Upnp
+  of NatPmp: AddrSource.NatPmp
+  of Auto: AddrSource.PortMapped
 
 proc startPortMapping(self: NATService, switch: Switch) =
   ## (Re)build the addressMapper here, not in setup, so a stop/start cycle
   ## re-creates it after stop() tears it down.
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     case pm.mode
     of ExplicitIp:
       self.addressMapper = explicitIpMapper(pm.explicitIp)
@@ -487,8 +550,8 @@ proc startPortMapping(self: NATService, switch: Switch) =
         return
       self.addressMapper = self.portMappingMapper()
 
-  if not self.addressMapper.isNil():
-    switch.peerInfo.addressMappers.add(self.addressMapper)
+    if not self.addressMapper.isNil():
+      switch.addressManager.addMapper(self.addressMapper, portMappingSource(pm.mode))
 
 proc startReachability(
     self: NATService, switch: Switch
@@ -497,7 +560,7 @@ proc startReachability(
     await self.reachability.start(switch)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Starting NATService"
+  info "Starting NATService"
   self.startPortMapping(switch)
   await self.startReachability(switch)
 
@@ -506,15 +569,15 @@ proc stopPortMapping(
 ) {.async: (raises: [CancelledError]).} =
   ## Deliberately never call peerInfo.update() during shutdown: user-set
   ## announcedAddrs must survive and observers must not broadcast mid-teardown.
-  self.config.portMapping.withValue(pm):
+  self.config.portMapping.ifValue(pm):
     case pm.mode
     of ExplicitIp:
       if not self.addressMapper.isNil():
-        switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+        switch.addressManager.removeMapper(self.addressMapper)
         self.addressMapper = nil
     of Upnp, NatPmp, Auto:
       if not self.addressMapper.isNil():
-        switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+        switch.addressManager.removeMapper(self.addressMapper)
         self.addressMapper = nil
       if not self.mapper.isNil():
         await self.unmapAll()
@@ -529,6 +592,6 @@ proc stopReachability(
     await self.reachability.stop(switch)
 
 method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  trace "Stopping NATService"
+  info "Stopping NATService"
   await self.stopPortMapping(switch)
   await self.stopReachability(switch)

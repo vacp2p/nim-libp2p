@@ -4,7 +4,6 @@
 
 {.push raises: [].}
 
-import sequtils
 import chronos, chronicles, results
 import
   ../stream/connection,
@@ -48,7 +47,7 @@ method start*(
   ## start the transport
   ##
 
-  trace "starting transport on addrs", address = $addrs
+  info "Transport starting", addresses = addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -58,7 +57,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  trace "stopping transport", address = $self.addrs
+  info "Transport stopping", addresses = self.addrs
   self.running = false
   self.onStop.fire()
 
@@ -105,21 +104,21 @@ method handles*(
   let protocols = address.protocols.valueOr:
     return false
 
-  protocols.filterIt(it == multiCodec("p2p-circuit")).len == 0
+  multiCodec("p2p-circuit") notin protocols
 
 template safeCloseWait*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.closeWait()
     except CatchableError as e:
-      trace "Error closing", description = e.msg
+      trace "Transport stream close failed", err = e.msg
 
 template safeClose*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.close()
     except CatchableError as e:
-      trace "Error closing", description = e.msg
+      trace "Libp2p stream close failed", err = e.msg
 
 proc toTransportAddress*(
     self: Transport, addrsMa: seq[MultiAddress]

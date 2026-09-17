@@ -17,7 +17,7 @@ import
   ../../../signed_envelope
 
 logScope:
-  topics = "libp2p relay relay-client"
+  topics = "libp2p relay"
 
 const RelayClientMsgSize = 4096
 
@@ -52,7 +52,7 @@ proc sendStopError(
   except CancelledError as e:
     raise e
   except LPStreamError as e:
-    trace "failed to send stop status", description = e.msg
+    trace "failed to send stop status", err = e.msg
 
 proc handleRelayedConnect(
     cl: RelayClient, stream: Stream, msg: StopMessage
@@ -99,7 +99,7 @@ proc reserve*(
       except CancelledError as exc:
         raise exc
       except CatchableError as exc:
-        trace "error writing or reading reservation message", description = exc.msg
+        trace "error writing or reading reservation message", err = exc.msg
         raise newException(ReservationError, exc.msg)
 
   if msg.msgType.isNone or msg.msgType.get() != HopMessageType.Status:
@@ -112,13 +112,13 @@ proc reserve*(
   let expire = reservation.expire.valueOr:
     raise newException(ReservationError, "Missing expire")
 
-  if expire > int64.high().uint64 or now().utc > expire.int64.fromUnix.utc:
+  if expire > int64.high().uint64 or getTime().utc > expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
   var rsvp: Rsvp
   rsvp.expire = expire
   rsvp.addrs = reservation.addrs
 
-  reservation.svoucher.withValue(sv):
+  reservation.svoucher.ifValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
       if error == EnvelopeFieldMissing:
         raise newException(ReservationError, "Missing voucher field")
@@ -151,7 +151,7 @@ proc dialPeerV1*(
   except CancelledError as exc:
     raise exc
   except LPStreamError as exc:
-    trace "error writing hop request", description = exc.msg
+    trace "error writing hop request", err = exc.msg
     raise newException(RelayV1DialError, "error writing hop request: " & exc.msg, exc)
 
   let msgRcvFromRelayOpt =
@@ -160,7 +160,7 @@ proc dialPeerV1*(
     except CancelledError as exc:
       raise exc
     except LPStreamError as exc:
-      trace "error reading stop response", description = exc.msg
+      trace "error reading stop response", err = exc.msg
       await sendStatus(stream, StatusV1.HopCantOpenDstStream)
       raise
         newException(RelayV1DialError, "error reading stop response: " & exc.msg, exc)
@@ -198,7 +198,7 @@ proc dialPeerV2*(
 ): Future[RawConn] {.async: (raises: [RelayV2DialError, CancelledError]).} =
   let p = Peer(peerId: Opt.some(dstPeerId), addrs: dstAddrs)
 
-  trace "Dial peer", p
+  trace "Dial peer", peer = p
 
   let msgRcvFromRelay =
     try:
@@ -209,7 +209,7 @@ proc dialPeerV2*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "error reading stop response", description = exc.msg
+      trace "error reading stop response", err = exc.msg
       raise
         newException(RelayV2DialError, "Exception decoding HopMessage: " & exc.msg, exc)
 
@@ -332,7 +332,7 @@ proc new*(
       trace "cancelled client handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in client handler", description = exc.msg, stream
+      trace "exception in client handler", err = exc.msg, stream
     finally:
       trace "exiting client handler", stream
       await stream.close()

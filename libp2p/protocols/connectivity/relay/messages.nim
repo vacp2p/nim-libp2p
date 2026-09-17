@@ -3,14 +3,14 @@
 
 {.push raises: [].}
 
-import results
+import results, chronicles
 import
   protobuf_serialization,
   protobuf_serialization/pkg/results,
   protobuf_serialization/std/enums,
   ../../../peerinfo,
   ../../../signed_envelope,
-  ../../../utils/protobuf
+  ../../../utils/[protobuf, shortlog]
 
 # Circuit Relay V1 Message
 
@@ -104,6 +104,46 @@ type
     peer* {.fieldNumber: 2.}: Opt[Peer]
     limit* {.fieldNumber: 3.}: Opt[Limit]
     status* {.fieldNumber: 4, ext.}: Opt[StatusV2]
+
+func shortLog*(peer: RelayPeer): auto =
+  (peerId: peer.peerId.shortLog, addresses: peer.addrs.shortLog)
+
+chronicles.formatIt(RelayPeer):
+  shortLog(it)
+
+func shortLog*(msg: RelayMessage): auto =
+  (
+    messageType: msg.msgType,
+    hasSourcePeer: msg.srcPeer.isSome,
+    hasDestinationPeer: msg.dstPeer.isSome,
+    status: msg.status,
+  )
+
+chronicles.formatIt(RelayMessage):
+  shortLog(it)
+
+func shortLog*(msg: HopMessage): auto =
+  (
+    messageType: msg.msgType,
+    hasPeer: msg.peer.isSome,
+    hasReservation: msg.reservation.isSome,
+    hasLimit: msg.limit.isSome,
+    status: msg.status,
+  )
+
+chronicles.formatIt(HopMessage):
+  shortLog(it)
+
+func shortLog*(msg: StopMessage): auto =
+  (
+    messageType: msg.msgType,
+    hasPeer: msg.peer.isSome,
+    hasLimit: msg.limit.isSome,
+    status: msg.status,
+  )
+
+chronicles.formatIt(StopMessage):
+  shortLog(it)
 
 Protobuf.serializerFor([Voucher])
 Protobuf.serializerFor(

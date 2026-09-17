@@ -20,11 +20,11 @@ import ../../crypto/rsa
 const SupportedAlg = "RS256"
 
 proc toFlattenedJws*(
-    protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
+    protectedHeader: JsonNode, payload: string, key: rsa.RsaPrivateKey
 ): JsonNode {.raises: [ACMEError].} =
-  ## Signs `protectedHeader`/`payload` with `key` (RS256) and returns the
-  ## flattened JWS JSON serialization: the base64url-encoded `protected`,
-  ## `payload` and `signature` members.
+  ## Signs `protectedHeader` and the already-serialized `payload` with `key` (RS256)
+  ## and returns the flattened JWS JSON serialization: the base64url-encoded
+  ## `protected`, `payload` and `signature` members.
   ##
   ## The signature covers `BASE64URL(protected) || '.' || BASE64URL(payload)`
   ## exactly as transmitted, so the JSON key ordering of the inputs does not
@@ -35,7 +35,7 @@ proc toFlattenedJws*(
 
   let
     protectedB64 = base64UrlEncode(($protectedHeader).toBytes)
-    payloadB64 = base64UrlEncode(($payload).toBytes)
+    payloadB64 = base64UrlEncode(payload.toBytes)
     signingInput = protectedB64 & "." & payloadB64
 
   let signature = key.sign(signingInput).valueOr:
@@ -48,3 +48,8 @@ proc toFlattenedJws*(
     "protected": protectedB64,
     "signature": base64UrlEncode(signatureBytes),
   }
+
+proc toFlattenedJws*(
+    protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
+): JsonNode {.raises: [ACMEError].} =
+  toFlattenedJws(protectedHeader, $payload, key)

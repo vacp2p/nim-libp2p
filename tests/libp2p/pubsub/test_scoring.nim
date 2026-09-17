@@ -8,7 +8,7 @@ import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpee
 import ../../../libp2p/protocols/pubsub/gossipsub/[types, scoring]
 import ../../../libp2p/muxers/muxer
 import ../../../libp2p/[multiaddress, peerid]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 
 suite "GossipSub Scoring":
   const topic = "foobar"
@@ -433,7 +433,7 @@ suite "GossipSub Scoring":
     gossipSub.parameters.ipColocationFactorThreshold = 2.0
 
     # Simulate peers from same IP
-    let sharedAddress = MultiAddress.init("/ip4/192.168.1.1/tcp/4001").tryGet()
+    let sharedAddress = ma("/ip4/192.168.1.1/tcp/4001")
     peers[0].address = Opt.some(sharedAddress)
     peers[1].address = Opt.some(sharedAddress)
     peers[2].address = Opt.some(sharedAddress)
@@ -443,8 +443,8 @@ suite "GossipSub Scoring":
       toHashSet([peers[0].peerId, peers[1].peerId, peers[2].peerId])
 
     # Different IP for other peers
-    peers[3].address = Opt.some(MultiAddress.init("/ip4/192.168.1.2/tcp/4001").tryGet())
-    peers[4].address = Opt.some(MultiAddress.init("/ip4/192.168.1.3/tcp/4001").tryGet())
+    peers[3].address = Opt.some(ma("/ip4/192.168.1.2/tcp/4001"))
+    peers[4].address = Opt.some(ma("/ip4/192.168.1.3/tcp/4001"))
 
     gossipSub.updateScores()
 

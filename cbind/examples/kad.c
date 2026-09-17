@@ -10,15 +10,11 @@
 // server, which is why only the client needs to know the server.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 // A key is just bytes for the DHT; the value is stored and fetched verbatim.
 static const char *ValueKey = "/cbind/kad/demo-key";
 static const char *ValueData = "hello kademlia";
 
-// libp2p_ctx_create_cid returns the CID string, so it needs its own waiter.
+// libp2p_static_create_cid returns the CID string, so it needs its own waiter.
 typedef struct {
   atomic_int done;
   int err_code;
@@ -96,8 +92,8 @@ static LibP2PCtx *kadNode(const char *listenAddr, const char *label,
   cfg.mountKad = true;
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
 
   NimFfiStr bootAddrs[MAX_ADDRS];
   BootstrapNode bootNode;
@@ -113,18 +109,6 @@ static LibP2PCtx *kadNode(const char *listenAddr, const char *label,
   // await_create only reads cfg while encoding, so the stack-local bootstrap
   // views above stay valid for the whole call.
   return await_create(&cfg, label);
-}
-
-// Dials `to` from `from` so identify runs and a live connection backs the DHT
-// RPCs that follow.
-static bool dial(LibP2PCtx *from, const PeerInfoWaiter *to) {
-  NimFfiStr connAddrs[MAX_ADDRS];
-  for (size_t i = 0; i < to->naddrs; i++)
-    connAddrs[i] = nimffi_str(to->addrs[i]);
-  ConnectRequest req = {nimffi_str(to->peerId), {connAddrs, to->naddrs}, 0};
-  BoolWaiter bw;
-  return AWAIT_BOOL(bw, libp2p_ctx_connect(from, &req, on_bool, &bw),
-                    "connect");
 }
 
 int main(void) {
@@ -145,7 +129,7 @@ int main(void) {
   if (!client)
     goto cleanup_server;
   if (!AWAIT_BOOL(bw, libp2p_ctx_start(client, on_bool, &bw), "start client") ||
-      !dial(client, &serverInfo))
+      !await_connect(client, &serverInfo))
     goto cleanup_client;
 
   // ── Value round-trip: server stores, client fetches over the DHT ──────────
@@ -164,7 +148,8 @@ int main(void) {
   // which this topology can never reach; 0 is rejected by the binding.
   KadGetValueRequest getReq = {key, 1};
   libp2p_ctx_kad_get_value(client, &getReq, on_value, &vw);
-  if (!wait_done(&vw.done) || vw.err_code != 0) {
+  wait_done(&vw.done);
+  if (vw.err_code != 0) {
     fprintf(stderr, "get_value: %s\n", vw.err[0] ? vw.err : "unknown");
     goto cleanup_client;
   }
@@ -178,12 +163,14 @@ int main(void) {
   CidWaiter cw;
   memset(&cw, 0, sizeof(cw));
   const char *cidData = "cbind-kad";
-  CreateCidRequest cidReq = {1,
+  CreateCidRequest cidReq = {CID_VERSION_V1,
                              nimffi_str("raw"),
                              nimffi_str("sha2-256"),
                              {(uint8_t *)cidData, strlen(cidData)}};
-  libp2p_ctx_create_cid(client, &cidReq, on_cid, &cw);
-  if (!wait_done(&cw.done) || cw.err_code != 0) {
+  // create_cid is context-independent ({.ffiStatic.}), so it takes no ctx.
+  libp2p_static_create_cid(&cidReq, on_cid, &cw);
+  wait_done(&cw.done);
+  if (cw.err_code != 0) {
     fprintf(stderr, "create_cid: %s\n", cw.err[0] ? cw.err : "unknown");
     goto cleanup_client;
   }
@@ -199,7 +186,8 @@ int main(void) {
   ProvidersWaiter pw;
   memset(&pw, 0, sizeof(pw));
   libp2p_ctx_kad_get_providers(client, nimffi_str(cw.cid), on_providers, &pw);
-  if (!wait_done(&pw.done) || pw.err_code != 0) {
+  wait_done(&pw.done);
+  if (pw.err_code != 0) {
     fprintf(stderr, "get_providers: %s\n", pw.err[0] ? pw.err : "unknown");
     goto cleanup_client;
   }

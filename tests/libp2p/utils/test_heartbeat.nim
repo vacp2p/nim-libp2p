@@ -17,10 +17,15 @@ when not defined(macosx):
         heartbeat "shouldn't see this", 50.milliseconds:
           i.inc()
 
+      let start = Moment.now()
       let hb = t()
-      await sleepAsync(500.milliseconds)
+      checkUntilTimeoutCustom(5.seconds, 5.milliseconds):
+        i >= 10
+      let elapsed = Moment.now() - start
       await hb.cancelAndWait()
-      check i in 9 .. 12
+
+      # 10 ticks span 9 intervals; a stalled runner only makes this later
+      check elapsed >= 400.milliseconds
 
     asyncTest "change heartbeat period on the fly":
       var i = 0

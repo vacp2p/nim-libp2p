@@ -8,7 +8,7 @@ import ../rpc/messages
 import ./[extensions_types, partial_message]
 
 logScope:
-  topics = "libp2p partial message"
+  topics = "libp2p gossipsub"
 
 declareGauge(
   libp2p_gossipsub_partial_message_groups,
@@ -142,7 +142,7 @@ proc evictGroup(ext: PartialMessageExtension, key: TopicGroupKey) =
   let group = ext.groupState.getOrDefault(key)
   if group.isNil():
     return
-  group.creator.withValue(creator):
+  group.creator.ifValue(creator):
     ext.releasePeerGroup(creator)
   ext.groupState.del(key)
   ext.updateGroupCountMetric()
@@ -233,7 +233,7 @@ proc unionWithSentPartsMetadata(
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
       # union failed, it is safe to use the most recent parts metadata
-      warn "failed to create union from the two parts metadata", msg = unionRes.error
+      debug "Parts metadata union failed", reason = unionRes.error
       hasChanged = true
       peerState.sentPartsMetadata = Opt.some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
@@ -361,9 +361,8 @@ proc handlePartialRPC(
     ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
-  let validateRes = ext.config.validateRPC(rpc)
-  if validateRes.isErr():
-    debug "RPC did not pass application validation", msg = validateRes.error
+  ext.config.validateRPC(rpc).isOkOr:
+    debug "RPC rejected by application validation", reason = error
     return
 
   ext.recordReceivedMetadata(peerId, rpc)
@@ -377,7 +376,7 @@ method onHandleRPC*(
   for subRPC in rpc.subscriptions:
     ext.handleSubscribeRPC(peerId, subRPC)
 
-  rpc.partialMessageExtension.withValue(partialExtRPC):
+  rpc.partialMessageExtension.ifValue(partialExtRPC):
     ext.handlePartialRPC(peerId, partialExtRPC)
 
 proc publishPartialToPeer(
@@ -415,8 +414,8 @@ proc publishPartialToPeer(
           peerState.receivedPartsMetadata.get(), msgPartsMetadata
         )
         if unionRes.isErr:
-          warn "failed to create union from the two parts metadata",
-            msg = unionRes.error
+          debug "failed to create union from the two parts metadata",
+            err = unionRes.error
           # technically should never happen since materializeParts was successful
         else:
           peerState.receivedPartsMetadata = Opt.some(unionRes.get())

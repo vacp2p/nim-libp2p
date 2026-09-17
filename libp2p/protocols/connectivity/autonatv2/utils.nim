@@ -13,6 +13,13 @@ import
   ../../../peerid,
   ./types
 
+proc hasEnoughIncomingSlots*(switch: Switch): bool =
+  # a margin, because a peer can connect to us while we wait for the dial back
+  switch.connManager.availableSlots(In) >= 2
+
+proc hasIncomingConn*(switch: Switch, peerId: PeerId): bool =
+  not switch.connManager.selectMuxer(peerId, In).isNil()
+
 proc asNetworkReachability*(self: DialResponse): NetworkReachability =
   if self.status in [EInternalError, ERequestRejected, EDialRefused]:
     return Unknown
@@ -31,22 +38,9 @@ proc asNetworkReachability*(self: DialResponse): NetworkReachability =
 proc asAutonatV2Response*(
     self: DialResponse, testAddrs: seq[MultiAddress]
 ): AutonatV2Response =
-  let addrIdx = self.addrIdx.valueOr:
-    return AutonatV2Response(
-      reachability: self.asNetworkReachability(),
-      dialResp: self,
-      addrs: Opt.none(MultiAddress),
-    )
-
-  if addrIdx.uint64 >= testAddrs.len.uint64:
-    return AutonatV2Response(
-      reachability: self.asNetworkReachability(),
-      dialResp: self,
-      addrs: Opt.none(MultiAddress),
-    )
-
-  AutonatV2Response(
-    reachability: self.asNetworkReachability(),
-    dialResp: self,
-    addrs: Opt.some(testAddrs[addrIdx.int]),
-  )
+  var response =
+    AutonatV2Response(reachability: self.asNetworkReachability(), dialResp: self)
+  self.addrIdx.ifValue(addrIdx):
+    if addrIdx.uint64 < testAddrs.len.uint64:
+      response.addrs = Opt.some(testAddrs[addrIdx.int])
+  return response

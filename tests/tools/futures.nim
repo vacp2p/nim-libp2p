@@ -16,7 +16,7 @@ proc allFuturesRaising*(
       await allFutures(futs)
       var firstErr: ref CatchableError
       for fut in futs:
-        if fut.failed:
+        if not fut.completed():
           let err = fut.error()
           if err of CancelledError:
             raise err

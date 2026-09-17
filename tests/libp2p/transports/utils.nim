@@ -78,6 +78,8 @@ proc createQuicTransport*(
     withInvalidCert: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
     addresses: seq[MultiAddress] = @[QuicAutoAddress],
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:
@@ -87,9 +89,18 @@ proc createQuicTransport*(
 
   let trans =
     if withInvalidCert:
-      QuicTransport.new(Upgrade(), key, rng(), invalidCertGenerator)
+      QuicTransport.new(
+        Upgrade(),
+        key,
+        rng(),
+        invalidCertGenerator,
+        inTimeout = inTimeout,
+        outTimeout = outTimeout,
+      )
     else:
-      QuicTransport.new(Upgrade(), key, rng())
+      QuicTransport.new(
+        Upgrade(), key, rng(), inTimeout = inTimeout, outTimeout = outTimeout
+      )
 
   if isServer: # servers are started because they need to listen
     await trans.start(addresses)
@@ -135,6 +146,17 @@ template noExceptionWithStreamClose*(stream: Stream, body) =
     raiseAssert "should not fail: " & exc.msg
   finally:
     await noCancel stream.close()
+
+template noExceptionWithStreamClose*(stream: Stream, handlerDone: Future[void], body) =
+  ## Variant for a handler whose peer must wait for it. The scenarios tear the
+  ## connection down as soon as the client handler returns, which cancels a
+  ## server handler that still runs, so the peer awaits `handlerDone` before it
+  ## returns. The signal fires on every exit path, also on a failed check, so
+  ## the peer cannot hang and turn a failure into a timeout.
+  try:
+    noExceptionWithStreamClose(stream, body)
+  finally:
+    handlerDone.complete()
 
 proc serverHandlerSingleStream*(
     server: Transport, streamProvider: StreamProvider, handler: StreamHandler

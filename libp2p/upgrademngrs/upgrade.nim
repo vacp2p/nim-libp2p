@@ -4,7 +4,7 @@
 {.push gcsafe.}
 {.push raises: [].}
 
-import std/[sequtils, strutils]
+import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import
@@ -27,7 +27,7 @@ declarePublicCounter(
 )
 
 logScope:
-  topics = "libp2p upgrade"
+  topics = "libp2p connection-upgrade"
 
 type
   UpgradeFailedError* = object of LPError
@@ -55,7 +55,7 @@ proc secure*(
   if codec.len == 0:
     raise (ref UpgradeFailedError)(msg: "Unable to negotiate a secure channel!")
 
-  trace "Securing connection", conn, codec
+  trace "Secure upgrade started", conn, protocol = codec
   let secureProtocol = self.secureManagers.filterIt(it.codec == codec)
 
   # ms.select should deal with the correctness of this

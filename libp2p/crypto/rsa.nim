@@ -16,6 +16,7 @@ import stew/[bitops2, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import rng
+import ../utils/redact
 
 export Asn1Error, results
 
@@ -109,6 +110,23 @@ proc bitLength(field: Asn1Field): int =
 
 func validKeySize(bits: int): bool =
   bits >= MinKeySize and bits <= MaxKeySize
+
+func validPublicExponent(field: Asn1Field): bool =
+  const IntegerSignBit = 0x80'u8
+
+  if len(field) == 0:
+    return false
+
+  let
+    first = field.buffer[field.offset]
+    last = field.buffer[field.offset + len(field) - 1]
+    hadLeadingZero = field.offset > 0 and field.buffer[field.offset - 1] == 0
+
+  if (first and IntegerSignBit) != 0 and not hadLeadingZero:
+    return false
+  if (last and 1) == 0:
+    return false
+  len(field) > 1 or first >= 3
 
 proc random*[T: RsaKP](
     t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
@@ -552,7 +570,7 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if rawe.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if validKeySize(bitLength(rawn)) and len(rawe) > 0:
+  if validKeySize(bitLength(rawn)) and validPublicExponent(rawe):
     key = new RsaPublicKey
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]
@@ -616,31 +634,7 @@ proc init*[T: RsaPKI](t: typedesc[T], data: string): T =
   ## string representation ``data`` and return constructed object.
   t.init(ncrutils.fromHex(data))
 
-proc `$`*(key: RsaPrivateKey): string =
-  ## Return string representation of RSA private key.
-  if isNil(key) or len(key.buffer) == 0:
-    return "Empty or uninitialized RSA key"
-  var s = "RSA key ("
-  s.add($key.seck.nBitlen)
-  s.add(" bits)\n")
-  s.add("p   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.p, key.seck.plen)))
-  s.add("\nq   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.q, key.seck.qlen)))
-  s.add("\ndp  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dp, key.seck.dplen)))
-  s.add("\ndq  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.dq, key.seck.dqlen)))
-  s.add("\niq  = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.seck.iq, key.seck.iqlen)))
-  s.add("\npre = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pexp, key.pexplen)))
-  s.add("\nm   = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.n, key.pubk.nlen)))
-  s.add("\npue = ")
-  s.add(ncrutils.toHex(getArray(key.buffer, key.pubk.e, key.pubk.elen)))
-  s.add("\n")
-  s
+redactType(RsaPrivateKey)
 
 proc `$`*(key: RsaPublicKey): string =
   ## Return string representation of RSA public key.

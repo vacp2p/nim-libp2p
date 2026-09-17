@@ -29,7 +29,7 @@ import
   ../../tools/[unittest, crypto, bufferstream, futures, switch_builder, multiaddress]
 import ./converters
 
-export switch, converters
+export switch, converters, crypto
 
 randomize()
 
@@ -78,16 +78,10 @@ proc noop*(data: sink seq[byte]) {.async: (raises: [CancelledError, LPStreamErro
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
   discard
 
-proc voidPeerHandler(
+proc voidPeerHandler*(
     peer: PubSubPeer, data: sink seq[byte]
-) {.async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError, PeerRateLimitError]).} =
   discard
-
-proc randomPeerId*(): PeerId =
-  try:
-    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet()
-  except CatchableError as exc:
-    raise newException(Defect, exc.msg)
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   proc getStream(): Future[Stream] {.
@@ -98,8 +92,9 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
     except DialFailedError as e:
       raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
-  let pubSubPeer =
-    PubSubPeer.new(peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024)
+  let pubSubPeer = PubSubPeer.new(
+    peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024, voidPeerHandler
+  )
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -132,7 +127,6 @@ proc setupGossipSubWithPeers*(
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
     peer.sendStream = conn
-    peer.handler = voidPeerHandler
     peers &= peer
     for topic in topics:
       if (populateGossipsub):
@@ -161,8 +155,8 @@ proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Stream]) {.async.} 
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
-    if m.seqno.isSome and m.fromPeer.isSome:
-      byteutils.toHex(m.seqno.get()) & $m.fromPeer.get()
+    if m.seqno.len > 0 and m.fromPeer.data.len > 0:
+      byteutils.toHex(m.seqno) & $m.fromPeer
     else:
       # This part is irrelevant because it's not standard,
       # We use it exclusively for testing basically and users should
@@ -203,8 +197,7 @@ proc generateNodes*(
     fanoutTTL = 1.minutes,
     maxMessageSize: int = 1024 * 1024,
     enablePX: bool = false,
-    overheadRateLimit: Opt[tuple[bytes: int, interval: Duration]] =
-      Opt.none(tuple[bytes: int, interval: Duration]),
+    overheadRateLimit: Opt[RateLimit] = Opt.none(RateLimit),
     codecs: seq[string] = @[],
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
@@ -349,14 +342,15 @@ template waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string): unt
     hub.gossipsub.getOrDefault(topic).len == nodes.len
     nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
 
-template waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string): untyped =
+template waitSubscribeStar*[T: PubSub](
+    nodes: seq[T], topic: string, timeout: Duration = 30.seconds
+): untyped =
   ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
-  ## 
   when T is GossipSub:
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(timeout, 50.milliseconds):
       nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
   elif T is FloodSub:
-    checkUntilTimeout:
+    checkUntilTimeoutCustom(timeout, 50.milliseconds):
       nodes.allIt(it.floodsub.getOrDefault(topic).len == nodes.len - 1)
   else:
     {.error: "not implemented for this PubSub type".}
@@ -559,6 +553,14 @@ proc currentRateLimitHits*(label: string = "nim-libp2p"): float64 =
   try:
     libp2p_gossipsub_peers_rate_limit_hits.valueByName(
       "libp2p_gossipsub_peers_rate_limit_hits_total", @[label]
+    )
+  except KeyError:
+    0
+
+proc currentGraylistedRpcs*(label: string = "nim-libp2p"): float64 =
+  try:
+    libp2p_gossipsub_graylisted_rpcs.valueByName(
+      "libp2p_gossipsub_graylisted_rpcs_total", @[label]
     )
   except KeyError:
     0

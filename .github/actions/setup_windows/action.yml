@@ -1,0 +1,76 @@
+name: Setup Windows dependencies
+description: Restore and install Windows-only dependencies used by CI jobs.
+
+inputs:
+  cpu:
+    description: Platform CPU segment.
+    required: true
+  cc:
+    description: Compiler selected for the job.
+    required: true
+  shell:
+    description: Shell used to run Bash-compatible commands.
+    default: bash
+
+runs:
+  using: composite
+  steps:
+    - name: Restore llvm-mingw (Windows) from cache
+      if: runner.os == 'Windows' && inputs.cc == 'clang'
+      id: windows-mingw-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: external/mingw-${{ inputs.cpu }}
+        key: 'mingw-llvm-17-${{ inputs.cpu }}'
+
+    - name: Install llvm-mingw dependency (Windows)
+      if: >
+        steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+        runner.os == 'Windows' &&
+        inputs.cc == 'clang'
+      shell: ${{ inputs.shell }}
+      run: |
+        mkdir -p external
+        MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+        MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+        curl -L "$MINGW_URL" -o "external/mingw-${{ inputs.cpu }}.zip"
+        7z x -y "external/mingw-${{ inputs.cpu }}.zip" -oexternal/mingw-${{ inputs.cpu }}/
+        mv external/mingw-${{ inputs.cpu }}/**/* ./external/mingw-${{ inputs.cpu }}
+
+    - name: Save llvm-mingw (Windows) to cache
+      if: >
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/master' &&
+        steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+        runner.os == 'Windows' &&
+        inputs.cc == 'clang'
+      uses: actions/cache/save@v5
+      continue-on-error: true
+      with:
+        path: external/mingw-${{ inputs.cpu }}
+        key: ${{ steps.windows-mingw-cache.outputs.cache-primary-key }}
+
+    - name: Path to cached dependencies (Windows)
+      if: >
+        runner.os == 'Windows' &&
+        inputs.cc == 'clang'
+      shell: ${{ inputs.shell }}
+      run: |
+        echo '${{ github.workspace }}'"/external/mingw-${{ inputs.cpu }}/bin" >> $GITHUB_PATH
+        echo "." >> $GITHUB_PATH
+
+    - name: Install nasm (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install nasm --no-progress -y
+        "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Prepare short paths (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        git config --global core.longpaths true
+        New-Item -ItemType Directory -Force -Path D:\t | Out-Null
+        "TEMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+        "TMP=D:\t" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append

@@ -3,10 +3,10 @@
 
 {.used.}
 
-import chronos, sequtils
+import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/protocols/kademlia/[find, types]
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, topology, unittest, multiaddress]
 import ./utils.nim
 
 suite "KadDHT Find":
@@ -26,7 +26,8 @@ suite "KadDHT Find":
     discard await kads[1].findNode(kads[2].rtable.selfId)
 
     # After findNode, kads[1] discovers kads[2] through kad[0]
-    check kads[1].hasKey(kads[2].rtable.selfId)
+    checkUntilTimeout:
+      kads[1].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Relay find node":
     let kads = setupKadSwitches(4)
@@ -46,7 +47,7 @@ suite "KadDHT Find":
     discard await kads[1].findNode(kads[3].rtable.selfId)
 
     # kads[1] discovers kads[2] and kads[3] through relay
-    check:
+    checkUntilTimeout:
       kads[1].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
   asyncTest "Find node accumulates peers from multiple responses":
@@ -75,18 +76,15 @@ suite "KadDHT Find":
     # Round 2: kads[0] -> kads[2], learns kads[3]
     discard await kads[0].findNode(kads[3].rtable.selfId)
 
-    # kads[0] accumulated kads[2] and kads[3] from iterative responses
-    check:
+    # kads[0] accumulated kads[2] and kads[3], and they learned about kads[0]
+    checkUntilTimeout:
       kads[0].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
-
-    # Queried nodes learned about kads[0]
-    check:
       kads[2].hasKey(kads[0].rtable.selfId)
       kads[3].hasKey(kads[0].rtable.selfId)
 
   asyncTest "Find node merges results from parallel queries":
-    #         node[1] - node[3] 
-    #        /                 \ 
+    #         node[1] - node[3]
+    #        /                 \
     # node[0]                   node[5]
     #        \                 /
     #         node[2] - node[4]
@@ -115,9 +113,10 @@ suite "KadDHT Find":
     let foundPeers = await kads[0].findNode(targetKey)
 
     # Results from both branches are merged and deduplicated
-    check:
-      foundPeers ==
-        kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
+    check foundPeers ==
+      kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
+
+    checkUntilTimeout:
       kads[0].hasKey(kads[3].rtable.selfId)
       kads[0].hasKey(kads[4].rtable.selfId)
       kads[0].hasKey(kads[5].rtable.selfId)
@@ -195,6 +194,28 @@ suite "KadDHT Find":
     let res2 = await kads[1].findPeer(randomPeerId())
     check res2.isErr()
 
+  asyncTest "Discovered peer failing its admission probe is not admitted":
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    # kads[1] vouches for a peer nothing is listening for
+    let deadPeerId = randomPeerId()
+    let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/59999")]
+    kads[1].updatePeers(@[(deadPeerId, deadAddrs)])
+
+    discard await kads[0].findNode(deadPeerId.toKey())
+
+    # once no probe is in flight the admission decision is final
+    checkUntilTimeout:
+      kads[0].admissionProbes.len == 0
+
+    check:
+      not kads[0].hasKey(deadPeerId.toKey())
+      # still dialable by lookups and findPeer
+      kads[0].switch.peerStore[AddressBook][deadPeerId] == deadAddrs
+
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
     let kads = setupKadSwitches(3)
@@ -206,15 +227,16 @@ suite "KadDHT Find":
 
     # Make kads[1]'s bucket stale to trigger refresh
     let bucketIdx = kads[0].rtable.bucketIndex(kads[1].rtable.selfId)
-    makeBucketStale(kads[0].rtable.buckets[bucketIdx])
+    makeBucketStale(kads[0].rtable, bucketIdx)
 
-    check kads[0].rtable.buckets[bucketIdx].isStale()
+    check kads[0].rtable.isStale(bucketIdx)
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
     await kads[0].bootstrap()
 
     # kads[0] discovers kads[2] via kads[1]
-    check kads[0].hasKey(kads[2].rtable.selfId)
+    checkUntilTimeout:
+      kads[0].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
     let kads = setupKadSwitches(3)
@@ -293,8 +315,7 @@ suite "KadDHT Find":
 
     # A client-mode peer is in nobody's routing table, but its addresses are known.
     let client = randomPeerId()
-    kads[0].switch.peerStore[AddressBook][client] =
-      @[MultiAddress.init("/ip4/127.0.0.1/tcp/9999").tryGet()]
+    kads[0].switch.peerStore[AddressBook][client] = @[ma("/ip4/127.0.0.1/tcp/9999")]
 
     let response = (
       await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, client.toKey())
@@ -346,7 +367,9 @@ suite "KadDHT Find":
     await connect(kads[2], kads[3])
 
     # Stop kads[1] - dial will fail immediately with DialFailedError
-    # This is marked as RespondedStatus.Failed and NOT retried
+    # This is marked as RespondedStatus.Failed; kads[1] stays eligible for
+    # retry (gated by attempts/retries) but every retry fails the same way
+    # since the switch is stopped, so the lookup still proceeds via kads[2].
     await kads[1].switch.stop()
 
     check not kads[0].hasKey(kads[3].rtable.selfId)
@@ -354,8 +377,8 @@ suite "KadDHT Find":
     # Lookup still succeeds via kads[2] despite kads[1] failure
     let peerIds = await kads[0].findNode(kads[3].rtable.selfId)
 
-    check:
-      kads[3].switch.peerInfo.peerId in peerIds
+    check kads[3].switch.peerInfo.peerId in peerIds
+    checkUntilTimeout:
       kads[0].hasKey(kads[3].rtable.selfId)
 
   asyncTest "Find node retries timed-out peer until max retries exhausted":
@@ -370,11 +393,35 @@ suite "KadDHT Find":
     await connect(kad, mockKad)
     await connect(kad, responsiveKad)
 
+    # Dial up front: a cold handshake can outlast the 100ms timeout on a loaded
+    # machine, which would exhaust the responsive peer's retries too and leave
+    # the lookup with nothing to return.
+    for peer in [mockKad.KadDHT, responsiveKad]:
+      await kad.switch.connect(peer.switch.peerInfo.peerId, peer.switch.peerInfo.addrs)
+
     check mockKad.handleFindNodeCalls == 0
 
     let peerIds = await kad.findNode(mockKad.rtable.selfId)
 
     # Lookup terminates gracefully after retry exhaustion
+    check:
+      responsiveKad.switch.peerInfo.peerId in peerIds
+      mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
+
+  asyncTest "Find node retries a peer that responded with an error, not just silent peers":
+    const retries = 3
+    let kad = setupKad(config = testKadConfig(retries = retries))
+    let mockKad = setupMockKad(handleFindNodeMalformedResponse = true)
+    let responsiveKad = setupKad()
+    startAndDeferStop(@[kad, mockKad, responsiveKad])
+
+    await connect(kad, mockKad)
+    await connect(kad, responsiveKad)
+
+    check mockKad.handleFindNodeCalls == 0
+
+    let peerIds = await kad.findNode(mockKad.rtable.selfId)
+
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)

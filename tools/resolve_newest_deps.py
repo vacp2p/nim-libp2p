@@ -32,7 +32,6 @@ SUBMODULE_SOURCES = [
 ]
 
 SOURCE_LABELS = {
-    "pinned": ".pinned",
     "logos-messaging/logos-delivery": "logos-delivery",
     "status-im/nimbus-eth2": "nimbus-eth2",
     "codex-storage/nim-codex": "nim-codex",
@@ -85,19 +84,27 @@ def normalize_url(url: str) -> str:
     return normalized
 
 
-def parse_pinned(path: str) -> "OrderedDict[str, Dict[str, str]]":
+def parse_nimble_lock(path: str) -> "OrderedDict[str, Dict[str, str]]":
     deps: "OrderedDict[str, Dict[str, str]]" = OrderedDict()
-    with open(path, encoding="utf-8") as pinned:
-        for line_number, raw_line in enumerate(pinned, start=1):
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            try:
-                name, url_sha = line.split(";", 1)
-                url, sha = url_sha.rsplit("@#", 1)
-            except ValueError as err:
-                raise ValueError(f"{path}:{line_number}: invalid .pinned entry") from err
+    with open(path, encoding="utf-8") as lockfile:
+        lock = json.load(lockfile)
+
+    packages = lock.get("packages", {})
+    if not isinstance(packages, dict):
+        raise ValueError(f"{path}: expected packages object")
+
+    for name, info in packages.items():
+        if name == "nim" or not isinstance(info, dict):
+            continue
+        if info.get("downloadMethod") != "git":
+            continue
+        url = info.get("url", "")
+        sha = info.get("vcsRevision", "")
+        if url and sha:
             deps[normalize_url(url)] = {"name": name, "url": url, "sha": sha}
+
+    if not deps:
+        raise ValueError(f"{path}: no git dependencies found")
     return deps
 
 
@@ -239,7 +246,7 @@ def collect_nimble_lock_source(
     base_deps: "OrderedDict[str, Dict[str, str]]",
     candidates: Dict[str, "OrderedDict[str, List[Candidate]]"],
 ) -> None:
-    log(f"Fetching nimble.lock from {source['repo']}...")
+    log(f"Fetching {source['file']} from {source['repo']}...")
     lock_deps = fetch_nimble_lock(source["repo"], source["ref"], source["file"])
     matched = 0
     for norm_url, candidate in lock_deps.items():
@@ -264,16 +271,16 @@ def collect_submodule_source(
     log(f"  Matched {matched} deps")
 
 
-def resolve(pinned_path: str) -> List[str]:
-    base_deps = parse_pinned(pinned_path)
-    log(f"Loaded {len(base_deps)} deps from {pinned_path}")
+def resolve(lockfile_path: str) -> List[str]:
+    base_deps = parse_nimble_lock(lockfile_path)
+    log(f"Loaded {len(base_deps)} deps from {lockfile_path}")
 
     candidates: Dict[str, "OrderedDict[str, List[Candidate]]"] = defaultdict(OrderedDict)
     for norm_url, dep in base_deps.items():
         add_candidate(
             candidates,
             norm_url,
-            Candidate(url=dep["url"], sha=dep["sha"], source="pinned"),
+            Candidate(url=dep["url"], sha=dep["sha"], source=lockfile_path),
         )
 
     external_successes = 0
@@ -310,10 +317,10 @@ def resolve(pinned_path: str) -> List[str]:
 
 
 def main() -> int:
-    pinned_path = sys.argv[1] if len(sys.argv) > 1 else ".pinned"
+    lockfile_path = sys.argv[1] if len(sys.argv) > 1 else "nix/libp2p.lock"
 
     try:
-        resolved = resolve(pinned_path)
+        resolved = resolve(lockfile_path)
     except Exception as err:
         log(f"ERROR: {err}")
         return 1

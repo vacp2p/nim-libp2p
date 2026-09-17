@@ -240,6 +240,113 @@ suite "BufferStream":
     await stream.closeWithEOF()
     await push
 
+  asyncTest "close wakes a reader parked on an empty queue":
+    let stream = BufferStream.new()
+
+    var data: array[1, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    check stream.reading
+
+    await stream.close()
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 0
+
+    expect LPStreamEOFError:
+      discard await stream.readOnce(addr data[0], data.len)
+
+  asyncTest "close wakes both a parked reader and a parked pusher":
+    let stream = BufferStream.new()
+    await stream.pushData("123".toBytes())
+
+    let pushFut = stream.pushData("456".toBytes())
+    # Empty the queue under the parked pusher, so `pushing` outlives the item.
+    discard stream.readQueue.popFirstNoWait()
+
+    var data: array[1, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    check:
+      stream.reading
+      stream.pushing
+      stream.readQueue.empty()
+
+    await stream.close()
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 0
+    check await pushFut.withTimeout(100.milliseconds)
+
+  asyncTest "close does not remove data reserved for an active reader":
+    let stream = BufferStream.new()
+    await stream.pushData("123".toBytes())
+
+    let pushFut = stream.pushData("456".toBytes())
+    discard stream.readQueue.popFirstNoWait()
+
+    var data: array[3, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    check:
+      stream.reading
+      stream.pushing
+      stream.readQueue.empty()
+
+    proc closeStream(udata: pointer) {.gcsafe, raises: [].} =
+      discard cast[BufferStream](udata).close()
+
+    # Run close after the parked pusher resumes, so the queue holds its item.
+    callSoon(closeStream, cast[pointer](stream))
+
+    let readCompleted = await readFut.withTimeout(100.milliseconds)
+    if not readCompleted:
+      await readFut.cancelAndWait()
+
+    check readCompleted
+    check await pushFut.withTimeout(100.milliseconds)
+
+  asyncTest "close does not strand a push after the reader dequeues data":
+    let stream = BufferStream.new()
+
+    var data: array[1, byte]
+    let readFut = stream.readOnce(addr data[0], data.len)
+    await stream.pushData("A".toBytes())
+    let pushFut = stream.pushData("B".toBytes())
+
+    proc closeStream(udata: pointer) {.gcsafe, raises: [].} =
+      discard cast[BufferStream](udata).close()
+
+    # The queue getter runs before close, while the outer read resumes later.
+    callSoon(closeStream, cast[pointer](stream))
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 1
+    check ['A'] == string.fromBytes(data)
+    check await pushFut.withTimeout(100.milliseconds)
+    await pushFut
+
+  asyncTest "close does not strand a push after reader cancellation":
+    let stream = BufferStream.new()
+    await stream.pushData("A".toBytes())
+    let pushFut = stream.pushData("B".toBytes())
+
+    var first: array[1, byte]
+    let firstRead = stream.readOnce(addr first[0], first.len)
+    check firstRead.finished()
+    check (await firstRead) == 1
+
+    var second: array[1, byte]
+    let secondRead = stream.readOnce(addr second[0], second.len)
+    check:
+      stream.reading
+      stream.pushing
+      stream.readQueue.empty()
+
+    secondRead.cancelSoon()
+    await stream.close()
+    await secondRead.cancelAndWait()
+
+    check await pushFut.withTimeout(100.milliseconds)
+    await pushFut
+
   asyncTest "reset is terminal and closeWithEOF returns immediately after reset":
     let stream = BufferStream.new()
 
@@ -252,3 +359,31 @@ suite "BufferStream":
     check (await readFut) == 0
     check stream.closed
     check await stream.closeWithEOF().withTimeout(100.milliseconds)
+
+  asyncTest "close clears the read buffer":
+    let stream = BufferStream.new()
+    await stream.pushData("12345".toBytes())
+
+    var first: array[1, byte]
+    check 1 == await stream.readOnce(addr first[0], first.len)
+    check stream.len == 4
+
+    await stream.close()
+
+    check stream.len == 0
+    check stream.atEof()
+
+  asyncTest "close completes a parked reader with EOF":
+    let stream = BufferStream.new()
+    await stream.pushData("12345".toBytes())
+
+    var first: array[1, byte]
+    check 1 == await stream.readOnce(addr first[0], first.len)
+
+    var rest: array[10, byte]
+    let readFut = stream.readOnce(addr rest[0], rest.len)
+
+    await stream.close()
+
+    check await readFut.withTimeout(100.milliseconds)
+    check (await readFut) == 0

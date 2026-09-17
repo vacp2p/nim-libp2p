@@ -19,7 +19,7 @@ import
 export peerid, connection, deques
 
 logScope:
-  topics = "libp2p pubsubpeer"
+  topics = "libp2p pubsub"
 
 when defined(libp2p_expensive_metrics):
   declareCounter(
@@ -148,6 +148,10 @@ type
     customStreamCreationCB*: CustomStreamCreationProc
     customPeerSelectionCB*: CustomPeerSelectionProc
 
+  RateLimit* = object
+    bytes*: int
+    interval*: Duration
+
   PubSubPeer* = ref object of RootObj
     getStream*: GetStream # callback to establish a new send stream
     onEvent*: OnEvent # Connectivity updates for peer
@@ -171,17 +175,19 @@ type
     slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
+    overheadSecondWindowStart*: Moment
+    overheadBytesInSecondWindow*: int
     rpcmessagequeue: RpcMessageQueue
     maxHighPriorityQueueLen*: int
     maxMediumPriorityQueueLen*: int
     maxLowPriorityQueueLen*: int
-    disconnected: bool
+    stopped: bool
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
     connectFut: Future[void]
     sendFuts: seq[Future[void]]
 
   RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
-    async: (raises: [CancelledError])
+    async: (raises: [CancelledError, PeerRateLimitError])
   .}
 
 when defined(libp2p_agents_metrics):
@@ -199,6 +205,27 @@ proc getAgent*(peer: PubSubPeer): string =
       if peer.shortAgent.len > 0: peer.shortAgent else: "unknown"
     else:
       "unknown"
+
+proc newOverheadBucket*(overheadRateLimit: Opt[RateLimit]): Opt[TokenBucket] =
+  overheadRateLimit.ifValue(limit):
+    if limit.bytes <= 0 or limit.interval <= ZeroDuration:
+      # such a bucket refuses every charge, which would disconnect every peer
+      warn "ignoring an unusable overhead rate limit", limit
+      return Opt.none(TokenBucket)
+
+    return Opt.some(TokenBucket.new(limit.bytes, limit.interval))
+
+  Opt.none(TokenBucket)
+
+proc tryCharge*(peer: PubSubPeer, overhead: int): bool =
+  ## Charges `overhead` bytes of useless data to the peer, false when it cannot pay.
+  if overhead <= 0:
+    return true
+
+  peer.overheadRateLimitOpt.ifValue(overheadRateLimit):
+    return overheadRateLimit.tryConsume(overhead)
+
+  true
 
 proc `$`*(p: PubSubPeer): string =
   $p.peerId
@@ -303,33 +330,43 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
 proc runHandleLoop*(
     p: PubSubPeer, stream: Stream
 ) {.async: (raises: [CancelledError]).} =
-  debug "starting pubsub read loop", stream, peer = p, closed = stream.closed
+  trace "starting pubsub read loop", stream, peerId = p, closed = stream.closed
   defer:
-    debug "exiting pubsub read loop", stream, peer = p, closed = stream.closed
+    trace "exiting pubsub read loop", stream, peerId = p, closed = stream.closed
 
-  while not stream.atEof:
-    trace "waiting for data", stream, peer = p, closed = stream.closed
-
+  while not p.stopped and not stream.atEof:
     var data =
       try:
         await stream.readLp(p.maxMessageSize)
       except LPStreamEOFError:
         return
       except LPStreamError as e:
-        debug "Exception occurred reading message PubSubPeer.handle",
-          stream, peer = p, closed = stream.closed, description = e.msg
+        trace "Exception occurred reading message PubSubPeer.handle",
+          err = e.msg, stream, peer = p, closed = stream.closed
         return
 
-    trace "read data from peer",
-      stream, peer = p, closed = stream.closed, data = data.shortLog
+    if p.stopped:
+      return
 
-    await p.handler(p, move(data))
+    trace "read data from peer",
+      stream, peer = p, closed = stream.closed, messageSize = data.len
+
+    if p.handler.isNil:
+      trace "Ignoring pubsub message without handler", stream, peerId = p
+      continue
+
+    try:
+      await p.handler(p, move(data))
+    except PeerRateLimitError as e:
+      trace "peer rate limit exceeded in peerHandler", err = e.msg, stream, peer = p
+      await stream.closeWithEOF()
+      return
 
 proc closeSendStream(
     p: PubSubPeer, event: PubSubPeerEventKind
 ) {.async: (raises: [CancelledError]).} =
   if p.sendStream != nil:
-    trace "Removing send stream", p, stream = p.sendStream
+    trace "Removing send stream", peer = p, stream = p.sendStream
     await p.sendStream.close()
     p.sendStream = nil
 
@@ -353,12 +390,15 @@ proc connectOnce(
         await p.getStream().wait(5.seconds)
       except AsyncTimeoutError:
         raise newException(GetStreamDialError, "establishing stream timed out")
+    if p.stopped:
+      await newStream.close()
+      return
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
     # stop working so we make an effort to only keep a single channel alive
 
-    trace "Get new send stream", p, newStream
+    trace "Get new send stream", peer = p, newStream
 
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
@@ -374,7 +414,7 @@ proc connectOnce(
       # if codec was not know, it can be retrieved from newly established stream
       p.codec = newStream.protocol
 
-    p.connectedFut.complete()
+    p.connectedFut.completeOnce()
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.StreamOpened))
 
@@ -388,17 +428,17 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     # send stream might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new one
     while true:
-      if p.disconnected:
+      if p.stopped:
         p.connectedFut.completeOnce()
         return
       await connectOnce(p)
-  except CancelledError as exc:
-    debug "Could not establish send stream", description = exc.msg
+  except CancelledError:
+    discard
   except GetStreamDialError as exc:
-    debug "Could not establish send stream", description = exc.msg
+    trace "Could not establish send stream", err = exc.msg
 
 proc connect*(p: PubSubPeer) =
-  if p.connected:
+  if p.stopped or p.connected:
     return
   if not p.connectFut.isNil() and not p.connectFut.finished():
     return
@@ -443,10 +483,10 @@ proc sendMsgContinue(
     await msgFut
     trace "sent pubsub message to remote", stream
   except CancelledError as exc:
-    trace "sendMsgContinue cancelled", stream, description = exc.msg
+    trace "sendMsgContinue cancelled", err = exc.msg, stream
     raise exc
   except LPStreamError as exc:
-    trace "Unexpected exception in sendMsgContinue", stream, description = exc.msg
+    trace "Unexpected exception in sendMsgContinue", err = exc.msg, stream
     # Next time sendStream is used, it will be have its close flag set and thus
     # will be recycled
     await stream.close() # This will clean up the send stream
@@ -462,10 +502,10 @@ proc sendMsgSlow(
 
   var stream = p.sendStream
   if stream == nil or stream.closed():
-    debug "No send stream", p, encoded = shortLog(msg)
+    trace "No send stream", peer = p, messageSize = msg.len
     return
 
-  trace "sending encoded msg to peer", stream, encoded = shortLog(msg)
+  trace "sending encoded msg to peer", stream, messageSize = msg.len
   await sendMsgContinue(stream, stream.writeLp(msg))
 
 proc sendMsg(
@@ -494,7 +534,7 @@ proc sendMsg(
 
   if not slowPath:
     trace "sending encoded msg to peer",
-      streamType = $streamType, stream = stream, encoded = shortLog(msg)
+      streamType = $streamType, stream, messageSize = msg.len
     let f = stream.writeLp(msg)
     await sendMsgContinue(stream, f)
   else:
@@ -502,8 +542,8 @@ proc sendMsg(
     await sendMsgSlow(p, move(msg))
 
 proc disconnectPeer(p: PubSubPeer): Future[void] =
-  if not p.disconnected:
-    p.disconnected = true
+  if not p.stopped:
+    p.stopped = true
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
     return p.closeSendStream(PubSubPeerEventKind.DisconnectionRequested)
@@ -547,11 +587,11 @@ proc dropNonHighPriorityMessage(
   of MessagePriority.Medium:
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_medium_priority_queue_drops.inc()
-    trace "medium priority queue full, dropping message", p
+    trace "medium priority queue full, dropping message", peer = p
   of MessagePriority.Low:
     when defined(pubsubpeer_queue_metrics):
       libp2p_pubsub_low_priority_queue_drops.inc()
-    trace "low priority queue full, dropping message", p
+    trace "low priority queue full, dropping message", peer = p
   of MessagePriority.High:
     raiseAssert "high-priority messages are not dropped via queue overflow scoring"
   return newFutureCompleted[void]()
@@ -567,7 +607,7 @@ proc sendEncoded*(
   ## Parameters:
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
   ## - `msg`: The message to be sent, encoded as a sequence of bytes (`seq[byte]`).
-  ## - `priority`: 
+  ## - `priority`:
   ##   - `High` or any priority when all queues are empty: sent immediately
   ##   - `Medium`: queued in `mediumPriorityQueue`. Dropped when full.
   ##   - `Low`: queued in `lowPriorityQueue`. Dropped when full.
@@ -577,13 +617,16 @@ proc sendEncoded*(
   ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
 
+  if p.stopped:
+    return newFutureCompleted[void]()
+
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, encoded = shortLog(msg)
+    debug "empty message, skipping", peer = p, messageSize = msg.len
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
-    info "trying to send a msg too big for pubsub",
+    warn "trying to send a msg too big for pubsub",
       maxSize = p.maxMessageSize, msgSize = msg.len
     newFutureCompleted[void]()
   else:
@@ -604,38 +647,22 @@ proc sendEncoded*(
       else:
         p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
-iterator splitRPCMsg(
-    peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool
-): seq[byte] =
-  ## This iterator takes an `RPCMsg` and sequentially repackages its Messages into new `RPCMsg` instances.
-  ## Each new `RPCMsg` accumulates Messages until reaching the specified `maxSize`. If a single Message
-  ## exceeds the `maxSize` when trying to fit into an empty `RPCMsg`, the latter is skipped as too large to send.
-  ## Every constructed `RPCMsg` is then encoded, optionally anonymized, and yielded as a sequence of bytes.
-
-  var currentRPCMsg = RPCMsg()
-  var currentSize = 0
-
-  for msg in rpcMsg.messages:
-    let msgSize = byteSize(msg)
-
-    # Check if adding the next message will exceed maxSize
-    if currentSize + msgSize > maxSize:
-      if msgSize > maxSize:
-        warn "message too big to sent", peer, rpcMsg = shortLog(msg)
-        continue # Skip this message
-
-      trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-      yield encode(currentRPCMsg, anonymize)
-      currentRPCMsg = RPCMsg()
-      currentSize = 0
-
-    currentRPCMsg.messages.add(msg)
-    currentSize += msgSize
-
-  # Check if there is a non-empty currentRPCMsg left to be added
-  if currentRPCMsg.messages.len > 0:
-    trace "sending msg to peer", peer, rpcMsg = shortLog(currentRPCMsg)
-    yield encode(currentRPCMsg, anonymize)
+proc encodeRpcMsg(
+    p: PubSubPeer, msg: RPCMsg, anonymize: bool
+): seq[byte] {.raises: [].} =
+  ## Encodes an `RPCMsg` for sending, running send observers and metrics.
+  ##
+  ## We re-encode the message to protect against valid but redundantly encoded
+  ## protobufs with unknown or duplicated fields.
+  if p.hasObservers():
+    var mm = msg
+    # trigger send hooks
+    p.sendObservers(mm)
+    sendMetrics(mm)
+    encode(mm, anonymize)
+  else:
+    sendMetrics(msg)
+    encode(msg, anonymize)
 
 proc send*(
     p: PubSubPeer,
@@ -644,7 +671,7 @@ proc send*(
     priority: MessagePriority,
     useCustomStream: bool = false,
 ) {.raises: [].} =
-  ## Asynchronously sends an `RPCMsg` to a specified `PubSubPeer` with an option for anonymization.
+  ## Sends an application-published `RPCMsg` to this peer, without splitting.
   ##
   ## Parameters:
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
@@ -653,35 +680,95 @@ proc send*(
   ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
-  # When sending messages, we take care to re-encode them with the right
-  # anonymization flag to ensure that we're not penalized for sending invalid
-  # or malicious data on the wire - in particular, re-encoding protects against
-  # some forms of valid but redundantly encoded protobufs with unknown or
-  # duplicated fields
-  var encoded =
-    if p.hasObservers():
-      var mm = msg
-      # trigger send hooks
-      p.sendObservers(mm)
-      sendMetrics(mm)
-      encode(mm, anonymize)
-    else:
-      # If there are no send hooks, we redundantly re-encode the message to
-      # protobuf for every peer - this could easily be improved!
-      sendMetrics(msg)
-      encode(msg, anonymize)
 
-  # Messages should not exceed 90% of maxMessageSize. Guessing 10% protobuf overhead.
-  let maxEncodedMsgSize = (p.maxMessageSize * 90) div 100
+  var encoded = encodeRpcMsg(p, msg, anonymize)
 
-  if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
-    for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
-      var ownedEncodedSplitMsg = encodedSplitMsg
-      p.trackSend(p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream))
-  else:
-    # If the message size is within limits, send it as is
-    trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
+  if encoded.len > p.maxMessageSize:
+    warn "message exceeds maximum message size; message will not be sent",
+      encodedSize = encoded.len, maxMessageSize = p.maxMessageSize
+
+  trace "Sending PubSub RPC",
+    peerId = p.peerId, messageType = "rpc", messageSize = encoded.len
+  p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
+proc sendResponse*(
+    p: PubSubPeer,
+    msg: RPCMsg,
+    anonymize: bool,
+    priority: MessagePriority,
+    useCustomStream: bool = false,
+) {.raises: [].} =
+  ## Sends a protocol response `RPCMsg` to this peer, batching multi-message
+  ## responses together so that none exceed `maxMessageSize`.
+  ##
+  ## The RPC is sent as-is when it fits within `maxMessageSize`. Otherwise, when
+  ## it contains messages, the messages are split into batches. Non-message
+  ## fields (subscriptions, control and extensions) are attached to the first
+  ## batch so they are not lost. RPCs without messages that still exceed
+  ## `maxMessageSize`, and individual messages that still exceed
+  ## `maxMessageSize`, are dropped with a warning.
+
+  proc send(toSendMsg: RPCMsg) =
+    var encoded = encodeRpcMsg(p, toSendMsg, anonymize)
+    trace "Sending PubSub RPC response",
+      peerId = p.peerId, messageType = "rpc", messageSize = encoded.len
     p.trackSend(p.sendEncoded(move(encoded), priority, useCustomStream))
+
+  template wireSize(toSizeMsg: RPCMsg): int =
+    toSizeMsg.anonymize(anonymize).encodedSize()
+
+  let msgSize = wireSize(msg)
+  if msgSize <= p.maxMessageSize:
+    send(msg) # The whole RPC fits the limits, send it as-is.
+    return
+
+  if msg.messages.len == 0:
+    # Nothing to split and nothing to send - the RPC only carries non-message
+    # data that still exceeds `maxMessageSize`.
+    warn "message exceeds maximum message size and contains no messages; message will not be sent",
+      encodedSize = msgSize, maxMessageSize = p.maxMessageSize
+    return
+
+  # Batch as many messages as possible into a single encoded RPC so that each
+  # batch stays within `maxMessageSize`. Non-message fields are carried by the
+  # first batch only, so they are neither lost nor duplicated.
+  var batch = msg
+  batch.messages.setLen(0)
+  let firstBatchSize = wireSize(batch)
+  var isFirstBatch = true
+
+  for m in msg.messages:
+    batch.messages.add(m)
+
+    if wireSize(batch) <= p.maxMessageSize:
+      continue
+
+    # The last message caused an overflow, send the batch without it.
+    discard batch.messages.pop()
+
+    if batch.messages.len > 0:
+      send(batch)
+    elif isFirstBatch and firstBatchSize > p.maxMessageSize:
+      warn "RPC non-message fields exceed maximum message size; they will not be sent",
+        encodedSize = firstBatchSize, maxMessageSize = p.maxMessageSize
+    elif isFirstBatch and firstBatchSize > 0:
+      # No message fits alongside the non-message fields. Send them on their own
+      # so they are not lost.
+      send(batch)
+
+    batch = RPCMsg()
+    isFirstBatch = false
+    batch.messages.add(m)
+
+    let messageSize = wireSize(batch)
+    if messageSize > p.maxMessageSize:
+      # The message alone exceeds `maxMessageSize`.
+      discard batch.messages.pop()
+      warn "message exceeds maximum message size; message will not be sent",
+        messageSize = messageSize, maxMessageSize = p.maxMessageSize
+
+  if batch.messages.len > 0:
+    send(batch)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -728,37 +815,37 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
     await p.sendMsg(move(msg.data), useCustomStream)
 
 proc startSendNonHighPriorityTask(p: PubSubPeer) =
-  debug "starting sendNonHighPriorityTask", p
+  trace "starting sendNonHighPriorityTask", peer = p
   if p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
     p.rpcmessagequeue.sendNonHighPriorityTask = p.sendNonHighPriorityTask()
 
-proc stopTasks*(p: PubSubPeer) =
-  ## Peer-wide teardown: cancels the connector loop, in-flight sends, and the
-  ## non-high-priority sender task; clears its priority queues.
-  if not p.connectFut.isNil():
-    p.connectFut.cancelSoon()
-    p.connectFut = nil
-  for fut in p.sendFuts:
-    fut.cancelSoon()
-  p.sendFuts = @[]
-  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil():
-    debug "stopping sendNonHighPriorityTask", p
-    p.rpcmessagequeue.sendNonHighPriorityTask.cancelSoon()
-    p.rpcmessagequeue.sendNonHighPriorityTask = nil
-    for fut in p.rpcmessagequeue.sendPriorityQueue:
-      fut.cancelSoon()
-    p.rpcmessagequeue.sendPriorityQueue.clear()
-    p.rpcmessagequeue.mediumPriorityQueue.clear()
-    p.rpcmessagequeue.lowPriorityQueue.clear()
+proc stopTasks*(p: PubSubPeer) {.async: (raises: []).} =
+  ## Prevents further work, cancels peer tasks, and waits for cleanup to finish.
+  p.stopped = true
+  var pending = p.sendFuts
+  if not p.connectFut.isNil:
+    pending.add(p.connectFut)
+  if not p.rpcmessagequeue.sendNonHighPriorityTask.isNil:
+    trace "stopping sendNonHighPriorityTask", peer = p
+    pending.add(p.rpcmessagequeue.sendNonHighPriorityTask)
+  for fut in p.rpcmessagequeue.sendPriorityQueue:
+    pending.add(fut)
 
-    when defined(pubsubpeer_queue_metrics):
-      libp2p_gossipsub_high_priority_queue_size.set(
-        labelValues = [$p.peerId], value = 0
-      )
-      libp2p_gossipsub_medium_priority_queue_size.set(
-        labelValues = [$p.peerId], value = 0
-      )
-      libp2p_gossipsub_low_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+  # Retain task handles until cancellation finishes, including for repeated stops.
+  await noCancel chronos.cancelAndWait(pending)
+  p.connectFut = nil
+  p.sendFuts = @[]
+  p.rpcmessagequeue.sendNonHighPriorityTask = nil
+  p.rpcmessagequeue.sendPriorityQueue.clear()
+  p.rpcmessagequeue.mediumPriorityQueue.clear()
+  p.rpcmessagequeue.lowPriorityQueue.clear()
+
+  when defined(pubsubpeer_queue_metrics):
+    libp2p_gossipsub_high_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
+    libp2p_gossipsub_medium_priority_queue_size.set(
+      labelValues = [$p.peerId], value = 0
+    )
+    libp2p_gossipsub_low_priority_queue_size.set(labelValues = [$p.peerId], value = 0)
 
 proc new(T: typedesc[RpcMessageQueue]): T =
   return T(
@@ -775,12 +862,14 @@ proc new*(
     onEvent: OnEvent,
     codec: string,
     maxMessageSize: int,
+    handler: RPCHandler,
     maxHighPriorityQueueLen: int = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen: int = DefaultMaxMediumPriorityQueueLen,
     maxLowPriorityQueueLen: int = DefaultMaxLowPriorityQueueLen,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
     customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
 ): T =
+  doAssert not handler.isNil, "RPC handler must be set"
   let response = T(
     getStream: getStream,
     onEvent: onEvent,
@@ -788,7 +877,9 @@ proc new*(
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
+    handler: handler,
     overheadRateLimitOpt: overheadRateLimitOpt,
+    overheadSecondWindowStart: Moment.now(),
     rpcmessagequeue: RpcMessageQueue.new(),
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,
     maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,

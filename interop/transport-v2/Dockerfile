@@ -1,20 +1,27 @@
 # syntax=docker/dockerfile:1.5-labs
-FROM nimlang/nim:2.2.10 as builder
+ARG NIM_VERSION=2.2.10
+ARG NIMBLE_COMMIT=aa8e6ea09ecac774b6fad42552569ce07bef37ec
+FROM nimlang/nim:${NIM_VERSION} as builder
+ARG NIM_VERSION
+ARG NIMBLE_COMMIT
+ENV PATH="/root/.nimble/bin:/opt/nim/bin:${PATH}"
 
 WORKDIR /app
 
-COPY .pinned libp2p.nimble nim-libp2p/
+COPY libp2p.nimble nim-libp2p/
+COPY interop/transport-v2/interop_transport_v2.nimble nim-libp2p/interop/transport-v2/
 
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd nim-libp2p && nimble install -y redis && nimble install_pinned
+RUN nimble install "nimble@#${NIMBLE_COMMIT}" -y
 
 COPY . nim-libp2p/
 
 RUN \
-  cd nim-libp2p && \
-  nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 --mm:refc -d:chronicles_log_level=WARN -d:chronicles_default_output_device=stderr --threads:on -o:/app/interop ./interop/transport-v2/main.nim
+  cd nim-libp2p/interop/transport-v2 && \
+  nimble --noLockfile --requires:"nim == ${NIM_VERSION}" --resolver:minver -l setup -y && \
+  nim c -d:release --mm:refc -d:chronicles_log_level=WARN -d:chronicles_default_output_device=stderr --threads:on -o:/app/interop main.nim
 
 
 FROM debian:trixie-slim AS runtime

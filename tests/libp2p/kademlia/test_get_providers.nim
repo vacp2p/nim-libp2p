@@ -74,9 +74,9 @@ suite "KadDHT - Get Providers":
     let providers = await kads[2].getProviders(key)
 
     # kads[2] should discover kads[1] through the closerPeers in the response
-    check:
-      providers.len() == 0
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check providers.len() == 0
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
@@ -100,12 +100,13 @@ suite "KadDHT - Get Providers":
     let providers = await kads[2].getProviders(key)
 
     # kads[2] should discover kads[1] through the closerPeers in the response
-    check:
-      providers.len() == 1
-      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+    check providers.len() == 1
+    checkUntilTimeout:
+      kads[2].hasKey(kads[1].rtable.selfId)
 
   asyncTest "Get providers uses multihash for CID convergence":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -134,7 +135,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[1])
 
   asyncTest "Get providers includes self when querying node is a provider":
-    let kads = setupKadSwitches(2)
+    # Long republish interval so the background heartbeat doesn't race getProviders dials.
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -202,8 +204,8 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[2])
 
   asyncTest "Get providers terminates early when sufficient providers found":
-    # Use small replication value
-    let kads = setupKadSwitches(8, replication = 2)
+    # Use small replication value; beta must stay <= replication
+    let kads = setupKadSwitches(8, replication = 2, beta = 2)
     startAndDeferStop(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
@@ -226,21 +228,31 @@ suite "KadDHT - Get Providers":
     check:
       (await kads[0].getProviders(key)).len() == 3
 
-    # Increase replication
+    # Increase replication. The shortlist cap is derived from replication
+    # (`maxShortlistSize = replication * 2`), so refresh the limits too; otherwise
+    # the cap stays sized for the old replication and the lookup can evict kad[2]
+    # before it answers, dropping its providers.
     kads[0].config.replication = 6
+    kads[0].config.limits = KadDHTLimits.new(6, kads[0].config.quorum)
 
     # kads[0] queries again and stops only at kad[2]
     check:
       (await kads[0].getProviders(key)).len() == 5
 
   asyncTest "Get providers returns at most k closest peers":
-    # Use small replication value (k=3)
-    let kads = setupKadSwitches(7, replication = 3)
+    # Use small replication value
+    const k = 3
+    let kads = setupKadSwitches(2, replication = k)
     startAndDeferStop(kads)
 
-    # kads[0] is the hub, connected to kads[1..6] (6 peers)
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
-    await connectHub(kads[0], kads[1 ..^ 1])
+    await connect(kads[0], kads[1])
+
+    # Peers are added directly, not through connect: a bucket holds at most k, so
+    # how many of them reach the table would depend on how their ids spread over
+    # buckets, and the table could end up holding no more than k.
+    kads[0].addPeersWithAddrs(2 * k)
+    check kads[0].rtable.allKeys().len() > k
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -248,9 +260,17 @@ suite "KadDHT - Get Providers":
     let response =
       await kads[1].dispatchGetProviders(kads[0].switch.peerInfo.peerId, key)
 
-    # kads[0] knows 6 peers but should only return k=3 in closerPeers
+    let
+      hasher = kads[0].rtable.config.hasher
+      expected = kads[0]
+        .getPeersFromRoutingTable()
+        .filterIt(it != kads[1].switch.peerInfo.peerId)
+        .sortPeers(key, hasher)[0 ..< k]
+
+    # kads[0] knows more than k peers but should only return the k closest ones
     check:
-      response.get().closerPeers.len() == 3
+      response.get().closerPeers.len() == k
+      response.get().closerPeers.toPeerIds().sortPeers(key, hasher) == expected
 
   asyncTest "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]

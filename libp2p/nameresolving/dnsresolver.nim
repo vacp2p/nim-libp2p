@@ -6,10 +6,10 @@
 import std/[sets, sequtils], chronos, chronicles, ./dnsmessage
 
 import nameresolver
-import ../crypto/rng
+import ../crypto/rng, ../utils/future
 
 logScope:
-  topics = "libp2p dnsresolver"
+  topics = "libp2p name-resolution"
 
 const DefaultDnsServers* = @[
   initTAddress("1.1.1.1:53"),
@@ -73,16 +73,19 @@ method resolveIp*(
     if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
       let fut = getDnsResponse(self.rng, server, address, AAAA)
       if server.family == AddressFamily.IPv6:
-        trace "IPv6 DNS server, puting AAAA records first", server = $server
+        trace "IPv6 DNS results prioritized", server = $server
         responseFutures.insert(fut)
       else:
         responseFutures.add(fut)
+
+    defer:
+      await noCancel responseFutures.cancelAndWait()
 
     var
       resolvedAddresses: OrderedSet[string]
       resolveFailed = false
     template handleFail(e): untyped =
-      info "Failed to query DNS", address, error = e.msg
+      trace "DNS address query failed", err = e.msg, address
       resolveFailed = true
       break
 
@@ -94,7 +97,7 @@ method resolveIp*(
       except CancelledError as e:
         raise e
       except ValueError as e:
-        info "Invalid DNS query", address, error = e.msg
+        trace "DNS address response rejected", err = e.msg, address
         return @[]
       except IOError as e:
         handleFail(e)
@@ -106,10 +109,10 @@ method resolveIp*(
       self.nameServers.delete(0)
       continue
 
-    trace "Got IPs from DNS server", resolvedAddresses, server = $server
+    trace "DNS address query completed", resolvedAddresses, server = $server
     return resolvedAddresses.toSeq().mapIt(initTAddress(it, port))
 
-  debug "Failed to resolve address, returning empty set"
+  trace "DNS address resolution returned no results"
   return @[]
 
 method resolveTxt*(
@@ -119,14 +122,14 @@ method resolveTxt*(
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
     template handleFail(e): untyped =
-      info "Failed to query DNS", address, error = e.msg
+      trace "DNS TXT query failed", err = e.msg, address
       self.nameServers.add(self.nameServers[0])
       self.nameServers.delete(0)
       continue
 
     try:
       let response = await getDnsResponse(self.rng, server, address, TXT)
-      trace "Got TXT response", server = $server, answer = response.mapIt(it.value)
+      trace "DNS TXT query completed", server = $server, answerCount = response.len
       return response.mapIt(it.value)
     except CancelledError as e:
       raise e
@@ -137,7 +140,7 @@ method resolveTxt*(
     except ValueError as e:
       handleFail(e)
 
-  debug "Failed to resolve TXT, returning empty set"
+  trace "DNS TXT resolution returned no results"
   return @[]
 
 proc new*(

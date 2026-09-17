@@ -6,7 +6,7 @@
 import chronos, results, sets, sequtils, tables, stew/byteutils
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, topology, unittest, multiaddress]
 import ./[mock_kademlia, utils]
 
 proc isAtMaxCapacity(providerRecords: ProviderRecords): bool =
@@ -94,7 +94,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[1].expiresAt > originalExpiresAt2
 
   asyncTest "Start/stop providing":
-    let kads = setupKadSwitches(2)
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = 2.secs)
     startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
@@ -126,6 +126,27 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords.len == 0
       kads[1].providerManager.knownKeys.len == 0
       kads[0].providerManager.providedKeys.len == 0
+
+  asyncTest "Refreshing a provided key at capacity preserves other keys":
+    let kad = setupKad()
+    startAndDeferStop(@[kad])
+    let keys = kad.providerManager.providedKeys
+    keys.capacity = 2
+    let first = Cid
+      .init(CIDv1, multiCodec("raw"), MultiHash.digest("sha2-256", @[1.byte]).get())
+      .get()
+    let second = Cid
+      .init(CIDv1, multiCodec("raw"), MultiHash.digest("sha2-256", @[2.byte]).get())
+      .get()
+    keys.provided[first.toKey()] = Moment.now() - 2.seconds
+    keys.provided[second.toKey()] = Moment.now() - 1.seconds
+
+    await kad.startProviding(second)
+
+    check:
+      keys.len == 2
+      keys.hasKey(first.toKey())
+      keys.hasKey(second.toKey())
 
   asyncTest "Provider limits":
     let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
@@ -233,13 +254,13 @@ suite "KadDHT - Add Provider":
 
     check receiverKad.providerManager.providerRecords.len == 0
 
-    let rawKey = "interop-test-key-0123".toBytes()
-    check not MultiHash.validate(rawKey) # sanity: not a valid multihash
+    let keyBytes = "interop-test-key-0123".toBytes()
+    check not MultiHash.validate(keyBytes) # sanity: not a valid multihash
 
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: rawKey,
+        key: Key.fromBytes(keyBytes),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -247,7 +268,7 @@ suite "KadDHT - Add Provider":
 
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
-      receiverKad.providerManager.knownKeys.hasKey(rawKey)
+      receiverKad.providerManager.knownKeys.hasKey(Key.fromBytes(keyBytes))
 
   asyncTest "Add provider rejects an empty key":
     let kads = setupKadSwitches(1)
@@ -261,7 +282,7 @@ suite "KadDHT - Add Provider":
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: newSeq[byte](0),
+        key: Key.fromBytes(newSeq[byte](0)),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -283,7 +304,7 @@ suite "KadDHT - Add Provider":
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(
         msgType: MessageType.addProvider,
-        key: newSeq[byte](MaxProviderKeyLen + 1),
+        key: Key.fromBytes(newSeq[byte](MaxProviderKeyLen + 1)),
         providerPeers: @[senderKad.switch.peerInfo.toPeer()],
       )
     )
@@ -410,10 +431,8 @@ suite "KadDHT - Add Provider":
     let key = kads[0].rtable.selfId
 
     # Inject additional multiaddresses to verify all are included
-    kads[1].switch.peerInfo.addrs.add(
-      MultiAddress.init("/ip4/192.168.1.100/tcp/4001").get()
-    )
-    kads[1].switch.peerInfo.addrs.add(MultiAddress.init("/ip6/::1/tcp/4001").get())
+    kads[1].switch.peerInfo.addrs.add(ma("/ip4/192.168.1.100/tcp/4001"))
+    kads[1].switch.peerInfo.addrs.add(ma("/ip6/::1/tcp/4001"))
 
     check kads[0].providerManager.providerRecords.len == 0
 
@@ -448,6 +467,114 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords.len == 1
       kads[1].providerManager.providerRecords[0].provider.id.get() ==
         kads[0].rtable.selfId
+
+  template optimisticProvideStores(seedEstimate: bool) =
+    ## Without a seeded estimate `addProvider` takes the classic path, with one
+    ## the optimistic path. Both must store the record.
+    var cfg = testKadConfig()
+    cfg.optimisticProvide = true
+    let kads = @[setupKad(cfg), setupKad(cfg)]
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    if seedEstimate:
+      kads[1].nsEstimator.seedLinearMeasurements(1000)
+    check kads[1].nsEstimator.networkSize().isOk() == seedEstimate
+
+    await kads[1].addProvider(kads[0].rtable.selfId.toCid())
+
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len == 1
+      kads[0].providerManager.providerRecords[0].provider.id.get() ==
+        kads[1].rtable.selfId
+
+  asyncTest "Optimistic provider RPCs belong to the DHT before the lookup returns":
+    var cfg = testKadConfig(timeout = 3.seconds, providerRejection = true)
+    cfg.optimisticProvide = true
+    let sender = setupKad(cfg)
+    let receiver = setupMockKad(cfg)
+    receiver.handleAddProviderDelay = 1.seconds
+    startAndDeferStop(@[sender, KadDHT(receiver)])
+    await connect(sender, receiver)
+    sender.nsEstimator.seedLinearMeasurements(1000)
+
+    let pending = sender.addProvider(receiver.rtable.selfId.toCid())
+    checkUntilTimeout:
+      receiver.handleAddProviderCalls > 0
+    check not pending.finished()
+    let owned = sender.provideTasks
+    check owned.len > 0
+    await sender.stop()
+    await pending.wait(2.seconds)
+    check owned.allIt(it.finished())
+
+  asyncTest "Optimistic provide falls back to classic without a size estimate":
+    optimisticProvideStores(seedEstimate = false)
+
+  asyncTest "Optimistic provide stores records once the estimator has data":
+    optimisticProvideStores(seedEstimate = true)
+
+suite "KadDHT - Republish By Keyspace Region":
+  teardown:
+    checkTrackers()
+
+  proc provideWithoutAnnouncing(kad: KadDHT, count: int): seq[Key] =
+    ## Seed the store directly, so only the republish loop advertises the keys.
+    let keys = Key.makeKeys(count)
+    for key in keys:
+      kad.providerManager.providedKeys.provided[key] = Moment.now()
+    keys
+
+  asyncTest "Provided keys are grouped into keyspace regions":
+    let kad = setupKad(testKadConfig(republishRegionBits = Opt.some(1)))
+    startAndDeferStop(@[kad])
+
+    let keys = kad.provideWithoutAnnouncing(8)
+    let regions = kad.providedKeyRegions()
+    let hasher = kad.rtable.config.hasher
+
+    check:
+      regions.len < keys.len
+      # 1 prefix bit splits the keyspace in two, so the keys land in 2 regions at most.
+      regions.len <= 2
+      regions.concat().toHashSet() == keys.toHashSet()
+
+    for region in regions:
+      check region.allIt(
+        RegionPrefix.init(it, 1, hasher) == RegionPrefix.init(region[0], 1, hasher)
+      )
+
+  asyncTest "Each key gets its own region while the network size is unknown":
+    let kad = setupKad()
+    startAndDeferStop(@[kad])
+
+    check kad.rtable.regionBits().isNone()
+
+    let keys = kad.provideWithoutAnnouncing(4)
+    let regions = kad.providedKeyRegions()
+
+    check:
+      regions.len == keys.len
+      regions.concat().toHashSet() == keys.toHashSet()
+
+  asyncTest "A single region walk advertises every key it holds":
+    let senderKad = setupKad(
+      testKadConfig(
+        republishRegionBits = Opt.some(0), providerExpirationInterval = 30.seconds
+      )
+    )
+    let receiverKad = setupKad(testKadConfig(providerExpirationInterval = 30.seconds))
+
+    startAndDeferStop(@[senderKad, receiverKad])
+    await connect(senderKad, receiverKad)
+
+    let keys = senderKad.provideWithoutAnnouncing(5)
+    check senderKad.providedKeyRegions().len == 1
+
+    checkUntilTimeout:
+      receiverKad.providerManager.knownKeys.len == keys.len
+      keys.allIt(receiverKad.providerManager.knownKeys.hasKey(it))
 
 suite "KadDHT - ADD_PROVIDER Rejection":
   teardown:
@@ -678,7 +805,8 @@ suite "KadDHT - ADD_PROVIDER Rejection":
       testKadConfig(providerRejection = true),
       handleAddProviderMessage = Opt.some(
         Message(
-          msgType: MessageType.addProvider, key: newSeq[byte](MaxProviderKeyLen + 1)
+          msgType: MessageType.addProvider,
+          key: Key.fromBytes(newSeq[byte](MaxProviderKeyLen + 1)),
         )
       ),
     )

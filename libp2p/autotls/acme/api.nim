@@ -13,11 +13,12 @@ import ../../utils/opt
 export ACMEError, ACMENetworkError
 
 logScope:
-  topics = "libp2p acme api"
+  topics = "libp2p auto-tls"
 
 const
-  LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
-  LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
+  LetsEncryptDirectoryURL* = parseUri("https://acme-v02.api.letsencrypt.org/directory")
+  LetsEncryptStagingDirectoryURL* =
+    parseUri("https://acme-staging-v02.api.letsencrypt.org/directory")
 
 type Authorization* = string
 type Domain* = string
@@ -32,7 +33,7 @@ type ACMEDirectory* = object
 type ACMEApi* = ref object of RootObj
   directory: Opt[ACMEDirectory]
   session: HttpSessionRef
-  acmeServerURL*: Uri
+  directoryURL*: Uri
 
 type HTTPResponse* = object
   body*: JsonNode
@@ -185,6 +186,25 @@ template handleError*(msg: string, body: untyped): untyped =
   except CatchableError as exc:
     raise newException(ACMEError, msg & ": Unexpected error", exc)
 
+func origin(uri: Uri): string =
+  let scheme = uri.scheme.toLowerAscii()
+  let port =
+    if uri.port.len > 0:
+      uri.port
+    elif scheme == "http":
+      "80"
+    else:
+      "443"
+  scheme & "://" & uri.hostname.toLowerAscii() & ":" & port
+
+proc checkOrigin*(self: ACMEApi, uri: Uri) {.raises: [ACMEError].} =
+  ## The directory is the only URL the caller chooses; the rest come from the server.
+  if uri.origin != self.directoryURL.origin:
+    raise newException(
+      ACMEError,
+      "ACME URL " & $uri & " is not on the directory origin " & self.directoryURL.origin,
+    )
+
 proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
   let respType =
     try:
@@ -215,12 +235,14 @@ method get*(
 .}
 
 proc new*(
-    T: typedesc[ACMEApi], acmeServerURL: Uri = parseUri(LetsEncryptURL)
+    T: typedesc[ACMEApi],
+    directoryURL: Uri = LetsEncryptDirectoryURL,
+    flags: HttpClientFlags = {},
 ): ACMEApi =
-  let session = HttpSessionRef.new()
+  let session = HttpSessionRef.new(flags)
 
   ACMEApi(
-    session: session, directory: Opt.none(ACMEDirectory), acmeServerURL: acmeServerURL
+    session: session, directory: Opt.none(ACMEDirectory), directoryURL: directoryURL
   )
 
 proc getDirectory(
@@ -228,7 +250,7 @@ proc getDirectory(
 ): Future[ACMEDirectory] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("getDirectory"):
     self.directory.valueOr:
-      let acmeResponse = await self.get(self.acmeServerURL / "directory")
+      let acmeResponse = await self.get(self.directoryURL)
       let directory = acmeResponse.body.to(ACMEDirectory)
       self.directory = Opt.some(directory)
       directory
@@ -270,15 +292,24 @@ proc acmeHeader(
       kid: kid.get(),
     )
 
+proc sendPost(
+    self: ACMEApi, uri: Uri, payload: string
+): Future[HttpClientResponseRef] {.
+    async: (raises: [ACMEError, HttpError, CancelledError])
+.} =
+  self.checkOrigin(uri)
+  let request = HttpClientRequestRef.post(
+    self.session, $uri, body = payload, headers = ACMEHttpHeaders
+  ).valueOr:
+    raiseHttpAddressError(error)
+  await request.send()
+
 method post*(
     self: ACMEApi, uri: Uri, payload: string
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let rawResponse = await HttpClientRequestRef
-    .post(self.session, $uri, body = payload, headers = ACMEHttpHeaders)
-    .get()
-    .send()
+  let rawResponse = await self.sendPost(uri, payload)
   let body = await rawResponse.getResponseBody()
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
@@ -289,7 +320,10 @@ method get*(
 ): Future[HTTPResponse] {.
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
-  let rawResponse = await HttpClientRequestRef.get(self.session, $uri).get().send()
+  self.checkOrigin(uri)
+  let request = HttpClientRequestRef.get(self.session, $uri).valueOr:
+    raiseHttpAddressError(error)
+  let rawResponse = await request.send()
   let body = await rawResponse.getResponseBody()
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
@@ -306,6 +340,14 @@ proc createSignedAcmeRequest(
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
   handleError("createSignedAcmeRequest"):
     $toFlattenedJws(%*acmeHeader, %*payload, key)
+
+proc createPostAsGetRequest(
+    self: ACMEApi, uri: Uri, key: RsaPrivateKey, kid: Kid
+): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
+  ## RFC 8555 section 6.3: a POST-as-GET is a signed POST with a zero-length payload.
+  let acmeHeader = await self.acmeHeader(uri, key, needsJwk = false, Opt.some(kid))
+  handleError("createPostAsGetRequest"):
+    $toFlattenedJws(%*acmeHeader, "", key)
 
 proc requestRegister*(
     self: ACMEApi, key: RsaPrivateKey
@@ -358,14 +400,16 @@ proc requestAuthorizations*(
   handleError("requestAuthorizations"):
     doAssert authorizations.len > 0
 
-    let acmeResponse = await self.get(parseUri(authorizations[0]))
+    let authorizationURL = parseUri(authorizations[0])
+    let payload = await self.createPostAsGetRequest(authorizationURL, key, kid)
+    let acmeResponse = await self.post(authorizationURL, payload)
 
     var challenges: seq[ACMEChallenge]
     for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
       try:
         challenges.add(challenge.to(ACMEChallenge))
       except ValueError, JsonKindError:
-        debug "Could not parse challenge", msg = getCurrentExceptionMsg()
+        trace "Could not parse challenge", err = getCurrentExceptionMsg()
 
     if challenges.len == 0:
       raise newException(ACMEError, "No challenges received")
@@ -396,7 +440,8 @@ proc requestCheck*(
     self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
-    let acmeResponse = await self.get(checkURL)
+    let payload = await self.createPostAsGetRequest(checkURL, key, kid)
+    let acmeResponse = await self.post(checkURL, payload)
     let retryAfter =
       try:
         parseInt(acmeResponse.headers.keyOrError("Retry-After")).seconds
@@ -446,7 +491,7 @@ proc checkChallengeCompleted*(
   for i in 0 .. retries:
     let checkResponse = await self.requestCheck(checkURL, ACMEChallengeCheck, key, kid)
     case checkResponse.chalStatus
-    of ACMEChallengeStatus.PENDING:
+    of ACMEChallengeStatus.PENDING, ACMEChallengeStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     of ACMEChallengeStatus.VALID:
       return true
@@ -500,7 +545,7 @@ proc checkCertFinalized*(
     of ACMEOrderStatus.PROCESSING:
       await sleepAsync(checkResponse.retryAfter) # try again after some delay
     else:
-      error "Failed certificate finalization",
+      trace "Failed certificate finalization",
         description = "expected 'valid', got '" & $checkResponse.orderStatus & "'"
       return false # do not try again
 
@@ -521,22 +566,24 @@ proc certificateFinalized*(
   return await self.checkCertFinalized(order, key, kid, retries = retries)
 
 proc requestGetOrder*(
-    self: ACMEApi, order: Uri
+    self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid
 ): Future[ACMEOrderResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestGetOrder"):
-    let acmeResponse = await self.get(order)
+    let payload = await self.createPostAsGetRequest(order, key, kid)
+    let acmeResponse = await self.post(order, payload)
     acmeResponse.body.to(ACMEOrderResponse)
 
 proc downloadCertificate*(
-    self: ACMEApi, order: Uri
+    self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
-  let orderResponse = await self.requestGetOrder(order)
+  let orderResponse = await self.requestGetOrder(order, key, kid)
+
+  let certificateURL = parseUri(orderResponse.certificate)
+  let payload = await self.createPostAsGetRequest(certificateURL, key, kid)
 
   handleError("downloadCertificate"):
-    let rawResponse = await HttpClientRequestRef
-      .get(self.session, orderResponse.certificate)
-      .get()
-      .send()
+    # not `self.post` as it reads the response as JSON, and a certificate is PEM
+    let rawResponse = await self.sendPost(certificateURL, payload)
     ACMECertificateResponse(
       rawCertificate: bytesToString(await rawResponse.getBodyBytes()),
       certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),

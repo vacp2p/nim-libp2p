@@ -12,6 +12,7 @@ import results
 import extensions, preamblestore
 
 export results, tables, sets
+export RateLimit # downstream code names it through this module
 
 const
   GossipSubCodec_13* = "/meshsub/1.3.0"
@@ -29,6 +30,7 @@ const
 const
   GossipSubHistoryLength* = 5
   GossipSubHistoryGossip* = 3
+  GossipSubSeenMaxSize* = 4_000_000
 
   # heartbeat interval
   GossipSubHeartbeatInterval* = 1.seconds
@@ -126,6 +128,7 @@ type
 
     fanoutTTL*: Duration
     seenTTL*: Duration
+    seenMaxSize*: int
 
     gossipThreshold*: float64
     publishThreshold*: float64
@@ -153,7 +156,7 @@ type
     bandwidthEstimatebps*: int
       # This is currently used only for limting flood publishing. 0 disables flood-limiting completely
 
-    overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
+    overheadRateLimit*: Opt[RateLimit]
     disconnectPeerAboveRateLimit*: bool
 
     # Max number of high-priority sends. When this limit has been reached, the peer will be disconnected.
@@ -207,6 +210,10 @@ type
     heartbeatEvents*: seq[AsyncEvent]
     scoringHeartbeatEvents*: seq[AsyncEvent]
     pendingTasks*: seq[Future[void]]
+    stopFut*: Future[void].Raising([]) # Concurrent stops share cleanup after tasks move.
+    overheadMetricsWindowStart*: Moment
+    rpcOverheadBytesMax*: int
+    peerOverheadBytesPerSecondMax*: int
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

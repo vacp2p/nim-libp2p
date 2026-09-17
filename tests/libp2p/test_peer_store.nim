@@ -15,7 +15,7 @@ import
     routing_record,
     utils/opt,
   ]
-import ../tools/[unittest, crypto]
+import ../tools/[unittest, crypto, multiaddress]
 
 suite "PeerStore":
   # Testvars
@@ -25,15 +25,15 @@ suite "PeerStore":
     peerId1 = PeerId.init(keyPair1.seckey).get()
     multiaddrStr1 =
       "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
-    multiaddr1 = MultiAddress.init(multiaddrStr1).get()
-    storedMultiaddr1 = MultiAddress.init("/ip4/127.0.0.1/udp/1234").get()
+    multiaddr1 = ma(multiaddrStr1)
+    storedMultiaddr1 = ma("/ip4/127.0.0.1/udp/1234")
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
     keyPair2 = KeyPair.random(ECDSA, rng()).get()
     peerId2 = PeerId.init(keyPair2.seckey).get()
     multiaddrStr2 =
       "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
-    multiaddr2 = MultiAddress.init(multiaddrStr2).get()
+    multiaddr2 = ma(multiaddrStr2)
     testcodec2 = "/nim/libp2p/test/0.0.2-beta1"
 
   proc makeSignedPeerRecord(
@@ -221,8 +221,8 @@ suite "AddressBook TTL / confidence":
   let
     peerId1 = PeerId.random(rng()).get()
     peerId2 = PeerId.random(rng()).get()
-    addr1 = MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get()
-    addr2 = MultiAddress.init("/ip4/5.6.7.8/tcp/5678").get()
+    addr1 = ma("/ip4/1.2.3.4/tcp/1234")
+    addr2 = ma("/ip4/5.6.7.8/tcp/5678")
 
   proc makeBook(low, medium, high: Duration): AddressBook =
     let b = AddressBook.new()
@@ -371,7 +371,7 @@ suite "AddressBook TTL / confidence":
   test "set merges preserved entries that normalize to same address":
     let
       book = makeBook(1.hours, 1.hours, 24.hours)
-      fullAddr1 = MultiAddress.init($addr1 & "/p2p/" & $peerId1).get()
+      fullAddr1 = ma($addr1 & "/p2p/" & $peerId1)
       older = Moment.now() - 2.seconds
       newer = Moment.now() - 1.seconds
 
@@ -406,8 +406,8 @@ suite "AddressBook TTL / confidence":
   test "AddressBook strips terminal peer id from direct addresses":
     let
       book = makeBook(1.hours, 1.hours, 24.hours)
-      fullAddr1 = MultiAddress.init($addr1 & "/p2p/" & $peerId1).get()
-      fullAddr2 = MultiAddress.init($addr2 & "/p2p/" & $peerId2).get()
+      fullAddr1 = ma($addr1 & "/p2p/" & $peerId1)
+      fullAddr2 = ma($addr2 & "/p2p/" & $peerId2)
 
     book.set(peerId1, @[fullAddr1, addr1], AddressConfidence.Low)
     check book[peerId1] == @[addr1]
@@ -425,7 +425,7 @@ suite "AddressBook TTL / confidence":
       relayAddr = MultiAddress
         .init("/ip4/1.2.3.4/tcp/1234/p2p/" & $peerId2 & "/p2p-circuit")
         .get()
-      relayAddrWithDst = MultiAddress.init($relayAddr & "/p2p/" & $peerId1).get()
+      relayAddrWithDst = ma($relayAddr & "/p2p/" & $peerId1)
 
     book.set(peerId1, @[relayAddr, relayAddrWithDst], AddressConfidence.Low)
     check book[peerId1] == @[relayAddr]
@@ -560,7 +560,7 @@ suite "AddressBook TTL / confidence":
 suite "AddressBook TTL pruning loop":
   let
     peerId1 = PeerId.random(rng()).get()
-    addr1 = MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get()
+    addr1 = ma("/ip4/1.2.3.4/tcp/1234")
 
   proc makeStore(low, medium, high: Duration): PeerStore =
     PeerStore.new(

@@ -3,10 +3,6 @@
 // list it, read it back, then delete it. Calls are made blocking via common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *Proto = "/cbind/peerstore/1.0.0";
 
 // get_peers replies with a PeersResponse of peer-id strings.
@@ -38,7 +34,8 @@ static void on_peers(int ec, const PeersResponse *reply, const char *em,
 static bool get_peers(LibP2PCtx *ctx, PeersWaiter *w) {
   memset(w, 0, sizeof(*w));
   libp2p_ctx_peerstore_get_peers(ctx, on_peers, w);
-  if (!wait_done(&w->done) || w->err_code != 0) {
+  wait_done(&w->done);
+  if (w->err_code != 0) {
     fprintf(stderr, "get_peers: %s\n", w->err[0] ? w->err : "unknown");
     return false;
   }
@@ -79,8 +76,8 @@ static LibP2PCtx *createNode(const char *addr, const char *label) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &slot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   return await_create(&cfg, label);
 }
 
@@ -126,7 +123,8 @@ int main(void) {
   memset(&entry, 0, sizeof(entry));
   libp2p_ctx_peerstore_get_peer_info(local, nimffi_str(oi.peerId), on_entry,
                                      &entry);
-  if (!wait_done(&entry.done) || entry.err_code != 0) {
+  wait_done(&entry.done);
+  if (entry.err_code != 0) {
     fprintf(stderr, "get_peer_info: %s\n",
             entry.err[0] ? entry.err : "unknown");
     goto cleanup;

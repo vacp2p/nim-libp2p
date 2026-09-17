@@ -9,12 +9,18 @@ import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
 import utils/future
 
 logScope:
-  topics = "libp2p connmanager"
+  topics = "libp2p connection-manager"
 
 declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles")
 declareCounter(
   libp2p_connmgr_pruned_peers_total, "total peers pruned by connection manager"
+)
+declarePublicCounter(
+  libp2p_connections_opened, "connections opened", labels = ["direction"]
+)
+declarePublicCounter(
+  libp2p_connections_closed, "connections closed", labels = ["direction"]
 )
 
 const
@@ -98,7 +104,7 @@ type
   .}
 
   ConnManager* = ref object of RootObj
-    closed: bool
+    running: bool
     muxerStore: MuxerStore
     maxConnsPerPeer: int
     maxConnectionsIn: int
@@ -165,7 +171,7 @@ proc new*(
     watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
     scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
-  ## Creates a `ConnManager`.
+  ## Creates a usable `ConnManager`; no explicit `start` is needed until after `stop`.
   ##
   ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
   ##
@@ -203,6 +209,7 @@ proc new*(
     maxOutArg = ConnectionsUnlimited
 
   T(
+    running: true,
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
       if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
@@ -213,6 +220,9 @@ proc new*(
     watermark: watermark,
     scoring: scoring,
   )
+
+proc isRunning*(c: ConnManager): bool =
+  c.running
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxerStore.count(peerId)
@@ -251,8 +261,8 @@ proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Wait until `storeMuxer` has emitted the `Connected` conn event for `peerId`.
-  ## Existing ready peers bypass waiting.
-  if c.closed:
+  ## Existing ready peers bypass waiting. Returns false while stopped.
+  if not c.running:
     return false
 
   if peerId in c.readyPeers:
@@ -282,6 +292,9 @@ proc maxConnections*(c: ConnManager, dir: Direction): int =
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
   c.muxerStore.getPeers(dir)
 
+proc connectedPeers*(c: ConnManager): seq[PeerId] =
+  c.muxerStore.getPeers()
+
 proc getConnections*(c: ConnManager): Table[PeerId, seq[Muxer]] =
   return c.muxerStore.getAll()
 
@@ -301,20 +314,41 @@ proc removeConnEventHandler*(
 proc triggerConnEvent*(
     c: ConnManager, peerId: PeerId, event: ConnEvent
 ) {.async: (raises: [CancelledError]).} =
-  try:
-    trace "About to trigger connection events", peer = peerId
-    if c.connEvents[event.kind].len > 0:
-      trace "triggering connection events", peer = peerId, event = $event.kind
-      var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
-      for h in c.connEvents[event.kind]:
-        connEvents.add(h(peerId, event))
+  if c.connEvents[event.kind].len == 0:
+    return
 
-      checkFutures(await allFinished(connEvents))
+  trace "Connection event callbacks started", peerId, event = $event.kind
+
+  var connEvents = newSeqOfCap[Future[void]](c.connEvents[event.kind].len)
+  var outcome = "completed"
+  try:
+    for h in c.connEvents[event.kind]:
+      connEvents.add(h(peerId, event))
+
+    checkFutures(await allFinished(connEvents))
   except CancelledError as exc:
+    outcome = "cancelled"
     raise exc
   except CatchableError as exc:
-    warn "Exception in triggerConnEvent",
-      description = exc.msg, peer = peerId, event = $event
+    outcome = "failed"
+    trace "Connection event callback failed",
+      err = exc.msg, errType = exc.name, peerId, event = $event.kind
+  finally:
+    let results = countFutureOutcomes(connEvents)
+    for fut in connEvents:
+      if fut.failed():
+        trace "Connection event callback failed",
+          peerId, event = $event.kind, err = fut.error().msg
+
+    debug "Connection event callbacks finished",
+      peerId,
+      event = $event.kind,
+      outcome,
+      handlers = connEvents.len,
+      succeeded = results.succeeded,
+      failed = results.failed,
+      cancelled = results.cancelled,
+      pending = results.pending
 
 proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
@@ -332,22 +366,40 @@ proc removePeerEventHandler*(
 proc triggerPeerEvents*(
     c: ConnManager, peerId: PeerId, event: PeerEvent
 ) {.async: (raises: [CancelledError]).} =
-  trace "About to trigger peer events", peer = peerId
   if c.peerEvents[event.kind].len == 0:
     return
 
+  var peerEvents = newSeqOfCap[Future[void]](c.peerEvents[event.kind].len)
+  var outcome = "completed"
   try:
-    trace "triggering peer events", peer = peerId, event = $event
+    trace "Peer event callbacks started", peerId, event = $event.kind
 
-    var peerEvents: seq[Future[void]]
     for h in c.peerEvents[event.kind]:
       peerEvents.add(h(peerId, event))
 
     checkFutures(await allFinished(peerEvents))
   except CancelledError as exc:
+    outcome = "cancelled"
     raise exc
   except CatchableError as exc: # handlers should not raise!
-    warn "Exception in triggerPeerEvents", description = exc.msg, peer = peerId
+    outcome = "failed"
+    trace "Peer event callback failed", err = exc.msg, errType = exc.name, peerId
+  finally:
+    let results = countFutureOutcomes(peerEvents)
+    for fut in peerEvents:
+      if fut.failed():
+        trace "Peer event callback failed",
+          peerId, event = $event.kind, err = fut.error().msg
+
+    debug "Peer event callbacks finished",
+      peerId,
+      event = $event.kind,
+      outcome,
+      handlers = peerEvents.len,
+      succeeded = results.succeeded,
+      failed = results.failed,
+      cancelled = results.cancelled,
+      pending = results.pending
 
 proc expectConnection*(
     c: ConnManager, p: PeerId, dir: Direction
@@ -377,15 +429,15 @@ proc contains*(c: ConnManager, muxer: Muxer): bool =
   return c.muxerStore.contains(muxer)
 
 proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
-  trace "Cleaning up muxer", m = muxer
+  trace "Muxer cleanup started", muxer
 
   await muxer.close()
   if not muxer.handler.isNil:
     try:
       await muxer.handler
     except CatchableError as exc:
-      trace "Exception in close muxer handler", description = exc.msg
-  trace "Cleaned up muxer", m = muxer
+      trace "Muxer close callback failed", err = exc.msg, muxer
+  trace "Muxer cleanup completed", muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
   if c.muxerStore.count(peerId) > 0:
@@ -408,13 +460,14 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
   ##
   try:
     await mux.connection.join()
-    trace "Connection closed, cleaning up", mux
+    trace "Closed connection cleanup started", muxer = mux
   except CatchableError as exc:
-    debug "Unexpected exception in connection manager's cleanup",
-      description = exc.msg, mux
+    trace "Closed connection cleanup failed", err = exc.msg, muxer = mux
   finally:
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
+    if removed:
+      libp2p_connections_closed.inc(labelValues = [metricLabel(mux.connection.dir)])
     if removed and c.muxerStore.count(peerId) == 0:
       await c.onPeerDisconnected(peerId)
     await noCancel c.triggerConnEvent(
@@ -431,10 +484,10 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
   if mux.isNil:
     mux = c.selectMuxer(peerId, Direction.In)
   if mux.isNil:
-    trace "connection not found", peerId
+    trace "Connection not found", peerId
   return mux
 
-proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].}
+proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].}
 
 proc triggerTrimAfter(
     c: ConnManager, fut: Future[void].Raising([CancelledError])
@@ -444,8 +497,7 @@ proc triggerTrimAfter(
       await fut
   except CancelledError:
     return
-  if c.watermark.isSome and c.muxerStore.countPeers() > c.watermark.get().highWater:
-    c.triggerTrim()
+  c.triggerTrim()
 
 proc storeMuxer*(
     c: ConnManager, muxer: Muxer
@@ -473,13 +525,14 @@ proc storeMuxer*(
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      trace "Per peer connections limit reached", conns = peerConnsCount, peerId
       raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):
     raise newException(LPError, "muxer already stored")
 
   libp2p_peers.set(c.muxerStore.countPeers().int64)
+  libp2p_connections_opened.inc(labelValues = [metricLabel(dir)])
 
   if isNewPeer and not c.peerStore.isNil:
     c.peerStore.markPeerConnected(peerId)
@@ -523,6 +576,11 @@ proc getIncomingSlot*(
     await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
+proc tryGetIncomingSlot*(c: ConnManager): Opt[ConnectionSlot] =
+  if c.inSema != nil and not c.inSema.tryAcquire():
+    return Opt.none(ConnectionSlot)
+  Opt.some(ConnectionSlot(connManager: c, direction: In))
+
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
@@ -562,7 +620,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     try:
       await conn.join()
     except CatchableError as exc:
-      trace "Exception in semaphore monitor, ignoring", description = exc.msg
+      trace "Connection limit monitor failed", err = exc.msg
     finally:
       cs.release()
 
@@ -683,6 +741,14 @@ proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
     c.applyDecay()
   c.decayLoopFut = nil
 
+proc start*(c: ConnManager) =
+  ## Resume readiness waits and tag decay after a completed stop.
+  if c.running:
+    warn "ConnManager is already running"
+    return
+  c.running = true
+  c.decayLoopFut = c.runDecayLoop()
+
 proc tagPeerDecaying*(
     c: ConnManager,
     peerId: PeerId,
@@ -692,7 +758,7 @@ proc tagPeerDecaying*(
     decayFn: DecayFn,
 ) =
   ## Attach an ephemeral tag to `peerId` with an initial `value`.
-  ## A single decay loop runs every `decayResolution`.
+  ## A single decay loop runs every `decayResolution` unless the manager has been stopped.
   ## On each run it applies `decayFn` to every tag whose `interval` has elapsed.
   ## A tag therefore decays at most once per `decayResolution`, even with a shorter `interval`.
   ## When the value drops to ≤0 the tag is removed automatically.
@@ -702,7 +768,7 @@ proc tagPeerDecaying*(
   let now = Moment.now()
   c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
     DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
-  if c.decayLoopFut.isNil or c.decayLoopFut.finished:
+  if c.running and (c.decayLoopFut.isNil or c.decayLoopFut.finished):
     c.decayLoopFut = c.runDecayLoop()
 
 proc bumpDecayingTag*(c: ConnManager, peerId: PeerId, tag: string, delta: int) =
@@ -756,18 +822,20 @@ proc trimConnections(c: ConnManager) {.async: (raises: []).} =
   try:
     await allFutures(dropFuts)
   except CancelledError:
-    trace "watermark trim connection was cancelled"
+    trace "Watermark trim connection was cancelled"
 
   c.lastTrim = Opt.some(Moment.now())
 
-proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
+proc triggerTrim*(c: ConnManager) {.gcsafe, raises: [].} =
   ## Schedules a trim cycle if none is running and the silence period has elapsed.
   if not c.trimFut.isNil and not c.trimFut.finished:
     # trim is ongoing
     return
 
-  c.watermark.withValue(wm):
-    c.lastTrim.withValue(lastTrim):
+  c.watermark.ifValue(wm):
+    if c.muxerStore.countPeers() <= wm.highWater:
+      return
+    c.lastTrim.ifValue(lastTrim):
       if Moment.now() - lastTrim < wm.silencePeriod:
         return
     c.trimFut = c.trimConnections()
@@ -778,10 +846,10 @@ proc drainOnCloseTasks(c: ConnManager) {.async: (raises: []).} =
   await noCancel allFutures(c.onCloseFuts)
   c.onCloseFuts = @[]
 
-proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  ## Cleanup resources for the connection manager.
-  trace "Closing ConnManager"
-  c.closed = true
+proc stop*(c: ConnManager) {.async: (raises: [CancelledError]).} =
+  ## Stop background tasks and close all connections. Retain peer tags for restart.
+  trace "Stopping ConnManager"
+  c.running = false
 
   if not c.decayLoopFut.isNil:
     await c.decayLoopFut.cancelAndWait()
@@ -814,4 +882,4 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   await c.drainOnCloseTasks()
 
-  trace "Closed ConnManager"
+  trace "Stopped ConnManager"

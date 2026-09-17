@@ -4,10 +4,6 @@
 // blocking helpers in common.h.
 #include "common.h"
 
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
-
 static const char *Topic = "/cbind/demo";
 
 static atomic_int g_got = 0;
@@ -47,12 +43,19 @@ static LibP2PCtx *gossipsubNode(const char *listenAddr, const char *label) {
   NimFfiStr addrSlot = nimffi_str(listenAddr);
   Libp2pConfig cfg;
   memset(&cfg, 0, sizeof(cfg));
-  cfg.mountGossipsub = true;
-  cfg.gossipsubTriggerSelf = true;
+  cfg.gossipsub.mount = true;
+  cfg.gossipsub.triggerSelf = true;
+  // Bound the inbound side: one message is at most 1 MiB, and a peer gets
+  // 64 KiB of protocol overhead per second. The budget only counts overhead
+  // until disconnectPeerAboveRateLimit enforces it, which this demo leaves off
+  // so a slow CI runner cannot drop its own peer.
+  cfg.gossipsub.maxMessageSize = 1024 * 1024;
+  cfg.gossipsub.overheadRateLimit.bytes = 64 * 1024;
+  cfg.gossipsub.overheadRateLimit.intervalMs = 1000;
   cfg.addrs.data = &addrSlot;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
   return await_create(&cfg, label);
 }
 
@@ -106,18 +109,16 @@ int main(void) {
   PublishWaiter pubw;
   memset(&pubw, 0, sizeof(pubw));
   libp2p_ctx_gossipsub_publish(publisher, &pubReq, on_publish, &pubw);
-  if (!wait_done(&pubw.done) || pubw.err_code != 0) {
+  wait_done(&pubw.done);
+  if (pubw.err_code != 0) {
     fprintf(stderr, "publish: %s\n", pubw.err[0] ? pubw.err : "unknown");
     goto cleanup;
   }
   printf("Published to %lld peer(s)\n", (long long)pubw.peerCount);
 
-  if (wait_done(&g_got)) {
-    printf("Subscriber received: %s\n", g_received);
-    status = strcmp(g_received, message) == 0 ? 0 : 1;
-  } else {
-    fprintf(stderr, "Error: timed out waiting for the message\n");
-  }
+  wait_done(&g_got);
+  printf("Subscriber received: %s\n", g_received);
+  status = strcmp(g_received, message) == 0 ? 0 : 1;
 
 cleanup:
   AWAIT_BOOL(bw, libp2p_ctx_stop(publisher, on_bool, &bw), "stop publisher");

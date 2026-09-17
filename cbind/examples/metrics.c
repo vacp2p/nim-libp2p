@@ -1,12 +1,8 @@
 // Metrics: a running node dumps the process-wide Prometheus registry as JSON
-// via libp2p_ctx_collect_metrics. The registry is global, so one started node
-// is enough to populate it. Calls are made blocking with the helpers in
+// via libp2p_static_collect_metrics. The registry is global, so one started
+// node is enough to populate it. Calls are made blocking with the helpers in
 // common.h.
 #include "common.h"
-
-// TransportType / MuxerType ordinals, mirrored from libp2p/config.nim.
-static const int64_t TransportTcp = 1;
-static const int64_t MuxerMplex = 0;
 
 // collect_metrics replies with a JSON string (Result[string]).
 typedef struct {
@@ -38,8 +34,8 @@ int main(void) {
   memset(&cfg, 0, sizeof(cfg));
   cfg.addrs.data = &addr;
   cfg.addrs.len = 1;
-  cfg.muxer = MuxerMplex;
-  cfg.transport = TransportTcp;
+  cfg.muxer = MUXER_TYPE_MPLEX;
+  cfg.transport = TRANSPORT_TYPE_TCP;
 
   LibP2PCtx *node = await_create(&cfg, "node");
   if (!node)
@@ -52,8 +48,9 @@ int main(void) {
 
   MetricsWaiter mw;
   memset(&mw, 0, sizeof(mw));
-  libp2p_ctx_collect_metrics(node, on_metrics, &mw);
-  if (!wait_done(&mw.done) || mw.err_code != 0) {
+  libp2p_static_collect_metrics(on_metrics, &mw);
+  wait_done(&mw.done);
+  if (mw.err_code != 0) {
     fprintf(stderr, "collect_metrics: %s\n", mw.err[0] ? mw.err : "unknown");
     goto cleanup;
   }

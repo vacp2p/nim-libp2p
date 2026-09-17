@@ -56,6 +56,10 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
       v = step(v, goRight, create = true)
       v.counter += 1
 
+proc insertIps*(ipTree: IpTree, ips: seq[IpAddress]) {.raises: [].} =
+  for ip in ips:
+    ipTree.insertIp(ip)
+
 proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Removes an IP address from the IP tree by decrementing counters along
   ## its binary-representation path, from the root through the leaf.
@@ -103,6 +107,14 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
     else:
       parent.right = nil
 
+proc removeIps*(ipTree: IpTree, ips: seq[IpAddress]) {.raises: [].} =
+  for ip in ips:
+    ipTree.removeIp(ip)
+
+proc ipsLen*(ipTree: IpTree): int {.raises: [].} =
+  ## Total IP multi-set size (IPv4 + IPv6 root counters).
+  ipTree.root.counter + ipTree.root6.counter
+
 proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   ## Returns an IP similarity score in [0.0, 1.0] for the given IP address.
   ## Supports both IPv4 (32-level tree) and IPv6 (128-level tree).
@@ -137,3 +149,16 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
       threshold *= 0.5
 
   (float64(score) / float64(nBits))
+
+proc ipsMaxScore*(ipTree: IpTree, ips: seq[IpAddress]): float64 {.raises: [].} =
+  ## Max IP similarity score across the given addresses.
+  if ips.len < 1:
+    return 1.0
+
+  var maxScore = 0.0
+  for ip in ips:
+    let score = ipTree.ipScore(ip)
+    if score > maxScore:
+      maxScore = score
+
+  return maxScore

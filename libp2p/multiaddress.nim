@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import pkg/[chronos, chronicles, results, protobuf_serialization]
-import std/[nativesockets, net, hashes]
+import std/[nativesockets, net, hashes, unicode]
 import tables, strutils, sets
 import
   multicodec,
@@ -341,6 +341,23 @@ proc dnsVB(vb: var VBuffer): bool =
   ## DNS name validateBuffer() implementation.
   pathValidateBufferNoSlash(vb)
 
+proc sniValid(s: string): bool =
+  s.len > 0 and s.find('/') == -1 and validateUtf8(s) == -1
+
+proc sniStB(s: string, vb: var VBuffer): bool =
+  if not sniValid(s):
+    return false
+  vb.writeSeq(s)
+  true
+
+proc sniBtS(vb: var VBuffer, s: var string): bool =
+  s = ""
+  vb.readSeq(s) > 0 and sniValid(s)
+
+proc sniVB(vb: var VBuffer): bool =
+  var s = ""
+  vb.readSeq(s) > 0 and sniValid(s)
+
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
   MaPattern(operator: Eq, value: multiCodec(codec))
@@ -375,6 +392,8 @@ const
   )
   TranscoderDNS* =
     Transcoder(stringToBuffer: dnsStB, bufferToString: dnsBtS, validateBuffer: dnsVB)
+  TranscoderSNI* =
+    Transcoder(stringToBuffer: sniStB, bufferToString: sniBtS, validateBuffer: sniVB)
   TranscoderMemory* = Transcoder(
     stringToBuffer: memoryStB, bufferToString: memoryBtS, validateBuffer: memoryVB
   )
@@ -404,6 +423,7 @@ const
     MAProtocol(mcodec: multiCodec("ws"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("wss"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("tls"), kind: Marker, size: 0),
+    MAProtocol(mcodec: multiCodec("sni"), kind: Length, size: 0, coder: TranscoderSNI),
     MAProtocol(mcodec: multiCodec("ipfs"), kind: Length, size: 0, coder: TranscoderP2P),
     MAProtocol(mcodec: multiCodec("p2p"), kind: Length, size: 0, coder: TranscoderP2P),
     MAProtocol(mcodec: multiCodec("unix"), kind: Path, size: 0, coder: TranscoderUnix),
@@ -455,7 +475,10 @@ const
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))
   WS* = mapAnd(TCP, mapEq("ws"))
-  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapEq("tls"), mapEq("ws")))
+  TLS* = mapEq("tls")
+  SNI* = mapEq("sni")
+  TLS_SNI* = mapAnd(TLS, SNI)
+  TLS_WS* = mapOr(mapEq("wss"), mapAnd(mapOr(TLS, TLS_SNI), mapEq("ws")))
   WSS_DNS* = mapAnd(TCP_DNS, TLS_WS)
   WSS_IP* = mapAnd(TCP_IP, TLS_WS)
   WSS* = mapAnd(TCP, TLS_WS)
@@ -834,6 +857,13 @@ proc init*(
       if len(value) == 0:
         err("multiaddress: Value must not be empty array")
       else:
+        if protocol == multiCodec("sni"):
+          var validation = initVBuffer(len(value) + 10)
+          validation.writeSeq(value)
+          validation.finish()
+          if not proto.coder.validateBuffer(validation):
+            return err("multiaddress: Invalid sni protocol value")
+
         res.data.writeSeq(value)
         res.data.finish()
         ok(res)
@@ -1138,6 +1168,14 @@ proc matchPartial*(pat: MaPattern, address: MultiAddress): bool =
   let res = matchPart(pat, protos)
   res.flag
 
+proc hasIp*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` starts with an IP4 or IP6 component.
+  IP.matchPartial(ma)
+
+proc hasTransport*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` carries a transport, as in ``/ip4/1.2.3.4/tcp/1``.
+  Reliable.matchPartial(ma) or Unreliable.matchPartial(ma)
+
 proc `$`*(pat: MaPattern): string =
   ## Return pattern ``pat`` as string.
   var sub = newSeq[string]()
@@ -1187,7 +1225,7 @@ proc getRepeatedField*(
   else:
     for item in items:
       let ma = MultiAddress.init(item).valueOr:
-        debug "Unsupported MultiAddress in blob", ma = item
+        debug "Unsupported MultiAddress in blob", address = item
         continue
 
       value.add(ma)
@@ -1284,6 +1322,15 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
 
+proc getIPs*(addrs: seq[MultiAddress]): seq[IpAddress] =
+  ## Extract IP addresses from a list of multiaddresses.
+  ## Multiaddresses without an IP4/IP6 component are skipped.
+  var ips = newSeqOfCap[IpAddress](addrs.len)
+  for ma in addrs:
+    ma.getIp().ifValue(ip):
+      ips.add(ip)
+  ips
+
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
   ## ``ip``. If ``ip``'s family differs from the original, the IP codec is
@@ -1318,18 +1365,16 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
 
 const AvgMultiAddressStringLength = 32
 
-func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
-  let limit = min(addrs.len, maxAddrs)
-  var res = newStringOfCap(limit * AvgMultiAddressStringLength)
-  for i in 0 ..< limit:
-    if i > 0:
-      res.add(',')
-    res.add($addrs[i])
-  if addrs.len > maxAddrs:
-    res.add(",...(+")
-    res.add($(addrs.len - maxAddrs))
-    res.add(" more)")
-  return res
+func shortLog*(addrs: seq[MultiAddress]): string =
+  ## Keeps this bounded formatter visible to Chronicles and the log-field audit;
+  ## rendering itself is delegated to the generic collection formatter.
+  shortLog[MultiAddress](addrs, averageItemLength = AvgMultiAddressStringLength)
+
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
+
+chronicles.formatIt(seq[MultiAddress]):
+  shortLog(it)
 
 ## protobuf_serialization extension
 

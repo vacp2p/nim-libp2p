@@ -24,7 +24,7 @@ export connection
 export transport
 
 logScope:
-  topics = "libp2p quictransport"
+  topics = "libp2p quic"
 
 const QuicHolePunchPacketSize* = 64
 
@@ -43,6 +43,8 @@ type
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
     streams: HashSet[QuicStream]
+    inTimeout: Duration
+    outTimeout: Duration
     when defined(libp2p_agents_metrics):
       tracked: bool
 
@@ -58,6 +60,7 @@ proc new(
     stream: LsquicStream,
     dir: Direction,
     session: QuicSession,
+    timeout: Duration,
     oaddr: Opt[MultiAddress],
     laddr: Opt[MultiAddress],
     peerId: PeerId,
@@ -65,13 +68,16 @@ proc new(
   let quicstream = QuicStream(
     session: session,
     stream: stream,
-    timeout: 0.millis, # QUIC handles idle timeout at the transport layer
+    timeout: timeout,
     observedAddr: oaddr,
     localAddr: laddr,
     peerId: peerId,
   )
   quicstream.objName = "QuicStream"
   quicstream.dir = dir
+  quicstream.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
+    trace "Idle timeout expired, resetting QuicStream"
+    quicstream.reset()
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
@@ -126,6 +132,7 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytesLen.int64, labelValues = ["out"])
+    stream.activity = true
     when defined(libp2p_agents_metrics):
       stream.session.trackPeerIdentity()
       if stream.session.tracked:
@@ -188,8 +195,10 @@ proc getStream(
   of Direction.Out:
     stream = await session.connection.openStream()
 
+  let timeout = if direction == Direction.In: session.inTimeout else: session.outTimeout
   let qs = QuicStream.new(
-    stream, direction, session, session.observedAddr, session.localAddr, session.peerId
+    stream, direction, session, timeout, session.observedAddr, session.localAddr,
+    session.peerId,
   )
   when defined(libp2p_agents_metrics):
     qs.shortAgent = session.shortAgent
@@ -252,7 +261,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     ## call the muxer stream handler for this channel
     ##
     await m.streamHandler(stream)
-    trace "finished handling stream"
+    trace "Finished handling stream"
     doAssert(stream.closed, "connection not closed by handler!")
 
   while not (m.session.atEof or m.session.closed):
@@ -266,7 +275,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     except ConnectionError as e:
       # keep handling, until connection is closed. 
       # this stream failed but we need to keep handling for other streams.
-      trace "QuicMuxer.handler got error while opening stream", msg = e.msg
+      trace "QuicMuxer.handler got error while opening stream", err = e.msg
 
   if not m.session.isClosed:
     await m.session.close()
@@ -307,18 +316,23 @@ type QuicTransport* = ref object of Transport
   rng: Rng
   certGenerator: CertGenerator
   closeFuts: seq[Future[void]]
+  inTimeout: Duration
+  outTimeout: Duration
+
+type PeerIdCertificateVerifier = ref object of CertificateVerifier
+  expectedPeerId: PeerId
 
 proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
   if certificatesDer.len != 1:
-    trace "CertificateVerifier: expected one certificate in the chain",
-      cert_count = certificatesDer.len
+    trace "QUIC certificate chain rejected",
+      certificateCount = certificatesDer.len, reason = "expected one certificate"
     return Opt.none(P2pCertificate)
 
   let cert =
     try:
       parse(certificatesDer[0])
     except CertificateParsingError as e:
-      trace "CertificateVerifier: failed to parse certificate", msg = e.msg
+      trace "QUIC certificate parsing failed", err = e.msg
       return Opt.none(P2pCertificate)
 
   Opt.some(cert)
@@ -328,7 +342,7 @@ proc verifyCertificates(certificatesDer: seq[seq[byte]]): bool =
     return false
 
   if cert.verifiedIdentityKey().isNone:
-    trace "CertificateVerifier: certificate verification failed"
+    trace "QUIC certificate verification failed"
     return false
   true
 
@@ -339,10 +353,14 @@ proc verifyCertificatesForPeer(
     return false
 
   if not cert.verify(expectedPeerId):
-    trace "CertificateVerifier: certificate did not match expected peer id",
-      expectedPeerId = expectedPeerId
+    trace "QUIC certificate peer identity rejected", expectedPeerId = expectedPeerId
     return false
   true
+
+method verify(
+    self: PeerIdCertificateVerifier, _: string, certificatesDer: seq[seq[byte]]
+): bool =
+  verifyCertificatesForPeer(certificatesDer, self.expectedPeerId)
 
 proc certificateVerifier(_: string, certificatesDer: seq[seq[byte]]): bool {.gcsafe.} =
   verifyCertificates(certificatesDer)
@@ -358,6 +376,8 @@ proc new*(
     privateKey: PrivateKey,
     rng: Rng,
     connManager: ConnManager = nil,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): QuicTransport =
   doAssert not rng.isNil, "Rng is nil"
 
@@ -366,6 +386,8 @@ proc new*(
     privateKey: privateKey,
     rng: rng,
     certGenerator: defaultCertGenerator,
+    inTimeout: inTimeout,
+    outTimeout: outTimeout,
   )
   procCall Transport(self).initialize()
   self
@@ -377,6 +399,8 @@ proc new*(
     rng: Rng,
     certGenerator: CertGenerator,
     connManager: ConnManager = nil,
+    inTimeout: Duration = DefaultChanTimeout,
+    outTimeout: Duration = DefaultChanTimeout,
 ): QuicTransport =
   doAssert not rng.isNil, "Rng is nil"
 
@@ -385,6 +409,8 @@ proc new*(
     privateKey: privateKey,
     rng: rng,
     certGenerator: certGenerator,
+    inTimeout: inTimeout,
+    outTimeout: outTimeout,
   )
   procCall Transport(self).initialize()
   self
@@ -417,8 +443,7 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listeners.len == 0, "start() already called"
 
-  let addrsTa = self.toTransportAddress(addrs).valueOr:
-    raise newException(TransportStartError, $error)
+  let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   var listenMAs: seq[MultiAddress]
   var initialized = false
@@ -461,9 +486,9 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   transport.closeFuts = @[]
 
   var endpointStops: seq[Future[void]]
-  transport.dialEndpoint4.withValue(endpoint):
+  transport.dialEndpoint4.ifValue(endpoint):
     endpointStops.add(endpoint.stop())
-  transport.dialEndpoint6.withValue(endpoint):
+  transport.dialEndpoint6.ifValue(endpoint):
     endpointStops.add(endpoint.stop())
   await noCancel allFutures(endpointStops)
 
@@ -491,6 +516,8 @@ proc wrapConnection(
     connection: connection,
     observedAddr: Opt.some(observedAddr),
     localAddr: Opt.some(localAddr),
+    inTimeout: transport.inTimeout,
+    outTimeout: transport.outTimeout,
   )
   session.initStream()
 
@@ -543,13 +570,13 @@ method accept*(
     let conn = await finished
     return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
-    debug "Quic Error", description = exc.msg
+    debug "QUIC connection acceptance failed", err = exc.msg
     raise (ref QuicTransportError)(msg: "QUIC accept failed: " & exc.msg, parent: exc)
   except common.TransportError as exc:
-    debug "Transport Error", description = exc.msg
+    debug "QUIC transport stopped during acceptance", err = exc.msg
     raise newTransportClosedError(exc)
   except TransportOsError as exc:
-    debug "OS Error", description = exc.msg
+    debug "QUIC socket acceptance failed", err = exc.msg
     raise
       (ref QuicTransportError)(msg: "QUIC OS accept failed: " & exc.msg, parent: exc)
 
@@ -571,11 +598,13 @@ proc dialOnlyEndpointFor(
   case family
   of AddressFamily.IPv4:
     if self.dialEndpoint4.isNone():
-      self.dialEndpoint4 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+      let endpoint = QuicEndpoint.new(self.makeConfig(), family)
+      self.dialEndpoint4 = Opt.some(endpoint)
     self.dialEndpoint4.get()
   of AddressFamily.IPv6:
     if self.dialEndpoint6.isNone():
-      self.dialEndpoint6 = Opt.some(QuicEndpoint.new(self.makeConfig(), family))
+      let endpoint = QuicEndpoint.new(self.makeConfig(), family)
+      self.dialEndpoint6 = Opt.some(endpoint)
     self.dialEndpoint6.get()
   else:
     raise newException(QuicError, "client supports only IPv4/IPv6 address")
@@ -623,14 +652,13 @@ method dial*(
         await sleepAsync(delay.milliseconds)
 
     let endpoint = self.dialEndpointFor(taAddress)
-    let quicConnection = await endpoint.dial(taAddress)
-    peerId.withValue(expectedPeerId):
-      if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
-        quicConnection.abort()
-        raise newException(
-          QuicTransportDialError,
-          "error in quic dial: certificate does not match expected peer id",
+    let quicConnection =
+      if peerId.isSome():
+        await endpoint.dial(
+          taAddress, PeerIdCertificateVerifier(expectedPeerId: peerId.get())
         )
+      else:
+        await endpoint.dial(taAddress)
     return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(
@@ -654,10 +682,10 @@ method upgrade*(
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   let muxer = QuicMuxer.new(conn, peerId)
   muxer.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
-    trace "Starting stream handler"
+    trace "QUIC stream handler started", stream
     try:
       let quicUpgrader = QuicUpgrade(self.upgrader)
-      quicUpgrader.connManager.withValue(connManager):
+      quicUpgrader.connManager.ifValue(connManager):
         let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
           debug "Timed out waiting for peer ready before handling stream", stream
@@ -666,9 +694,9 @@ method upgrade*(
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", stream, msg = exc.msg
+      trace "QUIC stream handler failed", err = exc.msg, stream
     finally:
       await stream.closeWithEOF()
-      trace "Stream handler done", stream
+      trace "QUIC stream handler completed", stream
   muxer.handleFut = muxer.handle()
   return muxer

@@ -5,7 +5,7 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
-import protobuf_serialization
+import protobuf_serialization, chronicles
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -69,7 +69,7 @@ import ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utils/[opt, shortlog, collections]
+import ../utils/[opt, shortlog, collections, redact]
 import rng
 import results
 export results, opt, shortlog, collections
@@ -691,8 +691,8 @@ proc `==`*(key1, key2: PrivateKey): bool =
   else:
     false
 
-proc `$`*(key: PrivateKey | PublicKey): string =
-  ## Get string representation of private/public key ``key``.
+proc `$`*(key: PublicKey): string =
+  ## Get string representation of public key ``key``.
   case key.scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
@@ -715,8 +715,8 @@ proc `$`*(key: PrivateKey | PublicKey): string =
     else:
       "unsupported secp256k1 key"
 
-func shortLog*(key: PrivateKey | PublicKey): string =
-  ## Get short string representation of private/public key ``key``.
+func shortLog*(key: PublicKey): string =
+  ## Get short string representation of public key ``key``.
   case key.scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
@@ -738,6 +738,10 @@ func shortLog*(key: PrivateKey | PublicKey): string =
       "secp256k1 key (" & ($key.skkey).shortLog & ")"
     else:
       "unsupported secp256k1 key"
+
+redactType(PrivateKey)
+redactType(KeyPair)
+redactType(Secret)
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.

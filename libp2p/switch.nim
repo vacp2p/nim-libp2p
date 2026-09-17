@@ -27,10 +27,12 @@ import
   errors,
   results,
   dialer,
+  address_manager,
+  observedaddrmanager,
   utils/future,
   crypto/rng
 
-export connmanager, upgrade, dialer, peerstore
+export connmanager, upgrade, dialer, peerstore, address_manager, observedaddrmanager
 
 logScope:
   topics = "libp2p switch"
@@ -41,8 +43,14 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-const ConcurrentUpgrades* = 32
-const UpgradeTimeout* = 30.seconds
+const
+  ConcurrentUpgrades* = 32
+  MaxRejectedConnectionCloses = ConcurrentUpgrades
+  UpgradeTimeout* = 30.seconds
+  AcceptRetryDelay* = 100.millis
+
+# a Switch built field by field, as TorSwitch and SwitchStub do, must copy it
+const MissingAddressManager = "switch has no AddressManager"
 
 type
   Switch* = ref object of Dial
@@ -53,10 +61,13 @@ type
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
     upgradeFuts: seq[Future[void]]
+    rejectedConnCloseFuts: seq[Future[void]]
     dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
+    addressManager*: AddressManager
     started: bool
+    stopping: bool
     services*: seq[Service]
     rng*: Rng
 
@@ -86,6 +97,11 @@ method stop*(
     self: Service, switch: Switch
 ) {.base, async: (raises: [CancelledError]).} =
   raiseAssert "[Service.stop] abstract method not implemented!"
+
+proc observedAddrManager*(
+    s: Switch
+): AddressManager {.deprecated: "use switch.addressManager".} =
+  s.addressManager
 
 proc addConnEventHandler*(s: Switch, handler: ConnEventHandler, kind: ConnEventKind) =
   ## Adds a ConnEventHandler, which will be triggered when
@@ -118,6 +134,10 @@ method addTransport*(s: Switch, t: Transport) =
 
 proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
   s.connManager.connectedPeers(dir)
+
+proc connectedPeers*(s: Switch): seq[PeerId] =
+  ## Peers with at least one connection, in either direction.
+  s.connManager.connectedPeers()
 
 proc isConnected*(s: Switch, peerId: PeerId): bool =
   ## returns true if the peer has one or more
@@ -245,15 +265,15 @@ proc upgradeMonitor(
     await upgrades.acquire().wait(deadlineFut)
     semAcquired = true
     await switch.upgrader(trans, conn).wait(deadlineFut)
-    trace "Connection upgrade succeeded"
+    trace "Incoming connection upgrade completed", conn
     upgradeSuccessful = true
   except CancelledError:
-    trace "Connection upgrade cancelled", conn
+    trace "Incoming connection upgrade canceled", conn
   except AsyncTimeoutError:
-    trace "Connection upgrade timeout", conn
+    trace "Incoming connection upgrade timed out", conn
     libp2p_failed_upgrades_incoming.inc()
   except UpgradeError as e:
-    trace "Connection upgrade failed", description = e.msg, conn
+    trace "Incoming connection upgrade failed", err = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
     deadlineFut.cancelSoon()
@@ -273,25 +293,29 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   while transport.running:
     var conn: RawConn
     try:
-      debug "About to accept incoming connection"
-      let slot = await s.connManager.getIncomingSlot()
-
+      debug "Transport connection acceptance started"
       conn =
         try:
           await transport.accept()
         except CancelledError as exc:
-          slot.release()
           raise exc
         except CatchableError as exc:
-          slot.release()
           raise
             newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
-        debug "Unable to get a connection"
-        slot.release()
+        debug "Transport connection acceptance returned no connection"
+        await sleepAsync(AcceptRetryDelay)
+        continue
+
+      let slot = s.connManager.tryGetIncomingSlot().valueOr:
+        debug "Incoming connection limit reached", conn
+        s.rejectedConnCloseFuts.trackFut(conn.close())
+        s.connManager.triggerTrim()
+        if s.rejectedConnCloseFuts.len >= MaxRejectedConnectionCloses:
+          discard await one(s.rejectedConnCloseFuts)
         continue
 
       slot.trackConnection(conn)
@@ -301,12 +325,12 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       # gossipsub gives priority to connections we make
       conn.transportDir = Direction.In
 
-      debug "Accepted an incoming connection", conn
+      debug "Transport connection accepted", conn
       s.upgradeFuts.trackFut(s.upgradeMonitor(transport, conn, upgrades))
     except CancelledError:
       return
     except CatchableError as exc:
-      error "Exception in accept loop, exiting", description = exc.msg
+      error "Accept loop stopped", err = exc.msg, errType = exc.name
       if not isNil(conn):
         await conn.close()
       return
@@ -315,13 +339,18 @@ when defined(libp2p_testing):
   proc acceptFuts*(s: Switch): seq[Future[void]] =
     s.acceptFuts
 
+proc isStopping*(s: Switch): bool =
+  ## True from the beginning of shutdown until the next start.
+  s.stopping
+
 proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
-  trace "Stopping switch"
+  info "Stopping switch"
 
   s.started = false
+  s.stopping = true
 
   try:
     # Stop accepting incoming connections
@@ -329,16 +358,25 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    debug "Cannot cancel accepts", description = exc.msg
+    warn "Accept loop cancellation failed",
+      err = exc.msg,
+      errType = exc.name,
+      pendingAccepts = s.acceptFuts.countIt(not it.finished())
 
   await s.upgradeFuts.cancelAndWait()
   s.upgradeFuts = @[]
 
+  await noCancel allFutures(s.rejectedConnCloseFuts)
+  s.rejectedConnCloseFuts = @[]
+
   for service in s.services:
     await service.stop(s)
 
+  # Drain incoming work and services before protocols, keeping established connections.
+  await s.ms.stop()
+
   # close and cleanup all connections
-  await s.connManager.close()
+  await s.connManager.stop()
 
   for transp in s.transports:
     try:
@@ -346,13 +384,15 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "error cleaning up transports", description = exc.msg
+      warn "Transport cleanup failed", err = exc.msg
 
-  await s.ms.stop()
+  # stopped last, after every component which can still feed an address
+  doAssert not s.addressManager.isNil(), MissingAddressManager
+  s.addressManager.stop()
 
   s.peerStore.close()
 
-  trace "Switch stopped"
+  info "Switch stopped"
 
 proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
@@ -360,7 +400,16 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     warn "Switch has already been started"
     return
 
-  debug "starting switch for peer", peerInfo = s.peerInfo
+  info "Starting switch for peer", peerInfo = s.peerInfo
+  s.stopping = false
+
+  if not s.connManager.isRunning():
+    s.connManager.start()
+
+  # started first, so that it owns the mapper chain before any service adds one
+  doAssert not s.addressManager.isNil(), MissingAddressManager
+  s.addressManager.setPeerInfo(s.peerInfo)
+  s.addressManager.start()
 
   # start services and transports without await to prevent any
   # issues when one needs another to start first.
@@ -394,4 +443,4 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   s.peerStore.startAddressPruning()
 
-  debug "Started libp2p node", peer = s.peerInfo
+  info "Started libp2p node", peerId = s.peerInfo

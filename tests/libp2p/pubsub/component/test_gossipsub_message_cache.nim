@@ -260,7 +260,7 @@ suite "GossipSub Component - Message Cache":
       not nodes[2].hasSeen(nodes[2].salt(messageId2))
 
     # And Node2 sends IWant to Node0 requesting both messages
-    nodes[2].broadcast(
+    nodes[2].broadcastResponse(
       @[nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)],
       RPCMsg.withControl(ControlMessage.withIWant(@[messageId1, messageId2])),
       MessagePriority.High,

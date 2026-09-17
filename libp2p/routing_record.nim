@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, times]
+import std/[sequtils, times, net]
 import pkg/results
 import multiaddress, multicodec, peerid, signed_envelope
 import protobuf_serialization, utils/protobuf
@@ -20,6 +20,9 @@ type
     peerId* {.fieldNumber: 1, ext.}: PeerId
     seqNo* {.fieldNumber: 2, pint.}: uint64
     addresses* {.fieldNumber: 3.}: seq[AddressInfo]
+
+proc getIPs*(addrsInfos: seq[AddressInfo]): seq[IpAddress] =
+  addrsInfos.mapIt(it.address).getIPs()
 
 proc checkAddresses*(addresses: seq[AddressInfo]): Result[void, string] =
   for ai in addresses:

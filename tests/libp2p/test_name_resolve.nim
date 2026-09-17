@@ -15,7 +15,7 @@ import
     nameresolving/dnsresolver,
     nameresolving/mockresolver,
   ]
-import ../tools/[unittest]
+import ../tools/[unittest, multiaddress]
 
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
@@ -42,9 +42,9 @@ proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
             break
             #3 nameserver max on linux
     except IOError as exc:
-      debug "Failed to get unix nameservers", description = exc.msg
+      debug "Failed to get unix nameservers", err = exc.msg
     except TransportAddressError as exc:
-      debug "Failed to init address", description = exc.msg
+      debug "Failed to init address", err = exc.msg
     finally:
       if resultSeq.len > 0:
         return resultSeq
@@ -59,15 +59,15 @@ suite "Name resolving":
   suite "Generic Resolving":
     var resolver {.threadvar.}: MockResolver
 
-    proc testOne(input: string, output: seq[MultiAddress]) =
-      let resolved = waitFor resolver.resolveMAddress(MultiAddress.init(input).tryGet())
+    proc testOne(input: string, output: seq[MultiAddress]) {.async.} =
+      let resolved = await resolver.resolveMAddress(ma(input))
       check resolved == output
 
-    proc testOne(input: string, output: seq[string]) =
-      testOne(input, output.mapIt(MultiAddress.init(it).tryGet()))
+    proc testOne(input: string, output: seq[string]) {.async.} =
+      await testOne(input, output.mapIt(ma(it)))
 
-    proc testOne(input, output: string) =
-      testOne(input, @[MultiAddress.init(output).tryGet()])
+    proc testOne(input, output: string) {.async.} =
+      await testOne(input, @[ma(output)])
 
     asyncSetup:
       resolver = MockResolver.new()
@@ -76,19 +76,24 @@ suite "Name resolving":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
-      testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
-      testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
-      testOne(
+      await testOne("/dns/localhost/udp/0", @["/ip4/127.0.0.1/udp/0", "/ip6/::1/udp/0"])
+      await testOne("/dns4/localhost/tcp/0", "/ip4/127.0.0.1/tcp/0")
+      await testOne("/dns6/localhost/tcp/0", "/ip6/::1/tcp/0")
+      await testOne(
         "/dns6/localhost/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "/ip6/::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      )
+
+      await testOne(
+        "/dns4/localhost/tcp/443/tls/sni/example.com/ws",
+        "/ip4/127.0.0.1/tcp/443/tls/sni/example.com/ws",
       )
 
     asyncTest "test non dns resolve":
       resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
       resolver.ipResponses[("localhost", true)] = @["::1"]
 
-      testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
+      await testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
@@ -106,7 +111,7 @@ suite "Name resolving":
         "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
       ]
 
-      testOne(
+      await testOne(
         "/dnsaddr/bootstrap.libp2p.io/",
         @[
           "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -134,7 +139,7 @@ suite "Name resolving":
         "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
       ]
 
-      testOne(
+      await testOne(
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         @[
           "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -146,12 +151,11 @@ suite "Name resolving":
       resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
         @["dnsaddr=/dnsaddr/bootstrap.libp2p.io"]
 
-      testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
+      await testOne("/dnsaddr/bootstrap.libp2p.io/", newSeq[string]())
 
     test "getHostname":
       check:
-        MultiAddress.init("/dnsaddr/bootstrap.libp2p.io/").tryGet().getHostname ==
-          "bootstrap.libp2p.io"
+        ma("/dnsaddr/bootstrap.libp2p.io/").getHostname == "bootstrap.libp2p.io"
 
         MultiAddress
           .init(
@@ -164,10 +168,10 @@ suite "Name resolving":
             "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
           )
           .tryGet().getHostname == "2604:1380:1000:6000::1"
-        MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
-        MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
-        MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"
-        MultiAddress.init("/wss/").tryGet().getHostname == ""
+        ma("/dns/localhost/udp/0").getHostname == "localhost"
+        ma("/dns4/hello.com/udp/0").getHostname == "hello.com"
+        ma("/dns6/hello.com/udp/0").getHostname == "hello.com"
+        ma("/wss/").getHostname == ""
 
   suite "DNS Resolving":
     teardown:
@@ -298,3 +302,24 @@ suite "Name resolving":
     #   var dnsresolver = DnsResolver.new(@[initTAddress("172.67.10.161:0")])
     #   let invalid = await dnsresolver.resolveIp("google.fr", 0.Port)
     #   check invalid.len == 0
+
+  suite "DNS cancellation":
+    teardown:
+      checkTrackers()
+
+    asyncTest "cancelling a dual-stack lookup closes both query sockets":
+      let received = newAsyncEvent()
+      var queries = 0
+      proc discardQuery(
+          transp: DatagramTransport, raddr: TransportAddress
+      ) {.async: (raises: []).} =
+        inc queries
+        if queries == 2:
+          received.fire()
+
+      let server = newDatagramTransport(discardQuery)
+      let resolver = DnsResolver.new(@[server.localAddress])
+      let lookup = resolver.resolveIp("example.com", Port(0))
+      await received.wait().wait(1.seconds)
+      await lookup.cancelAndWait()
+      await server.closeWait()

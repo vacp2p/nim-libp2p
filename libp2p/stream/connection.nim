@@ -30,6 +30,7 @@ type
     localAddr*: Opt[MultiAddress]
     protocol*: string # protocol used by the connection, used as metrics tag
     transportDir*: Direction # underlying transport (usually socket) direction
+    openedAt*: Moment # initialization time of this layer; unwrap for transport age
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
@@ -60,6 +61,8 @@ chronicles.formatIt(Connection):
   shortLog(it)
 
 declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
+declarePublicCounter libp2p_stream_timeouts,
+  "stream inactivity timeouts", labels = ["type", "direction"]
 
 when defined(libp2p_agents_metrics):
   declarePublicGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
@@ -71,22 +74,23 @@ method initStream*(s: Connection) =
   if s.objName.len == 0:
     s.objName = ConnectionTrackerName
 
+  s.openedAt = Moment.now()
   procCall LPStream(s).initStream()
 
   doAssert(s.timerTaskFut == nil)
 
   if s.timeout > 0.millis:
-    trace "Monitoring for timeout", s, timeout = s.timeout
+    trace "Monitoring for timeout", conn = s, timeout = s.timeout
 
     s.timerTaskFut = s.timeoutMonitor()
     if s.timeoutHandler == nil:
       s.timeoutHandler = proc(): Future[void] {.async: (raises: [], raw: true).} =
-        trace "Idle timeout expired, closing connection", s
+        trace "Idle timeout expired, closing connection", conn = s
         s.close()
 
 method closeImpl*(s: Connection): Future[void] {.async: (raises: []).} =
   # Cleanup timeout timer
-  trace "Closing connection", s
+  trace "Closing connection", conn = s
 
   if s.timerTaskFut != nil and not s.timerTaskFut.finished:
     # Don't `cancelAndWait` here to avoid risking deadlock in this scenario:
@@ -96,7 +100,7 @@ method closeImpl*(s: Connection): Future[void] {.async: (raises: []).} =
     s.timerTaskFut.cancelSoon()
     s.timerTaskFut = nil
 
-  trace "Closed connection", s
+  trace "Closed connection", conn = s
 
   procCall LPStream(s).closeImpl()
 
@@ -113,9 +117,10 @@ proc pollActivity(s: Connection): Future[bool] {.async: (raises: []).} =
 
   # Inactivity timeout happened, call timeout monitor
 
-  trace "Connection timed out", s
+  trace "Connection timed out", conn = s
+  libp2p_stream_timeouts.inc(labelValues = [s.objName, metricLabel(s.dir)])
   if s.timeoutHandler != nil:
-    trace "Calling timeout handler", s
+    trace "Calling timeout handler", conn = s
     await s.timeoutHandler()
 
   return false
@@ -138,8 +143,17 @@ proc timeoutMonitor(s: Connection) {.async: (raises: []).} =
     if not await s.pollActivity():
       return
 
-method getWrapped*(s: Connection): Connection {.base.} =
+method getWrapped*(s: Connection): Connection {.base, gcsafe.} =
   raiseAssert("[Connection.getWrapped] abstract method not implemented!")
+
+proc getUnderlying*(s: Connection): Connection =
+  ## Returns the innermost connection, stopping at a nil or self wrapper.
+  result = s
+  while result != nil:
+    let wrapped = result.getWrapped()
+    if wrapped == nil or wrapped == result:
+      break
+    result = wrapped
 
 when defined(libp2p_agents_metrics):
   proc setShortAgent*(s: Connection, shortAgent: string) =

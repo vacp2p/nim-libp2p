@@ -1,26 +1,36 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets
+import chronos, chronicles, results, sets, tables, sequtils
 import ../utils/[heartbeat, future]
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
 import
   ./service_discovery/[
     random_find, types, routing_table_manager, advertiser, registrar, discoverer,
-    connection,
+    connection, advertisement_cache, discovery_tracker,
   ]
 
-export chronicles, random_find, types, discoverer, advertiser
+export chronicles, random_find, types, discoverer, advertiser, advertisement_cache
+export discovery_tracker
 
 logScope:
-  topics = "service-discovery"
+  topics = "libp2p service-discovery"
+
+method maintainableTables*(
+    disco: ServiceDiscovery
+): seq[RoutingTable] {.gcsafe, raises: [].} =
+  ## Main Kad table plus every per-service routing table.
+  var tables = @[disco.rtable]
+  for table in disco.rtManager.tables.values:
+    tables.add(table)
+  return tables
 
 proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   let extPeerRecord = disco.record().valueOr:
-    error "Failed to create signed extended peer record", error
+    debug "Failed to create signed extended peer record", err = error
     return
 
   let encodedSR = extPeerRecord.encode()
@@ -28,15 +38,38 @@ proc refreshSelfSignedPeerRecord(
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
-  let putRes = await disco.putValue(key, encodedSR)
-  if putRes.isErr:
-    error "Failed to put signed peer record", err = putRes.error
+  (await disco.putValue(key, Value.fromBytes(encodedSR))).isOkOr:
+    debug "Failed to put signed peer record", err = error
 
-proc maintainSelfSignedPeerRecord(
+template withBucketRefreshTimeout(fut: untyped, disco: ServiceDiscovery): untyped =
+  fut.withTimeout(disco.config.bucketRefreshTime)
+
+proc maintainSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
-    await disco.refreshSelfSignedPeerRecord()
+  heartbeat "refresh signed peer record", disco.config.bucketRefreshTime:
+    if not await disco.refreshSelfSignedPeerRecord().withBucketRefreshTimeout(disco):
+      warn "Signed peer record refresh timed out",
+        timeout = disco.config.bucketRefreshTime
+
+proc republishAddresses(
+    disco: ServiceDiscovery, previous: Future[void]
+) {.async: (raises: [CancelledError]).} =
+  if not previous.isNil():
+    await previous.cancelAndWait()
+
+  # A restart publishes the new record at once and keeps one record publisher.
+  if disco.xprPublishing:
+    await disco.signedPeerRecordLoop.cancelAndWait()
+    disco.signedPeerRecordLoop = disco.maintainSignedPeerRecord()
+
+  if not await disco.republishProvidedAdverts().withBucketRefreshTimeout(disco):
+    warn "Provided advert republish timed out", timeout = disco.config.bucketRefreshTime
+
+proc republishOnAddressChange(disco: ServiceDiscovery): PeerInfoObserver =
+  ## Without this, a moved address stays stale in the DHT for a `bucketRefreshTime`.
+  proc(p: PeerInfo) {.gcsafe, raises: [].} =
+    disco.addressRepublish = disco.republishAddresses(disco.addressRepublish)
 
 proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
@@ -48,7 +81,9 @@ proc maintainServiceTables(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh service routing tables",
     disco.config.bucketRefreshTime, sleepFirst = true:
-    await disco.rtManager.refreshAllTables(disco)
+    if not await disco.rtManager.refreshAllTables(disco).withBucketRefreshTimeout(disco):
+      warn "Service routing table refresh timed out",
+        timeout = disco.config.bucketRefreshTime, tables = disco.rtManager.tables.len
 
 proc bootstrapServiceTable*(
     disco: ServiceDiscovery, serviceId: ServiceId
@@ -71,45 +106,54 @@ proc new*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(
-    switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(replication = config.replication),
-  )
+  # Every value in this DHT is an XPR keyed by its signer, whatever the caller configured.
+  var kadConfig = config
+  kadConfig.validator = ExtEntryValidator()
+  kadConfig.selector = ExtEntrySelector()
 
   let disco = ServiceDiscovery(
-    rng: rng,
-    switch: switch,
-    rtable: rtable,
-    config: config,
-    providerManager:
-      ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     rtManager: ServiceRoutingTableManager.new(),
-    clientMode: client,
     advertiser: Advertiser.new(),
-    registrar: Registrar.new(),
+    registrar: Registrar.new(discoConfig.advertCacheCap),
+    tracker: DiscoveryTracker.new(switch.peerInfo.peerId),
     services: toHashSet(services),
     discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
-
-  # Fill up buckets with initial bootstrap nodes
-  disco.updatePeers(bootstrapNodes)
+  disco.initKadBase(
+    switch,
+    kadConfig,
+    rng,
+    isServer = not client,
+    codec = codec,
+    bootstrapNodes = bootstrapNodes,
+  )
 
   disco.rtManager.onServiceTableCreated = proc(serviceId: ServiceId) =
     if disco.config.disableBootstrapping:
       return
 
-    disco.serviceBootstrapFuts.trackFut(disco.bootstrapServiceTable(serviceId))
+    disco.serviceBootstrapFuts[serviceId] = disco.bootstrapServiceTable(serviceId)
 
-  disco.codec = codec
-  if client:
-    return disco
+  disco.registrar.ads.onServiceRemoved = proc(serviceId: ServiceId) =
+    disco.rtManager.removeService(serviceId, Registered)
+
+  disco.rtManager.onServiceTableRemoved = proc(serviceId: ServiceId) =
+    disco.serviceBootstrapFuts.withValue(serviceId, fut):
+      fut[].cancelSoon()
+    disco.serviceBootstrapFuts.del(serviceId)
 
   disco.handler = proc(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
+    if not disco.isServer:
+      trace "Refusing inbound query while not serving", stream
+      await stream.reset()
+      return
+
+    disco.serverStreams.incl(stream)
     defer:
+      disco.serverStreams.excl(stream)
       await stream.close()
     while not stream.atEof:
       let buf =
@@ -118,11 +162,10 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling service-discovery RPC",
-            stream = stream, err = exc.msg
+          trace "Read error when handling service-discovery RPC", err = exc.msg, stream
           return
       let msg = Message.decode(buf).valueOr:
-        debug "Failed to decode message", err = error
+        trace "Failed to decode message", err = error
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)
@@ -143,7 +186,7 @@ proc new*(
         if msgType in @[MessageType.register, MessageType.getAds]:
           await disco.handleMessage(stream, msg)
         else:
-          debug "received invalid message type", msgType = msgType
+          trace "Received invalid message type", msgType = msgType
           return
 
   return disco
@@ -155,11 +198,15 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   await procCall start(KadDHT(disco))
 
-  if disco.xprPublishing:
-    disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
-
   for serviceInfo in disco.services:
-    disco.addProvidedService(serviceInfo)
+    disco.addProvidedService(serviceInfo).isOkOr:
+      warn "Cannot advertise configured service", err = error, service = serviceInfo.id
+
+  if disco.xprPublishing:
+    disco.signedPeerRecordLoop = disco.maintainSignedPeerRecord()
+
+  disco.addressObserver = disco.republishOnAddressChange()
+  disco.switch.peerInfo.addObserver(disco.addressObserver)
 
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()
@@ -171,8 +218,19 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
 
-  # stops the advertiser maintenance loop before draining advertiser tasks, 
-  # so shutdown cannot spawn new registration work while cleanup is running
+  # every loop that schedules advertiser tasks stops before the drain below
+  if not disco.addressObserver.isNil():
+    disco.switch.peerInfo.removeObserver(disco.addressObserver)
+    disco.addressObserver = nil
+
+  if not disco.addressRepublish.isNil():
+    await disco.addressRepublish.cancelAndWait()
+    disco.addressRepublish = nil
+
+  if not disco.signedPeerRecordLoop.isNil():
+    await disco.signedPeerRecordLoop.cancelAndWait()
+    disco.signedPeerRecordLoop = nil
+
   if not disco.advertiserMaintenanceLoop.isNil:
     await disco.advertiserMaintenanceLoop.cancelAndWait()
     disco.advertiserMaintenanceLoop = nil
@@ -180,11 +238,7 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   await disco.advertiser.clear()
 
   let serviceBootstrapFuts = move disco.serviceBootstrapFuts
-  await noCancel serviceBootstrapFuts.cancelAndWait()
-
-  if not disco.selfSignedPeerRecordLoop.isNil:
-    await disco.selfSignedPeerRecordLoop.cancelAndWait()
-    disco.selfSignedPeerRecordLoop = nil
+  await noCancel serviceBootstrapFuts.values.toSeq().cancelAndWait()
 
   if not disco.pruneExpiredAdsLoop.isNil:
     await disco.pruneExpiredAdsLoop.cancelAndWait()

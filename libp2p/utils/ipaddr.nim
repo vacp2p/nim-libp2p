@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import net, chronicles, strutils
+import net, chronicles, results
+import chronos
 
-import ../switch, ../multiaddress, ../multicodec
+import ../multiaddress, ../multicodec
+
+logScope:
+  topics = "libp2p ip-address"
+
+const RouteProbes = [parseIpAddress("8.8.8.8"), parseIpAddress("2001:4860:4860::8888")]
 
 proc isIPv4*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv4
@@ -11,63 +17,58 @@ proc isIPv4*(ip: IpAddress): bool =
 proc isIPv6*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv6
 
-proc isPrivate*(ip: string): bool {.raises: [].} =
+proc isGlobalIP*(ip: IpAddress): bool {.raises: [].} =
+  ## Globally routable address of either family, so an IPv6 ULA is not global.
+  initTAddress(ip, Port(0)).isGlobal()
+
+proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
+  ## Source address the routing table picks for ``probe``. No traffic is sent.
   try:
-    return
-      ip.startsWith("10.") or
-      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
-  except ValueError:
-    return false
+    Opt.some(getPrimaryIPAddr(probe))
+  except CatchableError as e:
+    trace "Primary IP address lookup failed", err = e.msg, probe
+    Opt.none(IpAddress)
+  except Defect as e:
+    raise e
+  except Exception as e: # on windows getPrimaryIPAddr has untracked effects
+    trace "Primary IP address lookup failed", err = e.msg, probe
+    Opt.none(IpAddress)
 
-proc isPrivate*(ip: IpAddress): bool {.raises: [].} =
-  isPrivate($ip)
+func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =
+  for ip in candidates:
+    if ip.isGlobalIP():
+      return Opt.some(ip)
+  Opt.none(IpAddress)
 
-proc isPublic*(ip: string): bool {.raises: [].} =
-  not isPrivate(ip)
+proc getPublicIPAddress*(): Opt[IpAddress] {.raises: [].} =
+  ## Public address of the host, IPv4 first. A v6-only host reaches the v6 probe only.
+  var candidates: seq[IpAddress]
+  for probe in RouteProbes:
+    let ip = primaryIPAddrTo(probe).valueOr:
+      continue
+    trace "Primary IP address", ip, global = ip.isGlobalIP()
+    candidates.add(ip)
 
-proc isPublic*(ip: IpAddress): bool {.raises: [].} =
-  isPublic($ip)
+  let address = firstGlobalIP(candidates)
 
-proc hasPublicIPAddress*(): bool {.raises: [].} =
-  let ip =
-    try:
-      getPrimaryIPAddr()
-    except CatchableError as e:
-      error "Unable to get primary ip address", description = e.msg
+  debug "Public IP address lookup finished",
+    probes = RouteProbes.len,
+    resolved = candidates.len,
+    failed = RouteProbes.len - candidates.len,
+    address
+
+  return address
+
+func ipAddrMatches*(lookup: MultiAddress, addrs: openArray[MultiAddress]): bool =
+  ## Returns true when the ip4 or ip6 component of ``lookup`` equals that of any addr
+
+  let lookupIp = lookup.getPart(multiCodec("ip4")).valueOr:
+    lookup.getPart(multiCodec("ip6")).valueOr:
       return false
-    except Exception as e:
-      error "Unable to get primary ip address", description = e.msg
-      return false
-  debug "Primary IP address", ip = ip, isIPv4 = ip.isIPv4(), isPublic = ip.isPublic()
-
-  return ip.isIPv4() and ip.isPublic()
-
-proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
-  if not hasPublicIPAddress():
-    raise newException(ValueError, "Host does not have a public IPv4 address")
-  try:
-    return getPrimaryIPAddr()
-  except Exception as e:
-    raise newException(OSError, e.msg)
-
-proc ipAddrMatches*(
-    lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true
-): bool =
-  ## Checks ``lookup``'s IP is in any of addrs
-
-  let ipType =
-    if ip4:
-      multiCodec("ip4")
-    else:
-      multiCodec("ip6")
-
-  let lookup = lookup.getPart(ipType).valueOr:
-    return false
 
   for ma in addrs:
-    ma[0].withValue(ipAddr):
-      if ipAddr == lookup:
+    ma[0].ifValue(ipAddr):
+      if ipAddr == lookupIp:
         return true
   false
 
@@ -78,7 +79,7 @@ proc ipSupport*(addrs: seq[MultiAddress]): (bool, bool) =
   var ipv6 = false
 
   for ma in addrs:
-    ma[0].withValue(addrIp):
+    ma[0].ifValue(addrIp):
       if IP4.match(addrIp):
         ipv4 = true
       elif IP6.match(addrIp):

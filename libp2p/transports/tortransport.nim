@@ -17,6 +17,9 @@ import
   ../multiaddress,
   ../upgrademngrs/upgrade
 
+logScope:
+  topics = "libp2p tor"
+
 const
   IPTcp = mapAnd(IP, mapEq("tcp"))
   IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
@@ -25,6 +28,7 @@ const
 
   Socks5ProtocolVersion = byte(5)
   NMethods = byte(1)
+  MaxSocks5DomainLength = high(uint8).int
 
 type
   TorTransport* = ref object of Transport
@@ -87,28 +91,23 @@ proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
 proc handlesStart(address: MultiAddress): bool {.gcsafe.} =
   return TcpOnion3.match(address)
 
-proc connectToTorServer(
-    transportAddress: TransportAddress
-): Future[StreamTransport] {.
+proc authenticate(
+    transp: StreamTransport
+) {.
     async: (
       raises: [
-        Socks5VersionError, Socks5AuthFailedError, Socks5ServerReplyError, LPError,
-        common.TransportError, CancelledError,
+        Socks5VersionError, Socks5AuthFailedError, common.TransportError, CancelledError
       ]
     )
 .} =
-  let transp = await connect(transportAddress)
   discard
     await transp.write(@[Socks5ProtocolVersion, NMethods, Socks5AuthMethod.NoAuth.byte])
-  let
-    serverReply = await transp.read(2)
-    socks5ProtocolVersion = serverReply[0]
-    serverSelectedMethod = serverReply[1]
-  if socks5ProtocolVersion != Socks5ProtocolVersion:
+  var serverReply: array[2, byte]
+  await transp.readExactly(addr serverReply[0], serverReply.len)
+  if serverReply[0] != Socks5ProtocolVersion:
     raise newException(Socks5VersionError, "Unsupported socks version")
-  if serverSelectedMethod != Socks5AuthMethod.NoAuth.byte:
+  if serverReply[1] != Socks5AuthMethod.NoAuth.byte:
     raise newException(Socks5AuthFailedError, "Unsupported auth method")
-  return transp
 
 proc readServerReply(
     transp: StreamTransport
@@ -123,11 +122,9 @@ proc readServerReply(
   ## The specification for this code is defined on
   ## [link text](https://www.rfc-editor.org/rfc/rfc1928#section-5)
   ## and [link text](https://www.rfc-editor.org/rfc/rfc1928#section-6).
+  var firstFourOctets: array[4, byte]
+  await transp.readExactly(addr firstFourOctets[0], firstFourOctets.len)
   let
-    portNumOctets = 2
-    ipV4NumOctets = 4
-    ipV6NumOctets = 16
-    firstFourOctets = await transp.read(4)
     socks5ProtocolVersion = firstFourOctets[0]
     serverReply = firstFourOctets[1]
   if socks5ProtocolVersion != Socks5ProtocolVersion:
@@ -138,17 +135,20 @@ proc readServerReply(
       raise newException(Socks5ServerReplyError, "Server reply error")
     else:
       raise newException(LPError, "Unexpected server reply")
-  let atyp = firstFourOctets[3]
-  case atyp
-  of Socks5AddressType.IPv4.byte:
-    discard await transp.read(ipV4NumOctets + portNumOctets)
-  of Socks5AddressType.FQDN.byte:
-    let fqdnNumOctets = await transp.read(1)
-    discard await transp.read(int(uint8.fromBytes(fqdnNumOctets)) + portNumOctets)
-  of Socks5AddressType.IPv6.byte:
-    discard await transp.read(ipV6NumOctets + portNumOctets)
-  else:
-    raise newException(LPError, "Address not supported")
+  let addressLength =
+    case firstFourOctets[3]
+    of Socks5AddressType.IPv4.byte:
+      4
+    of Socks5AddressType.FQDN.byte:
+      var length: byte
+      await transp.readExactly(addr length, 1)
+      int(length)
+    of Socks5AddressType.IPv6.byte:
+      16
+    else:
+      raise newException(LPError, "Address not supported")
+  var addressAndPort = newSeqUninit[byte](addressLength + 2)
+  await transp.readExactly(addr addressAndPort[0], addressAndPort.len)
 
 proc parseOnion3(
     address: MultiAddress
@@ -177,16 +177,18 @@ proc parseIpTcp(
       raise newException(LPError, "IP address not supported")
   let
     dstAddr = address[codec].tryGet().protoArgument().tryGet()
-    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
+    dstPort = address[TcpMultiCodec].tryGet().protoArgument().tryGet()
   (atyp, dstAddr, dstPort)
 
 proc parseDnsTcp(
     address: MultiAddress
 ): (byte, seq[byte], seq[byte]) {.raises: [LPError].} =
+  let dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
+  if dnsAddress.len > MaxSocks5DomainLength:
+    raise newException(LPError, "DNS address exceeds SOCKS5 domain length limit")
   let
-    dnsAddress = address[multiCodec("dns")].tryGet().protoArgument().tryGet()
     dstAddr = @(uint8(dnsAddress.len).toBytes()) & dnsAddress
-    dstPort = address[multiCodec("tcp")].tryGet().protoArgument().tryGet()
+    dstPort = address[TcpMultiCodec].tryGet().protoArgument().tryGet()
   (Socks5AddressType.FQDN.byte, dstAddr, dstPort)
 
 proc dialPeer(
@@ -227,12 +229,13 @@ method dial*(
   ##
   if not handlesDial(address):
     raise newException(TransportDialError, "Address not supported")
-  trace "Dialing remote peer", address = $address
+  trace "Transport connection started", peerId, address = $address
 
   var transp: StreamTransport
 
   try:
-    transp = await connectToTorServer(self.transportAddress)
+    transp = await connect(self.transportAddress)
+    await authenticate(transp)
     await dialPeer(transp, address)
     return self.tcpTransport.connHandler(
       transp, Opt.none(MultiAddress), Opt.none(MultiAddress), Direction.Out
@@ -316,6 +319,7 @@ proc new*(
       switch.ms, nil,
     ),
     nameResolver: nil,
+    addressManager: switch.addressManager,
   )
 
   torSwitch.connManager.peerStore = switch.peerStore

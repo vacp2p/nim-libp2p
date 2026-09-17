@@ -55,7 +55,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((20, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 20, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -69,7 +69,7 @@ suite "GossipSub Component - Scoring":
 
     let rateLimitHits = currentRateLimitHits()
 
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](10))),
       MessagePriority.High,
@@ -81,7 +81,7 @@ suite "GossipSub Component - Scoring":
 
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](12))),
       MessagePriority.High,
@@ -95,7 +95,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((20, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 20, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -132,7 +132,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((40, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 40, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -158,7 +158,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -172,7 +172,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg2, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg2, MessagePriority.High)
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
@@ -182,7 +182,7 @@ suite "GossipSub Component - Scoring":
     let nodes = generateNodes(
         2,
         gossip = true,
-        overheadRateLimit = Opt.some((30, 1.millis)),
+        overheadRateLimit = Opt.some(RateLimit(bytes: 30, interval: 1.millis)),
         verifySignature = false,
           # Avoid being disconnected by failing signature verification
       )
@@ -212,7 +212,7 @@ suite "GossipSub Component - Scoring":
     let rateLimitHits = currentRateLimitHits()
 
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
+    nodes[0].broadcastResponse(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -221,7 +221,7 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     let rateLimitHits2 = currentRateLimitHits()
-    nodes[0].broadcast(
+    nodes[0].broadcastResponse(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](35))),
       MessagePriority.High,
@@ -256,6 +256,65 @@ suite "GossipSub Component - Scoring":
     tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
 
     # Without directPeers, this would fail
+    checkUntilTimeout:
+      handlerFut.finished() == true
+
+  asyncTest "Graylisted peers: RPC is ignored":
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+
+    let (handlerFut, handler) = createCompleteHandler()
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, handler)
+    waitSubscribeStar(nodes, topic)
+
+    let node0Id = nodes[0].peerInfo.peerId
+    checkUntilTimeout:
+      nodes[1].mesh.hasPeerId(topic, node0Id)
+
+    # raise the threshold instead of lowering the score, which would also prune the mesh
+    nodes[1].parameters.graylistThreshold = 100000.0
+    check nodes[1].getPeerScore(node0Id) < nodes[1].parameters.graylistThreshold
+
+    var ignored = currentGraylistedRpcs()
+    let peer = nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId)
+    peer.send(
+      RPCMsg(control: Opt.some(ControlMessage(prune: @[ControlPrune(topicID: topic)]))),
+      false,
+      MessagePriority.High,
+    )
+
+    checkUntilTimeout:
+      currentGraylistedRpcs() > ignored
+    check nodes[1].mesh.hasPeerId(topic, node0Id)
+
+    ignored = currentGraylistedRpcs()
+    tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
+
+    checkUntilTimeout:
+      currentGraylistedRpcs() > ignored
+    check not handlerFut.finished()
+
+  asyncTest "Graylisted peers: RPC of a direct peer is processed":
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+
+    startAndDeferStop(nodes)
+    await nodes.addDirectPeerStar()
+
+    let (handlerFut, handler) = createCompleteHandler()
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
+
+    nodes[1].parameters.graylistThreshold = 100000.0
+    check nodes[1].getPeerScore(nodes[0].peerInfo.peerId) <
+      nodes[1].parameters.graylistThreshold
+
+    tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
+
+    # without directPeers, the graylist gate would drop this
     checkUntilTimeout:
       handlerFut.finished() == true
 
@@ -427,7 +486,7 @@ suite "GossipSub Component - Scoring":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       validatedMessageCount.inc
-      if string.fromBytes(message.data.get()).contains("invalid"):
+      if string.fromBytes(message.data).contains("invalid"):
         return ValidationResult.Reject # reject invalid messages
       else:
         return ValidationResult.Accept
@@ -443,12 +502,12 @@ suite "GossipSub Component - Scoring":
     # When messages are broadcasted
     const messagesToSend = 5
     for i in 0 ..< messagesToSend:
-      nodes[1].broadcast(
+      nodes[1].broadcastResponse(
         nodes[1].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("valid_" & $i).toBytes())),
         MessagePriority.High,
       )
-      nodes[2].broadcast(
+      nodes[2].broadcastResponse(
         nodes[2].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("invalid_" & $i).toBytes())),
         MessagePriority.High,

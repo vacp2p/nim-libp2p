@@ -9,7 +9,25 @@ import chronos, chronicles
 logScope:
   topics = "libp2p futures"
 
-type AllFuturesFailedError* = object of CatchableError
+type
+  AllFuturesFailedError* = object of CatchableError
+
+  FutureOutcomeCounts* = object ## Futures grouped by their current outcome.
+    succeeded*, failed*, cancelled*, pending*: int
+
+proc countFutureOutcomes*[Fut](
+    futs: openArray[Fut]
+): FutureOutcomeCounts {.raises: [].} =
+  ## Counts futures by current state, including those still pending.
+  for fut in futs:
+    if fut.cancelled():
+      result.cancelled.inc()
+    elif fut.failed():
+      result.failed.inc()
+    elif fut.completed():
+      result.succeeded.inc()
+    else:
+      result.pending.inc()
 
 proc anyCompleted*[T](
     futs: seq[T]
@@ -33,6 +51,23 @@ proc anyCompleted*[T](
       raise exc
     except CatchableError:
       continue
+
+template timeLeft*(deadline: Moment): Duration =
+  ## Zero once the deadline passed: chronos clamps a negative `Duration`.
+  deadline - Moment.now()
+
+template awaitWithDeadline*(fut: untyped, deadline: Moment): untyped =
+  ## Await `fut` with what is left of `deadline`. A future that already finished
+  ## still gives its result, whatever the clock says. Otherwise, with no time
+  ## left, cancel it and raise `AsyncTimeoutError`: `wait(ZeroDuration)` raises
+  ## that error too, but it leaves `fut` running with nobody to reap it.
+  let
+    f = fut
+    remaining = deadline.timeLeft()
+  if remaining.isZero() and not f.finished():
+    await f.cancelAndWait()
+    raise newException(AsyncTimeoutError, "deadline exceeded")
+  await f.wait(remaining)
 
 template newFutureCompleted*[T](): auto =
   let fut = newFuture[T]()
@@ -58,6 +93,15 @@ template cancelAndWait*[T](futs: seq[T]): auto =
       continue
     cancelFuts.add(fut.cancelAndWait())
   allFutures(cancelFuts)
+
+proc allOrCancel*[T](futs: seq[T]) {.async: (raises: [CancelledError]).} =
+  ## Await every future, also one that fails. On cancel, cancel them all first,
+  ## because `allFutures` leaves its children running.
+  try:
+    await allFutures(futs)
+  except CancelledError as e:
+    await noCancel futs.cancelAndWait()
+    raise e
 
 template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
@@ -87,17 +131,14 @@ template completeOnce*(fut: auto, val: auto) =
     fut.complete(val)
 
 proc collectCompleted*[T, E](
-    futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
+    futs: seq[InternalRaisesFuture[T, E]], timeout = InfiniteDuration
 ): Future[seq[T]] {.async: (raises: [CancelledError]).} =
-  ## Wait up to `timeout`; collect only successfully completed futures.
-  ## Ignore results from futures throwing errors
+  ## Collect the values of the futures that completed, cancelling the rest.
   try:
-    await futs.allFutures().wait(timeout)
+    await allOrCancel(futs).wait(timeout)
   except AsyncTimeoutError:
-    # Some futures didn’t finish in time, ignore
     discard
 
-  # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
 
 proc waitForTCPServer*(
@@ -116,3 +157,12 @@ proc waitForTCPServer*(
       discard
     await sleepAsync(delay)
   return false
+
+proc reportBackgroundFailure*(
+    fut: FutureBase, operation: string
+) {.gcsafe, raises: [].} =
+  ## Cancellation is normal shutdown and deliberately produces no event.
+  fut.addCallback proc(udata: pointer) {.gcsafe, raises: [].} =
+    if fut.failed():
+      let exc = fut.error()
+      error "Background operation stopped", err = exc.msg, errType = exc.name, operation

@@ -33,6 +33,20 @@ suite "IpTree":
     check tree.root6.counter == 0
     check tree.root6.left.isNil
     check tree.root6.right.isNil
+    check tree.ipsLen == 0
+
+  test "insertIps / removeIps / ipsMaxScore / ipsLen":
+    let tree = IpTree.new()
+    let ips = @[ip4(192, 168, 1, 1), ip4(192, 168, 1, 2), ip6(0x20, 0x01, 1)]
+    tree.insertIps(ips)
+    check tree.ipsLen == 3
+    check tree.ipsMaxScore(@[ip4(192, 168, 1, 3)]) > 0.7
+    check tree.ipsMaxScore(@[ip4(10, 0, 0, 1)]) < 0.3
+    check tree.ipsMaxScore(@[]) == 1.0
+    tree.removeIps(@[ip4(192, 168, 1, 1), ip6(0x20, 0x01, 1)])
+    check tree.ipsLen == 1
+    tree.removeIps(@[ip4(192, 168, 1, 2)])
+    check tree.ipsLen == 0
 
   test "insertIp creates correct tree structure":
     let tree = IpTree.new()

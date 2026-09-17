@@ -11,7 +11,7 @@ import ../utils/zeroqueue
 export connection
 
 logScope:
-  topics = "libp2p bufferstream"
+  topics = "libp2p buffer-stream"
 
 const BufferStreamTrackerName* = "BufferStream"
 
@@ -20,6 +20,7 @@ type BufferStream* = ref object of Connection
   readBuf: ZeroQueue # zero queue buffer for readOnce
   pushing*: bool # number of ongoing push operations
   reading*: bool # is there an ongoing read? (only allow one)
+  pendingRead: Future[seq[byte]] # queue pop owned by the active read
   pushedEof*: bool # eof marker has been put on readQueue
   returnedEof*: bool # 0-byte readOnce has been completed
 
@@ -47,7 +48,7 @@ method initStream*(s: BufferStream) =
 
   s.readQueue = newAsyncQueue[seq[byte]](1)
 
-  trace "BufferStream created", s
+  trace "BufferStream created", stream = s
 
 proc new*(T: typedesc[BufferStream], timeout: Duration = DefaultConnectionTimeout): T =
   let bufferStream = T(timeout: timeout)
@@ -75,7 +76,7 @@ method pushData*(
   # processed
   try:
     s.pushing = true
-    trace "Pushing data", s, data = data.len
+    trace "Pushing data", stream = s, dataSize = data.len
     await s.readQueue.addLast(data)
   finally:
     s.pushing = false
@@ -94,7 +95,7 @@ method pushEof*(
   # processed
   try:
     s.pushing = true
-    trace "Pushing EOF", s
+    trace "Pushing EOF", stream = s
     await s.readQueue.addLast(Eof)
   finally:
     s.pushing = false
@@ -112,18 +113,27 @@ method readOnce*(
     raise newLPStreamEOFError()
 
   if not s.isEof and s.readBuf.len < nbytes:
+    s.reading = true
+    let pendingRead = s.readQueue.popFirst()
+    s.pendingRead = pendingRead
     let buf =
       try:
-        s.reading = true
-        await s.readQueue.popFirst()
+        await pendingRead
       except CancelledError as exc:
+        if s.isEof and not s.readQueue.empty() and s.readQueue[0].len == 0:
+          try:
+            # Do not leave the close marker blocking an admitted pusher.
+            discard s.readQueue.popFirstNoWait()
+          except AsyncQueueEmptyError as error:
+            raiseAssert("readOnce failed queue empty: " & error.msg)
         raise exc
       finally:
+        s.pendingRead = nil
         s.reading = false
 
     if buf.len == 0:
       # No more data will arrive on read queue
-      trace "EOF", s
+      trace "EOF", stream = s
       s.isEof = true
     else:
       s.readBuf.push(buf)
@@ -141,12 +151,14 @@ method readOnce*(
 
 method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true).} =
   ## close the stream and clear the buffer
-  trace "Closing BufferStream", s, len = s.len
+  trace "Closing BufferStream", stream = s, len = s.len
 
   # First, make sure any new calls to `readOnce` and `pushData` etc will fail -
   # there may already be such calls in the event queue however
   s.isEof = true
   s.pushedEof = true
+
+  s.readBuf.clear()
 
   # Essentially we need to handle the following cases
   #
@@ -160,24 +172,28 @@ method closeImpl*(s: BufferStream): Future[void] {.async: (raises: [], raw: true
   # a read or enough room in the queue/buffer to complete a
   # push.
   #
+  # A read and a push can be in flight at the same time. The reader wins: a
+  # pending queue pop belongs to it, so we must not pop an item out from under
+  # it. `reading` remains true briefly after that pop completes, hence the
+  # separate future check.
+  #
   # State       | Q Empty  | Q Full
   # ------------|----------|-------
   # Reading     | Push Eof | Na
   # Pushing     | Na       | Pop
   try:
-    if not (s.reading and s.pushing):
-      if s.reading:
-        if s.readQueue.empty():
-          # There is an active reader
-          s.readQueue.addLastNoWait(Eof)
-      elif s.pushing:
-        if not s.readQueue.empty():
-          discard s.readQueue.popFirstNoWait()
+    if s.reading and not s.pendingRead.finished():
+      if s.readQueue.empty():
+        # There is a reader still waiting on the queue.
+        s.readQueue.addLastNoWait(Eof)
+    elif s.pushing:
+      if not s.readQueue.empty():
+        discard s.readQueue.popFirstNoWait()
   except AsyncQueueFullError as e:
     raiseAssert("closeImpl failed queue full: " & e.msg)
   except AsyncQueueEmptyError as e:
     raiseAssert("closeImpl failed queue empty: " & e.msg)
 
-  trace "Closed BufferStream", s
+  trace "Closed BufferStream", stream = s
 
   procCall Connection(s).closeImpl()

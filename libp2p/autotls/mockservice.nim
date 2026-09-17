@@ -3,6 +3,7 @@
 
 import ./service, ./acme/client, ./broker
 import ../crypto/crypto, ../crypto/rsa, websock/websock
+from times import now
 
 type MockAutotlsService* = ref object of AutotlsService
   mockedCert*: TLSCertificate
@@ -14,9 +15,8 @@ proc new*(
     config: AutotlsConfig = AutotlsConfig.new(),
 ): T =
   T(
-    acmeClient:
-      ACMEClient.new(rng = rng, api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
-    broker: AutotlsBroker.new(rng, brokerURL = config.brokerURL),
+    acmeClient: ACMEClient.new(rng = rng, api = ACMEApi.new(config.acmeDirectoryURL)),
+    broker: AutotlsBroker.new(rng, config.registrationURL),
     cert: Opt.none(AutotlsCert),
     certReady: newAsyncEvent(),
     running: newAsyncEvent(),
@@ -27,7 +27,7 @@ proc new*(
 method getCertWhenReady*(
     self: MockAutotlsService
 ): Future[AutotlsCert] {.async: (raises: [AutoTLSError, CancelledError]).} =
-  AutotlsCert.new(self.mockedCert, self.mockedKey, Moment.now)
+  AutotlsCert.new(self.mockedCert, self.mockedKey, now())
 
 method setup*(self: MockAutotlsService) {.base, async.} =
   self.running.fire()

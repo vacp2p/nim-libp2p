@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     transports/transport,
     transports/quictransport,
+    transports/tls/certificate,
     upgrademngrs/upgrade,
     utils/future,
     muxers/muxer,
@@ -15,6 +16,7 @@ import
   ]
 import ../../tools/[unittest, crypto as cryptoTools, multiaddress]
 import ./basic_tests
+import ./cancellation_tests
 import ./stream_tests
 import ./utils
 
@@ -54,11 +56,46 @@ suite "Quic transport":
     invalidAddresses,
   )
   streamTransportTest(
-    quicTransProvider,
-    MultiAddress.init(addressIP4).get(),
-    Opt.some(MultiAddress.init(addressIP6).get()),
-    streamProvider,
+    quicTransProvider, ma(addressIP4), Opt.some(ma(addressIP6)), streamProvider
   )
+  cancellationTransportTest(quicTransProvider, addressIP4)
+
+  asyncTest "dial retries after endpoint construction fails":
+    for address in [addressIP4, "/ip6/::1/udp/0/quic-v1"]:
+      let server = await createQuicTransport(
+        isServer = true, addresses = @[MultiAddress.init(address).tryGet()]
+      )
+      defer:
+        await server.stop()
+
+      var failNext = true
+      proc flakyCertGenerator(
+          kp: KeyPair
+      ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+        if failNext:
+          failNext = false
+          raise newException(TLSCertificateError, "simulated endpoint creation failure")
+        generateX509(kp, encodingFormat = EncodingFormat.PEM)
+
+      let client = QuicTransport.new(
+        Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet(), rng(), flakyCertGenerator
+      )
+      defer:
+        await client.stop()
+
+      expect QuicTransportDialError:
+        discard await client.dial("", server.addrs[0])
+      check not failNext
+
+      let acceptFut = server.accept()
+      defer:
+        await acceptFut.cancelAndWait()
+      let clientConn = await client.dial("", server.addrs[0])
+      let serverConn = await acceptFut
+      check:
+        not clientConn.closed()
+        not serverConn.closed()
+      await allFutures(clientConn.close(), serverConn.close())
 
   asyncTest "listener-role dial sends UDP hole-punch packets":
     let packetReceived =
@@ -140,8 +177,15 @@ suite "Quic transport":
       await client.stop()
       await server.stop()
 
+    let acceptFut = server.accept()
+    defer:
+      await acceptFut.cancelAndWait()
+
     expect QuicTransportDialError:
       discard await client.dial("", server.addrs[0], Opt.some(wrongPeerId))
+
+    # Ensure there was no connection accepted on the server side.
+    check not (await acceptFut.withTimeout(200.milliseconds))
 
   asyncTest "should allow multiple local addresses":
     let server = await createQuicTransport(
@@ -336,3 +380,98 @@ suite "Quic transport":
 
     expect QuicTransportAcceptStopped:
       discard await server.accept()
+
+  asyncTest "remote connection close closes the dialer's session":
+    let server = await createQuicTransport(isServer = true)
+    let client = await createQuicTransport()
+    defer:
+      await client.stop()
+      await server.stop()
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+
+    # what the switch does when the incoming connection limit is reached
+    await serverConn.close()
+
+    let muxer = await client.upgrade(clientConn, Opt.none(PeerId))
+    defer:
+      await muxer.close()
+
+    let stream = await muxer.newStream()
+    await stream.write("client")
+
+    var response: array[1, byte]
+    let readFut = stream.readOnce(addr response[0], response.len)
+    defer:
+      await readFut.cancelAndWait()
+
+    check:
+      await readFut.withTimeout(1.seconds)
+      serverConn.closed
+      clientConn.closed
+
+  asyncTest "stream idle timeout resets only the idle stream":
+    let server = await createQuicTransport(
+      isServer = true, inTimeout = 2.seconds, outTimeout = 3.seconds
+    )
+    let client =
+      await createQuicTransport(inTimeout = 4.seconds, outTimeout = 100.milliseconds)
+
+    let acceptFut = server.accept()
+    let clientConn = await client.dial("", server.addrs[0])
+    let serverConn = await acceptFut
+    let clientMuxer = QuicMuxer.new(clientConn)
+    let serverMuxer = QuicMuxer.new(serverConn)
+    let inboundTimeout = newFuture[Duration]()
+
+    proc echo(stream: MuxedStream) {.async: (raises: []).} =
+      if not inboundTimeout.finished:
+        inboundTimeout.complete(stream.timeout)
+
+      try:
+        var data: array[1, byte]
+        while true:
+          let read = await stream.readOnce(addr data[0], data.len)
+          if read == 0:
+            break
+          await stream.write(@[data[0]])
+          if data[0] == 2:
+            break
+      except CancelledError, LPStreamError:
+        discard
+      finally:
+        await stream.close()
+
+    serverMuxer.streamHandler = echo
+    let serverHandle = serverMuxer.handle()
+
+    defer:
+      await clientMuxer.close()
+      await serverMuxer.close()
+      await allFutures(clientConn.close(), serverConn.close())
+      await client.stop()
+      await server.stop()
+      await serverHandle
+
+    let idleStream = await clientMuxer.newStream()
+    check idleStream.timeout == 100.milliseconds
+
+    for _ in 0 ..< 4:
+      await idleStream.write(@[byte 1])
+      await sleepAsync(60.milliseconds)
+      check not idleStream.closed
+
+    check (await inboundTimeout) == 2.seconds
+    check await idleStream.join().withTimeout(500.milliseconds)
+    check idleStream.wasResetLocally
+
+    # The stream timeout must not close the containing QUIC connection.
+    let activeStream = await clientMuxer.newStream()
+    await activeStream.write(@[byte 2])
+
+    var response: array[1, byte]
+    await activeStream.readExactly(addr response[0], response.len)
+    check response[0] == 2
+    await activeStream.close()

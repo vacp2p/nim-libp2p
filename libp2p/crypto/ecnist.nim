@@ -19,6 +19,7 @@ import stew/ctops
 import results
 
 import ../utils/conversion
+import ../utils/redact
 import rng
 
 export results
@@ -265,18 +266,8 @@ proc random*(T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng): EcResult[T] =
     key = EcKeyPair(seckey: seckey, pubkey: pubkey)
   ok(key)
 
-proc `$`*(seckey: EcPrivateKey): string =
-  ## Return string representation of EC private key.
-  if isNil(seckey) or seckey.key.curve == 0 or seckey.key.xlen == 0 or
-      len(seckey.buffer) == 0:
-    return "Empty or uninitialized ECNIST key"
-  if seckey.key.curve notin EcSupportedCurvesCint:
-    return "Unknown key"
-  let offset = seckey.getOffset()
-  if offset < 0:
-    return "Corrupted key"
-  let e = offset + cast[int](seckey.key.xlen) - 1
-  ncrutils.toHex(seckey.buffer.toOpenArray(offset, e))
+redactType(EcPrivateKey)
+redactType(EcKeyPair)
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.

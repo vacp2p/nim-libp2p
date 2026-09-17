@@ -4,9 +4,10 @@ Worked examples of consuming nim-libp2p from C through the FFI bindings generate
 
 The bindings are a header-only C API over a C ABI. Every generated method is asynchronous: it takes a result callback and returns immediately, and the callback fires from the library's dispatch thread. Library-initiated events (incoming streams, pub/sub messages) arrive through `libp2p_ctx_add_on_…_listener` callbacks. The examples turn each async call back into a blocking step with the small helpers in `common.h`.
 
-- `echo.c` — two TCP nodes; the server mounts a custom `/cbind/echo/1.0.0` protocol and echoes the bytes it reads, the client dials it and verifies the round-trip. The incoming-stream handler only hands the stream id to `main`, which serves it inline, since calling back into the library from the dispatch thread would deadlock.
+- `echo.c` — two TCP nodes. The server mounts a custom protocol (`/cbind/echo/1.0.0`) and echoes the bytes it reads. The client dials the server and verifies the round-trip twice: the first dial passes the server's address, so it opens the connection and the stream in one call; the second passes only the peer id, opening a fresh stream over the connection the first dial left behind. The incoming-stream handler only hands the stream id to `main`, which serves it inline, since calling back into the library from the dispatch thread would deadlock.
 - `gossipsub.c` — two TCP nodes join a shared topic and exchange one message, delivered to the subscriber through its pub/sub-message listener.
 - `kad.c` — two TCP nodes form a Kademlia DHT (a server, and a client that lists the server as its bootstrap node), then round-trip a value (`kad_put_value` / `kad_get_value`) and a provider record (`create_cid`, `kad_start_providing` / `kad_get_providers`) over the wire.
+- `service_disco.c` — two TCP nodes on top of the DHT: a provider advertises a service id (`service_disco_start_advertising`) and a seeker that bootstraps off it finds the provider's extended peer record (`service_disco_lookup`). It also shows the lifecycle rule: `libp2p_ctx_start` starts discovery, so a `service_disco_*` call before it fails.
 - `relay.c` — three TCP nodes: a relay, a destination and a source. The destination reserves a slot on the relay (`circuit_relay_reserve`); the source reaches it over a `/p2p-circuit` address (`dial_circuit_relay`) and sends a message the destination reads off its relayed stream.
 - `peerstore.c` — drives one node's peerstore directly from a second node's PeerInfo: `peerstore_add_peer`, `peerstore_get_peers`, `peerstore_get_peer_info`, then `peerstore_delete_peer`. No dialing required.
 - `metrics.c` — a running node dumps the process-wide Prometheus registry as JSON via `collect_metrics`.
@@ -16,7 +17,7 @@ The bindings are a header-only C API over a C ABI. Every generated method is asy
 From `cbind/`, produce the runtime library and the generated header first:
 
 ```sh
-nimble setup
+nimble -l setup -y
 nimble buildffi       # -> ../build/liblibp2p.so
 nimble genbindings_c  # -> c_bindings/libp2p.h
 ```
@@ -41,6 +42,7 @@ cmake -S . -B build -DTINYCBOR_VENDOR=$(nimble path ffi)/ffi/codegen/templates/c
 ./build/echo
 ./build/gossipsub
 ./build/kad
+./build/service_disco
 ./build/relay
 ./build/peerstore
 ./build/metrics

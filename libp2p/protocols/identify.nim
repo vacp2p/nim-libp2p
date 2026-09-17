@@ -15,13 +15,12 @@ import
   ../peerid,
   ../crypto/crypto,
   ../multiaddress,
-  ../multicodec,
   ../protocols/protocol,
   ../utils/[opt, protobuf],
   ../errors,
-  ../observedaddrmanager
+  ../address_manager
 
-export observedaddrmanager
+export address_manager
 
 logScope:
   topics = "libp2p identify"
@@ -67,7 +66,7 @@ type
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
     sendSignedPeerRecord*: bool
-    observedAddrManager*: ObservedAddrManager
+    addressManager*: AddressManager
 
   IdentifyPushHandler* =
     proc(newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
@@ -107,8 +106,8 @@ proc makeIdentifyMsg(
 
 proc makeIdentifyInfo(peer: PeerId, msg: IdentifyMsg): IdentifyInfo =
   var spr = Opt.none(Envelope)
-  msg.signedPeerRecord.withValue(sprBytes):
-    SignedPeerRecord.decode(sprBytes).toOpt().withValue(signedPeerRecord):
+  msg.signedPeerRecord.ifValue(sprBytes):
+    SignedPeerRecord.decode(sprBytes).toOpt().ifValue(signedPeerRecord):
       if signedPeerRecord.data.peerId == peer:
         spr = Opt.some(signedPeerRecord.envelope)
 
@@ -127,12 +126,12 @@ proc new*(
     T: typedesc[Identify],
     peerInfo: PeerInfo,
     sendSignedPeerRecord = false,
-    observedAddrManager = ObservedAddrManager.new(),
+    addressManager = AddressManager.new(),
 ): T =
   let identify = T(
     peerInfo: peerInfo,
     sendSignedPeerRecord: sendSignedPeerRecord,
-    observedAddrManager: observedAddrManager,
+    addressManager: addressManager,
   )
   identify.init()
   identify
@@ -144,9 +143,9 @@ method init*(p: Identify) =
     let msg = makeIdentifyMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
     try:
       await stream.writeLp(msg.encode())
-      debug "identify: info sent", stream, info = p.peerInfo
+      trace "identify: info sent", stream, info = p.peerInfo
     except LPError as e:
-      trace "identify handler failed to write message", description = e.msg, stream
+      trace "identify handler failed to write message", err = e.msg, stream
     finally:
       trace "exiting identify handler", stream
       await stream.closeWithEOF()
@@ -169,29 +168,23 @@ proc identify*(
     trace "identify: Empty message received!", stream
     raise newException(IdentityInvalidMsgError, "Empty message received")
 
-  var identifyMsg = IdentifyMsg.decode(move message).valueOr:
-    raise newException(IdentityInvalidMsgError, error)
+  var identifyMsg =
+    IdentifyMsg.decode(move message).valueOrRaise(IdentityInvalidMsgError)
 
-  debug "identify: info received", stream, identifyMsg
+  trace "identify: info received", stream, identifyMsg
 
   var peer: PeerId
-  identifyMsg.publicKey.withValue(pubkey):
-    peer = PeerId.init(pubkey).valueOr:
-      raise newException(IdentityInvalidMsgError, $error)
+  identifyMsg.publicKey.ifValue(pubkey):
+    peer = PeerId.init(pubkey).valueOrRaise(IdentityInvalidMsgError)
     if peer != remotePeerId:
       trace "Peer ids don't match", remote = peer, local = remotePeerId
       raise newException(IdentityNoMatchError, "Peer ids don't match")
   else:
     peer = remotePeerId
 
-  identifyMsg.observedAddr.withValue(observed):
-    # Currently, we use the ObservedAddrManager only to find our dialable external NAT address. Therefore, addresses
-    # like "...\p2p-circuit\p2p\..." and "\p2p\..." are not useful to us.
-    if observed.contains(multiCodec("p2p-circuit")).get(false) or
-        P2PPattern.matchPartial(observed):
-      trace "Not adding address to ObservedAddrManager.", observed
-    elif not self.observedAddrManager.addObservation(observed):
-      trace "Observed address is not valid.", observedAddr = observed
+  identifyMsg.observedAddr.ifValue(observed):
+    if not self.addressManager.addObservation(peer, observed):
+      trace "Observed address is not valid", observedAddr = observed
 
   return makeIdentifyInfo(peer, identifyMsg)
 
@@ -212,22 +205,22 @@ proc init*(p: IdentifyPush) =
       try:
         await stream.readLp(maxMsgSize)
       except LPError as e:
-        info "failed to read message from stream", description = e.msg, stream
+        trace "failed to read message from stream", err = e.msg, stream
         return
 
     let identifyMsg = IdentifyMsg.decode(move message).valueOr:
-      info "failed to decode identify message", error, stream
+      trace "failed to decode identify message", error, stream
       return
 
-    debug "identify push: info received", stream, identifyMsg
+    trace "identify push: info received", stream, identifyMsg
 
     var peerId: PeerId
-    identifyMsg.publicKey.withValue(pubkey):
+    identifyMsg.publicKey.ifValue(pubkey):
       let receivedPeerId = PeerId.init(pubkey).valueOr:
-        debug "could not create PeerId from pubkey", stream
+        trace "could not create PeerId from pubkey", stream
         return
       if receivedPeerId != stream.peerId:
-        info "Peer ids don't match", stream
+        trace "Peer ids don't match", stream
         return
       peerId = receivedPeerId
     else:
@@ -241,7 +234,7 @@ proc init*(p: IdentifyPush) =
       except CancelledError as e:
         raise e
       except CatchableError as e:
-        warn "got unexpected error", description = e.msg, stream
+        trace "got unexpected error", err = e.msg, stream
         # compiler reports strange CatchableError error that should never really happen
         discard
 

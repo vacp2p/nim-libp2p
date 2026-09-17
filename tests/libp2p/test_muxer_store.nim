@@ -184,6 +184,33 @@ suite "MuxerStore":
     check store.getPeers(Direction.In).len == 0
     check store.getPeers(Direction.Out).len == 0
 
+  asyncTest "getPeers without direction returns peers of both directions":
+    let store = MuxerStore.new()
+    makeMuxer(muxA, pidA, Direction.In)
+    makeMuxer(muxB, pidB, Direction.Out)
+
+    discard store.add(muxA)
+    discard store.add(muxB)
+
+    let peers = store.getPeers()
+    check peers.len == 2
+    check pidA in peers
+    check pidB in peers
+
+  asyncTest "getPeers without direction lists a both-directions peer once":
+    let store = MuxerStore.new()
+    makeMuxer(muxIn, pid, Direction.In)
+    makeMuxer(muxOut, pid, Direction.Out)
+
+    discard store.add(muxIn)
+    discard store.add(muxOut)
+
+    check store.getPeers() == @[pid]
+
+  test "getPeers without direction returns empty seq when store is empty":
+    let store = MuxerStore.new()
+    check store.getPeers().len == 0
+
   asyncTest "selectMuxer returns correct muxer by direction":
     let store = MuxerStore.new()
     makeMuxer(muxIn, pid, Direction.In)

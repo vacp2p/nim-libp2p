@@ -12,7 +12,7 @@ import
     protocols/connectivity/autonatv2/types,
     services/natservice,
   ]
-import ../tools/crypto
+import ../tools/[crypto, multiaddress]
 
 proc autonatInteropTest*(
     ourAddr: string,
@@ -23,7 +23,7 @@ proc autonatInteropTest*(
   var switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init(ourAddr).get()])
+    .withAddresses(@[ma(ourAddr)])
     .withAutonatV2Server()
     .withNAT(
       autonatConfig(
@@ -39,25 +39,25 @@ proc autonatInteropTest*(
 
   let awaiter = newFuture[void]()
 
-  proc statusAndConfidenceHandler(
+  proc reachabilityHandler(
       networkReachability: NetworkReachability,
       confidence: Opt[float],
       dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
-    if networkReachability != NetworkReachability.Unknown and confidence.isSome() and
-        confidence.get() >= 0.3:
+    # AutoNAT v2 reports no confidence; the summary alone decides
+    if networkReachability != NetworkReachability.Unknown:
       awaiter.completeOnce()
 
   let nat = switch.natService().valueOr:
     raiseAssert "expected NATService to be configured"
   let v2 = nat.autonatV2Service.valueOr:
     raiseAssert "expected AutonatV2 service to be configured"
-  v2.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+  discard v2.reachabilityObservers.add(reachabilityHandler)
 
   await switch.start()
   defer:
     await switch.stop()
-  await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
+  await switch.connect(otherPeerId, @[ma(otherAddr)])
 
   # await for network reachability with some timeout,
   # to prevent waiting indefinitely
