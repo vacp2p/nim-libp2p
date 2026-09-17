@@ -32,8 +32,8 @@ security; embedding a second X25519 operation inside the KEM slot would be
 redundant. This mirrors the analysis in `NOISE-HFS` and in the reference
 implementations this profile was designed to be wire-compatible with
 (ChainSafe/js-libp2p-noise PR #665, libp2p/py-libp2p PR #1310, and
-royzah/rust-libp2p PR #1 as of the June 2026 3-way interop test - see
-"Interoperability status" below for the current state of that alignment).
+libp2p/rust-libp2p PR #6481 by royzah - see "Interoperability status" below
+for the current state of that alignment).
 
 ## Handshake pattern
 
@@ -136,24 +136,30 @@ decapsulation is even attempted.
 
 ## Interoperability status
 
-This profile's wire format was designed to match
-`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256` as published in "Post-Quantum
-Cryptography Integration into the Noise Protocol" (Okwuosa, 2026), which
-reports a 3-way interop test between TypeScript (ChainSafe/js-libp2p-noise PR
-#665), Python (libp2p/py-libp2p PR #1310), and Rust (royzah/rust-libp2p PR
-#1) all completing pairwise handshakes on raw ML-KEM-768.
+This profile's wire format matches the other implementations of
+`Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`: TypeScript
+(ChainSafe/js-libp2p-noise PR #665), Python (libp2p/py-libp2p PR #1310) and
+Rust (libp2p/rust-libp2p PR #6481, with the interop harness in
+royzah/rust-libp2p PR #1).
 
 This nim-libp2p implementation has been verified standalone (KEM round-trip,
-implicit-rejection behavior, and a full two-node TCP handshake with peer
-authentication - see `tests/libp2p/protocols/test_noisehfs.nim`), and, as of
-2026-07-11, **live cross-language interop against py-libp2p is confirmed**:
-`interop/noise-pq/interop_dial.nim` against py-libp2p's
-`scripts/interop_listen_mlkem768.py` (`feat/pqc-noise-xxhfs` branch, updated
-to the raw ML-KEM-768 revision) completed the full three-message handshake
-and mutual peer authentication with no changes needed to either
-implementation's wire format. Details and the exact run output are in
-`interop/noise-pq/README.md`.
+implicit-rejection behaviour, and a full two-node TCP handshake with peer
+authentication - see `tests/libp2p/protocols/test_noisehfs.nim`).
 
-Rust (royzah/rust-libp2p PR #1) and JavaScript (ChainSafe/js-libp2p-noise PR
-#665) interop have not been run yet - the same `interop/noise-pq/` scripts
-should work against them once those toolchains are available.
+Cross-implementation interop is verified by a bidirectional 4x4 matrix run on
+2026-09-17 with the neutral runner in `pq-noise-artifacts`: every ordered
+(listener, dialer) pairing of JS, Python, Nim and Rust, including Nim against
+itself, three repetitions each, **48 of 48 runs passed**. A run passes only if
+both harnesses exit 0 with `INTEROP_OK`, each side's `PEER` matches the other
+side's `LOCAL`, and each side decrypts the other's greeting, one encrypted
+transport message in each direction, so both `split()` cipher states are
+exercised. Nim was tested at `f9c959b` with `interop/noise-pq/interop_listen`
+and `interop/noise-pq/interop_dial`. The runs were over loopback TCP on one
+machine, and the harnesses start the handshake directly, without
+multistream-select, so protocol id negotiation is not covered. Matrix, results
+and per-run logs:
+<https://github.com/paschal533/pq-noise-artifacts/tree/main/interop/results/20260917T015709Z>.
+
+The 2026-07-11 run against py-libp2p's listener, recorded in
+`interop/noise-pq/README.md`, predates the rename and covered the handshake
+only; the matrix supersedes it.
