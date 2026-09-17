@@ -77,7 +77,6 @@ template withExceptions(body: untyped) =
     raise newLPStreamEOFError()
   except TransportError as exc:
     # TODO https://github.com/status-im/nim-chronos/pull/99
-    # Keep the transport error text: it is the only place the OS error survives
     raise (ref LPStreamEOFError)(msg: "Stream EOF: " & exc.msg, parent: exc)
 
 when defined(libp2p_agents_metrics):
