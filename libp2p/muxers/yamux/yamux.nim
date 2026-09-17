@@ -757,7 +757,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
       peerId = m.connection.peerId,
       reason,
       err,
-      closedLocally = m.connection.closed,
+      connectionAlreadyClosed = m.connection.closed,
       openStreams = m.channels.len,
       protocols = m.openStreamProtocols()
     await m.close()
