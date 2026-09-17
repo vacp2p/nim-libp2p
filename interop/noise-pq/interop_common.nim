@@ -17,12 +17,17 @@ proc emit*(line: string) =
   echo line
   stdout.flushFile()
 
-proc firstLine*(s: string): string =
+proc firstLine*(s: string): string {.raises: [ValueError].} =
   ## Only the first line of `s`, stripped. A peer could batch extra bytes
   ## into the same message as its greeting; RECV must always be exactly one
   ## clean line on stdout, not whatever else rode along in the frame.
+  ## A message with no newline is not a complete greeting line: raise
+  ## instead of accepting it (the JS, Python and Rust harnesses likewise
+  ## never accept a greeting without its newline).
   let nlPos = s.find('\n')
-  (if nlPos >= 0: s[0 ..< nlPos] else: s).strip()
+  if nlPos < 0:
+    raise newException(ValueError, "truncated greeting")
+  s[0 ..< nlPos].strip()
 
 proc requireGreeting*(line: string) =
   ## Abort with the fixed ERROR contract unless `line` is `GreetingPrefix`
