@@ -290,7 +290,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ##
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
 
-  debug "Transport connection acceptance started", addresses = transport.addrs
+  info "Transport connection acceptance started", addresses = transport.addrs
 
   while transport.running:
     var conn: RawConn
