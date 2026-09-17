@@ -161,7 +161,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     checkUntilTimeout:
       tableAfterWait.get().hasPeer(waitKey)
 
-  asyncTest "REGISTER from a node without the codec mounted seats it nowhere":
+  asyncTest "REGISTER admits a sender without a DHT dial-back probe":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let unmountedNode = setupServiceDiscoveryNode(discoConfig = conf, mount = false)
@@ -194,11 +194,10 @@ suite "Service Discovery Component - Registrar Closer Peers":
       response.isOk()
       response.get().status == kad_protobuf.RegistrationStatus.Confirmed
 
-    checkUntilTimeout:
-      registrarNode.admissionProbes.len == 0
     check:
-      not registrarNode.hasPeerInMainTable(senderId)
-      not registrarNode.hasPeerInServiceTable(serviceId, senderId)
+      registrarNode.admissionProbes.len == 0
+      registrarNode.hasPeerInMainTable(senderId)
+      registrarNode.hasPeerInServiceTable(serviceId, senderId)
 
   asyncTest "REGISTER with an invalid advertisement seats the sender nowhere":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)

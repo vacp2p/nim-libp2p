@@ -1590,7 +1590,7 @@ suite "Service Discovery Registrar - connection IPs":
     check slot.ips != @[parseIpAddress("10.0.0.99")]
 
 suite "Service Discovery Registrar - sender admission":
-  test "registration does not insert the sender into the main routing table":
+  test "registration admits the sender into the main routing table without a probe":
     let disco = setupServiceDiscoveryNode(
       discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.0)
     )
@@ -1615,7 +1615,7 @@ suite "Service Discovery Registrar - sender admission":
     let reply = disco.registration(senderId, inMsg).register.get()
 
     check reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed
-    check not disco.hasPeerInMainTable(senderId)
+    check disco.hasPeerInMainTable(senderId)
 
   test "registration does not return the sender among its own closerPeers":
     let disco = setupServiceDiscoveryNode(

@@ -280,7 +280,7 @@ proc lookupCheck*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
-  ## Used for admission probes and for routing-table liveness checks.
+  ## Used for routing-table liveness checks.
   let probe = kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
   # A probe abandoned on timeout keeps its stream open, so always settle it.
   defer:
@@ -294,82 +294,11 @@ proc lookupCheck*(
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
-proc admitPeer(
-    kad: KadDHT,
-    rtable: RoutingTable,
-    peerId: PeerId,
-    addrs: seq[MultiAddress],
-    onAdmit: AdmitHook,
-) {.async: (raises: []).} =
-  let reachable =
-    try:
-      await kad.lookupCheck(peerId, addrs)
-    except CancelledError:
-      return
-  if not reachable:
-    trace "Kad admission probe failed, not inserting peer", peerId
-    kad.probeRecordFailure(peerId, addrs)
-    return
-  kad.probeClearFailures(peerId)
-  # A seat outlives Low's TTL, so the addresses behind it must outlive it too.
-  kad.switch.recordAddrs(peerId, addrs, AddressConfidence.Medium)
-
-  # Table may have been detachAll'd (e.g. service uninterest) while the probe ran.
-  if rtable.detached:
-    trace "Kad admission probe abandoned: table detached", peerId
-    return
-  if rtable.insert(peerId) and not onAdmit.isNil():
-    onAdmit(peerId)
-
-proc trackProbe(kad: KadDHT, probeKey: ProbeKey, probe: Future[void]) {.raises: [].} =
-  ## ``probe`` may already be done — a dial can fail without ever suspending.
-  if probe.finished():
-    return
-  kad.admissionProbes[probeKey] = probe
-  probe.addCallback(
-    proc(udata: pointer) {.gcsafe, raises: [].} =
-      if kad.admissionProbes.getOrDefault(probeKey) == probe:
-        kad.admissionProbes.del(probeKey)
-  )
-
 proc tryRefreshAdmitted(rtable: RoutingTable, peerId: PeerId): bool {.raises: [].} =
   ## True when the peer already holds a seat, refreshing it instead of re-probing.
   if peerId.toKey() notin rtable:
     return false
   discard rtable.insert(peerId)
-  true
-
-proc scheduleAdmissionProbe(
-    kad: KadDHT,
-    rtable: RoutingTable,
-    peerId: PeerId,
-    addrs: seq[MultiAddress],
-    onAdmit: AdmitHook,
-): bool {.raises: [].} =
-  ## False when no probe starts; the candidate is retried on a later reply.
-  let probeKey: ProbeKey = (rtable.selfId, peerId)
-  if kad.admissionProbes.hasKey(probeKey):
-    return false
-
-  if kad.probeBackedOff(peerId, addrs):
-    trace "Kad admission probe backed off", peerId
-    kad_admission_probes_backed_off.inc()
-    return false
-
-  if not kad.admissionSem.tryAcquire():
-    trace "Kad admission probe dropped: no free slot", peerId
-    kad_admission_probes_dropped.inc()
-    return false
-
-  let probe = kad.admitPeer(rtable, peerId, addrs, onAdmit)
-  probe.addCallback(
-    proc(udata: pointer) {.gcsafe, raises: [].} =
-      try:
-        kad.admissionSem.release()
-      except AsyncSemaphoreError:
-        raiseAssert "admissionSem released without acquire"
-  )
-  kad.trackProbe(probeKey, probe)
   true
 
 proc admitPeers*(
@@ -378,13 +307,11 @@ proc admitPeers*(
     peerInfos: seq[PeerInfo],
     onAdmit: AdmitHook = nil,
 ) {.raises: [].} =
-  ## Records the addresses, then admits into ``rtable`` behind a background probe.
-
-  # A probe launched while stopping dials past the drain loop and leaks its stream.
+  ## Records the addresses, then admits into ``rtable`` without a network probe.
   if kad.stopping:
     return
   let selfPid = kad.switch.peerInfo.peerId
-  var pending = kad.pendingAdmissions(rtable.selfId)
+  let pending = kad.pendingAdmissions(rtable.selfId)
   for p in peerInfos:
     if p.peerId == selfPid:
       continue
@@ -394,9 +321,14 @@ proc admitPeers*(
     kad.switch.recordAddrs(p.peerId, addrs)
     if rtable.tryRefreshAdmitted(p.peerId):
       continue
-    if not kad.scheduleAdmissionProbe(rtable, p.peerId, addrs, onAdmit):
+    if rtable.detached:
       continue
-    pending.add(p.peerId)
+
+    # Temporary test: admit without a network probe.
+    kad.probeClearFailures(p.peerId)
+    kad.switch.recordAddrs(p.peerId, addrs, AddressConfidence.Medium)
+    if rtable.insert(p.peerId) and not onAdmit.isNil():
+      onAdmit(p.peerId)
 
 proc admitPeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   kad.admitPeers(kad.rtable, peerInfos)

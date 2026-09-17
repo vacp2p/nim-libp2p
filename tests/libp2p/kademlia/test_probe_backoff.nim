@@ -3,9 +3,8 @@
 
 {.used.}
 
-import chronos, results, sequtils, tables
+import chronos, results, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../../libp2p/utils/future
 import ../../tools/[lifecycle, unittest, multiaddress]
 import ./utils.nim
 
@@ -77,36 +76,31 @@ suite "KadDHT - Probe backoff":
       untils[0] < untils[1]
       untils[1] < untils[2]
 
-  asyncTest "a peer whose probe failed is not probed again while backed off":
+  test "repeated admission does not start probes or record failures":
     let kad = setupKad()
     let peer = PeerInfo(peerId: randomPeerId(), addrs: deadAddrs(59999))
 
     kad.admitPeers(@[peer])
-    checkUntilTimeout:
+    check:
+      kad.hasKey(peer.peerId.toKey())
       kad.admissionProbes.len == 0
-    check kad.probeFailures.getOrDefault(peer.peerId).count == 1
+      not kad.probeFailures.hasKey(peer.peerId)
 
     kad.admitPeers(@[peer])
     check:
       kad.admissionProbes.len == 0
       kad.admissionSem.availableSlots == kad.config.limits.maxConcurrentProbes
 
-  asyncTest "a backed-off peer named with other addresses is probed again":
-    ## A bogus address must not keep the peer's working address out of the table.
+  test "backoff only applies to the failed addresses":
     let kad = setupKad()
     let peerId = randomPeerId()
 
-    kad.admitPeers(@[PeerInfo(peerId: peerId, addrs: deadAddrs(59999))])
-    checkUntilTimeout:
-      kad.admissionProbes.len == 0
+    kad.probeRecordFailure(peerId, deadAddrs(59999))
+    check:
+      kad.probeBackedOff(peerId, deadAddrs(59999))
+      not kad.probeBackedOff(peerId, deadAddrs(59998))
 
-    kad.admitPeers(@[PeerInfo(peerId: peerId, addrs: deadAddrs(59998))])
-    check kad.admissionProbes.len == 1
-
-    let probes = move kad.admissionProbes
-    await noCancel probes.values.toSeq().cancelAndWait()
-
-  asyncTest "a successful probe clears the peer's recorded failures":
+  asyncTest "admission clears the peer's recorded failures":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -117,6 +111,6 @@ suite "KadDHT - Probe backoff":
       @[PeerInfo(peerId: peerId, addrs: kads[1].switch.peerInfo.addrs)]
     )
 
-    checkUntilTimeout:
+    check:
       kads[0].hasKey(peerId.toKey())
       not kads[0].probeFailures.hasKey(peerId)

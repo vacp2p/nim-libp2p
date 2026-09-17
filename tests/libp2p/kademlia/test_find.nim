@@ -5,7 +5,7 @@
 
 import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../../libp2p/protocols/kademlia/[find, types]
+import ../../../libp2p/protocols/kademlia/[find, probe_backoff, types]
 import ../../tools/[lifecycle, topology, unittest, multiaddress]
 import ./utils.nim
 
@@ -194,26 +194,34 @@ suite "KadDHT Find":
     let res2 = await kads[1].findPeer(randomPeerId())
     check res2.isErr()
 
-  asyncTest "Discovered peer failing its admission probe is not admitted":
-    let kads = setupKadSwitches(2)
+  asyncTest "Admission bypasses probes, backoff and probe slots":
+    let kads = setupKadSwitches(1)
     startAndDeferStop(kads)
 
-    await connect(kads[0], kads[1])
-
-    # kads[1] vouches for a peer nothing is listening for
     let deadPeerId = randomPeerId()
     let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/59999")]
-    kads[1].updatePeers(@[(deadPeerId, deadAddrs)])
+    kads[0].probeRecordFailure(deadPeerId, deadAddrs)
+    check kads[0].probeBackedOff(deadPeerId, deadAddrs)
+    var slots = 0
+    while kads[0].admissionSem.tryAcquire():
+      inc slots
+    defer:
+      for _ in 0 ..< slots:
+        kads[0].admissionSem.release()
 
-    discard await kads[0].findNode(deadPeerId.toKey())
-
-    # once no probe is in flight the admission decision is final
-    checkUntilTimeout:
-      kads[0].admissionProbes.len == 0
+    var admitted: seq[PeerId]
+    kads[0].admitPeers(
+      kads[0].rtable,
+      @[(deadPeerId, deadAddrs)].toPeerInfos(),
+      proc(peerId: PeerId) {.gcsafe, raises: [].} =
+        admitted.add(peerId),
+    )
 
     check:
-      not kads[0].hasKey(deadPeerId.toKey())
-      # still dialable by lookups and findPeer
+      kads[0].hasKey(deadPeerId.toKey())
+      admitted == @[deadPeerId]
+      kads[0].admissionProbes.len == 0
+      not kads[0].probeBackedOff(deadPeerId, deadAddrs)
       kads[0].switch.peerStore[AddressBook][deadPeerId] == deadAddrs
 
   asyncTest "Find node via refresh stale buckets":

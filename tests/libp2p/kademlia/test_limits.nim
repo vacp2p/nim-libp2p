@@ -3,9 +3,8 @@
 
 {.used.}
 
-import chronos, results, sequtils, tables
+import chronos, results, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
-import ../../../libp2p/utils/future
 import ../../tools/[lifecycle, multiaddress, stall_server, topology, unittest]
 import ./utils.nim
 
@@ -13,20 +12,20 @@ suite "KadDHT - Limits":
   teardown:
     checkTrackers()
 
-  asyncTest "admitPeers spawns at most maxConcurrentProbes probes":
+  test "admitPeers admits candidates beyond maxConcurrentProbes without probes":
     let kad = setupKad()
     kad.admissionSem = newAsyncSemaphore(2)
 
     let peers = peersWithAddrs(5)
     kad.admitPeers(peers)
 
-    # candidates beyond the semaphore are dropped, never queued
-    check kad.admissionProbes.len == 2
+    for p in peers:
+      check kad.hasKey(p.peerId.toKey())
+    check:
+      kad.admissionProbes.len == 0
+      kad.admissionSem.availableSlots == 2
 
-    let probes = move kad.admissionProbes
-    await noCancel probes.values.toSeq().cancelAndWait()
-
-  asyncTest "admitPeers records addresses of candidates past the probe cap":
+  test "admitPeers records addresses of candidates past the probe cap":
     let kad = setupKad()
     kad.admissionSem = newAsyncSemaphore(2)
 
@@ -38,48 +37,37 @@ suite "KadDHT - Limits":
     for p in peers:
       check addressBook[p.peerId] == p.addrs
 
-    let probes = move kad.admissionProbes
-    await noCancel probes.values.toSeq().cancelAndWait()
-
-  asyncTest "a candidate dropped for a full probe cap is probed on a later call":
+  test "admission succeeds while all probe slots are occupied":
     let kad = setupKad()
     kad.admissionSem = newAsyncSemaphore(1)
+    check kad.admissionSem.tryAcquire()
+    defer:
+      kad.admissionSem.release()
 
     let peers = peersWithAddrs(2)
     kad.admitPeers(peers)
-    check kad.admissionProbes.len == 1
+    for p in peers:
+      check kad.hasKey(p.peerId.toKey())
+    check:
+      kad.admissionProbes.len == 0
+      kad.admissionSem.availableSlots == 0
 
-    let firstProbes = move kad.admissionProbes
-    # cancelling the probe releases its slot through ``admitPeer``'s defer
-    await noCancel firstProbes.values.toSeq().cancelAndWait()
-    check kad.admissionSem.availableSlots() == 1
-
-    kad.admitPeers(@[peers[1]])
-    check kad.admissionProbes.len == 1
-
-    let secondProbes = move kad.admissionProbes
-    await noCancel secondProbes.values.toSeq().cancelAndWait()
-
-  asyncTest "an admission probe frees its slot at the probe timeout":
+  asyncTest "admission does not wait for a silent peer":
     let stall = startStallServer()
     let kad = setupKad(testKadConfig(timeout = 500.milliseconds))
     startAndDeferStop(@[kad.switch])
     defer:
-      # Before the switch: `stop` waits for the dial this probe abandons.
       await stall.stop()
     kad.admissionSem = newAsyncSemaphore(1)
 
-    kad.admitPeers(@[PeerInfo(peerId: randomPeerId(), addrs: @[stall.address])])
-    check kad.admissionProbes.len == 1
+    let peer = PeerInfo(peerId: randomPeerId(), addrs: @[stall.address])
+    kad.admitPeers(@[peer])
+    check:
+      kad.hasKey(peer.peerId.toKey())
+      kad.admissionProbes.len == 0
+      kad.admissionSem.availableSlots == 1
 
-    let probes = move kad.admissionProbes
-    # A peer that accepts and never speaks costs `timeout`, not the dialer's 30s.
-    await allFutures(probes.values().toSeq()).wait(5.seconds)
-    check kad.admissionSem.availableSlots() == 1
-
-  asyncTest "liveness probes do not consume admissionSem slots":
-    ## Admission and eviction use independent semaphores: a saturated
-    ## livenessSem must not prevent admitPeers from launching probes.
+  test "admission succeeds while all liveness slots are occupied":
     let kad = setupKad()
     kad.admissionSem = newAsyncSemaphore(2)
     kad.livenessSem = newAsyncSemaphore(1)
@@ -88,10 +76,12 @@ suite "KadDHT - Limits":
     let peers = peersWithAddrs(3)
     kad.admitPeers(peers)
 
-    check kad.admissionProbes.len == 2
+    for p in peers:
+      check kad.hasKey(p.peerId.toKey())
+    check:
+      kad.admissionProbes.len == 0
+      kad.admissionSem.availableSlots == 2
 
-    let probes = move kad.admissionProbes
-    await noCancel probes.values.toSeq().cancelAndWait()
     kad.livenessSem.release()
 
   test "updateShortlist caps shortlist at maxShortlistSize":
