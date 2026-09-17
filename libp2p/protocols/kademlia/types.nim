@@ -537,6 +537,8 @@ type KadDHTConfig* = object
   selector*: EntrySelector
   timeout*: chronos.Duration
   bucketRefreshTime*: chronos.Duration
+  bootstrapTimeout*: chronos.Duration
+    ## Limit of the background bootstrap that ``start`` launches.
   bucketStaleTime*: chronos.Duration
   usefulnessGracePeriod*: chronos.Duration
   livenessGracePeriod*: chronos.Duration
@@ -613,6 +615,7 @@ proc new*(
     republishRegionBits: Opt[int] = Opt.none(int),
     optimisticProvide: bool = true,
     limits: Opt[KadDHTLimits] = Opt.none(KadDHTLimits),
+    bootstrapTimeout: chronos.Duration = bucketRefreshTime,
 ): K {.raises: [].} =
   let actualLimits = limits.valueOr:
     KadDHTLimits.new(replication, quorum)
@@ -648,6 +651,7 @@ proc new*(
     selector: selector,
     timeout: timeout,
     bucketRefreshTime: bucketRefreshTime,
+    bootstrapTimeout: bootstrapTimeout,
     bucketStaleTime: bucketStaleTime,
     usefulnessGracePeriod: usefulnessGracePeriod,
     livenessGracePeriod: livenessGracePeriod,
@@ -689,6 +693,7 @@ type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: Rng
   rtable*: RoutingTable
+  bootstrapFut*: Future[void]
   maintenanceLoop*: Future[void]
   livenessLoop*: Future[void]
   fixLowPeersLoop*: Future[void]
@@ -723,8 +728,7 @@ type KadDHT* = ref object of LPProtocol
     ## multiple routing tables (main Kad + service tables) is probed once.
   stopping*: bool
     ## Set once ``stop`` begins so racing handlers stop launching new probes,
-    ## letting the shutdown drain terminate. Distinct from ``started``, which is
-    ## still false while bootstrap admits its seed peers during ``start``.
+    ## letting the shutdown drain terminate.
   isServer*: bool ## Whether the node answers inbound queries.
   serverStreams*: HashSet[Stream]
     ## Open inbound server streams, reset when the node stops serving.
