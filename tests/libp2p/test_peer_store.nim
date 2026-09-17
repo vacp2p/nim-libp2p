@@ -147,6 +147,19 @@ suite "PeerStore":
       peerStore[AddressBook].del(peerId1) == true
       addrChanged == true
 
+  test "AgentBook listeners":
+    let peerStore = PeerStore.new(nil)
+    var changed: seq[PeerId]
+    proc agentChange(peerId: PeerId) {.gcsafe.} =
+      changed.add(peerId)
+
+    peerStore[AgentBook].addHandler(agentChange)
+    peerStore[AgentBook][peerId1] = "test-agent/1.0"
+
+    check:
+      changed == @[peerId1]
+      peerStore[AgentBook][peerId1] == "test-agent/1.0"
+
   test "PeerBook API":
     # Set up address book
     var addressBook = PeerStore.new(nil)[AddressBook]

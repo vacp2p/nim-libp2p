@@ -484,18 +484,6 @@ type
     perIpv4Subnet*: DiversityCap
     perIpv6Subnet*: DiversityCap
 
-func defaultDiversityCaps*(): DiversityCaps =
-  DiversityCaps(
-    perIp:
-      DiversityCap(table: DefaultMaxPeersPerIp, bucket: DefaultMaxPeersPerIpPerBucket),
-    perIpv4Subnet: DiversityCap(
-      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
-    ),
-    perIpv6Subnet: DiversityCap(
-      table: DefaultMaxPeersPerSubnet, bucket: DefaultMaxPeersPerSubnetPerBucket
-    ),
-  )
-
 func diversityCap(table, bucket: int): DiversityCap =
   ## An unset (non-positive) bucket cap leaves the table cap as the only limit.
   DiversityCap(table: table, bucket: if bucket > 0: bucket else: table)
