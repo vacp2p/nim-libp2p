@@ -9,18 +9,13 @@
 ## verify wire-format compatibility against other language implementations
 ## of the same profile (see NOISE_HFS_SPEC.md).
 ##
+## Every listener now exchanges one encrypted greeting each way, so the
+## dialer always reads one post-handshake message and replies with
+## "hello from Nim", exercising the transport cipher states rather than
+## just the handshake.
+##
 ## Usage:
-##   nim c -r interop_dial.nim [port] [--chat]   (default port 9998)
-##
-## With `--chat`, the dialer also reads one post-handshake message and replies
-## with "hello from Nim", exercising the transport cipher states rather than
-## just the handshake. Use it against listeners that expect a reply (e.g.
-## js-libp2p-noise's scripts/node-listener.mjs).
-##
-## Verified against py-libp2p's `scripts/interop_listen_mlkem768.py`
-## (libp2p/py-libp2p, branch feat/pqc-noise-xxhfs) on 2026-07-11: dial ->
-## handshake -> peer authentication all completed successfully on both
-## sides, with no changes needed to either implementation's wire format.
+##   nim c -r interop_dial.nim [port]   (default port 9998)
 
 import std/[os, strutils]
 import chronos
@@ -32,6 +27,7 @@ import
     transports/tcptransport,
     multiaddress,
     peerinfo,
+    peerid,
     crypto/crypto,
     crypto/rng,
     protocols/secure/noisehfs,
@@ -39,26 +35,27 @@ import
   ]
 
 const
-  # How long the --chat dialer waits for the peer to close after it replies.
+  GreetingPrefix = "hello from "
+  # How long the dialer waits for the peer to close after it replies.
   PeerCloseTimeout = 5.seconds
 
-proc main() {.async.} =
-  var
-    port = 9998
-    chat = false
+proc emit(line: string) =
+  ## Write one contract line to stdout and flush immediately: stdout is
+  ## fully buffered when redirected to a file, and the runner polls the log
+  ## while this process is still alive.
+  echo line
+  stdout.flushFile()
 
-  # Positional port, plus an optional `--chat` flag. Without --chat the dialer
-  # closes as soon as the handshake succeeds, which is what listeners that only
-  # verify the handshake (rust-libp2p's noise_hfs_listener, py-libp2p's
-  # interop_listen_mlkem768.py) expect.
-  for i in 1 .. paramCount():
-    let arg = paramStr(i)
-    if arg == "--chat":
-      chat = true
-    elif arg.len > 0 and arg.allCharsInSet(Digits):
+proc main() {.async.} =
+  var port = 9998
+  if paramCount() == 1:
+    let arg = paramStr(1)
+    if arg.len > 0 and arg.allCharsInSet(Digits):
       port = parseInt(arg)
     else:
-      quit("usage: interop_dial [port] [--chat]", 1)
+      quit("usage: interop_dial [port]", 1)
+  elif paramCount() > 1:
+    quit("usage: interop_dial [port]", 1)
 
   let
     rng = newRng()
@@ -70,34 +67,44 @@ proc main() {.async.} =
     transport = TcpTransport.new(upgrade = Upgrade())
     remoteMa = MultiAddress.init("/ip4/127.0.0.1/tcp/" & $port).get()
 
-  echo "DIALING port ", port
+  emit("LOCAL " & $PeerId.init(privKey).get())
+  stderr.writeLine("DIALING port " & $port)
   let conn = await transport.dial(remoteMa)
   let sconn = await noiseHFS.secure(conn, Opt.none(PeerId))
 
-  echo "HANDSHAKE_OK remotePeer=", $sconn.peerId
+  emit("PEER " & $sconn.peerId)
 
-  # Optional post-handshake exchange. Completing the handshake only proves both
-  # sides agreed on the handshake hash and the KEM shared secret; it does not
-  # prove the two transport cipher states came out of split() with the same
-  # key/nonce orientation. A swapped cs1/cs2 still yields HANDSHAKE_OK and only
-  # fails here, on the first real data frame.
-  if chat:
-    let incoming = await sconn.readMessage()
-    echo "RECV ", string.fromBytes(incoming).strip()
-    await sconn.write("hello from Nim" & $chr(10))
-    echo "SENT hello from Nim"
+  # Completing the handshake only proves both sides agreed on the handshake
+  # hash and the KEM shared secret; it does not prove the two transport
+  # cipher states came out of split() with the same key/nonce orientation.
+  # A swapped cs1/cs2 still yields a successful handshake and only fails
+  # here, on the first real data frame.
+  let incoming = string.fromBytes(await sconn.readMessage()).strip()
+  emit("RECV " & incoming)
+  if not incoming.startsWith(GreetingPrefix) or incoming.len == GreetingPrefix.len:
+    stderr.writeLine("ERROR unexpected greeting: " & incoming)
+    quit(1)
+  await sconn.write(GreetingPrefix & "Nim\n")
+  emit("SENT " & GreetingPrefix & "Nim")
+  emit("INTEROP_OK")
 
-    # Wait for the peer to close instead of tearing the connection down right
-    # away: closing abortively here can discard the frame we just wrote before
-    # the peer has read it, which shows up on the other side as ECONNRESET.
-    # The expected outcome is an EOF once the peer closes its end.
-    try:
-      discard await sconn.readMessage().wait(PeerCloseTimeout)
-    except CatchableError:
-      discard
+  # Wait for the peer to close rather than tearing down straight away: an
+  # abortive close can discard the frame just written before the peer reads it.
+  try:
+    discard await sconn.readMessage().wait(PeerCloseTimeout)
+  except CatchableError:
+    discard
 
   await sconn.close()
   await conn.close()
-  await transport.stop()
+  # No transport.stop() here: this transport is dial-only and was never
+  # start()ed, so stop() would take the "already stopped" cleanup path,
+  # which only re-closes connections we already closed above and logs a
+  # warning through chronicles - straight to stdout by default, corrupting
+  # the stdout contract for no benefit.
 
-waitFor(main())
+try:
+  waitFor(main())
+except CatchableError as exc:
+  stderr.writeLine("ERROR " & exc.msg)
+  quit(1)

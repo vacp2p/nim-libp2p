@@ -8,25 +8,31 @@ for the wire format.
 ## Usage
 
 ```bash
-nim c -r interop_listen.nim [port]           # accepts one connection, then exits
-nim c -r interop_dial.nim [port] [--chat]    # dials 127.0.0.1:port
+nim c -d:release --outdir:. interop_listen.nim
+nim c -d:release --outdir:. interop_dial.nim
+./interop_listen [port]   # accepts one connection, then exits (default 9998)
+./interop_dial [port]     # dials 127.0.0.1:port (default 9998)
 ```
 
-Both print `HANDSHAKE_OK remotePeer=<peer id>` on success.
+The listener speaks first: both harnesses always exchange one encrypted
+greeting line each way (`hello from Nim\n`), exercising both transport
+cipher states from `split()`, not just the handshake. Stdout follows one
+contract shared by all four implementations of this profile, one key per
+line:
 
-With `--chat` the dialer also reads one post-handshake message and replies with
-`hello from Nim`. That matters because completing the handshake only proves the
-two sides agreed on the handshake hash and the KEM shared secret - it says
-nothing about whether the transport cipher states came out of `split()` with the
-same orientation. A swapped `cs1`/`cs2` still prints `HANDSHAKE_OK` and only
-fails on the first real data frame.
-
-`interop_all.sh` runs every pairing below against local checkouts of the other
-implementations:
-
-```bash
-JS_NOISE_DIR=../../../js-libp2p-noise RUST_LIBP2P_DIR=../../../rust-libp2p   bash interop_all.sh
 ```
+READY <port>          (listeners only)
+LOCAL <peer-id>
+PEER <peer-id>
+SENT hello from <Impl>
+RECV <line>
+INTEROP_OK            (last line, exit 0)
+```
+
+Anything else goes to stderr. Any failure prints `ERROR <msg>` to stderr and
+exits 1. Cross-implementation orchestration - running the 4x4 matrix against
+JS, Python and Rust - lives in the neutral matrix runner, not in this repo:
+<https://github.com/paschal533/pq-noise-artifacts/tree/main/interop>.
 
 ## Verified interop
 
@@ -105,8 +111,10 @@ connection from 127.0.0.1:62444        HANDSHAKE_OK remotePeer=12D3KooWFXYW...Dd
 PEER 12D3KooWHQEvXV28iyrSzHzwbYmLcRpk2zBHyk22ayGLxe91BdB9
 ```
 
-Only this direction is covered: rust-libp2p ships a listener example but no
-dialer, so nim-libp2p is always the initiator in this pair.
+Only this direction was recorded here: the listener example in this pairing
+was ours (royzah/rust-libp2p#1). rust-libp2p now has both a listener and a
+dialer harness on the shared contract, so this pairing is no longer limited
+to nim-libp2p as the initiator.
 
 ## Coverage
 
