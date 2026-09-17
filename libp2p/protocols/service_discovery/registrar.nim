@@ -247,18 +247,19 @@ proc acceptAdvertisement*(
     ad: Advertisement,
     advertiserIps: seq[IpAddress],
 ) =
+  # Put first: a full cache can evict this service's last ad and drop its table.
+  disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
+  disco.registrar.updateRegistrarMetrics()
+
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
+    Registered,
   )
   disco.rtManager.admitPeers(
     disco,
     serviceId,
     @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
   )
-
-  disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
-  disco.registrar.updateRegistrarMetrics()
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
@@ -340,6 +341,15 @@ proc registration*(
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
     trace "Invalid advertisement", error
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
+  if disco.registrar.ads.hasNewer(serviceId, ad):
+    trace "Stale advertisement", peerId = ad.data.peerId, seqNo = ad.data.seqNo
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
