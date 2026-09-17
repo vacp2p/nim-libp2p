@@ -268,7 +268,7 @@ method handshake*(
 
       trace "Remote peer id", pid = $pid
 
-      peerId.withValue(targetPid):
+      peerId.ifValue(targetPid):
         if not targetPid.validate():
           raise (ref NoiseHFSHandshakeError)(msg: "Failed to validate expected peerId.")
 
