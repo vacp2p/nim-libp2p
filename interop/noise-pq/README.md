@@ -118,6 +118,13 @@ was ours (royzah/rust-libp2p#1). rust-libp2p now has both a listener and a
 dialer harness on the shared contract, so this pairing is no longer limited
 to nim-libp2p as the initiator.
 
+This run also predates royzah's current code: it used our
+`royzah/rust-libp2p#1` branch, whose `Cargo.lock` pins `royzah/snow` at commit
+`407dd90` of 14 June 2026, which still spelled the suite `ML-KEM-768`. royzah
+renamed it to `MLKEM768` on 17 August 2026 (rust-libp2p `e7a1286`, snow
+`858dc27`), and that change reached libp2p/rust-libp2p#6481 only with the
+force-push of 16 September 2026.
+
 ## Coverage
 
 With the two runs above, all six pairings across the four implementations of
