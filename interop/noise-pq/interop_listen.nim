@@ -39,6 +39,13 @@ proc emit(line: string) =
   echo line
   stdout.flushFile()
 
+proc firstLine(s: string): string =
+  ## Only the first line of `s`, stripped. A peer could batch extra bytes
+  ## into the same message as its greeting; RECV must always be exactly one
+  ## clean line on stdout, not whatever else rode along in the frame.
+  let nlPos = s.find('\n')
+  (if nlPos >= 0: s[0 ..< nlPos] else: s).strip()
+
 proc main() {.async.} =
   let port =
     if paramCount() >= 1: parseInt(paramStr(1))
@@ -61,16 +68,20 @@ proc main() {.async.} =
 
   await sconn.write(GreetingPrefix & "Nim\n")
   emit("SENT " & GreetingPrefix & "Nim")
-  let reply = string.fromBytes(await sconn.readMessage()).strip()
+  let reply = firstLine(string.fromBytes(await sconn.readMessage()))
   emit("RECV " & reply)
   if not reply.startsWith(GreetingPrefix) or reply.len == GreetingPrefix.len:
     stderr.writeLine("ERROR unexpected greeting: " & reply)
     quit(1)
-  emit("INTEROP_OK")
 
   await sconn.close()
   await conn.close()
   await transport.stop()
+  # INTEROP_OK must be the very last thing this process prints: emit it only
+  # once every cleanup step above has completed without raising. If any of
+  # them raises, the top-level except below prints ERROR and exits 1 instead
+  # - and never reaches this line.
+  emit("INTEROP_OK")
 
 try:
   waitFor(main())

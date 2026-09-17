@@ -46,6 +46,13 @@ proc emit(line: string) =
   echo line
   stdout.flushFile()
 
+proc firstLine(s: string): string =
+  ## Only the first line of `s`, stripped. A peer could batch extra bytes
+  ## into the same message as its greeting; RECV must always be exactly one
+  ## clean line on stdout, not whatever else rode along in the frame.
+  let nlPos = s.find('\n')
+  (if nlPos >= 0: s[0 ..< nlPos] else: s).strip()
+
 proc main() {.async.} =
   var port = 9998
   if paramCount() == 1:
@@ -79,14 +86,13 @@ proc main() {.async.} =
   # cipher states came out of split() with the same key/nonce orientation.
   # A swapped cs1/cs2 still yields a successful handshake and only fails
   # here, on the first real data frame.
-  let incoming = string.fromBytes(await sconn.readMessage()).strip()
+  let incoming = firstLine(string.fromBytes(await sconn.readMessage()))
   emit("RECV " & incoming)
   if not incoming.startsWith(GreetingPrefix) or incoming.len == GreetingPrefix.len:
     stderr.writeLine("ERROR unexpected greeting: " & incoming)
     quit(1)
   await sconn.write(GreetingPrefix & "Nim\n")
   emit("SENT " & GreetingPrefix & "Nim")
-  emit("INTEROP_OK")
 
   # Wait for the peer to close rather than tearing down straight away: an
   # abortive close can discard the frame just written before the peer reads it.
@@ -102,6 +108,12 @@ proc main() {.async.} =
   # which only re-closes connections we already closed above and logs a
   # warning through chronicles - straight to stdout by default, corrupting
   # the stdout contract for no benefit.
+
+  # INTEROP_OK must be the very last thing this process prints: emit it only
+  # once the peer-close wait and both closes above have completed without
+  # raising. If any of them raises, the top-level except below prints ERROR
+  # and exits 1 instead - and never reaches this line.
+  emit("INTEROP_OK")
 
 try:
   waitFor(main())
