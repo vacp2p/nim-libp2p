@@ -94,8 +94,10 @@ INTEROP SUCCESS
 ```
 
 Note that the peer id nim-libp2p reports here is exactly the id the JS listener
-printed for itself, so the Ed25519 identity signature over the handshake hash
-verified - both sides computed the same `h`. The message exchange covers both
+printed for itself. To report it, nim-libp2p had to decrypt the JS static key
+and payload, which the AEAD only allows if both sides computed the same `h`
+(the handshake hash is the associated data), and then verify the Ed25519
+identity signature, which covers that static key. The message exchange covers both
 transport keys: nim decrypting the JS frame exercises one `split()` output, JS
 decrypting the nim frame exercises the other.
 
