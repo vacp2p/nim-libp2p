@@ -121,9 +121,10 @@ to nim-libp2p as the initiator.
 This run also predates royzah's current code: it used our
 `royzah/rust-libp2p#1` branch, whose `Cargo.lock` pins `royzah/snow` at commit
 `407dd90` of 14 June 2026, which still spelled the suite `ML-KEM-768`. royzah
-renamed it to `MLKEM768` on 17 August 2026 (rust-libp2p `e7a1286`, snow
-`858dc27`), and that change reached libp2p/rust-libp2p#6481 only with the
-force-push of 16 September 2026.
+renamed it to `MLKEM768` on 17 August 2026 (snow `858dc27`; rust-libp2p
+`1ae21ce`, later rebased as `e7a1286`), and the rename was on the
+libp2p/rust-libp2p#6481 branch by 22 August 2026 at the latest, so this
+5 September run was already behind the pull request.
 
 ## Coverage
 
