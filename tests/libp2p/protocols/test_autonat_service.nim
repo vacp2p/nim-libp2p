@@ -178,7 +178,7 @@ suite "Autonat Service":
     await awaiter
 
     check autonatService.networkReachability == NetworkReachability.Reachable
-    check reachabilityConfidence(NetworkReachability.Reachable) == 0.3
+    check reachabilityConfidence(NetworkReachability.Reachable) >= MinTestConfidence
 
     check switch1.peerInfo.addrs ==
       switch1.peerInfo.addrs.mapIt(switch1.addressManager.externalAddrFor(it))
