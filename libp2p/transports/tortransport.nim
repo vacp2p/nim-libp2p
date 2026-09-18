@@ -277,13 +277,12 @@ func splitListenAddrs(addrs: openArray[MultiAddress]): Result[TorListenAddrs, st
   ok(listenAddrs)
 
 method start*(
-    self: Tor
-    sport, addrs: seq[MultiAddress]
+    self: TorTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   if self.running:
     warn "Tor transport already started"
     return
-    
+
   let listenAddrs = splitListenAddrs(addrs).valueOrRaise(TransportStartError)
   await procCall Transport(self).start(listenAddrs.onion3)
   await self.tcpTransport.start(listenAddrs.tcp)
