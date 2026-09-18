@@ -329,33 +329,28 @@ proc pickClosestFirst(
 
   return selected
 
-func excluding(peers: seq[Key], exclude: Opt[Key]): seq[Key] {.raises: [].} =
-  let unwanted = exclude.valueOr:
-    return peers
-
-  var kept: seq[Key] = @[]
-  for nodeId in peers:
-    if nodeId != unwanted:
-      kept.add(nodeId)
-  return kept
-
 proc randomPeersClosestFirst*(
     rtable: RoutingTable,
     rng: Rng,
     count: int,
     maxPerBucket = high(int),
-    exclude = Opt.none(Key),
+    exclude: openArray[Key] = [],
 ): seq[Key] {.raises: [].} =
   ## Returns up to `count` peers sampled randomly from the routing table's
   ## buckets, starting from the closest buckets (highest indices) and moving
-  ## to farther buckets (lower indices).
+  ## to farther buckets (lower indices). Keys in `exclude` are dropped before
+  ## sampling, so one cannot take a slot its bucket has to spare.
 
   if count <= 0:
     return @[]
 
-  pickClosestFirst(
-    rtable.buckets.mapIt(it.peers.excluding(exclude)), rng, count, maxPerBucket
-  )
+  var view = newSeq[seq[Key]](rtable.buckets.len)
+  for i, bucket in rtable.buckets:
+    for nodeId in bucket.peers:
+      if nodeId notin exclude:
+        view[i].add(nodeId)
+
+  pickClosestFirst(view, rng, count, maxPerBucket)
 
 proc randomPeersClosestFirst*(
     rtable: RoutingTable,
@@ -364,7 +359,7 @@ proc randomPeersClosestFirst*(
     count: int,
     maxPerBucket = high(int),
     maxBuckets = rtable.config.maxBuckets,
-    exclude = Opt.none(Key),
+    exclude: openArray[Key] = [],
 ): seq[Key] {.raises: [].} =
   ## Same sampling, but with the table's peers viewed by distance to the
   ## pre-hashed ``target`` (which must be ``IdLength`` bytes) instead of to
@@ -373,12 +368,10 @@ proc randomPeersClosestFirst*(
   if count <= 0:
     return @[]
 
-  let hasExclude = exclude.isSome()
-  let unwanted = exclude.valueOr(default(Key))
   var view = newSeq[seq[Key]](bucketCount(maxBuckets))
   for bucket in rtable.buckets:
     for nodeId in bucket.peers:
-      if hasExclude and nodeId == unwanted:
+      if nodeId in exclude:
         continue
       let lz = xorDistance(target, Key.fromBytes(nodeId.hashFor(rtable.config.hasher)))
         .leadingZeros()

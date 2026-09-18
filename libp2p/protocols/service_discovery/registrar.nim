@@ -277,7 +277,7 @@ proc getCloserPeers(
 ): seq[Peer] =
   let maxPerBucket = CloserPeersPerBucket
   # Exclude the requester from its own reply.
-  let exclude = Opt.some(requester.toKey())
+  let exclude = [requester.toKey()]
   let table = disco.rtManager.getTable(serviceId)
   let keys =
     if table.isSome():
