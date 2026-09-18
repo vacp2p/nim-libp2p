@@ -15,16 +15,23 @@ proc recordingDispatch(
     failing = initHashSet[PeerId](),
     undialable = initHashSet[PeerId](),
     dialDelay = ZeroDuration,
+    cancelled: ref seq[PeerId] = nil,
 ): DispatchProc =
   ## Answers every query without I/O, records who was asked in order, and replies with
   ## the peers `closerPeers` maps that peer to. Peers in `failing` return an error, and
-  ## peers in `undialable` fail at the dial stage after `dialDelay`.
+  ## peers in `undialable` fail at the refused stage after `dialDelay`. A dial
+  ## cancelled while it waits is recorded in `cancelled`.
   proc(
       kad: KadDHT, peer: PeerId, target: Key
   ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
     queried[].add(peer)
     if peer in undialable:
-      await sleepAsync(dialDelay)
+      try:
+        await sleepAsync(dialDelay)
+      except CancelledError as e:
+        if not cancelled.isNil():
+          cancelled[].add(peer)
+        raise e
       return err($refusedStage & ": connection refused")
     if peer in failing:
       return err("peer is not answering")
@@ -472,8 +479,12 @@ suite "KadDHT Iterative Lookup":
     let known = kad.seedRoutingTable(5, targetKey)
 
     let queried = new(seq[PeerId])
+    let cancelled = new(seq[PeerId])
     let dispatch = recordingDispatch(
-      queried, undialable = toHashSet([known[0]]), dialDelay = 300.milliseconds
+      queried,
+      undialable = toHashSet([known[0]]),
+      dialDelay = 300.milliseconds,
+      cancelled = cancelled,
     )
     let state = await kad.iterativeLookup(targetKey, dispatch, noopReply)
 
@@ -481,6 +492,8 @@ suite "KadDHT Iterative Lookup":
       # The retry sent when the first attempt timed out is the last one.
       queried[].countIt(it == known[0]) == 2
       known[0] in state.unreachable
+      # The late refusal of the first attempt cancels the retry still in flight.
+      cancelled[] == @[known[0]]
 
   asyncTest "Lookup removes an unreachable seed from the routing table":
     let deadSeed = randomPeerId()
