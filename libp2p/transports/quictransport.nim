@@ -621,11 +621,13 @@ proc dialOnlyEndpointFor(
   case family
   of AddressFamily.IPv4:
     if self.dialEndpoint4.isNone():
-      self.dialEndpoint4 = Opt.some(?self.newDialEndpoint(family))
+      let endpoint = ?self.newDialEndpoint(family)
+      self.dialEndpoint4 = Opt.some(endpoint)
     ok(self.dialEndpoint4.get())
   of AddressFamily.IPv6:
     if self.dialEndpoint6.isNone():
-      self.dialEndpoint6 = Opt.some(?self.newDialEndpoint(family))
+      let endpoint = ?self.newDialEndpoint(family)
+      self.dialEndpoint6 = Opt.some(endpoint)
     ok(self.dialEndpoint6.get())
   else:
     err("client supports only IPv4/IPv6 address")
