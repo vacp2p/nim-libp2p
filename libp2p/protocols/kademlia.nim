@@ -436,7 +436,7 @@ proc new*(
       let bufLen = buf.len
       let msg = Message.decode(move(buf)).valueOr:
         trace "Kademlia RPC request decode failed",
-          error = error, peerId = stream.peerId, protocol = proto
+          error, peerId = stream.peerId, protocol = proto
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)

@@ -290,7 +290,7 @@ proc lookupCheck*(
     trace "Kad probe timed out", peerId, timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kademlia probe failed", peerId, error = error
+    trace "Kademlia probe failed", peerId, error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 

@@ -84,7 +84,7 @@ proc new*(
 
     try:
       let dialBack = DialBack.decode(await stream.readLp(DialBackLpSize)).valueOr:
-        trace "Unable to decode DialBack", error = error
+        trace "Unable to decode DialBack", error
         return
       if not await client.handleDialBack(stream, dialBack).withTimeout(
         client.dialBackTimeout

@@ -120,7 +120,7 @@ proc createMessageHandler(): proc(topic: string, data: seq[byte]) {.async, gcsaf
 
   return proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
     let (sentUint, isWarmup) = parseMessageMetadata(data).valueOr:
-      warn "Ignoring truncated message payload", topic, len = data.len, error = error
+      warn "Ignoring truncated message payload", topic, len = data.len, error
       return
 
     let messageKey = (sentUint, isWarmup)
@@ -217,17 +217,17 @@ proc main() {.async.} =
   let
     rng = libp2p.newRng()
     (hostname, connectTo, address) = getPeerDetails().valueOr:
-      error "Error reading peer settings ", error = error
+      error "Error reading peer settings ", error
       return
     warmupMessages = parseNonNegativeEnv("WARMUP_MESSAGES", "3").valueOr:
-      error "Invalid warm-up configuration", hostname, error = error
+      error "Invalid warm-up configuration", hostname, error
       return
     redisWaitTimeoutSeconds = parsePositiveEnv("REDIS_WAIT_TIMEOUT_SECONDS", "120").valueOr:
-      error "Invalid Redis wait timeout", hostname, error = error
+      error "Invalid Redis wait timeout", hostname, error
       return
 
   discard chunkPayloadSize(50 * 1024).valueOr:
-    error "Invalid fragment configuration", hostname, error = error
+    error "Invalid fragment configuration", hostname, error
     return
 
   let listenAddr = MultiAddress.init(address).valueOr:
@@ -267,7 +267,7 @@ proc main() {.async.} =
   let
     redisAddr = getEnv("redis_addr", "redis:6379")
     (redisHost, redisPort) = parseRedisAddress(redisAddr).valueOr:
-      error "Invalid redis address", hostname, address = redisAddr, error = error
+      error "Invalid redis address", hostname, address = redisAddr, error
       return
     redisWaitDeadline = Moment.now() + redisWaitTimeoutSeconds.seconds
     target = parseInt(getEnv("NUM_LIBP2P_NODES", "10"))
@@ -310,7 +310,7 @@ proc main() {.async.} =
 
   #connect with peers
   discard (await connectGossipsubPeers(switch, members, connectTo, rng)).valueOr:
-    error "Failed to establish any connections", hostname, error = error
+    error "Failed to establish any connections", hostname, error
     return
 
   # allow gossipsub mesh formation via heartbeat rounds before publishing

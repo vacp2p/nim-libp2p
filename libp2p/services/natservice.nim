@@ -315,7 +315,7 @@ proc mapOnePort(
 ): Future[Opt[MappedEntry]] {.async: (raises: [CancelledError]).} =
   # libplum returns the external address with the mapping; no separate discovery.
   let mapped = (await self.mapper.map(lp.port, lp.port, lp.proto)).valueOr:
-    trace "NAT port mapping failed", port = lp.port, protocol = lp.proto, error = error
+    trace "NAT port mapping failed", error, port = lp.port, protocol = lp.proto
     return Opt.none(MappedEntry)
 
   Opt.some(
@@ -341,7 +341,7 @@ proc unmapStale(
     (await self.mapper.unmap(port, proto)).isOkOr:
       if not stats.isNil:
         stats.unmapFailed.inc()
-      trace "Failed to unmap stale port", port, proto, error = error
+      trace "Failed to unmap stale port", error, port, proto
       continue
     if not stats.isNil:
       stats.unmapped.inc()
@@ -521,7 +521,7 @@ proc buildPortMapper(self: NATService, mode: PortMappingMode): Opt[PortMapper] =
   let mapper = PlumMapper.new(
     mode.toProtocolFilter(), pm.discoveryTimeout, pm.mappingTimeout
   ).valueOr:
-    warn "Failed to construct libplum port mapper", mode, error = error
+    warn "Failed to construct libplum port mapper", error, mode
     return Opt.none(PortMapper)
   Opt.some(PortMapper(mapper))
 

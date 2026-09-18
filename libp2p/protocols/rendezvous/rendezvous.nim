@@ -335,7 +335,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          trace "Failed to decode Message", error = error
+          trace "Failed to decode Message", error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -366,7 +366,7 @@ proc advertise*[E](
   let signedPeerRecord = SignedPayload[E].init(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
-    info "Can't create the signed peer record", error = error
+    info "Can't create the signed peer record", error
     return
 
   let pBuff = signedPeerRecord.encode()
@@ -447,7 +447,7 @@ proc requestPeer[E](
   let
     buf = await stream.readLp(MaximumMessageLen)
     msgRcv = Message.decode(buf).valueOr:
-      trace "Message undecodable", error = error
+      trace "Message undecodable", error
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
     trace "Unexpected discover response", msgType = msgRcv.msgType
@@ -604,7 +604,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          trace "Failed to decode Message", error = error
+          trace "Failed to decode Message", error
           return
       case msg.msgType
       of MessageType.Register:

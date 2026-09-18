@@ -706,7 +706,7 @@ method rpcHandler*(
 
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
-      error = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
+      error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
     # disconnect the peer!)
@@ -984,7 +984,7 @@ method publish*(
     return 0
 
   let msgId = g.msgIdProvider(msg).valueOr:
-    trace "Publish skipped after message ID generation failed", error = error
+    trace "Publish skipped after message ID generation failed", error
     libp2p_gossipsub_failed_publish.inc()
     return 0
 

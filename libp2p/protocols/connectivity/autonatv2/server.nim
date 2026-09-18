@@ -117,7 +117,7 @@ proc dialBack(
 
     # receive DialBackResponse
     discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-      trace "DialBack failed, could not decode DialBackResponse", error = error
+      trace "DialBack failed, could not decode DialBackResponse", error
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
@@ -331,7 +331,7 @@ proc new*(
     let msg =
       try:
         AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-          trace "Unable to decode AutonatV2Msg", error = error
+          trace "Unable to decode AutonatV2Msg", error
           return
       except LPStreamError as exc:
         trace "Could not receive AutonatV2Msg", error = exc.msg
