@@ -94,7 +94,7 @@ proc releasePlum() =
   dec plumRefCount
   if plumRefCount == 0:
     plum.cleanup().isOkOr:
-      warn "plum_cleanup failed", err = error
+      warn "plum_cleanup failed", error
 
 proc new*(
     T: typedesc[PlumMapper],

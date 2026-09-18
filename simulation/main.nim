@@ -120,7 +120,7 @@ proc createMessageHandler(): proc(topic: string, data: seq[byte]) {.async, gcsaf
 
   return proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
     let (sentUint, isWarmup) = parseMessageMetadata(data).valueOr:
-      warn "Ignoring truncated message payload", topic, len = data.len, err = error
+      warn "Ignoring truncated message payload", topic, len = data.len, error
       return
 
     let messageKey = (sentUint, isWarmup)
@@ -193,7 +193,7 @@ proc connectGossipsubPeers(
       connected.inc()
       info "Connected", peer, currentConnections = $connected, target = connectTo
     except CatchableError as e:
-      warn "Failed to dial", theirAddress = peer, err = e.msg
+      warn "Failed to dial", theirAddress = peer, error = e.msg
 
   if connected == 0:
     return err("Failed to connect any peer")
@@ -217,17 +217,17 @@ proc main() {.async.} =
   let
     rng = libp2p.newRng()
     (hostname, connectTo, address) = getPeerDetails().valueOr:
-      error "Error reading peer settings ", err = error
+      error "Error reading peer settings ", error
       return
     warmupMessages = parseNonNegativeEnv("WARMUP_MESSAGES", "3").valueOr:
-      error "Invalid warm-up configuration", hostname, err = error
+      error "Invalid warm-up configuration", hostname, error
       return
     redisWaitTimeoutSeconds = parsePositiveEnv("REDIS_WAIT_TIMEOUT_SECONDS", "120").valueOr:
-      error "Invalid Redis wait timeout", hostname, err = error
+      error "Invalid Redis wait timeout", hostname, error
       return
 
   discard chunkPayloadSize(50 * 1024).valueOr:
-    error "Invalid fragment configuration", hostname, err = error
+    error "Invalid fragment configuration", hostname, error
     return
 
   let listenAddr = MultiAddress.init(address).valueOr:
@@ -258,7 +258,7 @@ proc main() {.async.} =
   info "Starting metrics server", hostname
   let metricsServer = startMetricsServer(parseIpAddress("0.0.0.0"), prometheusPort)
   if metricsServer.isErr:
-    error "Failed to initialize metrics server", hostname, err = metricsServer.error
+    error "Failed to initialize metrics server", hostname, error = metricsServer.error
 
   info "Listening on ", hostname, address = switch.peerInfo.addrs[^1]
   info "MY PEER ID", hostname, peerId = switch.peerInfo.peerId
@@ -267,7 +267,7 @@ proc main() {.async.} =
   let
     redisAddr = getEnv("redis_addr", "redis:6379")
     (redisHost, redisPort) = parseRedisAddress(redisAddr).valueOr:
-      error "Invalid redis address", hostname, address = redisAddr, err = error
+      error "Invalid redis address", hostname, address = redisAddr, error
       return
     redisWaitDeadline = Moment.now() + redisWaitTimeoutSeconds.seconds
     target = parseInt(getEnv("NUM_LIBP2P_NODES", "10"))
@@ -283,7 +283,7 @@ proc main() {.async.} =
       members = redisClient.smembers("node")
     except Exception as e:
       # Exception: redis library declares {.raises: [Exception].}, not CatchableError
-      error "Could not obtain list of members", hostname, err = e.msg
+      error "Could not obtain list of members", hostname, error = e.msg
       quit(1)
 
     if members.len == target:
@@ -310,7 +310,7 @@ proc main() {.async.} =
 
   #connect with peers
   discard (await connectGossipsubPeers(switch, members, connectTo, rng)).valueOr:
-    error "Failed to establish any connections", hostname, error = error
+    error "Failed to establish any connections", hostname, error
     return
 
   # allow gossipsub mesh formation via heartbeat rounds before publishing

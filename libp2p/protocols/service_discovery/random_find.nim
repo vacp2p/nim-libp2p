@@ -67,7 +67,7 @@ proc randomRecords(
         raise e
 
     let reply = res.valueOr:
-      trace "Kademlia get-value failed", err = error
+      trace "Kademlia get-value failed", error
       continue
 
     let sxpr = replyXpr(p.key, reply).valueOr:

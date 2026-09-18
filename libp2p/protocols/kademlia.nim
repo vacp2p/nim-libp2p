@@ -431,12 +431,12 @@ proc new*(
           return
         except LPStreamError as exc:
           trace "Kademlia RPC request read failed",
-            err = exc.msg, stream, peerId = stream.peerId, protocol = proto
+            error = exc.msg, stream, peerId = stream.peerId, protocol = proto
           return
       let bufLen = buf.len
       let msg = Message.decode(move(buf)).valueOr:
         trace "Kademlia RPC request decode failed",
-          err = error, peerId = stream.peerId, protocol = proto
+          error, peerId = stream.peerId, protocol = proto
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)

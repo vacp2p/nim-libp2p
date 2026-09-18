@@ -67,7 +67,7 @@ method dialMe*(
         await (await incomingConnection).connection.close()
       except AlreadyExpectingConnectionError as e:
         # this err is already handled above and could not happen later
-        trace "Unexpected error", err = e.msg
+        trace "Unexpected error", error = e.msg
 
   try:
     trace "sending Dial", addresses = switch.peerInfo.addrs

@@ -42,9 +42,9 @@ proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
             break
             #3 nameserver max on linux
     except IOError as exc:
-      debug "Failed to get unix nameservers", err = exc.msg
+      debug "Failed to get unix nameservers", error = exc.msg
     except TransportAddressError as exc:
-      debug "Failed to init address", err = exc.msg
+      debug "Failed to init address", error = exc.msg
     finally:
       if resultSeq.len > 0:
         return resultSeq

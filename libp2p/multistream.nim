@@ -222,10 +222,10 @@ proc handle*(
       let (protos, matchers) = m.allProtosAndMatchers()
       await MultistreamSelect.tryHandle(stream, protos, matchers, active)
     except LPStreamError as e:
-      trace "Multistream negotiation failed", err = e.msg, stream
+      trace "Multistream negotiation failed", error = e.msg, stream
       return
   let ms = negotiated.valueOr:
-    trace "Multistream negotiation failed", err = $error, stream
+    trace "Multistream negotiation failed", error = $error, stream
     return
 
   m.lookupProtocol(ms).ifValue(p):

@@ -12,9 +12,10 @@ LOG_MESSAGE = re.compile(
 )
 MULTI_SENTENCE = re.compile(r"\.\s+(?=[A-Z])")
 EXCEPTION_ALIAS = re.compile(
-    r"\b(?:description|error|message|msg)\s*=\s*"
+    r"\b(?:description|message|msg)\s*=\s*"
     r"(?:getCurrentExceptionMsg\(\)|[A-Za-z_][\w.]*\.msg)"
 )
+ERR_FIELD = re.compile(r"\berr\s*=")
 PAYLOAD_FIELD = re.compile(
     r"\b(?:msg|message|buffer|record|reply|response|rpcMsg|data|encoded|"
     r"certificate|ticket|key)\s*="
@@ -82,9 +83,8 @@ def log_message(block: str):
     return match.group(1) if match else None
 
 
-def short_positional_fields(block: str):
-    """Field names that chronicles derives from bare (positional) selectors,
-    e.g. the ``s`` in ``trace "...", s``.
+def positional_fields(block: str):
+    """Field names that Chronicles derives from bare positional selectors.
 
     Bare selectors have no ``name = value`` pair, so they are invisible to the
     FIELD_ASSIGNMENT check above and need dedicated handling. We take the text
@@ -150,7 +150,7 @@ def short_positional_fields(block: str):
             # `name = value` selectors are handled by FIELD_ASSIGNMENT above.
             continue
         name = selector.strip()
-        if FIELD_NAME.fullmatch(name) and len(name) < 3:
+        if FIELD_NAME.fullmatch(name):
             yield name
 
 
@@ -239,7 +239,11 @@ def main() -> int:
         for line, level, block in log_blocks(path):
             if EXCEPTION_ALIAS.search(block):
                 violations.append(
-                    f"{path.relative_to(ROOT)}:{line}: use err for exception text"
+                    f"{path.relative_to(ROOT)}:{line}: use error for exception text"
+                )
+            if ERR_FIELD.search(block):
+                violations.append(
+                    f"{path.relative_to(ROOT)}:{line}: use error instead of err as a log field"
                 )
             if level in {"warn", "error"} and PAYLOAD_FIELD.search(block):
                 violations.append(
@@ -265,8 +269,14 @@ def main() -> int:
                         f"{path.relative_to(ROOT)}:{line}: field '{field_name}' is too short (needs to be at least 3 characters long)"
                     )
             # ... and chronicles fields passed as bare/positional selectors.
-            for field_name in short_positional_fields(block):
-                if field_name not in SHORT_FIELD_EXCEPTIONS:
+            for field_name in positional_fields(block):
+                if field_name == "err":
+                    violations.append(
+                        f"{path.relative_to(ROOT)}:{line}: use error = err instead of bare err"
+                    )
+                elif (
+                    len(field_name) < 3 and field_name not in SHORT_FIELD_EXCEPTIONS
+                ):
                     violations.append(
                         f"{path.relative_to(ROOT)}:{line}: bare field '{field_name}' is too short (needs to be at least 3 characters long)"
                     )

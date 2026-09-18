@@ -109,14 +109,14 @@ template safeCloseWait*(stream: untyped) =
     try:
       await noCancel stream.closeWait()
     except CatchableError as e:
-      trace "Transport stream close failed", err = e.msg
+      trace "Transport stream close failed", error = e.msg
 
 template safeClose*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.close()
     except CatchableError as e:
-      trace "Libp2p stream close failed", err = e.msg
+      trace "Libp2p stream close failed", error = e.msg
 
 proc toTransportAddress*(
     self: Transport, addrsMa: seq[MultiAddress]

@@ -87,7 +87,7 @@ proc cleanupChann(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
         labelValues = [$chann.initiator, $m.connection.peerId],
       )
   except CancelledError as exc:
-    trace "Mplex channel cleanup canceled", err = exc.msg, muxer = m, channel = chann
+    trace "Mplex channel cleanup canceled", error = exc.msg, muxer = m, channel = chann
 
 proc newStreamInternal*(
     m: Mplex,
@@ -203,7 +203,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
         except LPStreamClosedError as exc:
           # Channel is being closed, but `cleanupChann` was not yet triggered.
           trace "Channel data delivery failed",
-            err = exc.msg, muxer = m, channel, messageSize = data.len
+            error = exc.msg, muxer = m, channel, messageSize = data.len
           discard # Ignore message, same as if `cleanupChann` had completed.
       of MessageType.CloseIn, MessageType.CloseOut:
         await channel.pushEof()
@@ -212,11 +212,11 @@ method handle*(m: Mplex) {.async: (raises: []).} =
   except CancelledError:
     trace "Mplex handler canceled", muxer = m
   except LPStreamEOFError as exc:
-    trace "Stream EOF", err = exc.msg, muxer = m
+    trace "Stream EOF", error = exc.msg, muxer = m
   except LPStreamError as exc:
-    trace "Unexpected stream exception in mplex read loop", err = exc.msg, muxer = m
+    trace "Unexpected stream exception in mplex read loop", error = exc.msg, muxer = m
   except MuxerError as exc:
-    debug "Unexpected muxer exception in mplex read loop", err = exc.msg, muxer = m
+    debug "Unexpected muxer exception in mplex read loop", error = exc.msg, muxer = m
   finally:
     await m.close()
   trace "Mplex handler stopped", muxer = m

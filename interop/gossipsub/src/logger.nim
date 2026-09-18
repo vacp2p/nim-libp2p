@@ -23,9 +23,9 @@ proc logJSON*(
     stream.writeLine($obj)
     stream.flush()
   except IOError as e:
-    warn "Log write failed", logMsg = msg, err = e.msg
+    warn "Log write failed", logMsg = msg, error = e.msg
   except OSError as e:
-    warn "Log write failed", logMsg = msg, err = e.msg
+    warn "Log write failed", logMsg = msg, error = e.msg
 
 proc logPeerId*(stream: Stream, peerId: PeerId, nodeId: int) {.raises: [].} =
   ## Log the PeerID event (required at startup).

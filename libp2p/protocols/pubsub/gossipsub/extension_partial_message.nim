@@ -415,7 +415,7 @@ proc publishPartialToPeer(
         )
         if unionRes.isErr:
           warn "failed to create union from the two parts metadata",
-            err = unionRes.error
+            error = unionRes.error
           # technically should never happen since materializeParts was successful
         else:
           peerState.receivedPartsMetadata = Opt.some(unionRes.get())

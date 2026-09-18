@@ -186,5 +186,5 @@ proc handlePutValue*(
     await stream.writeLp(encoded)
   except LPStreamError as exc:
     trace "Kademlia put-value RPC reply write failed",
-      err = exc.msg, stream, messageType = $MessageType.putValue
+      error = exc.msg, stream, messageType = $MessageType.putValue
     return

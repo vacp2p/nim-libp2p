@@ -431,7 +431,7 @@ method getOrCreatePeer*(
     try:
       await p.rpcHandler(peer, move(data))
     except PeerMessageDecodeError as e:
-      trace "failed to decode message in peerHandler", err = e.msg, peerId = peer
+      trace "failed to decode message in peerHandler", error = e.msg, peerId = peer
       # loop continues and invalid messages are swallowed
 
   # create new pubsub peer
@@ -524,7 +524,7 @@ proc handleData*(
         cancelled.inc()
       elif fut.failed:
         failed.inc()
-        trace "Error in topic handler", topic, err = fut.error().msg
+        trace "Error in topic handler", topic, error = fut.error().msg
       elif not fut.finished():
         pending.inc()
 
@@ -772,7 +772,8 @@ method validate*(
         if res == ValidationResult.Reject:
           break
     except CatchableError as e:
-      trace "validator for message could not be executed, ignoring", err = e.msg, topic
+      trace "validator for message could not be executed, ignoring",
+        error = e.msg, topic
       valResult = ValidationResult.Ignore
 
   case valResult

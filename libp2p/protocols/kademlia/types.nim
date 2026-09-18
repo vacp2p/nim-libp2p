@@ -336,7 +336,7 @@ proc toPeerIds*(keys: seq[Key]): seq[PeerId] =
   for k in keys:
     let peerId = k.toPeerId().valueOr:
       trace "Kademlia key conversion failed",
-        err = error, operation = "convert key to peer ID"
+        error, operation = "convert key to peer ID"
       continue
     peerIds.add(peerId)
   return peerIds

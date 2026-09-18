@@ -46,7 +46,7 @@ proc sendResponseError(
   try:
     await stream.writeLp(pb)
   except LPStreamError as exc:
-    trace "autonat failed to send response error", err = exc.msg, stream
+    trace "autonat failed to send response error", error = exc.msg, stream
 
 proc sendResponseOk(
     stream: Stream, ma: MultiAddress
@@ -62,7 +62,7 @@ proc sendResponseOk(
   try:
     await stream.writeLp(pb)
   except LPStreamError as exc:
-    trace "autonat failed to send response ok", err = exc.msg, stream
+    trace "autonat failed to send response ok", error = exc.msg, stream
 
 proc tryDial(
     autonat: Autonat, stream: Stream, addrs: seq[MultiAddress]
@@ -92,10 +92,10 @@ proc tryDial(
   except CancelledError as exc:
     raise exc
   except AllFuturesFailedError as exc:
-    debug "All dial attempts failed", err = exc.msg, addresses = addrs
+    debug "All dial attempts failed", error = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "All dial attempts failed")
   except AsyncTimeoutError as exc:
-    debug "Dial timeout", err = exc.msg, addresses = addrs
+    debug "Dial timeout", error = exc.msg, addresses = addrs
     await stream.sendResponseError(DialError, "Dial timeout")
   finally:
     try:
@@ -174,7 +174,7 @@ proc new*(
       trace "cancelled autonat handler"
       raise exc
     except CatchableError as exc:
-      debug "exception in autonat handler", err = exc.msg, stream
+      debug "exception in autonat handler", error = exc.msg, stream
     finally:
       trace "exiting autonat handler", stream
       await stream.close()

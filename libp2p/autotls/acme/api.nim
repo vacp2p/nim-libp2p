@@ -409,7 +409,7 @@ proc requestAuthorizations*(
       try:
         challenges.add(challenge.to(ACMEChallenge))
       except ValueError, JsonKindError:
-        trace "Could not parse challenge", err = getCurrentExceptionMsg()
+        trace "Could not parse challenge", error = getCurrentExceptionMsg()
 
     if challenges.len == 0:
       raise newException(ACMEError, "No challenges received")

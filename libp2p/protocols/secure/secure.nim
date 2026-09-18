@@ -162,7 +162,7 @@ method init*(s: Secure) =
       trace "Secure upgrade canceled", protocol = proto, stream
       raise exc
     except LPStreamError as exc:
-      trace "Secure upgrade failed", err = exc.msg, protocol = proto, stream
+      trace "Secure upgrade failed", error = exc.msg, protocol = proto, stream
     finally:
       await stream.close()
 
@@ -196,7 +196,7 @@ method readOnce*(
       raise exc
     except LPStreamError as err:
       debug "Secure connection message read failed",
-        err = err.msg, errType = err.name, connection = s
+        error = err.msg, errType = err.name, connection = s
       await s.close()
       raise newException(LPStreamError, "Secure connection read error: " & err.msg, err)
 

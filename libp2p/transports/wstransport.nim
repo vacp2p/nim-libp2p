@@ -193,13 +193,13 @@ proc releaseAcceptSlot(self: WsTransport) {.raises: [].} =
   try:
     self.acceptSem.release()
   except AsyncSemaphoreError as e:
-    trace "WebSocket accept slot release failed", err = e.msg
+    trace "WebSocket accept slot release failed", error = e.msg
 
 proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
   try:
     await noCancel stream.closeWait()
   except CatchableError as e:
-    trace "HTTP stream close failed", err = e.msg
+    trace "HTTP stream close failed", error = e.msg
 
 proc connHandler(
   self: WsTransport, stream: WSSession, secure: bool, dir: Direction
@@ -224,19 +224,19 @@ proc wsHandshakeWorker(
     await self.acceptResults.addLast(conn)
     accepted = true
   except WebSocketError as e:
-    debug "WebSocket handshake failed", err = e.msg
+    debug "WebSocket handshake failed", error = e.msg
   except HttpError as e:
-    debug "WebSocket HTTP handshake failed", err = e.msg
+    debug "WebSocket HTTP handshake failed", error = e.msg
   except AsyncStreamError as e:
-    debug "WebSocket transport stream failed", err = e.msg
+    debug "WebSocket transport stream failed", error = e.msg
   except AsyncTimeoutError as e:
-    debug "WebSocket handshake timed out", err = e.msg
+    debug "WebSocket handshake timed out", error = e.msg
   except CancelledError as e:
     if not accepted:
       await noCancel closeHttpStream(stream)
     raise e
   except CatchableError as e:
-    debug "WebSocket connection acceptance failed", err = e.msg
+    debug "WebSocket connection acceptance failed", error = e.msg
 
   if not accepted:
     await closeHttpStream(stream)
@@ -276,17 +276,17 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         elif finished.failed():
           let exc = finished.error()
           if exc of TransportUseClosedError:
-            debug "Server was closed", err = exc.msg
+            debug "Server was closed", error = exc.msg
           elif exc of TransportTooManyError:
             if self.descriptorWarnings.allowLog():
               warn "Connection acceptance limited by file descriptor exhaustion",
-                err = exc.msg, errType = exc.name, transport = "websocket"
+                error = exc.msg, errType = exc.name, transport = "websocket"
           elif exc of TransportAbortedError:
-            debug "Transport connection aborted", err = exc.msg
+            debug "Transport connection aborted", error = exc.msg
           elif exc of TransportOsError:
-            debug "WebSocket socket acceptance failed", err = exc.msg
+            debug "WebSocket socket acceptance failed", error = exc.msg
           else:
-            debug "WebSocket stream acceptance failed", err = exc.msg
+            debug "WebSocket stream acceptance failed", error = exc.msg
 
           if acquired:
             self.releaseAcceptSlot()
@@ -311,7 +311,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         if acquired:
           self.releaseAcceptSlot()
         if self.running:
-          debug "WebSocket accept dispatcher failed", err = e.msg
+          debug "WebSocket accept dispatcher failed", error = e.msg
         else:
           break
   finally:
@@ -322,7 +322,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await closeHttpStream(fut.read())
         except CatchableError as e:
-          trace "WebSocket accepted stream read failed", err = e.msg
+          trace "WebSocket accepted stream read failed", error = e.msg
 
     if notifyOnClose:
       var toWait: seq[Future[void]]
@@ -334,7 +334,7 @@ proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
         try:
           await noCancel allFutures(toWait)
         except CatchableError as e:
-          trace "WebSocket handshake worker shutdown failed", err = e.msg
+          trace "WebSocket handshake worker shutdown failed", error = e.msg
 
       self.notifyAcceptClosed()
 
@@ -457,7 +457,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     if wasRunning:
       info "WebSocket transport stopped", addresses = self.addrs
   except CatchableError as e:
-    trace "WebSocket transport shutdown failed", err = e.msg
+    trace "WebSocket transport shutdown failed", error = e.msg
   finally:
     self.notifyAcceptClosed()
 
@@ -482,7 +482,7 @@ proc connHandler(
         MultiAddress.init(localAddr).tryGet() & codec.tryGet(),
       )
     except CatchableError as e:
-      trace "WebSocket connection address extraction failed", err = e.msg
+      trace "WebSocket connection address extraction failed", error = e.msg
       safeClose(stream)
       raise e
 

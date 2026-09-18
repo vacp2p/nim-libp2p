@@ -45,5 +45,5 @@ proc handlePing*(
     await stream.writeLp(encoded)
   except LPStreamError as exc:
     debug "Kademlia ping RPC reply write failed",
-      err = exc.msg, stream, messageType = $MessageType.ping
+      error = exc.msg, stream, messageType = $MessageType.ping
     return

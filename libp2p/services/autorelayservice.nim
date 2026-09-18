@@ -110,7 +110,7 @@ proc innerRun(
         if future.failed() and self.reservationWarnings.allowLog():
           let exc = future.error()
           warn "Relay reservation task failed",
-            err = exc.msg,
+            error = exc.msg,
             errType = exc.name,
             relayPid = k,
             hadReservation,

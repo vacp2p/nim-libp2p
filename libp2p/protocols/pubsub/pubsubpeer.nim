@@ -342,7 +342,7 @@ proc runHandleLoop*(
         return
       except LPStreamError as e:
         trace "Exception occurred reading message PubSubPeer.handle",
-          err = e.msg, stream, peer = p, closed = stream.closed
+          error = e.msg, stream, peer = p, closed = stream.closed
         return
 
     if p.stopped:
@@ -358,7 +358,7 @@ proc runHandleLoop*(
     try:
       await p.handler(p, move(data))
     except PeerRateLimitError as e:
-      trace "peer rate limit exceeded in peerHandler", err = e.msg, stream, peer = p
+      trace "peer rate limit exceeded in peerHandler", error = e.msg, stream, peer = p
       await stream.closeWithEOF()
       return
 
@@ -435,7 +435,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
   except CancelledError:
     discard
   except GetStreamDialError as exc:
-    trace "Could not establish send stream", err = exc.msg
+    trace "Could not establish send stream", error = exc.msg
 
 proc connect*(p: PubSubPeer) =
   if p.stopped or p.connected:
@@ -483,10 +483,10 @@ proc sendMsgContinue(
     await msgFut
     trace "sent pubsub message to remote", stream
   except CancelledError as exc:
-    trace "sendMsgContinue cancelled", err = exc.msg, stream
+    trace "sendMsgContinue cancelled", error = exc.msg, stream
     raise exc
   except LPStreamError as exc:
-    trace "Unexpected exception in sendMsgContinue", err = exc.msg, stream
+    trace "Unexpected exception in sendMsgContinue", error = exc.msg, stream
     # Next time sendStream is used, it will be have its close flag set and thus
     # will be recycled
     await stream.close() # This will clean up the send stream
