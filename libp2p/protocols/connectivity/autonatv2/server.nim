@@ -240,7 +240,7 @@ proc handleDialRequest(
 
   # the spec exempts only a selected addr whose IP equals the observed IP
   if not ipAddrMatches(observedIPAddr, [req.addrs[addrIdx]]):
-    debug "Starting amplification attack prevention",
+    trace "Starting amplification attack prevention",
       observedIPAddr = observedIPAddr, testAddr = req.addrs[addrIdx]
     # send DialDataRequest and wait until dataReceived is enough
     if not await self.amplificationAttackPrevention(stream, addrIdx).withTimeout(

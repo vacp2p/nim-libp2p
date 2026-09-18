@@ -48,7 +48,7 @@ proc getAdvertBytes(disco: ServiceDiscovery, explicit: Opt[seq[byte]]): Opt[seq[
     return Opt.some(explicit.get())
 
   let extRecord = disco.record().valueOr:
-    error "failed to create extended peer record", error
+    trace "failed to create extended peer record", error
     return Opt.none(seq[byte])
   Opt.some(extRecord.encode())
 
@@ -282,7 +282,7 @@ proc advertiseToRegistrar*(
   let isSelf = registrar == disco.switch.peerInfo.peerId
   var currentTicket = ticket
 
-  debug "registering advert", serviceId, registrar, isSelf
+  trace "registering advert", serviceId, registrar, isSelf
 
   # `changeMode` can flip the mode at any point, so every iteration re-reads it
   while true:
@@ -293,7 +293,7 @@ proc advertiseToRegistrar*(
     let response = (
       await disco.sendRegister(registrar, serviceId, advert, currentTicket)
     ).valueOr:
-      error "failed to register ad", serviceId, registrar, error
+      trace "failed to register ad", serviceId, registrar, error
       return
 
     disco.admitPeers(response.closerPeers)
@@ -301,7 +301,7 @@ proc advertiseToRegistrar*(
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
-      debug "advert accepted", serviceId, registrar
+      trace "advert accepted", serviceId, registrar
 
       # Drop any ticket used for this Confirm.
       # Self-registration reuses this loop after advertExpiry.
@@ -328,11 +328,11 @@ proc advertiseToRegistrar*(
 
       let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor.get())
 
-      debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
+      trace "waiting for registrar", serviceId, registrar, wait = $waitSecs
 
       await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:
-      debug "registrar rejection, aborting", serviceId, registrar
+      trace "registrar rejection, aborting", serviceId, registrar
       return
 
 proc validateAdvert(advert: seq[byte], service: ServiceInfo): Result[void, string] =
