@@ -108,7 +108,7 @@ template safeCloseWait*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.closeWait()
-except CatchableError as e:
+    except CatchableError as e:
       trace "Transport stream close failed", err = e.msg
 
 template safeClose*(stream: untyped) =
