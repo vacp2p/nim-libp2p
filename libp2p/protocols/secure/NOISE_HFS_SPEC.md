@@ -1,7 +1,12 @@
 # NoiseHFS: post-quantum hybrid Noise for nim-libp2p
 
-Status: experimental. Protocol identifier `/noise-mlkem768-hfs/0.2.0` is a
-working identifier, not yet registered with libp2p-specs or IANA.
+Status: experimental. The suite is specified in libp2p/specs PR #727
+(Stage 1A Working Draft, by royzah). Protocol identifier
+`/noise-mlkem768-hfs/0.2.0` is what this implementation ships, not a
+spec-endorsed identifier: #727 writes `/noise-mlkem768-hfs/0.1.0` and lists
+the identifier string as the first of its open issues, and nothing is
+registered with IANA. This implementation will follow whatever #727 settles
+on.
 
 ## Motivation
 
@@ -135,6 +140,12 @@ decapsulation is even attempted.
   the default `Noise` and let multistream-select negotiate per peer.
 
 ## Interoperability status
+
+The suite is specified in libp2p/specs PR #727, a Stage 1A Working Draft
+opened by royzah on 2026-07-06 and still open. A separate and longer draft,
+libp2p/specs PR #716 by this implementation's author, was closed on
+2026-09-18 in favour of #727; its text remains readable at
+<https://github.com/paschal533/specs/tree/master/noise-pq>.
 
 This profile's wire format matches the other implementations of
 `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`: TypeScript

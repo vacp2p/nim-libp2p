@@ -1,8 +1,10 @@
 # NoiseHFS interop scripts
 
 Standalone dial/listen scripts for `Noise_XXhfs_25519+MLKEM768_ChaChaPoly_SHA256`
-(protocol id `/noise-mlkem768-hfs/0.2.0`), independent of the rest of the
-nim-libp2p test suite. See `../../libp2p/protocols/secure/NOISE_HFS_SPEC.md`
+(protocol id `/noise-mlkem768-hfs/0.2.0`, which is what these harnesses and
+the other three implementations ship; the suite's Working Draft,
+libp2p/specs#727, writes `0.1.0` and lists the identifier string as an open
+issue), independent of the rest of the nim-libp2p test suite. See `../../libp2p/protocols/secure/NOISE_HFS_SPEC.md`
 for the wire format.
 
 ## Usage
