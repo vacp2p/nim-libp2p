@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import ../logging
-import std/[sequtils]
+import std/[sequtils, oserrors]
 import chronos, chronicles, results
 import
   ./transport,
@@ -39,6 +39,10 @@ type
     closeFuts: seq[Future[void]]
 
   TcpTransportError* = object of transport.TransportError
+
+  ConnAddrs = object
+    observed: MultiAddress
+    local: MultiAddress
 
 proc connHandler*(
     self: TcpTransport,
@@ -106,6 +110,34 @@ proc new*(
   procCall Transport(self).initialize()
   self
 
+proc listen(
+    self: TcpTransport, addrs: openArray[TransportAddress]
+): Result[seq[MultiAddress], string] =
+  ## Servers created before a failure stay in `self.servers` for the caller to close.
+  var supported: seq[MultiAddress]
+  for ta in addrs:
+    let server =
+      try:
+        createStreamServer(ta, flags = self.flags)
+      except common.TransportError as e:
+        return err("TcpTransport.start failed to listen on " & $ta & ". " & e.msg)
+    self.servers &= server
+
+    let localAddr = MultiAddress.init(server.sock.getLocalAddress()).valueOr:
+      return err("TcpTransport.start got invalid local address. " & error)
+    trace "Listening on", address = localAddr
+    supported.add(localAddr)
+
+  ok(supported)
+
+proc connAddrs(transp: StreamTransport): Result[ConnAddrs, string] =
+  let remote = transp.remoteAddress2().valueOr:
+    return err("cannot read remote address. " & osErrorMsg(error))
+  let local = transp.localAddress2().valueOr:
+    return err("cannot read local address. " & osErrorMsg(error))
+
+  ok ConnAddrs(observed: ?MultiAddress.init(remote), local: ?MultiAddress.init(local))
+
 method start*(
     self: TcpTransport, addrs: seq[MultiAddress]
 ): Future[void] {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
@@ -119,34 +151,10 @@ method start*(
   self.flags.incl(ServerFlags.ReusePort)
 
   let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
-
-  var supported: seq[MultiAddress]
-  var initialized = false
-  try:
-    for i, ta in addrsTa:
-      let server =
-        try:
-          createStreamServer(ta, flags = self.flags)
-        except common.TransportError as exc:
-          raise (ref TcpTransportError)(
-            msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
-          )
-
-      self.servers &= server
-
-      trace "Listening on", address = addrs[i]
-      supported.add(
-        MultiAddress.init(server.sock.getLocalAddress()).expect(
-          "Can init from local address"
-        )
-      )
-
-    initialized = true
-  finally:
-    if not initialized:
-      # Clean up partial success on exception
-      await noCancel allFutures(self.servers.mapIt(it.closeWait()))
-      reset(self.servers)
+  let supported = self.listen(addrsTa).valueOr:
+    await noCancel allFutures(self.servers.mapIt(it.closeWait()))
+    reset(self.servers)
+    raise error.toException(TcpTransportError)
 
   await procCall Transport(self).start(supported)
 
@@ -265,22 +273,14 @@ method accept*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let (localAddr, observedAddr) =
-    try:
-      (
-        MultiAddress.init(transp.localAddress).expect(
-          "Can initialize from local address"
-        ),
-        MultiAddress.init(transp.remoteAddress).expect(
-          "Can initialize from remote address"
-        ),
-      )
-    except TransportOsError as exc:
-      # The connection had errors / was closed before `await` returned control
-      safeCloseWait(transp)
-      debug "Cannot read address", err = exc.msg
-      return nil
-  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
+  let addrs = transp.connAddrs().valueOr:
+    # The connection had errors / was closed before `await` returned control
+    safeCloseWait(transp)
+    debug "Cannot read address", err = error
+    return nil
+  self.connHandler(
+    transp, Opt.some(addrs.observed), Opt.some(addrs.local), Direction.In
+  )
 
 proc findAddressByFamily(
     addrs: openArray[MultiAddress], family: AddressFamily
@@ -304,7 +304,10 @@ method dial*(
     raise newTransportClosedError()
 
   let ta = initTAddress(address).valueOr:
-    raise (ref TcpTransportError)(msg: "Unsupported address: " & $address)
+    raise (ref TcpTransportError)(
+      msg:
+        "TcpTransport.dial called with unsupported address " & $address & ". " & error
+    )
   let local =
     if self.networkReachability == NetworkReachability.NotReachable:
       findAddressByFamily(self.addrs, ta.family)
@@ -336,17 +339,13 @@ method dial*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let (observedAddr, localAddr) =
-    try:
-      (
-        MultiAddress.init(transp.remoteAddress).expect("remote address is valid"),
-        MultiAddress.init(transp.localAddress).expect("local address is valid"),
-      )
-    except TransportOsError as exc:
-      safeCloseWait(transp)
-      raise (ref TcpTransportError)(msg: "MultiAddress.init error in dial: " & exc.msg)
+  let addrs = transp.connAddrs().valueOr:
+    safeCloseWait(transp)
+    raise (ref TcpTransportError)(msg: "TcpTransport.dial failed. " & error)
 
-  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.Out)
+  self.connHandler(
+    transp, Opt.some(addrs.observed), Opt.some(addrs.local), Direction.Out
+  )
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
   if procCall Transport(t).handles(address):
