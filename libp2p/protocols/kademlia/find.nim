@@ -251,7 +251,7 @@ proc updatePeers*(
     addressPolicy: PeerAddressPolicy,
     rtable: RoutingTable,
     peerInfos: seq[PeerInfo],
-    caps: DiversityCaps = defaultDiversityCaps(),
+    caps: DiversityCaps,
 ) {.raises: [].} =
   ## Unprobed admission, for trusted seed peers only; see ``admitPeers``.
   for p in peerInfos:

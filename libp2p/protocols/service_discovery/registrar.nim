@@ -255,11 +255,12 @@ proc acceptAdvertisement*(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Registered,
   )
-  disco.rtManager.admitPeers(
-    disco,
-    serviceId,
-    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
-  )
+
+  let advertiserAddrs = disco.switch.peerStore[AddressBook][advertiser]
+  if advertiserAddrs.len > 0:
+    disco.rtManager.admitPeers(
+      disco, serviceId, @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)]
+    )
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   ## The admission probe dials the codec, so a querier that does not serve it gets no seat.

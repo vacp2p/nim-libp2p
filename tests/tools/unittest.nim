@@ -44,6 +44,15 @@ template asyncTest*(name: string, body: untyped): untyped =
       )()
     )
 
+# `timeout` stays untyped: a typed overload semchecks every plain asyncTest body.
+template asyncTest*(name: string, timeout: untyped, body: untyped): untyped =
+  test name:
+    let testFut = (
+      proc() {.async.} =
+        body
+    )()
+    waitFor testFut.wait(timeout)
+
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression
 

@@ -75,9 +75,9 @@ template withExceptions(body: untyped) =
     raise newLPStreamLimitError()
   except TransportUseClosedError:
     raise newLPStreamEOFError()
-  except TransportError:
+  except TransportError as exc:
     # TODO https://github.com/status-im/nim-chronos/pull/99
-    raise newLPStreamEOFError()
+    raise (ref LPStreamEOFError)(msg: "Stream EOF: " & exc.msg, parent: exc)
 
 when defined(libp2p_agents_metrics):
   proc trackPeerIdentity(s: ChronosStream) =
@@ -117,7 +117,9 @@ proc completeWrite(
     var written = await fut
 
     if written < msgLen:
-      raise (ref LPStreamClosedError)(msg: "Write couldn't finish writing")
+      raise (ref LPStreamClosedError)(
+        msg: "Write failed: connection reset or closed by remote peer"
+      )
 
     s.activity = true # reset activity flag
     libp2p_network_bytes.inc(msgLen.int64, labelValues = ["out"])

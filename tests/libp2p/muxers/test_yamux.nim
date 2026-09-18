@@ -637,3 +637,54 @@ suite "Yamux":
       checkUntilTimeoutCustom(1.seconds, 10.milliseconds):
         streamId notin yamuxb.flushed
         streamId notin yamuxb.flushedOrder
+
+    asyncTest "unknown stream payload is discarded before the next frame":
+      mSetup(startHandlera = false)
+      let fakePing = YamuxHeader.ping(Syn, 11).encode()
+      let realPing = YamuxHeader.ping(Syn, 22).encode()
+      let frame = YamuxHeader.data(99, uint32(fakePing.len)).encode()
+      await conna.write(@frame & @fakePing & @realPing)
+      let reply = await conna.readHeader().wait(1.seconds)
+      check reply.msgType == Ping
+      check reply.flags == {Ack}
+      check reply.length == 22
+
+    asyncTest "rejected SYN resets the stream and discards its payload":
+      mSetup(startHandlera = false)
+      yamuxb.maxChannCount = 0
+      let fakePing = YamuxHeader.ping(Syn, 11).encode()
+      let realPing = YamuxHeader.ping(Syn, 22).encode()
+      let frame = YamuxHeader.data(99, uint32(fakePing.len), {Syn}).encode()
+      await conna.write(@frame & @fakePing & @realPing)
+      let reset = await conna.readHeader().wait(1.seconds)
+      check reset.msgType == Data
+      check reset.flags == {Rst}
+      check reset.streamId == 99
+      let reply = await conna.readHeader().wait(1.seconds)
+      check reply.msgType == Ping
+      check reply.flags == {Ack}
+      check reply.length == 22
+      check yamuxb.channels.len == 0
+
+    asyncTest "unknown stream payloads larger than the discard buffer keep framing":
+      mSetup(startHandlera = false)
+      let payload = newSeq[byte](8193)
+      let frame = YamuxHeader.data(99, uint32(payload.len)).encode()
+      let ping = YamuxHeader.ping(Syn, 22).encode()
+      await conna.write(@frame & payload & @ping)
+      let reply = await conna.readHeader().wait(1.seconds)
+      check reply.msgType == Ping
+      check reply.length == 22
+
+    asyncTest "rejected SYN payload counts against the retained receive window":
+      mSetup(startHandlera = false)
+      yamuxb.maxChannCount = 1
+      discard yamuxb.createStream(1, false, YamuxDefaultWindowSize, MaxSendQueueSize)
+      let frame = YamuxHeader.data(99, 3, {Syn}).encode()
+      await conna.write(@frame & @[1'u8, 2, 3])
+      let reset = await conna.readHeader().wait(1.seconds)
+      check reset.flags == {Rst}
+      await conna.write(YamuxHeader.data(99, YamuxDefaultWindowSize.uint32 - 2))
+      let reply = await conna.readHeader().wait(1.seconds)
+      check reply.msgType == GoAway
+      check reply.length == ProtocolError.uint32

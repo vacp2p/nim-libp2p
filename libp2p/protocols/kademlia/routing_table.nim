@@ -365,11 +365,6 @@ proc randomPeersClosestFirst*(
 
   pickClosestFirst(view, rng, count, maxPerBucket)
 
-proc randomPeersClosestFirstPeerIds*(
-    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
-): seq[PeerId] =
-  randomPeersClosestFirst(rtable, rng, count, maxPerBucket).toPeerIds()
-
 proc isStale*(
     bucket: Bucket, registry: PeerRegistry, staleTime: Duration = DefaultBucketStaleTime
 ): bool =
