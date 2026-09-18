@@ -146,15 +146,15 @@ proc askPeer(
       trace "dialMe answer is reachable"
       Reachable
     except AutonatUnreachableError as error:
-      trace "dialMe answer is not reachable", err = error.msg
+      trace "dialMe answer is not reachable", error = error.msg
       NotReachable
     except AsyncTimeoutError as error:
-      trace "dialMe timed out", err = error.msg
+      trace "dialMe timed out", error = error.msg
       Unknown
     except CancelledError as error:
       raise error
     except CatchableError as error:
-      trace "dialMe unexpected error", err = error.msg
+      trace "dialMe unexpected error", error = error.msg
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
@@ -222,7 +222,7 @@ proc addressMapper(
         processedMA = addressManager.externalAddrFor(listenAddr)
           # handle manual port forwarding
     except CatchableError as exc:
-      debug "Error while handling address mapper", err = exc.msg
+      debug "Error while handling address mapper", error = exc.msg
     addrs.add(processedMA)
   return addrs
 

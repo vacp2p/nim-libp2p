@@ -628,7 +628,7 @@ proc validateAndRelay(
   except CancelledError:
     trace "validateAndRelay cancelled"
   except PeerRateLimitError as exc:
-    trace "validateAndRelay failed", err = exc.msg
+    trace "validateAndRelay failed", error = exc.msg
 
 proc dataAndTopicsIdSize(msgs: seq[Message]): int =
   msgs.mapIt(it.data.len + it.topic.len).foldl(a + b, 0)
@@ -706,7 +706,7 @@ method rpcHandler*(
 
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
-      err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
+      error = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
     await rateLimit(g, peer, msgSize)
     # Raising in the handler closes the gossipsub connection (but doesn't
     # disconnect the peer!)
@@ -754,7 +754,7 @@ method rpcHandler*(
     let msgIdResult = g.msgIdProvider(msg)
 
     if msgIdResult.isErr:
-      trace "Message dropped after ID generation failed", err = msgIdResult.error
+      trace "Message dropped after ID generation failed", error = msgIdResult.error
       await g.punishInvalidMessage(peer, msg)
       continue
 
@@ -984,7 +984,7 @@ method publish*(
     return 0
 
   let msgId = g.msgIdProvider(msg).valueOr:
-    trace "Publish skipped after message ID generation failed", err = error
+    trace "Publish skipped after message ID generation failed", error = error
     libp2p_gossipsub_failed_publish.inc()
     return 0
 
@@ -1058,7 +1058,7 @@ proc maintainDirectPeer(
       trace "Direct peer dial canceled"
       raise exc
     except DialFailedError as exc:
-      trace "Direct peer error dialing", err = exc.msg
+      trace "Direct peer error dialing", error = exc.msg
 
 proc addDirectPeer*(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]

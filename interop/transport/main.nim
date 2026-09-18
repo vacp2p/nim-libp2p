@@ -120,8 +120,8 @@ try:
 
   discard waitFor(mainAsync().wait(testTimeout))
 except AsyncTimeoutError as e:
-  error "Program execution timed out", err = e.msg
+  error "Program execution timed out", error = e.msg
   quit(-1)
 except CatchableError as e:
-  error "Unexpected error", err = e.msg
+  error "Unexpected error", error = e.msg
   quit(-1)

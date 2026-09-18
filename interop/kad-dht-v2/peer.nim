@@ -142,7 +142,7 @@ proc runQuerier(
     try:
       providerCount = (await kad.getProviders(pkey)).len
     except LPStreamError as e:
-      debug "getProviders attempt failed", attempt = attempt, err = e.msg
+      debug "getProviders attempt failed", attempt = attempt, error = e.msg
     if providerCount > 0:
       break
     await sleepAsync(LookupDelay)
@@ -159,7 +159,7 @@ proc runQuerier(
       value = string.fromBytes(getRes.get().value.toBytes())
       break
     else:
-      debug "getValue attempt failed", attempt = attempt, err = getRes.error
+      debug "getValue attempt failed", attempt = attempt, error = getRes.error
     await sleepAsync(LookupDelay)
   if "hello from" notin value:
     fail("unexpected or missing value: '" & value & "'")

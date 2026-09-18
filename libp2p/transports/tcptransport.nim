@@ -242,10 +242,10 @@ method accept*(
     except TransportTooManyError as exc:
       if self.descriptorWarnings.allowLog():
         warn "Connection acceptance limited by file descriptor exhaustion",
-          err = exc.msg, errType = exc.name, transport = "tcp"
+          error = exc.msg, errType = exc.name, transport = "tcp"
       return nil
     except TransportAbortedError as exc:
-      debug "Transport connection aborted", err = exc.msg
+      debug "Transport connection aborted", error = exc.msg
       return nil
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
@@ -278,7 +278,7 @@ method accept*(
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
       safeCloseWait(transp)
-      debug "Cannot read address", err = exc.msg
+      debug "Cannot read address", error = exc.msg
       return nil
   self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 

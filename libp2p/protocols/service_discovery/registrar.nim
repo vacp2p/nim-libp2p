@@ -237,7 +237,7 @@ proc sendRegisterResponse*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    trace "Failed to send register response", err = writeRes.error.msg
+    trace "Failed to send register response", error = writeRes.error.msg
 
 proc acceptAdvertisement*(
     disco: ServiceDiscovery,

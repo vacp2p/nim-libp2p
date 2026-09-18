@@ -273,7 +273,7 @@ proc upgradeMonitor(
     trace "Incoming connection upgrade timed out", conn
     libp2p_failed_upgrades_incoming.inc()
   except UpgradeError as e:
-    trace "Incoming connection upgrade failed", err = e.msg, conn
+    trace "Incoming connection upgrade failed", error = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
     deadlineFut.cancelSoon()
@@ -332,7 +332,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
     except CancelledError:
       return
     except CatchableError as exc:
-      error "Accept loop stopped", err = exc.msg, errType = exc.name
+      error "Accept loop stopped", error = exc.msg, errType = exc.name
       if not isNil(conn):
         await conn.close()
       return
@@ -361,7 +361,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     raise exc
   except CatchableError as exc:
     warn "Accept loop cancellation failed",
-      err = exc.msg,
+      error = exc.msg,
       errType = exc.name,
       pendingAccepts = s.acceptFuts.countIt(not it.finished())
 
@@ -386,7 +386,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      warn "Transport cleanup failed", err = exc.msg
+      warn "Transport cleanup failed", error = exc.msg
 
   # stopped last, after every component which can still feed an address
   doAssert not s.addressManager.isNil(), MissingAddressManager

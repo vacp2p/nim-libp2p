@@ -339,6 +339,6 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []).} =
   except CancelledError:
     discard
   except LPStreamEOFError as e:
-    trace "Expected EOF came", err = e.msg, stream = s
+    trace "Expected EOF came", error = e.msg, stream = s
   except LPStreamError as exc:
-    debug "Unexpected error while waiting for EOF", err = exc.msg, stream = s
+    debug "Unexpected error while waiting for EOF", error = exc.msg, stream = s

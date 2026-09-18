@@ -111,7 +111,7 @@ method rpcHandler*(
   let msgSize = data.len
   var rpcMsg = RPCMsg.decode(move(data)).valueOr:
     trace "PubSub RPC decode failed",
-      err = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
+      error = error, peerId = peer.peerId, messageType = "rpc", messageSize = msgSize
     f.chargeOverhead(peer, msgSize)
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
@@ -129,7 +129,7 @@ method rpcHandler*(
   for msg in rpcMsg.messages: # for every message
     let msgIdResult = f.msgIdProvider(msg)
     if msgIdResult.isErr:
-      trace "Message dropped after ID generation failed", err = msgIdResult.error
+      trace "Message dropped after ID generation failed", error = msgIdResult.error
       f.chargeOverhead(peer, msg.byteSize())
       continue
 
@@ -238,7 +238,7 @@ method publish*(
     return 0
 
   let msgId = f.msgIdProvider(msg).valueOr:
-    trace "Publish skipped after message ID generation failed", err = error
+    trace "Publish skipped after message ID generation failed", error = error
     return 0
 
   trace "Message created",

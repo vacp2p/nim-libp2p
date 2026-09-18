@@ -332,13 +332,13 @@ proc triggerConnEvent*(
   except CatchableError as exc:
     outcome = "failed"
     trace "Connection event callback failed",
-      err = exc.msg, errType = exc.name, peerId, event = $event.kind
+      error = exc.msg, errType = exc.name, peerId, event = $event.kind
   finally:
     let results = countFutureOutcomes(connEvents)
     for fut in connEvents:
       if fut.failed():
         trace "Connection event callback failed",
-          peerId, event = $event.kind, err = fut.error().msg
+          peerId, event = $event.kind, error = fut.error().msg
 
     debug "Connection event callbacks finished",
       peerId,
@@ -383,13 +383,13 @@ proc triggerPeerEvents*(
     raise exc
   except CatchableError as exc: # handlers should not raise!
     outcome = "failed"
-    trace "Peer event callback failed", err = exc.msg, errType = exc.name, peerId
+    trace "Peer event callback failed", error = exc.msg, errType = exc.name, peerId
   finally:
     let results = countFutureOutcomes(peerEvents)
     for fut in peerEvents:
       if fut.failed():
         trace "Peer event callback failed",
-          peerId, event = $event.kind, err = fut.error().msg
+          peerId, event = $event.kind, error = fut.error().msg
 
     debug "Peer event callbacks finished",
       peerId,
@@ -436,7 +436,7 @@ proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
     try:
       await muxer.handler
     except CatchableError as exc:
-      trace "Muxer close callback failed", err = exc.msg, muxer
+      trace "Muxer close callback failed", error = exc.msg, muxer
   trace "Muxer cleanup completed", muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
@@ -462,7 +462,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     await mux.connection.join()
     trace "Closed connection cleanup started", muxer = mux
   except CatchableError as exc:
-    trace "Closed connection cleanup failed", err = exc.msg, muxer = mux
+    trace "Closed connection cleanup failed", error = exc.msg, muxer = mux
   finally:
     let peerId = mux.connection.peerId
     let removed = c.muxerStore.remove(mux)
@@ -620,7 +620,7 @@ proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
     try:
       await conn.join()
     except CatchableError as exc:
-      trace "Connection limit monitor failed", err = exc.msg
+      trace "Connection limit monitor failed", error = exc.msg
     finally:
       cs.release()
 

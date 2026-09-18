@@ -117,11 +117,11 @@ proc dialBack(
 
     # receive DialBackResponse
     discard DialBackResponse.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-      trace "DialBack failed, could not decode DialBackResponse", err = error
+      trace "DialBack failed, could not decode DialBackResponse", error = error
       return DialStatus.EDialBackError
   except LPStreamRemoteClosedError as exc:
     # failed because of nonce error (remote reset the stream): EDialBackError
-    trace "DialBack failed, remote closed the connection", err = exc.msg
+    trace "DialBack failed, remote closed the connection", error = exc.msg
     return DialStatus.EDialBackError
 
   # TODO: failed because of client or server resources: EDialError
@@ -266,7 +266,7 @@ proc handleDialRequest(
       return
     except AutonatV2Error as exc:
       debug "Amplification attack prevention failed",
-        peer = stream.peerId, err = exc.msg
+        peer = stream.peerId, error = exc.msg
       await stream.sendDialResponse(ResponseStatus.EDialRefused)
       return
 
@@ -292,7 +292,7 @@ proc handleDialRequest(
       ResponseStatus.Ok, addrIdx = Opt.some(addrIdx), dialStatus = Opt.some(dialStatus)
     )
   except DialFailedError as exc:
-    trace "DialBack failed", err = exc.msg
+    trace "DialBack failed", error = exc.msg
     await stream.sendDialResponse(
       ResponseStatus.Ok,
       addrIdx = Opt.some(addrIdx),
@@ -331,10 +331,10 @@ proc new*(
     let msg =
       try:
         AutonatV2Msg.decode(await stream.readLp(AutonatV2MsgLpSize)).valueOr:
-          trace "Unable to decode AutonatV2Msg", err = error
+          trace "Unable to decode AutonatV2Msg", error = error
           return
       except LPStreamError as exc:
-        trace "Could not receive AutonatV2Msg", err = exc.msg
+        trace "Could not receive AutonatV2Msg", error = exc.msg
         return
 
     trace "Received message", kind = $msg.oneof.kind
@@ -347,9 +347,9 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
+      trace "Stream closed by peer", error = exc.msg, peerId = stream.peerId
     except LPStreamError as exc:
-      trace "Stream Error", err = exc.msg
+      trace "Stream Error", error = exc.msg
 
   autonatV2.handler = handleStream
   autonatV2.codec = $AutonatV2Codec.DialRequest

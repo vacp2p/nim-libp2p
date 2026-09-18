@@ -398,7 +398,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
       discard # sendLoopFut is channel-owned and never cancelled from outside
     except LPStreamError as exc:
       trace "Yamux frame write failed",
-        err = exc.msg,
+        error = exc.msg,
         channel = $channel,
         peerId = channel.peerId,
         protocol = channel.protocol
@@ -593,9 +593,9 @@ method close*(m: Yamux) {.async: (raises: []).} =
   try:
     await m.connection.write(YamuxHeader.goAway(NormalTermination))
   except CancelledError as exc:
-    trace "Yamux shutdown frame canceled", err = exc.msg
+    trace "Yamux shutdown frame canceled", error = exc.msg
   except LPStreamError as exc:
-    trace "Yamux shutdown frame write failed", err = exc.msg
+    trace "Yamux shutdown frame write failed", error = exc.msg
   await m.connection.close()
 
   await drainChannelTasks(channels)
@@ -767,7 +767,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
     debug "Yamux connection closed",
       peerId = m.connection.peerId,
       reason,
-      err,
+      error = err,
       connectionAlreadyClosed = m.connection.closed,
       openStreams = m.channels.len,
       protocols = m.openStreamProtocols()

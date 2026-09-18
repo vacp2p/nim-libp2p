@@ -98,7 +98,7 @@ proc new*(
       trace "cancelled rendezvous handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in rendezvous handler", err = exc.msg
+      trace "exception in rendezvous handler", error = exc.msg
     finally:
       await stream.close()
 

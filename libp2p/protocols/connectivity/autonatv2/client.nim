@@ -84,7 +84,7 @@ proc new*(
 
     try:
       let dialBack = DialBack.decode(await stream.readLp(DialBackLpSize)).valueOr:
-        trace "Unable to decode DialBack", err = error
+        trace "Unable to decode DialBack", error = error
         return
       if not await client.handleDialBack(stream, dialBack).withTimeout(
         client.dialBackTimeout
@@ -93,9 +93,9 @@ proc new*(
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
+      trace "Stream closed by peer", error = exc.msg, peerId = stream.peerId
     except LPStreamError as exc:
-      trace "Stream closed by peer", err = exc.msg, peerId = stream.peerId
+      trace "Stream closed by peer", error = exc.msg, peerId = stream.peerId
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -217,7 +217,7 @@ method sendDialRequest*(
             AutonatV2Error, "Invalid addrIdx " & $addrIdx & " in DialResponse"
           )
   except LPStreamRemoteClosedError as exc:
-    trace "Stream reset by server", err = exc.msg, peerId = pid
+    trace "Stream reset by server", error = exc.msg, peerId = pid
   finally:
     # rollback any changes
     self.expectedNonces.del(nonce)

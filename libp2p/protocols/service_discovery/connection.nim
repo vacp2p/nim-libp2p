@@ -31,7 +31,7 @@ proc evictOnReset(disco: ServiceDiscovery, peerId: PeerId, e: ref CatchableError
 
   let tables = disco.removePeer(peerId, reason = "reset")
   if tables > 0:
-    trace "Evicted peer that reset a discovery request", peerId, tables, err = e.msg
+    trace "Evicted peer that reset a discovery request", peerId, tables, error = e.msg
 
 proc send*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
@@ -114,4 +114,4 @@ proc handleMessage*(
   let writeRes = catch:
     await stream.writeLp(bytes)
   if writeRes.isErr:
-    trace "Failed to send message response", err = writeRes.error.msg
+    trace "Failed to send message response", error = writeRes.error.msg

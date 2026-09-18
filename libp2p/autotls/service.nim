@@ -238,10 +238,10 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
       outcome = "failed"
       lastError = exc
       trace "Certificate issuance failed",
-        err = exc.msg, errType = exc.name, attempt = attempt + 1
+        error = exc.msg, errType = exc.name, attempt = attempt + 1
 
   error "Failed to issue certificate",
-    err = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
+    error = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
     errType = (if lastError.isNil: "" else: $lastError.name),
     operation,
     maxAttempts = self.config.issueRetries + 1,

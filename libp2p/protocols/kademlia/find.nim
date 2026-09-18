@@ -290,7 +290,7 @@ proc lookupCheck*(
     trace "Kad probe timed out", peerId, timeout = kad.config.timeout
     return false
   let reply = probe.value().valueOr:
-    trace "Kademlia probe failed", peerId, err = error
+    trace "Kademlia probe failed", peerId, error = error
     return false
   reply.msgType == Opt.some(MessageType.findNode)
 
@@ -442,11 +442,11 @@ proc dispatchPeer(
     let err = res.error()
     if err.startsWith($dialStage):
       trace "Kademlia RPC stream establishment failed",
-        err, peerId, protocol = kad.codec
+        error = err, peerId, protocol = kad.codec
     elif err.startsWith($writeStage):
-      trace "Kademlia RPC write failed", err, peerId, protocol = kad.codec
+      trace "Kademlia RPC write failed", error = err, peerId, protocol = kad.codec
     else:
-      trace "Kademlia RPC read failed", err, peerId, protocol = kad.codec
+      trace "Kademlia RPC read failed", error = err, peerId, protocol = kad.codec
     return DispatchResult(peer: peerId, outcome: Errored)
   DispatchResult(peer: peerId, outcome: Completed, msg: res.value())
 
@@ -783,7 +783,7 @@ method handleFindNode*(
     await stream.writeLp(encoded)
   except LPStreamError as exc:
     trace "Kademlia find-node RPC reply write failed",
-      err = exc.msg, stream, messageType = $MessageType.findNode
+      error = exc.msg, stream, messageType = $MessageType.findNode
     return
 
   # Only admit senders with known dialable addresses; an inbound connection

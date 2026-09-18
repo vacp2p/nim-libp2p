@@ -57,7 +57,8 @@ method handleGetValue*(
   try:
     await stream.writeLp(response.encode())
   except LPStreamError as exc:
-    debug "Failed to send malicious get-value response", stream = stream, err = exc.msg
+    debug "Failed to send malicious get-value response",
+      stream = stream, error = exc.msg
 
 method handleAddProvider*(
     kad: MockKadDHT, stream: Stream, msg: Message
@@ -79,6 +80,6 @@ method handleFindNode*(
       await stream.writeLp(@[0xFF'u8, 0xFF, 0xFF])
     except LPStreamError as exc:
       debug "Failed to send malformed find-node response",
-        stream = stream, err = exc.msg
+        stream = stream, error = exc.msg
     return
   await procCall handleFindNode(KadDHT(kad), stream, msg)

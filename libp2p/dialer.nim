@@ -114,11 +114,11 @@ proc dialAndUpgrade*(
       libp2p_total_dial_attempts.inc()
       transport.dial(hostname, addrs, peerId, dir).awaitWithDeadline(deadline)
     except CancelledError as e:
-      trace "Address dial canceled", err = e.msg, peerId, address = addrs
+      trace "Address dial canceled", error = e.msg, peerId, address = addrs
       raise e
     except CatchableError as e:
       attemptOutcome = "failed"
-      trace "Address dial failed", err = e.msg, peerId, address = addrs, hostname
+      trace "Address dial failed", error = e.msg, peerId, address = addrs, hostname
       libp2p_failed_dials.inc()
       libp2p_dial_duration_ms.observe(
         (Moment.now() - dialStarted).milliseconds, labelValues = ["failed"]
@@ -141,7 +141,8 @@ proc dialAndUpgrade*(
       # Another transport for the same address fails the same way, so give this one up.
       await dialed.close()
       attemptOutcome = "failed"
-      trace "Connection upgrade failed", err = e.msg, peerId, address = addrs, hostname
+      trace "Connection upgrade failed",
+        error = e.msg, peerId, address = addrs, hostname
       if dialed.dir == Direction.Out:
         libp2p_failed_upgrades_outgoing.inc()
       else:
@@ -242,7 +243,8 @@ proc tryExpandDnsAddr(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Address skipped after DNSADDR expansion failed", err = e.msg, peerId, address
+    trace "Address skipped after DNSADDR expansion failed",
+      error = e.msg, peerId, address
     @[]
 
 proc tryResolve(
@@ -254,7 +256,7 @@ proc tryResolve(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    trace "Address skipped after name resolution failed", err = e.msg, address
+    trace "Address skipped after name resolution failed", error = e.msg, address
     @[]
 
 proc normalizedDialAddrs(
@@ -502,7 +504,7 @@ proc finishUpgrade(
     raise e
   except CatchableError as e:
     trace "Outgoing connection upgrade failed",
-      err = e.msg, peerId = muxed.connection.peerId
+      error = e.msg, peerId = muxed.connection.peerId
     await muxed.close()
     raise newException(
       DialFailedError, "failed finishUpgrade in establishConnection: " & e.msg, e
@@ -711,11 +713,11 @@ method dial*(
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Protocol stream establishment canceled",
-      err = exc.msg, peerId, protocols = protos
+      error = exc.msg, peerId, protocols = protos
     raise exc
   except CatchableError as exc:
     trace "Protocol stream establishment failed",
-      err = exc.msg, peerId, protocols = protos
+      error = exc.msg, peerId, protocols = protos
     raise newException(DialFailedError, "failed dial existing: " & exc.msg)
 
 method dial*(
@@ -748,11 +750,11 @@ method dial*(
     return await self.negotiateStream(stream, protos)
   except CancelledError as exc:
     trace "Protocol stream establishment canceled",
-      err = exc.msg, peerId, protocols = protos, conn
+      error = exc.msg, peerId, protocols = protos, conn
     raise exc
   except CatchableError as exc:
     debug "Protocol stream establishment failed",
-      err = exc.msg, peerId, protocols = protos, addresses = dialAddrs, conn
+      error = exc.msg, peerId, protocols = protos, addresses = dialAddrs, conn
     raise newException(
       DialFailedError,
       "failed new dial: peer_id=" & shortLog(peerId) & " protos=" & protos.shortLog &

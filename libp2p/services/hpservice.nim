@@ -68,7 +68,7 @@ proc tryStartingDirectConn(
     except CancelledError as err:
       raise err
     except CatchableError as err:
-      debug "Failed to create direct connection", err = err.msg, peerId, address
+      debug "Failed to create direct connection", error = err.msg, peerId, address
       continue
   return false
 
@@ -100,7 +100,7 @@ proc newConnectedPeerHandler(
   except CancelledError as err:
     raise err
   except CatchableError as err:
-    debug "Hole punching failed during dcutr", err = err.msg
+    debug "Hole punching failed during dcutr", error = err.msg
 
 proc reachabilityObservers*(self: HPService): ReachabilityObservers =
   ## The observers of the AutoNAT v1 service that drives hole punching.

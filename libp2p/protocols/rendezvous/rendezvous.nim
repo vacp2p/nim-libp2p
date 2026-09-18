@@ -335,7 +335,7 @@ proc advertisePeer[E](
       let
         buf = await stream.readLp(4096)
         msgRecv = Message.decode(buf).valueOr:
-          trace "Failed to decode Message", err = error
+          trace "Failed to decode Message", error = error
           return
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
@@ -346,7 +346,7 @@ proc advertisePeer[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "Exception in the advertise", err = exc.msg
+      trace "Exception in the advertise", error = exc.msg
     finally:
       try:
         rdv.sema.release()
@@ -366,7 +366,7 @@ proc advertise*[E](
   let signedPeerRecord = SignedPayload[E].init(
     rdv.switch.peerInfo.privateKey, customPeerRecord
   ).valueOr:
-    info "Can't create the signed peer record", err = error
+    info "Can't create the signed peer record", error = error
     return
 
   let pBuff = signedPeerRecord.encode()
@@ -447,7 +447,7 @@ proc requestPeer[E](
   let
     buf = await stream.readLp(MaximumMessageLen)
     msgRcv = Message.decode(buf).valueOr:
-      trace "Message undecodable", err = error
+      trace "Message undecodable", error = error
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
     trace "Unexpected discover response", msgType = msgRcv.msgType
@@ -521,9 +521,9 @@ proc request*[E](
     except CancelledError as e:
       raise e
     except DialFailedError as e:
-      trace "Failed to dial a peer", err = e.msg
+      trace "Failed to dial a peer", error = e.msg
     except LPStreamError as e:
-      trace "Failed to communicate with a peer", err = e.msg
+      trace "Failed to communicate with a peer", error = e.msg
   return toSeq(s.values()).mapIt(it[0])
 
 proc unsubscribeLocally*[E](rdv: GenericRendezVous[E], ns: string) =
@@ -554,7 +554,7 @@ proc unsubscribe*[E](
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      trace "Exception while unsubscribing", err = exc.msg
+      trace "Exception while unsubscribing", error = exc.msg
 
   let futs = collect(newSeq()):
     for peer in peerIds:
@@ -604,7 +604,7 @@ proc new*(
       let
         buf = await stream.readLp(4096)
         msg = Message.decode(buf).valueOr:
-          trace "Failed to decode Message", err = error
+          trace "Failed to decode Message", error = error
           return
       case msg.msgType
       of MessageType.Register:
@@ -624,7 +624,7 @@ proc new*(
       trace "Cancelled rendezvous handler"
       raise exc
     except CatchableError as exc:
-      trace "Exception in rendezvous handler", err = exc.msg
+      trace "Exception in rendezvous handler", error = exc.msg
     finally:
       await stream.close()
 

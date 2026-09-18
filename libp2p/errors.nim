@@ -53,7 +53,7 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
           let exc = res.error
           # We still don't abort but warn
           trace "Future failed",
-            err = exc.msg, errType = exc.name, stack = getStackTrace()
+            error = exc.msg, errType = exc.name, stack = getStackTrace()
   else:
     quote:
       for res in `futs`:
@@ -64,7 +64,7 @@ macro checkFutures*[F](futs: seq[F], exclude: untyped = []): untyped =
             let exc = res.error
             for i in 0 ..< `nexclude`:
               if exc of `exclude`[i]:
-                trace "Future failed", err = exc.msg, errType = exc.name
+                trace "Future failed", error = exc.msg, errType = exc.name
                 break check
             # We still don't abort but warn
-            trace "Future failed", err = exc.msg, errType = exc.name
+            trace "Future failed", error = exc.msg, errType = exc.name

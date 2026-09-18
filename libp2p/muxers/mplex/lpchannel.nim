@@ -113,7 +113,7 @@ proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
         trace "Sending reset message", channel = s, conn = s.conn
         await noCancel s.conn.writeMsg(s.id, s.resetCode) # write reset
       except LPStreamError as exc:
-        trace "Can't send reset message", err = exc.msg, channel = s, conn = s.conn
+        trace "Can't send reset message", error = exc.msg, channel = s, conn = s.conn
         await s.conn.close()
 
     s.resetMessageFut = resetMessage()
@@ -145,7 +145,7 @@ method close*(s: LPChannel) {.async: (raises: []).} =
       # It's harmless that close message cannot be sent - the connection is
       # likely down already
       await s.conn.close()
-      trace "Cannot send close message", channel = s, id = s.id, err = exc.msg
+      trace "Cannot send close message", channel = s, id = s.id, error = exc.msg
 
   await s.closeUnderlying() # maybe already eofed
 
@@ -268,7 +268,7 @@ proc completeWrite(
   except LPStreamEOFError as exc:
     raise exc
   except LPStreamError as exc:
-    trace "Exception in lpchannel write handler", err = exc.msg, channel = s
+    trace "Exception in lpchannel write handler", error = exc.msg, channel = s
     await s.reset()
     await s.conn.close()
     raise newLPStreamConnDownError(exc)

@@ -30,7 +30,7 @@ proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   let extPeerRecord = disco.record().valueOr:
-    debug "Failed to create signed extended peer record", err = error
+    debug "Failed to create signed extended peer record", error = error
     return
 
   let encodedSR = extPeerRecord.encode()
@@ -39,7 +39,7 @@ proc refreshSelfSignedPeerRecord(
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
   (await disco.putValue(key, Value.fromBytes(encodedSR))).isOkOr:
-    debug "Failed to put signed peer record", err = error
+    debug "Failed to put signed peer record", error = error
 
 template withBucketRefreshTimeout(fut: untyped, disco: ServiceDiscovery): untyped =
   fut.withTimeout(disco.config.bucketRefreshTime)
@@ -162,10 +162,11 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          trace "Read error when handling service-discovery RPC", err = exc.msg, stream
+          trace "Read error when handling service-discovery RPC",
+            error = exc.msg, stream
           return
       let msg = Message.decode(buf).valueOr:
-        trace "Failed to decode message", err = error
+        trace "Failed to decode message", error = error
         return
 
       let msgType = msg.msgType.get(MessageType.putValue)
@@ -200,7 +201,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
-      warn "Cannot advertise configured service", err = error, service = serviceInfo.id
+      warn "Cannot advertise configured service",
+        error = error, service = serviceInfo.id
 
   if disco.xprPublishing:
     disco.signedPeerRecordLoop = disco.maintainSignedPeerRecord()

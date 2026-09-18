@@ -26,12 +26,12 @@ proc primaryIPAddrTo(probe: IpAddress): Opt[IpAddress] {.raises: [].} =
   try:
     Opt.some(getPrimaryIPAddr(probe))
   except CatchableError as e:
-    trace "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", error = e.msg, probe
     Opt.none(IpAddress)
   except Defect as e:
     raise e
   except Exception as e: # on windows getPrimaryIPAddr has untracked effects
-    trace "Primary IP address lookup failed", err = e.msg, probe
+    trace "Primary IP address lookup failed", error = e.msg, probe
     Opt.none(IpAddress)
 
 func firstGlobalIP*(candidates: openArray[IpAddress]): Opt[IpAddress] =

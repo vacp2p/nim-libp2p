@@ -165,4 +165,5 @@ proc reportBackgroundFailure*(
   fut.addCallback proc(udata: pointer) {.gcsafe, raises: [].} =
     if fut.failed():
       let exc = fut.error()
-      error "Background operation stopped", err = exc.msg, errType = exc.name, operation
+      error "Background operation stopped",
+        error = exc.msg, errType = exc.name, operation
