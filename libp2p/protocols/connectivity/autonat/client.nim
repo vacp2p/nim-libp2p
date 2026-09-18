@@ -24,42 +24,57 @@ proc sendDial(
   ).encode()
   await stream.writeLp(pb)
 
-method dialMe*(
+func autonatError(msg: string): ref LPError =
+  newException(AutonatError, msg)
+
+func autonatError(msg: string, e: ref CatchableError): ref LPError =
+  newException(AutonatError, msg & ": " & e.msg, e)
+
+func dialedAddr(msg: AutonatMsg): Result[MultiAddress, ref LPError] =
+  if msg.msgType.get(MsgType.Dial) != MsgType.DialResponse:
+    return err(autonatError("Unexpected response"))
+
+  let response = msg.response.valueOr:
+    return err(autonatError("Unexpected response"))
+
+  case response.status.get(Ok)
+  of ResponseStatus.Ok:
+    let dialed = response.ma.valueOr:
+      return err(autonatError("Unexpected response"))
+    ok(dialed)
+  of ResponseStatus.DialError:
+    err(
+      newException(
+        AutonatUnreachableError, "Peer could not dial us back: " & response.text.get("")
+      )
+    )
+  else:
+    err(autonatError("Bad status " & $response.status & " " & response.text.get("")))
+
+proc tryDialMe*(
     self: AutonatClient,
     switch: Switch,
     pid: PeerId,
     addrs: seq[MultiAddress] = newSeq[MultiAddress](),
-): Future[MultiAddress] {.
-    base, async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
-.} =
-  proc getResponseOrRaise(
-      msg: AutonatMsg
-  ): AutonatDialResponse {.raises: [AutonatError].} =
-    if msg.msgType.get(MsgType.Dial) == MsgType.DialResponse:
-      msg.response.ifValue(res):
-        if not (res.status.get(Ok) == Ok and res.ma.isNone()):
-          return res
-    raise newException(AutonatError, "Unexpected response")
-
+): Future[Result[MultiAddress, ref LPError]] {.async: (raises: [CancelledError]).} =
   let stream =
     try:
       if addrs.len == 0:
         await switch.dial(pid, @[AutonatCodec])
       else:
         await switch.dial(pid, addrs, AutonatCodec)
-    except CancelledError as err:
-      raise err
-    except DialFailedError as err:
-      raise
-        newException(AutonatError, "Unexpected error when dialling: " & err.msg, err)
+    except DialFailedError as e:
+      return err(autonatError("Unexpected error when dialling", e))
+
+  defer:
+    await stream.close()
 
   # To bypass maxConnectionsPerPeer
   let incomingConnection = switch.connManager.expectConnection(pid, In)
   if incomingConnection.failed() and
       incomingConnection.error of AlreadyExpectingConnectionError:
-    raise newException(AutonatError, incomingConnection.error.msg)
+    return err(autonatError(incomingConnection.error.msg))
   defer:
-    await stream.close()
     incomingConnection.cancelSoon()
       # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     if incomingConnection.completed():
@@ -72,34 +87,29 @@ method dialMe*(
   try:
     trace "sending Dial", addresses = switch.peerInfo.addrs
     await stream.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
-  except CancelledError as e:
-    raise e
-  except CatchableError as e:
-    raise newException(AutonatError, "Sending dial failed", e)
+  except LPStreamError as e:
+    return err(autonatError("Sending dial failed", e))
 
-  var respBytes: seq[byte]
-  try:
-    respBytes = await stream.readLp(1024)
-  except CancelledError as e:
-    raise e
-  except CatchableError as e:
-    raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
+  var respBytes =
+    try:
+      await stream.readLp(1024)
+    except LPStreamError as e:
+      return err(autonatError("read Dial response failed", e))
 
-  let msg = AutonatMsg.decode(move(respBytes)).valueOrRaise(AutonatError)
-  let response = getResponseOrRaise(msg)
+  let msg = AutonatMsg.decode(move(respBytes)).valueOr:
+    return err(autonatError($error))
+  msg.dialedAddr()
 
-  return
-    case response.status.get(Ok)
-    of ResponseStatus.Ok:
-      try:
-        response.ma.tryGet()
-      except ResultError[void]:
-        raiseAssert("checked with if")
-    of ResponseStatus.DialError:
-      raise newException(
-        AutonatUnreachableError, "Peer could not dial us back: " & response.text.get("")
-      )
-    else:
-      raise newException(
-        AutonatError, "Bad status " & $response.status & " " & response.text.get("")
-      )
+method dialMe*(
+    self: AutonatClient,
+    switch: Switch,
+    pid: PeerId,
+    addrs: seq[MultiAddress] = newSeq[MultiAddress](),
+): Future[MultiAddress] {.
+    base, async: (raises: [AutonatError, AutonatUnreachableError, CancelledError])
+.} =
+  let dialed = await self.tryDialMe(switch, pid, addrs)
+  dialed.valueOr:
+    if error of AutonatUnreachableError:
+      raise (ref AutonatUnreachableError)(error)
+    raise (ref AutonatError)(error)
