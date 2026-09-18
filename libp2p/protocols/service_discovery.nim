@@ -201,8 +201,7 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   for serviceInfo in disco.services:
     disco.addProvidedService(serviceInfo).isOkOr:
-      warn "Cannot advertise configured service",
-        error, service = serviceInfo.id
+      warn "Cannot advertise configured service", error, service = serviceInfo.id
 
   if disco.xprPublishing:
     disco.signedPeerRecordLoop = disco.maintainSignedPeerRecord()
