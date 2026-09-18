@@ -166,7 +166,7 @@ method stop*(
     return
 
   info "Stopping auto-relay service"
-  
+
   self.running = false
   await noCancel self.runner.cancelAndWait()
   await noCancel (toSeq(self.relayPeers.values) & toSeq(self.backingOff.values)).cancelAndWait()

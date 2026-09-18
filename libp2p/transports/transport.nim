@@ -47,7 +47,6 @@ method start*(
   ## start the transport
   ##
 
-  info "Transport starting", addresses = addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -57,7 +56,6 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  info "Transport stopping", addresses = self.addrs
   self.running = false
   self.onStop.fire()
 
@@ -110,7 +108,7 @@ template safeCloseWait*(stream: untyped) =
   if not isNil(stream):
     try:
       await noCancel stream.closeWait()
-    except CatchableError as e:
+except CatchableError as e:
       trace "Transport stream close failed", err = e.msg
 
 template safeClose*(stream: untyped) =

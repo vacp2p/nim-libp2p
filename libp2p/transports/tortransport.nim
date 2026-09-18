@@ -255,6 +255,10 @@ method start*(
   ## listen on the transport
   ##
 
+  if self.running:
+    warn "Tor transport already started"
+    return
+
   var listenAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
   for ma in addrs:
@@ -272,6 +276,7 @@ method start*(
 
   await procCall Transport(self).start(onion3Addrs)
   await self.tcpTransport.start(listenAddrs)
+  info "Tor transport started", addresses = self.addrs
 
 method accept*(
     self: TorTransport
@@ -285,8 +290,13 @@ method accept*(
 method stop*(self: TorTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
+  let wasRunning = self.running
+  if not wasRunning:
+    warn "Tor transport already stopped"
   await procCall Transport(self).stop() # call base
   await self.tcpTransport.stop()
+  if wasRunning:
+    info "Tor transport stopped", addresses = self.addrs
 
 method handles*(t: TorTransport, address: MultiAddress): bool {.gcsafe, raises: [].} =
   if procCall Transport(t).handles(address):

@@ -558,7 +558,7 @@ method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledErro
   self.startPortMapping(switch)
   await self.startReachability(switch)
 
-  info "NAT service started", 
+  info "NAT service started",
     portMapping = self.config.portMapping.isSome(),
     reachability = self.config.reachability.isSome(),
     holePunching = self.config.holePunching.isSome()

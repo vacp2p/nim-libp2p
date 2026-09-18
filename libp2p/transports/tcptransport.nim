@@ -113,10 +113,8 @@ method start*(
   ## start with an empty list
 
   if self.running:
-    warn "TCP transport already running"
+    warn "TCP transport already started"
     return
-
-  info "Starting TCP transport"
 
   self.flags.incl(ServerFlags.ReusePort)
 
@@ -153,6 +151,7 @@ method start*(
   await procCall Transport(self).start(supported)
 
   trackCounter(TcpTransportTrackerName)
+  info "TCP transport started", addresses = self.addrs
 
 method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
   self.stopping = true
@@ -160,7 +159,6 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
     self.stopping = false
 
   if self.running:
-    info "Stopping TCP transport"
     # Reset the running flag
     await noCancel procCall Transport(self).stop()
     # Stop each server by closing the socket - this will cause all accept loops
@@ -188,7 +186,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
       warn "Couldn't clean up clients",
         len = self.clients[Direction.In].len + self.clients[Direction.Out].len
 
-    info "Transport stopped"
+    info "TCP transport stopped", addresses = self.addrs
     untrackCounter(TcpTransportTrackerName)
   else:
     # For legacy reasons, `stop` on a transpart that wasn't started is

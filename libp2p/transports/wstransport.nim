@@ -343,7 +343,7 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   if self.running:
-    warn "WS transport already running"
+    warn "WebSocket transport already started"
     return
 
   let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
@@ -421,10 +421,12 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
 
+  let wasRunning = self.running
   self.running = false # mark stopped as soon as possible
+  if not wasRunning:
+    warn "WebSocket transport already stopped"
 
   try:
-    info "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
     var toWait: seq[Future[void]]
@@ -452,7 +454,8 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     self.handshakeFuts = @[]
     self.connectionCleanupFuts = @[]
     self.acceptLoop = nil
-    info "Transport stopped"
+    if wasRunning:
+      info "WebSocket transport stopped", addresses = self.addrs
   except CatchableError as e:
     trace "WebSocket transport shutdown failed", err = e.msg
   finally:
