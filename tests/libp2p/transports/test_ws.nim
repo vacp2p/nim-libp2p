@@ -238,6 +238,18 @@ suite "WebSocket transport":
     expect TransportDialError:
       discard await transport1.dial("different.http.host", wrongAddress)
 
+  asyncTest "a failed start closes the servers it already opened":
+    let transport = WsTransport.new(Upgrade(), rng())
+
+    expect WsTransportError:
+      await transport.start(@[ma(wsAddress), ma("/ip4/192.0.2.1/tcp/0/ws")])
+
+  asyncTest "dial of a non-wire address is a TransportDialError":
+    let transport = WsTransport.new(Upgrade(), rng())
+
+    expect TransportDialError:
+      discard await transport.dial("", ma("/dns/example.com/tcp/1234/ws"))
+
 suite "WebSocket transport with autotls":
   teardown:
     checkTrackers()
