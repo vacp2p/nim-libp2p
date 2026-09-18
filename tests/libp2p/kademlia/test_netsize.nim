@@ -5,7 +5,7 @@
 
 import std/math
 import chronos, results
-import ../../../libp2p/protocols/kademlia
+import ../../../libp2p/[peerid, protocols/kademlia]
 import ../../tools/unittest
 import ./utils
 
@@ -49,3 +49,32 @@ suite "KadDHT - Network Size Estimator":
   test "track rejects a peer list that is not bucket-sized":
     let key = Key.init(@[1.byte, 2, 3, 4])
     check NetworkSizeEstimator.new(4).track(RoutingTable.new(key), key, @[]).isErr()
+
+  test "track records one measurement per closest-peer index":
+    let
+      est = NetworkSizeEstimator.new(4)
+      target = randomPeerId().toKey()
+      rtable = RoutingTable.new(randomPeerId().toKey())
+      peers = PeerId.random(4, rng()).get()
+
+    check est.track(rtable, target, peers).isOk()
+
+    for i, p in peers:
+      check:
+        est.measurements[i].len == 1
+        est.measurements[i][0].distance ==
+          normedDistance(xorDistance(p, target, rtable.config.hasher))
+        est.measurements[i][0].weight == est.measurements[0][0].weight
+        est.measurements[i][0].weight > 0.0
+        est.measurements[i][0].weight <= 1.0
+
+  test "all-zero distances give a degenerate regression":
+    let est = NetworkSizeEstimator.new(2)
+    let now = Moment.now()
+    for i in 0 ..< est.bucketSize:
+      for _ in 0 ..< 5:
+        est.measurements[i].add(
+          NetSizeMeasurement(distance: 0.0, weight: 1.0, timestamp: now)
+        )
+
+    check est.networkSize().error() == "degenerate regression"

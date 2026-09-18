@@ -51,6 +51,18 @@ suite "KadDHT - Probe backoff":
 
     check kad.probeFailures.getOrDefault(peerId).count == 2
 
+  test "a full cache drops elapsed entries before it records a new failure":
+    var failures: Table[PeerId, ProbeFailure]
+    for _ in 0 ..< 4:
+      failures[randomPeerId()] = ProbeFailure(count: 1, until: Moment.now() - 1.seconds)
+    let peerId = randomPeerId()
+
+    failures.recordFailure(peerId, deadAddrs(59999), 1.seconds, 1.minutes, 4)
+
+    check:
+      failures.len == 1
+      failures.getOrDefault(peerId).count == 1
+
   test "backoff doubles per failure and stops at the cap":
     check:
       probeBackoff(1, 1.seconds, 4.seconds) == 1.seconds
