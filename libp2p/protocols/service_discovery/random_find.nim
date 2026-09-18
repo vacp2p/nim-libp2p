@@ -34,7 +34,7 @@ proc randomRecords(
   ## Return all peer records on the path towards a random target ID.
 
   let randomPeerId = PeerId.random(disco.rng).valueOr:
-    debug "Cannot generate random peer id", error
+    trace "Cannot generate random peer id", error
     return @[]
 
   let randomKey = randomPeerId.toKey()
