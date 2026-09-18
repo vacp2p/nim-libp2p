@@ -170,6 +170,30 @@ suite "Identify":
         discard await msDial.select(conn, IdentifyCodec)
         discard await identifyProto2.identify(conn, pi2.peerId)
 
+    asyncTest "tryIdentify reports a message that does not decode":
+      proc truncatedHandler(
+          stream: Stream, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          await stream.writeLp(@[0x0a'u8, 0x05, 0x01])
+        except LPError as e:
+          raiseAssert "failed to write truncated identify: " & e.msg
+        finally:
+          await stream.closeWithEOF()
+
+      msListen.addHandler(LPProtocol.new(@[IdentifyCodec], truncatedHandler))
+      proc acceptHandler(): Future[void] {.async.} =
+        let c = await transport1.accept()
+        await msListen.handle(c)
+
+      acceptFut = acceptHandler()
+      conn = await transport2.dial(transport1.addrs[0])
+
+      discard await msDial.select(conn, IdentifyCodec)
+      let identified = await identifyProto2.tryIdentify(conn, remotePeerInfo.peerId)
+
+      check identified.isErr() and identified.error of IdentityInvalidMsgError
+
     asyncTest "can send signed peer record":
       msListen.addHandler(identifyProto1)
       identifyProto1.sendSignedPeerRecord = true
