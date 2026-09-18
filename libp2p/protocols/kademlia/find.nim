@@ -7,10 +7,7 @@ import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
 import ../../utils/future
 import
-  ./[
-    routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity,
-    peer_registry,
-  ]
+  ./[routing_table, protobuf, probe_backoff, types, rpc, kademlia_metrics, ip_diversity]
 
 logScope:
   topics = "libp2p kademlia"
@@ -26,7 +23,6 @@ type LookupState* = ref object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
-  unreachable*: HashSet[PeerId] ## failed to dial: not asked again in this lookup
 
 type DispatchProc* = proc(
   kad: KadDHT, peer: PeerId, target: Key
@@ -142,6 +138,10 @@ proc updateShortlist*(state: LookupState, msg: Message): seq[PeerInfo] {.raises:
 
   return newPeerInfos
 
+proc dialBackedOff(kad: KadDHT, peerId: PeerId): bool {.raises: [].} =
+  ## A refused dial holds the peer back until its backoff ends; then it gets asked again.
+  kad.probeBackedOff(peerId, kad.dialAddrs(peerId))
+
 proc sortedShortlist(
     state: LookupState, excludeResponded: bool = true
 ): seq[(PeerId, XorDistance)] =
@@ -159,7 +159,7 @@ proc sortedShortlist(
     if state.attempts.getOrDefault(pid, 0) > state.kad.config.retries:
       # depleted retries, do not query again
       continue
-    if pid in state.unreachable:
+    if state.kad.dialBackedOff(pid):
       continue
     sortedShortlist.add((pid, dist))
 
@@ -558,18 +558,6 @@ proc harvestInflight(
   pending = stillPending
   completed
 
-proc dropUnreachableSeed(kad: KadDHT, peerId: PeerId) {.raises: [].} =
-  ## Seeds skip the admission probe, so only this keeps a dead seed out of later lookups.
-  if not kad.bootstrapNodes.anyIt(it.peerId == peerId):
-    return
-  let record = kad.rtable.registry.get(peerId.toKey()).valueOr:
-    return
-  if record.lastUsefulAt.isSome():
-    return
-  kad.unreachableSeeds.incl(peerId)
-  if kad.rtable.removePeer(peerId, reason = "unreachable_seed"):
-    debug "Removed unreachable bootstrap peer from the routing table", peerId
-
 proc applyReplies(
     kad: KadDHT,
     state: LookupState,
@@ -587,13 +575,12 @@ proc applyReplies(
       state.responded[res.peer] = RespondedStatus.Failed
     of Unreachable:
       state.responded[res.peer] = RespondedStatus.Failed
-      state.unreachable.incl(res.peer)
-      kad.dropUnreachableSeed(res.peer)
+      kad.probeRecordFailure(res.peer, kad.dialAddrs(res.peer))
     of Completed:
       state.responded[res.peer] = RespondedStatus.Success
       # A reply proves the peer useful; retain it through eviction.
       rtable.markUseful(res.peer)
-      kad.unreachableSeeds.excl(res.peer)
+      kad.probeClearFailures(res.peer)
       let newPeerInfos = state.updateShortlist(res.msg)
       kad.admitPeers(rtable, newPeerInfos)
       await onReply(res.peer, Opt.some(res.msg), state)
@@ -601,8 +588,8 @@ proc applyReplies(
 proc dropDonePeers(
     state: LookupState, pending: var seq[Attempt]
 ): seq[RpcFuture] {.raises: [].} =
-  ## Remove the attempts of done peers (answered, evicted from the shortlist, dial
-  ## failed, or abandoned with no retries left) and return their live RPCs to cancel.
+  ## Remove the attempts of done peers (answered, evicted from the shortlist, backed
+  ## off, or abandoned with no retries left) and return their live RPCs to cancel.
   ## Any other failure keeps the peer, so the retry that `fillSlots` sent keeps running.
   var keep: seq[Attempt]
   var stale: seq[RpcFuture]
@@ -611,7 +598,7 @@ proc dropDonePeers(
     let retriesDepleted =
       a.abandoned and state.attempts.getOrDefault(a.peer, 0) > state.kad.config.retries
     if succeeded or not state.shortlist.hasKey(a.peer) or retriesDepleted or
-        a.peer in state.unreachable:
+        state.kad.dialBackedOff(a.peer):
       stale.add(a.fut)
     else:
       keep.add(a)

@@ -296,15 +296,6 @@ proc connectedPeerInfos(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
     infos.add(PeerInfo(peerId: peerId, addrs: addrs))
   infos
 
-proc reseedableNodes(kad: KadDHT): seq[PeerInfo] {.raises: [].} =
-  ## Skips the seeds proven unreachable, unless that leaves none: one may be back up.
-  let alive = kad.bootstrapNodes.filterIt(it.peerId notin kad.unreachableSeeds)
-  if alive.len > 0:
-    return alive
-
-  kad.unreachableSeeds.clear()
-  kad.bootstrapNodes
-
 proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Re-seed a table that shrank below ``config.minRoutingTableSize``.
   if kad.stopping or kad.config.disableBootstrapping:
@@ -320,7 +311,7 @@ proc fixLowPeers*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   kad.admitPeers(kad.rtable, kad.connectedPeerInfos())
   # Seed the trusted nodes too: the probes above only land after this pass.
-  kad.updatePeers(kad.reseedableNodes())
+  kad.updatePeers(kad.bootstrapNodes)
 
   await kad.refreshTable(kad.rtable, forceRefresh = true)
 

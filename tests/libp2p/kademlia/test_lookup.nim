@@ -5,8 +5,9 @@
 
 import chronos, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../../libp2p/protocols/kademlia/[find, message_sender, types]
-import ../../tools/[lifecycle, multiaddress, unittest]
+import
+  ../../../libp2p/protocols/kademlia/[find, message_sender, probe_backoff, rpc, types]
+import ../../tools/[multiaddress, unittest]
 import ./utils.nim
 
 proc recordingDispatch(
@@ -469,7 +470,7 @@ suite "KadDHT Iterative Lookup":
 
     check:
       queried[].countIt(it == known[0]) == 1
-      known[0] in state.unreachable
+      kad.probeBackedOff(known[0], kad.dialAddrs(known[0]))
       state.responded[known[0]] == RespondedStatus.Failed
 
   asyncTest "Lookup stops retrying a peer whose timed-out dial fails":
@@ -491,29 +492,38 @@ suite "KadDHT Iterative Lookup":
     check:
       # The retry sent when the first attempt timed out is the last one.
       queried[].countIt(it == known[0]) == 2
-      known[0] in state.unreachable
+      state.responded[known[0]] == RespondedStatus.Failed
       # The late refusal of the first attempt cancels the retry still in flight.
       cancelled[] == @[known[0]]
 
-  asyncTest "Lookup removes an unreachable seed from the routing table":
-    let deadSeed = randomPeerId()
-    let deadPeer = randomPeerId()
-    let deadAddrs = @[ma("/ip4/127.0.0.1/tcp/1")]
-    let kad = setupKad(
-      # Windows retries a refused loopback connect for about 2 seconds.
-      testKadConfig(timeout = 5.seconds, disableBootstrapping = true),
-      bootstrapNodes = @[(deadSeed, deadAddrs)],
+  asyncTest "Lookup asks a refused peer again once its backoff ends":
+    let kad = setupLookupKad(timeout = 200.milliseconds)
+
+    let targetKey = randomPeerId().toKey()
+    let known = kad.seedRoutingTable(5, targetKey)
+    let refused = toHashSet([known[0]])
+
+    let first = new(seq[PeerId])
+    discard await kad.iterativeLookup(
+      targetKey, recordingDispatch(first, undialable = refused), noopReply
     )
-    kad.updatePeers(@[(deadPeer, deadAddrs)])
-    startAndDeferStop(@[kad])
+    let second = new(seq[PeerId])
+    discard await kad.iterativeLookup(
+      targetKey, recordingDispatch(second, undialable = refused), noopReply
+    )
 
     check:
-      deadSeed.toKey() in kad.rtable
-      deadPeer.toKey() in kad.rtable
+      first[].countIt(it == known[0]) == 1
+      known[0] notin second[]
+      known[0].toKey() in kad.rtable
 
-    discard await kad.findNode(randomPeerId().toKey())
+    # The first backoff lasts one timeout.
+    await sleepAsync(300.milliseconds)
+    let third = new(seq[PeerId])
+    let state =
+      await kad.iterativeLookup(targetKey, recordingDispatch(third), noopReply)
 
     check:
-      deadSeed.toKey() notin kad.rtable
-      # Liveness evicts other peers, after their grace period.
-      deadPeer.toKey() in kad.rtable
+      known[0] in third[]
+      state.responded[known[0]] == RespondedStatus.Success
+      not kad.probeBackedOff(known[0], kad.dialAddrs(known[0]))
