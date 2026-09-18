@@ -441,6 +441,10 @@ proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
+  if self.running:
+    warn "QUIC transport already started"
+    return
+
   doAssert self.listeners.len == 0, "start() already called"
 
   let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
@@ -474,10 +478,14 @@ method start*(
       self.listeners = @[]
 
   await procCall Transport(self).start(listenMAs)
+  info "QUIC transport started", addresses = self.addrs
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
-  if transport.running:
+  let wasRunning = transport.running
+  if wasRunning:
     await noCancel procCall Transport(transport).stop()
+  else:
+    warn "QUIC transport already stopped"
 
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
@@ -498,6 +506,9 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await noCancel allFutures(transport.listeners.mapIt(it.stop()))
   transport.listeners = @[]
   transport.acceptFuts = @[]
+
+  if wasRunning:
+    info "QUIC transport stopped", addresses = transport.addrs
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction

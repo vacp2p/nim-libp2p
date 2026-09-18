@@ -139,7 +139,6 @@ proc new*(
   )
 
 method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
-  info "Setting up AutotlsService"
   if self.config.ipAddress.isSome():
     return
   let ip = getPublicIPAddress().valueOr:
@@ -252,7 +251,6 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
 method start*(
     self: AutotlsService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  info "Starting Autotls management"
   self.running.fire()
   self.peerInfo = switch.peerInfo
 
@@ -276,6 +274,7 @@ method start*(
       trace "Autotls management cancelled"
 
   self.managerFut = manageCert()
+  info "AutoTLS management started"
 
 method stop*(
     self: AutotlsService, switch: Switch

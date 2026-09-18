@@ -227,8 +227,6 @@ proc addressMapper(
   return addrs
 
 method setup*(self: AutonatService, switch: Switch) {.raises: [].} =
-  info "Setting up AutonatService"
-
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
@@ -243,8 +241,6 @@ method setup*(self: AutonatService, switch: Switch) {.raises: [].} =
 method start*(
     self: AutonatService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  info "Running AutonatService"
-
   switch.connManager.addPeerEventHandler(
     self.newConnectedPeerHandler, PeerEventKind.Joined
   )
@@ -256,6 +252,8 @@ method start*(
   self.scheduleInterval.ifValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)
+
+  info "AutoNAT service started"
 
 method stop*(
     self: AutonatService, switch: Switch

@@ -47,7 +47,6 @@ method start*(
   ## start the transport
   ##
 
-  info "Transport starting", addresses = addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -57,7 +56,6 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  info "Transport stopping", addresses = self.addrs
   self.running = false
   self.onStop.fire()
 

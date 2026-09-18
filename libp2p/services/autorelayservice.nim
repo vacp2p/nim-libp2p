@@ -157,12 +157,16 @@ method start*(
   switch.addressManager.addMapper(self.addressMapper, AddrSource.Circuit)
   await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
+  info "Auto-relay service started", maxRelays = self.maxNumRelays
 
 method stop*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   if not self.running:
     return
+
+  info "Stopping auto-relay service"
+
   self.running = false
   await noCancel self.runner.cancelAndWait()
   await noCancel (toSeq(self.relayPeers.values) & toSeq(self.backingOff.values)).cancelAndWait()

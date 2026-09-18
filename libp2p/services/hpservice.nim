@@ -146,8 +146,11 @@ method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError
 
   discard self.reachabilityObservers.add(self.onNewStatusHandler)
   await self.autonatService.start(switch)
+  info "Hole-punching service started"
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  info "Stopping hole-punching service"
+
   switch.connManager.removePeerEventHandler(
     self.newConnectedPeerHandler, PeerEventKind.Identified
   )
