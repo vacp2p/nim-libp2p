@@ -166,11 +166,13 @@ method start*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledErr
   p.onLeftHandler = onLeft
   p.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
   p.connManager.addPeerEventHandler(onLeft, PeerEventKind.Left)
+  info "Identify push service started"
 
 method stop*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
   if not p.started:
     return
 
+  info "Stopping identify push service"
   p.started = false
 
   if not p.onIdentifiedHandler.isNil:

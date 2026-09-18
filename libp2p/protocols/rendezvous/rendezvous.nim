@@ -628,7 +628,6 @@ proc new*(
     finally:
       await stream.close()
 
-  info "Rendezvous protocol initialized"
   rdv.handler = handleStream
   rdv.codec = RendezVousCodec
   return rdv
@@ -692,6 +691,7 @@ method start*[E](
     return fut
   rdv.registerDeletionLoop = rdv.deletesRegister()
   rdv.started = true
+  info "Rendezvous service started"
   fut
 
 method stop*[E](

@@ -445,4 +445,10 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   s.peerStore.startAddressPruning()
 
-  info "Started libp2p node", peerId = s.peerInfo
+  info "Libp2p node started",
+    peerId = s.peerInfo.peerId,
+    listenAddresses = s.peerInfo.listenAddrs,
+    announcedAddresses = s.peerInfo.addrs,
+    protocols = s.peerInfo.protocols,
+    transports = s.transports.len,
+    services = s.services.len

@@ -346,8 +346,6 @@ method start*(
     warn "WS transport already running"
     return
 
-  info "Starting WS transport"
-
   let addrsTa = self.toTransportAddress(addrs).valueOrRaise(TransportStartError)
 
   if not self.secure and self.autotls.isSome():
@@ -417,7 +415,7 @@ method start*(
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
 
-  trace "Listening on", addresses = self.addrs
+  info "WebSocket transport started", addresses = self.addrs
 
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport

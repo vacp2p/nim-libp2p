@@ -491,11 +491,6 @@ proc setupReachability(
       self.setupAutonatV2(switch, r)
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
-  info "Setting up NATService",
-    portMapping = self.config.portMapping.isSome(),
-    reachability = self.config.reachability.isSome(),
-    holePunching = self.config.holePunching.isSome()
-
   self.config.portMapping.ifValue(pm):
     if pm.mode in {Upnp, NatPmp, Auto}:
       validatePortMapperConfig(pm)
@@ -560,9 +555,13 @@ proc startReachability(
     await self.reachability.start(switch)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  info "Starting NATService"
   self.startPortMapping(switch)
   await self.startReachability(switch)
+
+  info "NAT service started", 
+    portMapping = self.config.portMapping.isSome(),
+    reachability = self.config.reachability.isSome(),
+    holePunching = self.config.holePunching.isSome()
 
 proc stopPortMapping(
     self: NATService, switch: Switch
