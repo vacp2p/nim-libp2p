@@ -189,12 +189,12 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
         return
       let peers = rtable.peersPastGracePeriod(grace)
       if peers.len > 0:
-        debug "Liveness scan found replaceable peers", peers = peers.len
+        trace "Liveness scan found replaceable peers", peers = peers.len
       for peerId in peers:
         kad.launchLivenessProbe(peerId)
 
     if kad.livenessProbes.len > 0:
-      debug "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
+      trace "Waiting for in-flight liveness probes", inFlight = kad.livenessProbes.len
       let inFlight = kad.livenessProbes.values.toSeq()
       try:
         discard await one(inFlight)
