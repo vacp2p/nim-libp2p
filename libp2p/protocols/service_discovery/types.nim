@@ -25,6 +25,9 @@ const
 
   Default_K_register* = 3
   Default_K_lookup* = 5
+  CloserPeersPerBucket* = 1
+    ## GETPEERS returns one peer per bucket, so a reply stays spread across
+    ## buckets instead of concentrating in whichever the responder picks.
   Default_F_lookup* = 30
   Default_F_return* = 10
   Default_E* = 900.secs
