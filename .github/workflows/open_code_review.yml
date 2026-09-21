@@ -1,7 +1,4 @@
-name: OpenCodeReview
-
-# Set Actions secret DEEPSEEK_API_KEY. Comment /review for DeepSeek Pro,
-# /review flash for DeepSeek Flash, or use a full model name.
+name: Open Code Review
 
 on:
   issue_comment:

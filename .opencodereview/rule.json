@@ -1,6 +1,6 @@
 {
   "include": [
-    "tests/**/*.nim"
+    "**/*"
   ],
   "rules": [
     {
