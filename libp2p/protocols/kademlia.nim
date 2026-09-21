@@ -69,11 +69,15 @@ proc checkAndEvictPeer(
     trace "Liveness probe skipped: no free slot", peerId
     kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
     return
+  var retryLater = false
   defer:
     try:
       kad.livenessSem.release()
     except AsyncSemaphoreError:
       raiseAssert "livenessSem released without acquire"
+    if retryLater:
+      # Deduplicate this peer until retry time without holding a probe slot.
+      await sleepAsync(kad.config.livenessIdleInterval)
 
   # Candidate list is a snapshot; by the time a slot is free the peer may have
   # been refreshed (markUseful) or removed, and stop may have begun.
@@ -105,7 +109,13 @@ proc checkAndEvictPeer(
     return
 
   trace "Probing peer for liveness", peerId, tables = dueTables.len
-  if (await kad.lookupCheck(peerId, addrs)):
+  let outcome = await kad.lookupCheckResult(peerId, addrs)
+  if outcome == LocalCapacity:
+    trace "Liveness probe deferred: local connection limit", peerId
+    kad_routing_table_liveness_probes.inc(labelValues = ["skipped"])
+    retryLater = true
+    return
+  if outcome == Reachable:
     trace "Liveness probe succeeded", peerId
     # Peer is reachable: one registry write refreshes usefulness for every index.
     kad.rtable.markUseful(peerId)

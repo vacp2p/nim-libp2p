@@ -276,23 +276,35 @@ func toPeerInfos*(peers: seq[(PeerId, seq[MultiAddress])]): seq[PeerInfo] =
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   kad.updatePeers(peers.toPeerInfos())
 
-proc lookupCheck*(
+type LookupCheckResult* = enum
+  Reachable
+  Unreachable
+  LocalCapacity
+
+proc lookupCheckResult*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
-  ## Used for admission probes and for routing-table liveness checks.
-  let probe = kad.dispatchFindNode(peerId, peerId.toKey(), Opt.some(addrs))
+): Future[LookupCheckResult] {.async: (raises: [CancelledError]).} =
+  ## A local connection limit leaves reachability unknown.
+  let msg =
+    Message(msgType: Opt.some(MessageType.findNode), key: Opt.some(peerId.toKey()))
+  let probe = kad.dispatchRpcDetailed(peerId, msg, Opt.some(addrs))
   # A probe abandoned on timeout keeps its stream open, so always settle it.
   defer:
     await noCancel probe.cancelAndWait()
   discard await probe.withTimeout(kad.config.timeout)
   if not probe.completed():
     trace "Kad probe timed out", peerId, timeout = kad.config.timeout
-    return false
+    return Unreachable
   let reply = probe.value().valueOr:
-    trace "Kademlia probe failed", peerId, err = error
-    return false
-  reply.msgType == Opt.some(MessageType.findNode)
+    trace "Kademlia probe failed", peerId, err = error.msg
+    return if error.localCapacity: LocalCapacity else: Unreachable
+  if reply.msgType == Opt.some(MessageType.findNode): Reachable else: Unreachable
+
+proc lookupCheck*(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## A FIND_NODE for the peer's own key proves it is reachable and speaks DHT.
+  (await kad.lookupCheckResult(peerId, addrs)) == Reachable
 
 proc admitPeer(
     kad: KadDHT,

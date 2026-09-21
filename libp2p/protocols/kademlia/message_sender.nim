@@ -12,7 +12,7 @@
 
 import std/tables
 import chronos, chronicles, results
-import ../../[peerid, switch]
+import ../../[peerid, switch, connmanager]
 import ../../stream/connection
 import ../../utils/future
 import ./kademlia_metrics
@@ -39,6 +39,7 @@ type
   SendError* = object
     stage*: SendStage
     msg*: string
+    localCapacity*: bool ## The dial was rejected by a local connection limit.
 
   PeerMessageSender = ref object
     lock: AsyncLock ## serializes the RPCs sharing `stream`
@@ -262,7 +263,14 @@ proc prepStream(
     try:
       await noCancel dialFut
     except DialFailedError as e:
-      return err(SendError.init(dialStage, e.msg))
+      var failure = SendError.init(dialStage, e.msg)
+      var cause: ref Exception = e
+      while not cause.isNil():
+        if cause of TooManyConnectionsError:
+          failure.localCapacity = true
+          break
+        cause = cause.parent
+      return err(failure)
 
   # `stop` and `dropPeer` reset the peer's stream, and this one did not exist
   # yet when they ran. Sending on it would use a sender that is already gone.

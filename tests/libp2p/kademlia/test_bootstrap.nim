@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos
-import ../../../libp2p/[protocols/kademlia, peerid, switch]
+import ../../../libp2p/[protocols/kademlia, peerid, switch, connmanager]
 import ../../tools/[lifecycle, unittest, multiaddress]
 import ./[mock_kademlia, utils]
 
@@ -212,6 +212,78 @@ suite "KadDHT Bootstrap Component":
     check hub.hasKey(leafId.toKey())
     # Successful probe marks the peer useful again.
     check hub.isPeerUseful(leafId.toKey())
+
+  asyncTest "local connection pressure defers eviction without marking the peer useful":
+    let config = testKadConfig(
+      disableBootstrapping = true, livenessIdleInterval = chronos.hours(1)
+    )
+    let hub = setupKad(config)
+    let leaf = setupKad(config)
+    startAndDeferStop(@[hub, leaf])
+    # The background loop is already asleep; exercise maintenance explicitly.
+    hub.config.livenessIdleInterval = chronos.milliseconds(20)
+    let leafId = leaf.switch.peerInfo.peerId
+    hub.updatePeers(@[(leafId, leaf.switch.peerInfo.addrs)])
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
+
+    var held: seq[ConnectionSlot]
+    defer:
+      for slot in held:
+        slot.release()
+    while hub.switch.connManager.availableSlots(Direction.Out) > 0:
+      held.add(hub.switch.connManager.getOutgoingSlot())
+
+    let started = Moment.now()
+    await hub.probeAndEvictPeers(hub.rtable)
+    check:
+      hub.hasKey(leafId.toKey())
+      not hub.isPeerUseful(leafId.toKey())
+      Moment.now() - started >= hub.config.livenessIdleInterval
+
+    for slot in held:
+      slot.release()
+    held.setLen(0)
+    await hub.probeAndEvictPeers(hub.rtable)
+    check:
+      hub.hasKey(leafId.toKey())
+      hub.isPeerUseful(leafId.toKey())
+
+    # A full cap must not prevent a probe using an existing connection.
+    agePeerPastLivenessGrace(hub.rtable, leafId.toKey())
+    while hub.switch.connManager.availableSlots(Direction.Out) > 0:
+      held.add(hub.switch.connManager.getOutgoingSlot())
+    await hub.probeAndEvictPeers(hub.rtable)
+    check:
+      hub.hasKey(leafId.toKey())
+      hub.isPeerUseful(leafId.toKey())
+
+  asyncTest "deferred liveness releases its probe slot and cancels on stop":
+    let kad = setupKad(
+      testKadConfig(
+        disableBootstrapping = true, livenessIdleInterval = chronos.hours(1)
+      )
+    )
+    startAndDeferStop(@[kad])
+    let peers = peersWithAddrs(1)
+    kad.updatePeers(peers)
+    agePeerPastLivenessGrace(kad.rtable, peers[0].peerId.toKey())
+
+    var held: seq[ConnectionSlot]
+    defer:
+      for slot in held:
+        slot.release()
+    while kad.switch.connManager.availableSlots(Direction.Out) > 0:
+      held.add(kad.switch.connManager.getOutgoingSlot())
+
+    let batch = kad.probeAndEvictPeers(kad.rtable)
+    defer:
+      await noCancel batch.cancelAndWait()
+    checkUntilTimeout:
+      kad.livenessProbes.len == 1
+      kad.livenessSem.availableSlots == kad.config.limits.maxConcurrentLivenessProbes
+
+    await kad.stop().wait(chronos.seconds(1))
+    check kad.livenessProbes.len == 0
 
   asyncTest "probeAndEvictPeers skips peers still within liveness grace":
     let hub = setupKad()
