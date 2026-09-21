@@ -22,6 +22,13 @@ import ../utils
 # to test integration with extension and gossipsub. more detailed tests
 # should be added to test files of respective extensions.
 
+proc publishPartial(
+    node: GossipSub, store: MyPartialMessageStore, topic: string, pm: MyPartialMessage
+) {.async: (raises: []).} =
+  # stores message so config.materializeParts can serve it, then publishes
+  store.messages[pm.groupId] = pm
+  await node.publishPartial(topic, pm.groupId, pm.partsMetadata())
+
 suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
@@ -278,6 +285,8 @@ suite "GossipSub Component - Extensions":
   asyncTest "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
+    # nodes share one config, so they share one store; messages are keyed by groupId
+    let store = MyPartialMessageStore()
 
     proc validateRPC(
         rpc: PartialMessageExtensionRPC
@@ -304,6 +313,7 @@ suite "GossipSub Component - Extensions":
           partialMessageExtensionConfig = Opt.some(
             PartialMessageExtensionConfig(
               unionPartsMetadata: my_partial_message.unionPartsMetadata,
+              materializeParts: store.materializePartsFn(),
               validateRPC: validateRPC,
               onIncomingRPC: onIncomingRPC,
               heartbeatsTillEviction: 100,
@@ -324,7 +334,7 @@ suite "GossipSub Component - Extensions":
 
     # node 1 seeks for parts 1, 2, 3
     let node1Req = MyPartialMessage(groupID: groupId, want: @[1, 2, 3])
-    await nodes[1].publishPartial(topic, node1Req)
+    await nodes[1].publishPartial(store, topic, node1Req)
 
     # wait for node 0 to receive request
     checkUntilTimeout:
@@ -346,7 +356,7 @@ suite "GossipSub Component - Extensions":
       groupID: groupId,
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
     )
-    await nodes[0].publishPartial(topic, pmData)
+    await nodes[0].publishPartial(store, topic, pmData)
 
     # wait for node 1 to receive partial message
     checkUntilTimeout:
@@ -367,6 +377,8 @@ suite "GossipSub Component - Extensions":
     # pushes partial messages to peers via broadcast publish.
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
+    # nodes share one config, so they share one store; messages are keyed by groupId
+    let store = MyPartialMessageStore()
 
     proc validateRPC(
         rpc: PartialMessageExtensionRPC
@@ -388,6 +400,7 @@ suite "GossipSub Component - Extensions":
           partialMessageExtensionConfig = Opt.some(
             PartialMessageExtensionConfig(
               unionPartsMetadata: my_partial_message.unionPartsMetadata,
+              materializeParts: store.materializePartsFn(),
               validateRPC: validateRPC,
               onIncomingRPC: onIncomingRPC,
               heartbeatsTillEviction: 100,
@@ -412,7 +425,7 @@ suite "GossipSub Component - Extensions":
       groupID: groupId,
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
     )
-    await nodes[0].publishPartial(topic, pmData)
+    await nodes[0].publishPartial(store, topic, pmData)
 
     # Node 1 should receive the announcement even though node 0 never subscribed.
     # Peer has not yet expressed what it wants, so only parts metadata is sent
