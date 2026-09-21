@@ -3,7 +3,6 @@
 
 {.used.}
 
-from std/strutils import startsWith
 import chronos, random, stew/byteutils
 import lsquic
 import
@@ -101,13 +100,10 @@ suite "Quic transport":
     )
     defer:
       await dialer.stop()
-    try:
+
+    # Dial endpoints are created lazily, so this validates config before network I/O.
+    expect QuicTransportDialError:
       discard await dialer.dial("", ma("/ip4/127.0.0.1/udp/1/quic-v1"))
-      check false
-    except QuicTransportDialError as exc:
-      check exc.msg.startsWith(
-        "QuicTransport.dial failed. cannot create dial endpoint."
-      )
 
   basicTransportTest(
     quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
