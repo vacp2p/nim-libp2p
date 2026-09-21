@@ -169,7 +169,7 @@ and `interop/noise-pq/interop_dial`. The runs were over loopback TCP on one
 machine, and the harnesses start the handshake directly, without
 multistream-select, so protocol id negotiation is not covered. Matrix, results
 and per-run logs:
-<https://github.com/paschal533/pq-noise-artifacts/tree/main/interop/results/20260919T053615Z>.
+<https://github.com/paschal533/pq-noise-artifacts/tree/main/interop/results/20260919T223056Z>.
 
 The 2026-07-11 run against py-libp2p's listener, recorded in
 `interop/noise-pq/README.md`, predates the rename and covered the handshake
