@@ -58,7 +58,7 @@ proc new*(
     registry: registry,
   )
 
-func bucketCount(maxBuckets: int): int =
+func bucketCount*(maxBuckets: int): int {.raises: [].} =
   clamp(maxBuckets, 1, MaxBucketsLimit)
 
 func selfHash(rtable: RoutingTable): Key =
@@ -330,16 +330,27 @@ proc pickClosestFirst(
   return selected
 
 proc randomPeersClosestFirst*(
-    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
+    rtable: RoutingTable,
+    rng: Rng,
+    count: int,
+    maxPerBucket = high(int),
+    exclude: openArray[Key] = [],
 ): seq[Key] {.raises: [].} =
   ## Returns up to `count` peers sampled randomly from the routing table's
   ## buckets, starting from the closest buckets (highest indices) and moving
-  ## to farther buckets (lower indices).
+  ## to farther buckets (lower indices). Keys in `exclude` are dropped before
+  ## sampling, so one cannot take a slot its bucket has to spare.
 
   if count <= 0:
     return @[]
 
-  pickClosestFirst(rtable.buckets.mapIt(it.peers), rng, count, maxPerBucket)
+  var view = newSeq[seq[Key]](rtable.buckets.len)
+  for i, bucket in rtable.buckets:
+    for nodeId in bucket.peers:
+      if nodeId notin exclude:
+        view[i].add(nodeId)
+
+  pickClosestFirst(view, rng, count, maxPerBucket)
 
 proc randomPeersClosestFirst*(
     rtable: RoutingTable,
@@ -348,6 +359,7 @@ proc randomPeersClosestFirst*(
     count: int,
     maxPerBucket = high(int),
     maxBuckets = rtable.config.maxBuckets,
+    exclude: openArray[Key] = [],
 ): seq[Key] {.raises: [].} =
   ## Same sampling, but with the table's peers viewed by distance to the
   ## pre-hashed ``target`` (which must be ``IdLength`` bytes) instead of to
@@ -359,16 +371,13 @@ proc randomPeersClosestFirst*(
   var view = newSeq[seq[Key]](bucketCount(maxBuckets))
   for bucket in rtable.buckets:
     for nodeId in bucket.peers:
+      if nodeId in exclude:
+        continue
       let lz = xorDistance(target, Key.fromBytes(nodeId.hashFor(rtable.config.hasher)))
         .leadingZeros()
       view[min(lz, view.high)].add(nodeId)
 
   pickClosestFirst(view, rng, count, maxPerBucket)
-
-proc randomPeersClosestFirstPeerIds*(
-    rtable: RoutingTable, rng: Rng, count: int, maxPerBucket = high(int)
-): seq[PeerId] =
-  randomPeersClosestFirst(rtable, rng, count, maxPerBucket).toPeerIds()
 
 proc isStale*(
     bucket: Bucket, registry: PeerRegistry, staleTime: Duration = DefaultBucketStaleTime

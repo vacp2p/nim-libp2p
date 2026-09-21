@@ -4,7 +4,7 @@
 {.push gcsafe.}
 {.push raises: [].}
 
-import std/[sequtils, strutils]
+import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import
@@ -32,6 +32,8 @@ logScope:
 type
   UpgradeFailedError* = object of LPError
 
+  UpgradeResult*[T] = Result[T, string]
+
   Upgrade* = ref object of RootObj
     ms*: MultistreamSelect
     secureManagers*: seq[Secure]
@@ -41,19 +43,21 @@ method upgrade*(
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError], raw: true), base.} =
   raiseAssert("[Upgrade.upgrade] abstract method not implemented!")
 
-proc secure*(
+proc trySecure*(
     self: Upgrade, conn: RawConn, peerId: Opt[PeerId]
-): Future[SecureConn] {.async: (raises: [CancelledError, LPError]).} =
+): Future[UpgradeResult[SecureConn]] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
-    raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
+    return err("No secure managers registered")
 
-  let codec =
+  let negotiated =
     if conn.dir == Out:
-      await self.ms.select(conn, self.secureManagers.mapIt(it.codec))
+      await self.ms.trySelect(conn, self.secureManagers.mapIt(it.codec))
     else:
-      await MultistreamSelect.handle(conn, self.secureManagers.mapIt(it.codec))
+      await MultistreamSelect.tryHandle(conn, self.secureManagers.mapIt(it.codec))
+  let codec = negotiated.valueOr:
+    return err($error)
   if codec.len == 0:
-    raise (ref UpgradeFailedError)(msg: "Unable to negotiate a secure channel!")
+    return err("Unable to negotiate a secure channel")
 
   trace "Secure upgrade started", conn, protocol = codec
   let secureProtocol = self.secureManagers.filterIt(it.codec == codec)
@@ -62,4 +66,9 @@ proc secure*(
   # let's avoid duplicating checks but detect if it fails to do it properly
   doAssert(secureProtocol.len > 0)
 
-  await secureProtocol[0].secure(conn, peerId)
+  ok(await secureProtocol[0].secure(conn, peerId))
+
+proc secure*(
+    self: Upgrade, conn: RawConn, peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPError]).} =
+  (await self.trySecure(conn, peerId)).valueOrRaise(UpgradeFailedError)

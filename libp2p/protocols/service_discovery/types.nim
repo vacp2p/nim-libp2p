@@ -25,6 +25,9 @@ const
 
   Default_K_register* = 3
   Default_K_lookup* = 5
+  CloserPeersPerBucket* = 1
+    ## GETPEERS returns one peer per bucket, so a reply stays spread across
+    ## buckets instead of concentrating in whichever the responder picks.
   Default_F_lookup* = 30
   Default_F_return* = 10
   Default_E* = 900.secs
@@ -42,13 +45,13 @@ type
   ServiceId* = Key
 
   ServiceStatus* = enum
-    Interest = 0
-    Provided = 1
-    Both = 2
+    Interest
+    Provided
+    Registered
 
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
-    serviceStatus*: Table[ServiceId, ServiceStatus]
+    serviceStatus*: Table[ServiceId, set[ServiceStatus]]
     onServiceTableCreated*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
     onServiceTableRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
@@ -65,6 +68,7 @@ type
     ipTree*: IpTree
     capacity*: uint64
     count*: int
+    onServiceRemoved*: proc(serviceId: ServiceId) {.gcsafe, closure, raises: [].}
 
   Registrar* = ref object
     ads*: AdvertisementCache
@@ -228,7 +232,7 @@ proc new*(T: typedesc[Registrar], advertCacheCap: uint64 = Default_C): T =
 proc new*(T: typedesc[Advertiser]): T =
   T(
     running: initHashSet[AdvertiseTask](),
-    seqNo: Moment.now().epochSeconds.uint64,
+    seqNo: nowUnixSeconds().uint64,
     providedAdverts: initTable[ServiceId, ProvidedAdvert](),
   )
 
@@ -238,7 +242,7 @@ proc toKey*(service: ServiceInfo): Key =
 proc init*(
     T: typedesc[ExtendedPeerRecord],
     peerInfo: PeerInfo,
-    seqNo: uint64 = Moment.now().epochSeconds.uint64,
+    seqNo: uint64 = nowUnixSeconds().uint64,
     services: seq[ServiceInfo] = @[],
 ): T =
   T(
@@ -248,17 +252,24 @@ proc init*(
     services: services,
   )
 
+proc boundXpr*(key: Key, value: Value): Opt[SignedExtendedPeerRecord] =
+  ## Accepts a valid signed XPR only when its subject is the peer that `key` names.
+  let expectedPeerId = key.toPeerId().valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  let sxpr = SignedExtendedPeerRecord.decode(value.toBytes()).valueOr:
+    return Opt.none(SignedExtendedPeerRecord)
+
+  if sxpr.data.peerId != expectedPeerId or not sxpr.isValid():
+    return Opt.none(SignedExtendedPeerRecord)
+
+  Opt.some(sxpr)
+
 type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedExtendedPeerRecord.decode(record.value.toBytes()).valueOr:
-    return false
-
-  let expectedPeerId = key.toPeerId().valueOr:
-    return false
-
-  return spr.data.peerId == expectedPeerId
+  boundXpr(key, record.value).isSome()
 
 type ExtEntrySelector* = ref object of EntrySelector
 method select*(
@@ -296,7 +307,7 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
   let peerRecord = ExtendedPeerRecord.init(
     peerId = peerInfo.peerId,
     addresses = filteredAddresses,
-    seqNo = Moment.now().epochSeconds.uint64,
+    seqNo = nowUnixSeconds().uint64,
     services = disco.services.toSeq(),
   )
 

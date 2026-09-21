@@ -91,6 +91,16 @@ suite "KadDHT Protobuffers":
     let cfg = KadDHTConfig.new()
     check cfg.hideConnectionStatus == true
 
+  test "Record ignores a key or value field sent as a varint":
+    let noKey = Record.decode(@[0x08'u8, 1]).expect("varint key is skipped")
+    let noValue =
+      Record.decode(@[0x0A'u8, 1, 7, 0x10, 1]).expect("varint value is skipped")
+
+    check:
+      noKey.key.isNone()
+      noValue.key == Opt.some(Key.fromBytes(@[7'u8]))
+      noValue.value.isNone()
+
 suite "KadDHT Protobuffers - AddProviderStatus":
   test "round-trip for AddProviderStatus":
     let accepted = Message(

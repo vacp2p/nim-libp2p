@@ -14,6 +14,7 @@ import
     peerstore,
     protocols/service_discovery/advertisement_cache,
     protocols/service_discovery/connection,
+    protocols/service_discovery/discoverer,
     protocols/service_discovery/registrar,
     protocols/service_discovery/types,
     routing_record,
@@ -35,7 +36,7 @@ proc makeAdvertisementWithServices(
     services: seq[ServiceInfo],
     privateKey: PrivateKey = PrivateKey.random(rng()).get(),
     addrs: seq[MultiAddress] = @[],
-    seqNo: uint64 = Moment.now().epochSeconds.uint64,
+    seqNo: uint64 = nowUnixSeconds().uint64,
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
   var addressInfos: seq[AddressInfo]
@@ -1065,6 +1066,37 @@ suite "Service Discovery Registrar - registration replaces by advertiser":
     check disco.getAdsInCache(serviceId)[0].envelope.signature.data ==
       ad2.envelope.signature.data
 
+  test "lower seqNo than the cached ad is rejected without a ticket":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig =
+        ServiceDiscoveryConfig.new(safetyParam = 0.0, advertExpiry = 999.millis)
+    )
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let newerAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+    let olderAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
+
+    disco.registrar.seedAd(serviceId, newerAd, Moment.now())
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: olderAd.encode().get(),
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(randomPeerId(), inMsg).register.get()
+    check reply.status.get() == kadprotobuf.RegistrationStatus.Rejected
+    check reply.ticket.isNone()
+    check disco.countAdsInCache(serviceId) == 1
+    check disco.getAdsInCache(serviceId)[0].data.seqNo == 10
+
 suite "Service Discovery Registrar - acceptAdvertisement":
   teardown:
     checkTrackers()
@@ -1082,18 +1114,94 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.peerId ==
       ad.data.peerId
 
-  asyncTest "advertised peer is not seated when its admission probe fails":
+  test "expiry of the last ad removes the service table":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement($serviceId, addrs = @[ma("/ip4/127.0.0.1/tcp/59997")])
+    let now = Moment.now()
 
-    disco.acceptAd(Moment.now(), serviceId, ad)
-    check not disco.hasPeerInServiceTable(serviceId, ad.data.peerId)
+    disco.acceptAd(now - 1000.secs, serviceId, makeAdvertisement($serviceId))
+    disco.acceptAd(now - 500.secs, serviceId, makeAdvertisement($serviceId))
+    disco.registrar.pruneExpiredAds(900.secs)
+    check disco.rtManager.hasService(serviceId)
+
+    disco.registrar.pruneExpiredAds(100.secs)
+    check:
+      disco.registrar.ads.len == 0
+      not disco.rtManager.hasService(serviceId)
+
+  test "eviction of the last ad removes the service table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(advertCacheCap = 1)
+    )
+    let evicted = makeServiceId(1)
+    let kept = makeServiceId(2)
+    let now = Moment.now()
+
+    disco.acceptAd(now - 10.secs, evicted, makeAdvertisement($evicted))
+    disco.acceptAd(now, kept, makeAdvertisement($kept))
+
+    check:
+      not disco.rtManager.hasService(evicted)
+      disco.rtManager.hasService(kept)
+      disco.rtManager.count() == 1
+
+  test "clearing the ad cache removes the service tables":
+    let disco = setupServiceDiscoveryNode()
+    let first = makeServiceId(1)
+    let second = makeServiceId(2)
+    let now = Moment.now()
+
+    disco.acceptAd(now, first, makeAdvertisement($first))
+    disco.acceptAd(now, second, makeAdvertisement($second))
+    disco.registrar.ads.clear()
+
+    check:
+      not disco.rtManager.hasService(first)
+      not disco.rtManager.hasService(second)
+      disco.rtManager.count() == 0
+
+  test "eviction of another advertiser's ad for the same service keeps the table":
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(advertCacheCap = 1)
+    )
+    let serviceId = makeServiceId()
+    let now = Moment.now()
+
+    disco.acceptAd(now - 10.secs, serviceId, makeAdvertisement($serviceId))
+    disco.acceptAd(now, serviceId, makeAdvertisement($serviceId))
+
+    check:
+      disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
+      disco.rtManager.serviceStatus.getOrDefault(serviceId) == {Registered}
+
+  test "ad expiry keeps a service table the node has local interest in":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    check disco.registerInterest(service.id)
+    disco.acceptAd(Moment.now() - 1000.secs, serviceId, makeAdvertisement(service.id))
+    disco.registrar.pruneExpiredAds(900.secs)
+
+    check disco.rtManager.serviceStatus.getOrDefault(serviceId) == {Interest}
+
+  asyncTest "advertising peer is not seated when its admission probe fails":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId()
+    let ad = makeAdvertisement($serviceId, addrs = @[ma("/ip4/127.0.0.1/tcp/59996")])
+    let advertisingPeer = randomPeerId()
+    disco.switch.peerStore[AddressBook][advertisingPeer] =
+      @[ma("/ip4/127.0.0.1/tcp/59997")]
+
+    disco.acceptAd(Moment.now(), serviceId, ad, advertiser = advertisingPeer)
+    check not disco.hasPeerInServiceTable(serviceId, advertisingPeer)
 
     checkUntilTimeout:
       disco.admissionProbes.len == 0
     check:
-      disco.probeFailures.getOrDefault(ad.data.peerId).count == 1
+      disco.probeFailures.getOrDefault(advertisingPeer).count == 1
+      ad.data.peerId notin disco.probeFailures
+      not disco.hasPeerInServiceTable(serviceId, advertisingPeer)
       not disco.hasPeerInServiceTable(serviceId, ad.data.peerId)
       disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
 
@@ -1115,7 +1223,7 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.seqNo ==
       2
 
-  test "same advertiser lower seqNo also replaces":
+  test "same advertiser lower seqNo is ignored":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceName = "service"
@@ -1127,11 +1235,53 @@ suite "Service Discovery Registrar - acceptAdvertisement":
     let olderAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
 
     disco.acceptAd(now, serviceId, newerAd)
-    disco.acceptAd(now, serviceId, olderAd)
+    disco.acceptAd(now + 1.seconds, serviceId, olderAd)
 
     check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
-    check disco.registrar.ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.seqNo ==
-      5
+    let cached = disco.registrar.ads.getCachedAd(serviceId, newerAd.data.peerId).get()
+    check:
+      cached.ad.data.seqNo == 10
+      cached.timestamp == now
+
+  test "relayed lower seqNo of a cached signer is ignored":
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let relay = randomPeerId()
+    let now = Moment.now()
+
+    let newerAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+    let olderAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
+
+    disco.acceptAd(now, serviceId, newerAd)
+    disco.acceptAd(now, serviceId, olderAd, advertiser = relay)
+
+    check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
+    check not disco.registrar.ads.contains(serviceId, relay)
+
+  test "higher seqNo drops older ads of the signer from every advertiser":
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let relay = randomPeerId()
+    let now = Moment.now()
+
+    let olderAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 5)
+    let newerAd = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+
+    disco.acceptAd(now, serviceId, olderAd, advertiser = relay)
+    disco.acceptAd(now, serviceId, newerAd)
+
+    check disco.registrar.ads.serviceCacheAdsLen(serviceId) == 1
+    check disco.registrar.ads.len == 1
+    check not disco.registrar.ads.contains(serviceId, relay)
+    check disco.registrar.ads
+      .getCachedAd(serviceId, newerAd.data.peerId)
+      .get().ad.data.seqNo == 10
 
   test "different advertisers each store their own ad":
     let disco =
@@ -1242,7 +1392,7 @@ suite "Service Discovery Registrar - AdvertisementCache put":
     check not ads.contains(serviceId, other.data.peerId)
     check not ads.contains(makeServiceId(2), ad.data.peerId)
 
-  test "same advertiser seqNo variants replace; only latest remains":
+  test "stale seqNo keeps the newer entry and its timestamp":
     let ads = AdvertisementCache.new()
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
@@ -1256,7 +1406,33 @@ suite "Service Discovery Registrar - AdvertisementCache put":
     ads.putAd(serviceId, staleAd, initMoment(3000))
 
     check ads.serviceCacheAdsLen(serviceId) == 1
-    check ads.getServiceCachedAds(serviceId, int.high).mapIt(it.ad)[0].data.seqNo == 0
+    let cached = ads.getCachedAd(serviceId, newAd.data.peerId).get()
+    check:
+      cached.ad.data.seqNo == 2
+      cached.timestamp == initMoment(2000)
+
+  test "hasNewer compares seqNo per signer and service":
+    let ads = AdvertisementCache.new()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let privateKey = PrivateKey.random(rng()).get()
+    let ad = makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 10)
+
+    ads.putAd(serviceId, ad, initMoment(1000))
+
+    check:
+      ads.hasNewer(
+        serviceId, makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 9)
+      )
+      not ads.hasNewer(serviceId, ad)
+      not ads.hasNewer(
+        serviceId, makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 11)
+      )
+      not ads.hasNewer(serviceId, makeAdvertisement(serviceName, seqNo = 1))
+      not ads.hasNewer(
+        makeServiceId(2),
+        makeAdvertisement(serviceName, privateKey = privateKey, seqNo = 1),
+      )
 
   test "service maps are independent; multi-service puts are separate slots":
     let ads = AdvertisementCache.new()

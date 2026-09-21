@@ -106,6 +106,11 @@ proc new*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
+  # Every value in this DHT is an XPR keyed by its signer, whatever the caller configured.
+  var kadConfig = config
+  kadConfig.validator = ExtEntryValidator()
+  kadConfig.selector = ExtEntrySelector()
+
   let disco = ServiceDiscovery(
     rtManager: ServiceRoutingTableManager.new(),
     advertiser: Advertiser.new(),
@@ -117,7 +122,7 @@ proc new*(
   )
   disco.initKadBase(
     switch,
-    config,
+    kadConfig,
     rng,
     isServer = not client,
     codec = codec,
@@ -129,6 +134,9 @@ proc new*(
       return
 
     disco.serviceBootstrapFuts[serviceId] = disco.bootstrapServiceTable(serviceId)
+
+  disco.registrar.ads.onServiceRemoved = proc(serviceId: ServiceId) =
+    disco.rtManager.removeService(serviceId, Registered)
 
   disco.rtManager.onServiceTableRemoved = proc(serviceId: ServiceId) =
     disco.serviceBootstrapFuts.withValue(serviceId, fut):

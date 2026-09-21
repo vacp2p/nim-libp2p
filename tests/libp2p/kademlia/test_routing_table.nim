@@ -105,6 +105,22 @@ suite "KadDHT Routing Table":
 
     check rt.randomPeersClosestFirst(target, rng(), 0, maxBuckets = 2).len == 0
 
+  test "sampling drops every excluded key":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    let kept = rt.buckets[3].peers[0]
+    let skipped = [rt.buckets[1].peers[0], rt.buckets[TargetBucket].peers[0]]
+
+    # Dropped before sampling, so they cannot take a slot from their buckets.
+    check rt.randomPeersClosestFirst(rng(), 3, exclude = skipped) == @[kept]
+
+    # The same in a view centred on a target, here one of the excluded keys.
+    check rt.randomPeersClosestFirst(skipped[0], rng(), 3, exclude = skipped) == @[kept]
+
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
@@ -603,3 +619,34 @@ suite "KadDHT Routing Table":
       not rt.insert(localNodeId) # localNodeId is rejected
       not rt.insert(selfId) # selfId is rejected
       rt.insert(peer) # other peers are accepted
+
+  test "an empty table has no peer to replace or remove and its buckets are stale":
+    let rt = RoutingTable.new(testKey(0))
+    let peer = testKey(1)
+
+    check:
+      not rt.isReplaceable(peer, 1.hours, Moment.now())
+      not rt.removePeer(peer)
+      rt.isStale(rt.bucketIndex(peer))
+
+  test "a detached table no longer marks peers useful":
+    let registry = PeerRegistry.new()
+    let peer = testKey(1)
+    let mainRt = RoutingTable.new(testKey(0), registry = registry)
+    let serviceRt = RoutingTable.new(testKey(0xFF), registry = registry)
+    check:
+      mainRt.insert(peer)
+      serviceRt.insert(peer)
+
+    serviceRt.detachAll()
+    serviceRt.markUseful(peer)
+
+    check registry.get(peer).expect("mainRt holds the peer").lastUsefulAt.isNone()
+
+  test "randomPeersClosestFirst returns nothing for a non-positive count":
+    let rt = RoutingTable.new(testKey(0))
+    check rt.insert(testKey(1))
+
+    check:
+      rt.randomPeersClosestFirst(rng(), 0).len == 0
+      rt.randomPeersClosestFirst(testKey(1), rng(), 0).len == 0

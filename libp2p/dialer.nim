@@ -55,6 +55,8 @@ type
     lock: AsyncLock
     users: int ## dials holding or waiting for `lock`
 
+  DialResult[T] = Result[T, string]
+
   Dialer* = ref object of Dial
     localPeerId*: PeerId
     connManager: ConnManager
@@ -173,22 +175,19 @@ proc dialAndUpgrade*(
 
 proc expandDnsAddr(
     self: Dialer, peerId: Opt[PeerId], address: MultiAddress, deadline: Moment
-): Future[seq[(MultiAddress, Opt[PeerId])]] {.
-    async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
+): Future[DialResult[seq[(MultiAddress, Opt[PeerId])]]] {.
+    async: (raises: [CancelledError])
 .} =
   if not DNS.matchPartial(address):
-    return @[(address, peerId)]
+    return ok(@[(address, peerId)])
   if isNil(self.nameResolver):
     warn "Can't resolve DNSADDR without NameResolver", address = address
-    return @[]
+    return ok(newSeq[(MultiAddress, Opt[PeerId])]())
 
   trace "Address resolution started"
   let toResolve =
     if peerId.isSome:
-      try:
-        address & MultiAddress.init(multiCodec("p2p"), peerId.tryGet()).tryGet()
-      except ResultError[void]:
-        raiseAssert "checked with if"
+      ?concat(address, ?MultiAddress.init(multiCodec("p2p"), peerId.get()))
     else:
       address
   # A dnsaddr record points at more dnsaddr records, and each lookup can take
@@ -198,26 +197,25 @@ proc expandDnsAddr(
       self.nameResolver.resolveDnsAddr(toResolve).awaitWithDeadline(deadline)
     except AsyncTimeoutError:
       trace "DNSADDR resolution timed out", address = toResolve
-      return @[]
+      return ok(newSeq[(MultiAddress, Opt[PeerId])]())
+    except MaError as e:
+      return err(e.msg)
+    except TransportAddressError as e:
+      return err(e.msg)
 
   trace "Address resolution completed",
     originalAddresses = toResolve, resolvedAddresses = resolved
 
   var addrs: seq[(MultiAddress, Opt[PeerId])]
   for resolvedAddress in resolved:
-    let lastPart = resolvedAddress[^1].tryGet()
+    let lastPart = ?resolvedAddress[^1]
     if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
-      var peerIdBytes: seq[byte]
-      try:
-        peerIdBytes = lastPart.protoArgument().tryGet()
-      except ResultError[string] as e:
-        raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " & e.msg
-
-      let addrPeerId = PeerId.init(peerIdBytes).tryGet()
-      addrs.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
+      let addrPeerId = PeerId.init(?lastPart.protoArgument()).valueOr:
+        return err($error)
+      addrs.add((?resolvedAddress[0 ..^ 2], Opt.some(addrPeerId)))
     else:
       addrs.add((resolvedAddress, peerId))
-  addrs
+  ok(addrs)
 
 proc resolveWithDeadline(
     self: Dialer, address: MultiAddress, deadline: Moment
@@ -237,12 +235,8 @@ proc tryExpandDnsAddr(
     self: Dialer, peerId: Opt[PeerId], address: MultiAddress, deadline: Moment
 ): Future[seq[(MultiAddress, Opt[PeerId])]] {.async: (raises: [CancelledError]).} =
   ## Empty when the record is unusable, so one bad record cannot fail the dial.
-  try:
-    await self.expandDnsAddr(peerId, address, deadline)
-  except CancelledError as e:
-    raise e
-  except CatchableError as e:
-    trace "Address skipped after DNSADDR expansion failed", err = e.msg, peerId, address
+  (await self.expandDnsAddr(peerId, address, deadline)).valueOr:
+    trace "Address skipped after DNSADDR expansion failed", err = error, peerId, address
     @[]
 
 proc tryResolve(
@@ -408,17 +402,15 @@ proc dialRanked(
   )
   dial.run(self.directCandidates(peerId, addrs), dnsCandidates(peerId, addrs))
 
-proc dialAndUpgrade*(
+proc tryDialAndUpgrade(
     self: Dialer,
     peerId: Opt[PeerId],
     addrs: seq[MultiAddress],
-    dir = Direction.Out,
-    deadline = Moment.now() + self.dialTimeout,
-    forceDial = false,
-    reach = DialReach(),
-): Future[Muxer] {.async: (raises: [CancelledError]).} =
-  ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
-
+    dir: Direction,
+    deadline: Moment,
+    forceDial: bool,
+    reach: DialReach,
+): Future[DialResult[Muxer]] {.async: (raises: [CancelledError]).} =
   let dialAddrs = normalizedDialAddrs(peerId, addrs)
   trace "Peer dial started", peerId, addresses = dialAddrs
 
@@ -438,14 +430,25 @@ proc dialAndUpgrade*(
       await self.dialRanked(peerId, dialAddrs, dir, deadline, forceDial, reach)
     else:
       await self.dialInOrder(peerId, dialAddrs, dir, deadline, forceDial, reach)
-  outcome =
-    if not mux.isNil:
-      "connected"
-    elif deadline.timeLeft().isZero():
-      "timedOut"
-    else:
-      "exhausted"
-  mux
+  if not mux.isNil:
+    outcome = "connected"
+    return ok(mux)
+
+  outcome = if deadline.timeLeft().isZero(): "timedOut" else: "exhausted"
+  err("peer dial " & outcome)
+
+proc dialAndUpgrade*(
+    self: Dialer,
+    peerId: Opt[PeerId],
+    addrs: seq[MultiAddress],
+    dir = Direction.Out,
+    deadline = Moment.now() + self.dialTimeout,
+    forceDial = false,
+    reach = DialReach(),
+): Future[Muxer] {.async: (raises: [CancelledError]).} =
+  ## Dial the addresses, sharing one `deadline`. Nil when all of them fail.
+  (await self.tryDialAndUpgrade(peerId, addrs, dir, deadline, forceDial, reach)).valueOr:
+    nil
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)
@@ -681,16 +684,19 @@ proc tryDial*(
   ##
 
   trace "Peer reachability probe started", peerId, addresses = addrs
-  try:
-    let mux = await self.dialAndUpgrade(Opt.some(peerId), addrs)
-    if mux.isNil():
-      raise newException(DialFailedError, "No valid multiaddress in tryDial")
-    await mux.close()
-    return mux.connection.observedAddr
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    raise newException(DialFailedError, "tryDial failed: " & exc.msg, exc)
+  let mux = (
+    await self.tryDialAndUpgrade(
+      Opt.some(peerId),
+      addrs,
+      Direction.Out,
+      Moment.now() + self.dialTimeout,
+      forceDial = false,
+      reach = DialReach(),
+    )
+  ).valueOr:
+    raise newException(DialFailedError, "tryDial failed: " & error)
+  await mux.close()
+  mux.connection.observedAddr
 
 method dial*(
     self: Dialer, peerId: PeerId, protos: seq[string]

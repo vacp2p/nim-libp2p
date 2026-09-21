@@ -215,7 +215,14 @@ template tcpTests*() =
       let unbindable = ma("/ip4/192.0.2.1/tcp/0")
       let transport = TcpTransport.new(upgrade = Upgrade())
 
-      expect LPError:
+      expect TcpTransportError:
         await transport.start(@[TcpAutoAddressIP4, unbindable])
 
       check transport.servers.len == 0
+
+    asyncTest "dial of a non-wire address is a TcpTransportError":
+      let transport = TcpTransport.new(upgrade = Upgrade())
+
+      expect TcpTransportError:
+        discard await transport.dial("", ma("/dns/example.com/tcp/1234"))
+      await transport.stop()

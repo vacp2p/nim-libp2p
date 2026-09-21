@@ -4,6 +4,7 @@
 
 {.push raises: [].}
 
+import std/oserrors
 import chronos, chronicles, results
 import
   ../stream/connection,
@@ -34,8 +35,20 @@ type
     onRunning*: AsyncEvent
     onStop*: AsyncEvent
 
+  ConnAddrs* = object
+    observed*: MultiAddress
+    local*: MultiAddress
+
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
+
+proc connAddrs*(transp: StreamTransport): Result[ConnAddrs, string] =
+  let remote = transp.remoteAddress2().valueOr:
+    return err("cannot read remote address. " & osErrorMsg(error))
+  let local = transp.localAddress2().valueOr:
+    return err("cannot read local address. " & osErrorMsg(error))
+
+  ok(ConnAddrs(observed: ?MultiAddress.init(remote), local: ?MultiAddress.init(local)))
 
 proc initialize*(self: Transport) =
   self.onRunning = newAsyncEvent()
@@ -47,7 +60,6 @@ method start*(
   ## start the transport
   ##
 
-  info "Transport starting", addresses = addrs
   self.addrs = addrs
   self.running = true
   self.onRunning.fire()
@@ -57,7 +69,6 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
   ## including all outstanding connections
   ##
 
-  info "Transport stopping", addresses = self.addrs
   self.running = false
   self.onStop.fire()
 

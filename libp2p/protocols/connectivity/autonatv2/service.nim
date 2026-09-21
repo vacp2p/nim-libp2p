@@ -87,8 +87,6 @@ proc addressMapper(
   addrs
 
 method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
-  info "Setting up AutonatV2Service"
-
   self.addressManager = switch.addressManager
   self.verifier = AutonatV2Verifier.new(switch, self.client, self.rng)
 
@@ -100,8 +98,6 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [].} =
 method start*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  info "Running AutonatV2Service"
-
   let manager = switch.addressManager
   self.config.scheduleInterval.ifValue(interval):
     manager.verifyInterval = interval
@@ -125,6 +121,8 @@ method start*(
     if manager.reachability() == NetworkReachability.Unknown:
       manager.triggerVerification()
   switch.addPeerEventHandler(self.peerHandler, PeerEventKind.Identified)
+
+  info "AutoNAT v2 service started"
 
 method stop*(
     self: AutonatV2Service, switch: Switch

@@ -247,18 +247,20 @@ proc acceptAdvertisement*(
     ad: Advertisement,
     advertiserIps: seq[IpAddress],
 ) =
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-  disco.rtManager.admitPeers(
-    disco,
-    serviceId,
-    @[PeerInfo(peerId: ad.data.peerId, addrs: ad.data.addresses.mapIt(it.address))],
-  )
-
+  # Put first: a full cache can evict this service's last ad and drop its table.
   disco.registrar.ads.put(serviceId, advertiser, ad, advertiserIps, now)
   disco.registrar.updateRegistrarMetrics()
+
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Registered,
+  )
+
+  let advertiserAddrs = disco.switch.peerStore[AddressBook][advertiser]
+  if advertiserAddrs.len > 0:
+    disco.rtManager.admitPeers(
+      disco, serviceId, @[PeerInfo(peerId: advertiser, addrs: advertiserAddrs)]
+    )
 
 proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   ## The admission probe dials the codec, so a querier that does not serve it gets no seat.
@@ -271,18 +273,21 @@ proc seatSender(disco: ServiceDiscovery, serviceId: ServiceId, peerId: PeerId) =
   disco.rtManager.admitPeers(disco, serviceId, sender)
 
 proc getCloserPeers(
-    disco: ServiceDiscovery, serviceId: ServiceId, count: int
+    disco: ServiceDiscovery, serviceId: ServiceId, requester: PeerId, count: int
 ): seq[Peer] =
-  let maxPerBucket = disco.discoConfig.kRegister
+  let maxPerBucket = CloserPeersPerBucket
+  # Exclude the requester from its own reply.
+  let exclude = [requester.toKey()]
   let table = disco.rtManager.getTable(serviceId)
   let keys =
     if table.isSome():
-      table.get().randomPeersClosestFirst(disco.rng, count, maxPerBucket)
+      table.get().randomPeersClosestFirst(disco.rng, count, maxPerBucket, exclude)
     else:
       # No table for this service: view the main table by distance to the
       # service (the spec's GETPEERS), not by distance to this node.
       disco.rtable.randomPeersClosestFirst(
-        serviceId, disco.rng, count, maxPerBucket, disco.discoConfig.bucketsCount
+        serviceId, disco.rng, count, maxPerBucket, disco.discoConfig.bucketsCount,
+        exclude,
       )
 
   return disco.switch.toPeers(keys)
@@ -315,7 +320,7 @@ proc registration*(
       ),
     )
 
-  let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
+  let closerPeers = disco.getCloserPeers(serviceId, peerId, disco.discoConfig.fReturn)
 
   var msg = Message(
     msgType: Opt.some(MessageType.register),
@@ -340,6 +345,15 @@ proc registration*(
 
   let ad = isValidAdvertisement(regMsg, serviceId).valueOr:
     trace "Invalid advertisement", error
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
+
+  if disco.registrar.ads.hasNewer(serviceId, ad):
+    trace "Stale advertisement", peerId = ad.data.peerId, seqNo = ad.data.seqNo
 
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
@@ -430,7 +444,7 @@ proc getAdvertisements*(
   let cap = disco.discoConfig.fReturn
   let ads = disco.registrar.ads.getServiceCachedAds(serviceId, cap).mapIt(it.ad)
 
-  let closerPeers = disco.getCloserPeers(serviceId, cap)
+  let closerPeers = disco.getCloserPeers(serviceId, peerId, cap)
 
   let response = Message(
     msgType: Opt.some(MessageType.getAds),
