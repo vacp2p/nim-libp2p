@@ -192,7 +192,7 @@ suite "Identify":
       discard await msDial.select(conn, IdentifyCodec)
       let identified = await identifyProto2.tryIdentify(conn, remotePeerInfo.peerId)
 
-      check identified.isErr() and identified.error of IdentityInvalidMsgError
+      check identified.isErrOf(IdentityInvalidMsgError)
 
     asyncTest "can send signed peer record":
       msListen.addHandler(identifyProto1)

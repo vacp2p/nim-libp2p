@@ -24,23 +24,25 @@ proc sendDial(
   ).encode()
   await stream.writeLp(pb)
 
-func autonatError(msg: string): ref LPError =
-  newException(AutonatError, msg)
+func new(T: typedesc[AutonatError], msg: string): ref LPError =
+  newException(T, msg)
 
-func autonatError(msg: string, e: ref CatchableError): ref LPError =
-  newException(AutonatError, msg & ": " & e.msg, e)
+func new(
+    T: typedesc[AutonatError], msg: string, parent: ref CatchableError
+): ref LPError =
+  newException(T, msg & ": " & parent.msg, parent)
 
 func dialedAddr(msg: AutonatMsg): Result[MultiAddress, ref LPError] =
   if msg.msgType.get(MsgType.Dial) != MsgType.DialResponse:
-    return err(autonatError("Unexpected response"))
+    return err(AutonatError.new("Unexpected response"))
 
   let response = msg.response.valueOr:
-    return err(autonatError("Unexpected response"))
+    return err(AutonatError.new("Unexpected response"))
 
   case response.status.get(Ok)
   of ResponseStatus.Ok:
     let dialed = response.ma.valueOr:
-      return err(autonatError("Unexpected response"))
+      return err(AutonatError.new("Unexpected response"))
     ok(dialed)
   of ResponseStatus.DialError:
     err(
@@ -49,7 +51,9 @@ func dialedAddr(msg: AutonatMsg): Result[MultiAddress, ref LPError] =
       )
     )
   else:
-    err(autonatError("Bad status " & $response.status & " " & response.text.get("")))
+    err(
+      AutonatError.new("Bad status " & $response.status & " " & response.text.get(""))
+    )
 
 proc tryDialMe*(
     self: AutonatClient,
@@ -64,7 +68,7 @@ proc tryDialMe*(
       else:
         await switch.dial(pid, addrs, AutonatCodec)
     except DialFailedError as e:
-      return err(autonatError("Unexpected error when dialling", e))
+      return err(AutonatError.new("Unexpected error when dialling", e))
 
   defer:
     await stream.close()
@@ -73,7 +77,7 @@ proc tryDialMe*(
   let incomingConnection = switch.connManager.expectConnection(pid, In)
   if incomingConnection.failed() and
       incomingConnection.error of AlreadyExpectingConnectionError:
-    return err(autonatError(incomingConnection.error.msg))
+    return err(AutonatError.new(incomingConnection.error.msg))
   defer:
     incomingConnection.cancelSoon()
       # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
@@ -88,16 +92,16 @@ proc tryDialMe*(
     trace "sending Dial", addresses = switch.peerInfo.addrs
     await stream.sendDial(switch.peerInfo.peerId, switch.peerInfo.addrs)
   except LPStreamError as e:
-    return err(autonatError("Sending dial failed", e))
+    return err(AutonatError.new("Sending dial failed", e))
 
   var respBytes =
     try:
       await stream.readLp(1024)
     except LPStreamError as e:
-      return err(autonatError("read Dial response failed", e))
+      return err(AutonatError.new("read Dial response failed", e))
 
   let msg = AutonatMsg.decode(move(respBytes)).valueOr:
-    return err(autonatError($error))
+    return err(AutonatError.new($error))
   msg.dialedAddr()
 
 method dialMe*(
