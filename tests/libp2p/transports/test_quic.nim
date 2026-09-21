@@ -27,10 +27,7 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
     raiseAssert "should not happen"
 
 proc streamProvider(conn: RawConn, handle: bool = true): Muxer {.raises: [].} =
-  try:
-    return QuicMuxer.new(conn)
-  except CatchableError:
-    raiseAssert "should not happen"
+  QuicMuxer.tryNew(conn).expect("valid QUIC connection")
 
 const
   addressIP4 = "/ip4/127.0.0.1/udp/0/quic-v1"
@@ -48,8 +45,25 @@ suite "Quic transport":
     checkTrackers()
 
   test "muxer rejects a nil connection":
+    check QuicMuxer.tryNew(RawConn(nil)).isErr()
     expect QuicTransportError:
       discard QuicMuxer.new(RawConn(nil))
+
+  asyncTest "start fails and stays stopped when certificate generation fails":
+    proc failingCertGenerator(
+        kp: KeyPair
+    ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+      raise newException(TLSCertificateError, "simulated certificate failure")
+
+    let transport = QuicTransport.new(
+      Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet(), rng(), failingCertGenerator
+    )
+    defer:
+      await transport.stop()
+
+    expect QuicTransportError:
+      await transport.start(@[QuicAutoAddress])
+    check not transport.running
 
   basicTransportTest(
     quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
