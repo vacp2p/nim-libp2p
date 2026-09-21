@@ -178,6 +178,7 @@ suite "KadDHT message sender":
     check:
       second.isErr()
       second.error().stage == waitStage
+      firstReply.isErr()
       firstReply.error().stage == readStage
 
   asyncTest "an unreachable peer fails at the refused stage":
