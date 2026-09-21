@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos, random, stew/byteutils
+import lsquic
 import
   ../../../libp2p/[
     transports/transport,
@@ -64,6 +65,32 @@ suite "Quic transport":
     expect QuicTransportError:
       await transport.start(@[QuicAutoAddress])
     check not transport.running
+
+  asyncTest "engine config is applied to listener and dial endpoints":
+    let engineConfig = QuicEngineConfig(idleTimeout: Opt.some(601.seconds))
+    let listener = QuicTransport.new(
+      Upgrade(),
+      PrivateKey.random(ECDSA, rng()).tryGet(),
+      rng(),
+      engineConfig = engineConfig,
+    )
+    defer:
+      await listener.stop()
+
+    expect QuicTransportError:
+      await listener.start(@[QuicAutoAddress])
+    check not listener.running
+
+    let dialer = QuicTransport.new(
+      Upgrade(),
+      PrivateKey.random(ECDSA, rng()).tryGet(),
+      rng(),
+      engineConfig = engineConfig,
+    )
+    defer:
+      await dialer.stop()
+    expect QuicTransportDialError:
+      discard await dialer.dial("", ma("/ip4/127.0.0.1/udp/1/quic-v1"))
 
   basicTransportTest(
     quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
