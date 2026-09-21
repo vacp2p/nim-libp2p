@@ -105,6 +105,22 @@ suite "KadDHT Routing Table":
 
     check rt.randomPeersClosestFirst(target, rng(), 0, maxBuckets = 2).len == 0
 
+  test "sampling drops every excluded key":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for bucket in [1, 3, TargetBucket]:
+      check rt.insert(rt.keyInBucket(bucket))
+
+    let kept = rt.buckets[3].peers[0]
+    let skipped = [rt.buckets[1].peers[0], rt.buckets[TargetBucket].peers[0]]
+
+    # Dropped before sampling, so they cannot take a slot from their buckets.
+    check rt.randomPeersClosestFirst(rng(), 3, exclude = skipped) == @[kept]
+
+    # The same in a view centred on a target, here one of the excluded keys.
+    check rt.randomPeersClosestFirst(skipped[0], rng(), 3, exclude = skipped) == @[kept]
+
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
