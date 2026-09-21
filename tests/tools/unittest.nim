@@ -53,6 +53,12 @@ template asyncTest*(name: string, timeout: untyped, body: untyped): untyped =
     )()
     waitFor testFut.wait(timeout)
 
+template isErrOf*(res: untyped, T: typedesc): bool =
+  res.isErr() and res.error of T
+
+template isParentErrOf*(res: untyped, T: typedesc): bool =
+  res.isErr() and res.error.parent of T
+
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression
 
