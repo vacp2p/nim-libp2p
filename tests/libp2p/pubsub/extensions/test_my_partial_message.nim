@@ -47,6 +47,15 @@ suite "MyPartialMessage":
     dataRes = pm.materializeParts(@[1.byte])
     check dataRes.isErr()
 
+  test "store materializeParts":
+    let pm = MyPartialMessage(groupId: "g".toBytes, data: {1: "one".toBytes}.toTable)
+    let store = MyPartialMessageStore()
+    store.messages[pm.groupId] = pm
+
+    check store.materializeParts("t", pm.groupId, MyPartsMetadata.want(@[1])).get() ==
+      pm.data[1]
+    check store.materializeParts("t", "other".toBytes, MyPartsMetadata.want(@[1])).isErr()
+
   test "unionPartsMetadata":
     var res: Result[PartsData, string]
 
