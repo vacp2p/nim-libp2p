@@ -122,7 +122,10 @@ proc materializeParts*(
   if metadata.len == 0:
     var all: seq[byte]
     for chunk in toSeq(pm.data.keys).sorted():
-      all.add(pm.data[chunk])
+      try:
+        all.add(pm.data[chunk])
+      except KeyError:
+        raiseAssert "key came from table iterator"
     return ok(all)
   pm.materializeParts(metadata)
 
