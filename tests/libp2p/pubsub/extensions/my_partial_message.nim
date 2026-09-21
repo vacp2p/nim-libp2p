@@ -119,6 +119,11 @@ proc materializeParts*(
   let pm = store.messages.getOrDefault(groupId)
   if pm.isNil:
     return err("unknown groupId")
+  if metadata.len == 0:
+    var all: seq[byte]
+    for chunk in toSeq(pm.data.keys).sorted():
+      all.add(pm.data[chunk])
+    return ok(all)
   pm.materializeParts(metadata)
 
 proc materializePartsFn*(
