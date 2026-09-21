@@ -3,6 +3,7 @@
 
 {.used.}
 
+from std/strutils import startsWith
 import chronos, random, stew/byteutils
 import lsquic
 import
@@ -67,6 +68,18 @@ suite "Quic transport":
     check not transport.running
 
   asyncTest "engine config is applied to listener and dial endpoints":
+    let validListener = QuicTransport.new(
+      Upgrade(),
+      PrivateKey.random(ECDSA, rng()).tryGet(),
+      rng(),
+      engineConfig = QuicEngineConfig(idleTimeout: Opt.some(0.seconds)),
+    )
+    defer:
+      await validListener.stop()
+
+    await validListener.start(@[QuicAutoAddress])
+    check validListener.running
+
     let engineConfig = QuicEngineConfig(idleTimeout: Opt.some(601.seconds))
     let listener = QuicTransport.new(
       Upgrade(),
@@ -79,7 +92,6 @@ suite "Quic transport":
 
     expect QuicTransportError:
       await listener.start(@[QuicAutoAddress])
-    check not listener.running
 
     let dialer = QuicTransport.new(
       Upgrade(),
@@ -89,8 +101,13 @@ suite "Quic transport":
     )
     defer:
       await dialer.stop()
-    expect QuicTransportDialError:
+    try:
       discard await dialer.dial("", ma("/ip4/127.0.0.1/udp/1/quic-v1"))
+      check false
+    except QuicTransportDialError as exc:
+      check exc.msg.startsWith(
+        "QuicTransport.dial failed. cannot create dial endpoint."
+      )
 
   basicTransportTest(
     quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
