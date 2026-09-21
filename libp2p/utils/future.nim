@@ -47,8 +47,6 @@ proc anyCompleted*[T](
       raise newException(
         AllFuturesFailedError, "None of the futures completed successfully: " & e.msg, e
       )
-    except CancelledError as exc:
-      raise exc
     except CatchableError:
       continue
 
