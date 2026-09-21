@@ -134,7 +134,7 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
 
   ok()
 
-proc groupId*(pm: InteropPartialMessage): GroupId =
+proc groupId*(pm: InteropPartialMessage): GroupId {.gcsafe, raises: [].} =
   @(pm.groupIdBytes)
 
 proc partsMetadata*(pm: InteropPartialMessage): PartsMetadata =
