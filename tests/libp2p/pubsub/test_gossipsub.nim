@@ -499,6 +499,11 @@ suite "GossipSub":
     ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
       ok(a & b)
 
+    proc materializeParts(
+        topic: string, groupId: GroupId, metadata: PartsMetadata
+    ): Result[PartsData, string] {.gcsafe, raises: [].} =
+      ok(newSeq[byte]())
+
     proc validateRPC(
         rpc: PartialMessageExtensionRPC
     ): Result[void, string] {.gcsafe, raises: [].} =
@@ -516,6 +521,7 @@ suite "GossipSub":
         partialMessageExtensionConfig = Opt.some(
           PartialMessageExtensionConfig(
             unionPartsMetadata: unionPartsMetadata,
+            materializeParts: materializeParts,
             validateRPC: validateRPC,
             onIncomingRPC: onIncomingRPC,
             heartbeatsTillEviction: 1,
