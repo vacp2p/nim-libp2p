@@ -4,18 +4,29 @@ on:
   issue_comment:
     types: [created]
 
+# A newer authorized PR comment supersedes a review that is still running.
+# Other comments get unique groups, so they cannot cancel a PR review.
+concurrency:
+  group: >-
+    ${{
+      github.event.issue.pull_request
+      && github.event.comment.user.type != 'Bot'
+      && contains(fromJSON('["gmelodie","vladopajic","richard-ramos"]'), github.event.comment.user.login)
+      && format('ocr-pr-{0}', github.event.issue.number)
+      || format('ocr-noop-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
   review:
-    # Comments on issues, bots, and non-collaborators cannot spend API quota.
     if: >-
       github.event.issue.pull_request
-      && (github.event.comment.body == '/review' || startsWith(github.event.comment.body, '/review '))
       && github.event.comment.user.type != 'Bot'
-      && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      && contains(fromJSON('["gmelodie","richard-ramos","vladopajic"]'), github.event.comment.user.login)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -25,17 +36,20 @@ jobs:
         with:
           script: |
             const command = context.payload.comment.body.trim();
-            const match = /^\/review(?: +([A-Za-z0-9-]+))?$/.exec(command);
             const models = {
               pro: 'deepseek-v4-pro',
               flash: 'deepseek-flash',
               'deepseek-v4-pro': 'deepseek-v4-pro',
               'deepseek-flash': 'deepseek-flash',
             };
-            const model = match && (match[1] ? models[match[1]] : models.pro);
-            if (!model) {
-              core.setFailed('Use /review [pro|flash|deepseek-v4-pro|deepseek-flash].');
-              return;
+            let model = models.pro;
+            if (command === '/review' || command.startsWith('/review ')) {
+              const match = /^\/review(?: +([A-Za-z0-9-]+))?$/.exec(command);
+              model = match && (match[1] ? models[match[1]] : models.pro);
+              if (!model) {
+                core.setFailed('Use /review [pro|flash|deepseek-v4-pro|deepseek-flash].');
+                return;
+              }
             }
             core.setOutput('model', model);
 
