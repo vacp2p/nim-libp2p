@@ -156,7 +156,27 @@ suite "KadDHT message sender":
       reply.isErr()
       reply.error().stage == readStage
 
-  asyncTest "an unreachable peer fails at the dial stage":
+  asyncTest "an RPC that times out behind another one fails at the wait stage":
+    let proto = newCountingEcho(reply = false)
+    let (client, server) = setupPair(proto)
+    startAndDeferStop(@[client, server])
+
+    let sender = MessageSender.new(client, TestCodec, MaxTestMsgSize)
+    defer:
+      await sender.stop()
+
+    let peerId = server.peerInfo.peerId
+    let first = sender.sendRequest(peerId, server.peerInfo.addrs, @[byte 1], 1.seconds)
+    let second = await sender.sendRequest(
+      peerId, server.peerInfo.addrs, @[byte 2], 100.milliseconds
+    )
+    let firstReply = await first
+    check:
+      second.isErr()
+      second.error().stage == waitStage
+      firstReply.error().stage == readStage
+
+  asyncTest "an unreachable peer fails at the refused stage":
     let client = makeStandardSwitch(TcpAutoAddress)
     startAndDeferStop(@[client])
 
@@ -165,15 +185,16 @@ suite "KadDHT message sender":
       await sender.stop()
 
     let unreachable = PeerId.random(rng()).tryGet()
+    # Windows retries a refused loopback connect for about 2 seconds.
     let reply = await sender.sendRequest(
       unreachable,
       @[MultiAddress.init("/ip4/127.0.0.1/tcp/1").tryGet()],
       @[byte 1],
-      1.seconds,
+      5.seconds,
     )
     check:
       reply.isErr()
-      reply.error().stage == dialStage
+      reply.error().stage == refusedStage
 
   asyncTest "dropPeer forces the next RPC onto a fresh stream":
     let proto = newCountingEcho()
