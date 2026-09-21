@@ -1,0 +1,11 @@
+{
+  "include": [
+    "tests/**/*.nim"
+  ],
+  "rules": [
+    {
+      "path": "**/*.{nim,nims,nimble}",
+      "rule": ".github/copilot-instructions.md"
+    }
+  ]
+}
