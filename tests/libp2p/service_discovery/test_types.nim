@@ -3,7 +3,7 @@
 
 {.used.}
 
-import ../../../libp2p/[extended_peer_record]
+import ../../../libp2p/[extended_peer_record, multiaddress, peerid, peerinfo]
 import ../../../libp2p/protocols/service_discovery/types
 import ../../tools/[unittest]
 import ../kademlia/utils
@@ -66,3 +66,47 @@ suite "ExtEntryValidator":
     let ad = makeOversizedAdvertisement("svc")
     let record = EntryRecord(value: ad.encode(), time: Timestamp.now())
     check not ExtEntryValidator().isValid(ad.data.peerId.toKey(), record)
+
+suite "ExtEntrySelector":
+  test "rejects an empty record list":
+    check ExtEntrySelector().select(randomPeerId().toKey(), @[]).isErr()
+
+  test "rejects records that do not decode":
+    let records = @[
+      EntryRecord(value: @[1'u8, 2, 3], time: Timestamp.now()),
+      EntryRecord(value: @[], time: Timestamp.now()),
+    ]
+    check ExtEntrySelector().select(randomPeerId().toKey(), records).isErr()
+
+  test "skips undecodable records and picks the highest seqNo":
+    let privateKey = randomKey()
+    let key = PeerId.init(privateKey).get().toKey()
+    let records = @[
+      EntryRecord(value: @[1'u8, 2, 3], time: Timestamp.now()),
+      EntryRecord(
+        value: makeAdvertisement(privateKey = privateKey, seqNo = 1).encode(),
+        time: Timestamp.now(),
+      ),
+      EntryRecord(
+        value: makeAdvertisement(privateKey = privateKey, seqNo = 5).encode(),
+        time: Timestamp.now(),
+      ),
+    ]
+    check ExtEntrySelector().select(key, records).get() == 2
+
+suite "toPeerInfos":
+  test "drops peers without an id or with an undecodable id":
+    let peerId = randomPeerId()
+    let addrs = @[MultiAddress.init("/ip4/10.0.0.1/tcp/4001").get()]
+    let peers = @[
+      Peer(id: Opt.none(seq[byte]), addrs: addrs),
+      Peer(id: Opt.some(@[1'u8, 2, 3]), addrs: addrs),
+      Peer(id: Opt.some(peerId.getBytes()), addrs: addrs),
+    ]
+
+    let infos = peers.toPeerInfos()
+
+    check:
+      infos.len == 1
+      infos[0].peerId == peerId
+      infos[0].addrs == addrs

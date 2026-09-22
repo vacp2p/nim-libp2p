@@ -927,6 +927,30 @@ suite "Service Discovery Registrar - Register Message Validation":
       decoded.get().data.peerId == ad.data.peerId
       decoded.get().data.services.len == 3
 
+  test "isValidAdvertisement rejects advertisement over MaxXPRSize":
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: newSeq[byte](MaxXPRSize + 1),
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check isValidAdvertisement(regMsg, makeServiceId()).error == "oversized"
+
+suite "Service Discovery Registrar - getAdvertisements":
+  test "message without a key gets an empty reply":
+    let disco = setupServiceDiscoveryNode()
+    let serviceId = makeServiceId()
+    disco.registrar.seedAd(serviceId, makeAdvertisement($serviceId))
+
+    let reply = disco.getAdvertisements(
+      randomPeerId(), kadprotobuf.Message(msgType: kadprotobuf.MessageType.getAds)
+    )
+
+    check:
+      reply.msgType.isNone()
+      reply.getAds.isNone()
+      reply.closerPeers.len == 0
+
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "subtracts accumulated wait for retry":
     let disco = setupServiceDiscoveryNode()
@@ -1363,6 +1387,15 @@ suite "Service Discovery Registrar - waitingTime never negative":
     check w >= ZeroDuration
 
 suite "Service Discovery Registrar - AdvertisementCache put":
+  test "getServiceCachedAds with limit 0 returns nothing":
+    let ads = AdvertisementCache.new()
+    let serviceId = makeServiceId()
+    ads.putAd(serviceId, makeAdvertisement($serviceId))
+
+    check:
+      ads.serviceCacheAdsLen(serviceId) == 1
+      ads.getServiceCachedAds(serviceId, 0).len == 0
+
   test "put replaces same advertiser and refreshes timestamp":
     let ads = AdvertisementCache.new()
     let serviceId = makeServiceId()
