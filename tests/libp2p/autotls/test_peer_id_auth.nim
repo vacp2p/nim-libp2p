@@ -4,7 +4,7 @@
 {.used.}
 {.push raises: [].}
 
-import chronos, chronos/apps/http/httpclient, uri, base64, times
+import chronos, chronos/apps/http/httpclient, uri, base64, times, strutils
 import
   ../../../libp2p/
     [stream/connection, upgrademngrs/upgrade, peeridauth/client, wire, crypto/crypto]
@@ -153,6 +153,29 @@ suite "PeerID Auth Client":
     client.wwwAuthenticate = Opt.some(PeerIDAuthPrefix & " public-key")
     expect PeerIDAuthError:
       discard await client.requestAuthentication(parseUri(ExampleURL))
+
+  asyncTest "tryRequestAuthentication reports a missing field":
+    client.wwwAuthenticate = Opt.some(PeerIDAuthPrefix & " challenge-client=\"c\"")
+
+    let authentication = await client.tryRequestAuthentication(parseUri(ExampleURL))
+
+    check authentication.isErr()
+    check "public-key" in authentication.error
+
+  asyncTest "trySend reports an expired bearer without a request":
+    let expired = BearerToken(token: "somebearer", expires: Opt.some(now() - 1.hours))
+
+    let sent = await client.trySend(
+      parseUri(ExampleURL), peerInfo, "somepayload", Opt.some(expired)
+    )
+
+    check sent.error == "Bearer expired"
+    check client.requestedUris.len == 0
+
+  test "tryCheckSignature reports a signature that is not base64":
+    let key = specServerKey.getPublicKey().get()
+
+    check tryCheckSignature("!!!", key, "challenge", key, "example.com").isErr()
 
   asyncTest "authentication fields match names rather than substrings":
     client.authenticationInfo = Opt.some(
