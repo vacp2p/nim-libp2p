@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, utils/future]
 import
   ../../../libp2p/protocols/kademlia/[find, message_sender, probe_backoff, rpc, types]
 import ../../tools/[multiaddress, unittest]
