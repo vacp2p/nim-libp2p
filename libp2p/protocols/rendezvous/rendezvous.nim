@@ -88,8 +88,8 @@ func namespaceLimit*(config: RendezVousConfig): int =
   if config.maxNamespaces <= 0: MaximumNamespaces else: config.maxNamespaces
 
 type
-  AdvertiseError* = object of LPError
   RendezVousError* = object of LPError
+  AdvertiseError* = object of RendezVousError
   RegisteredData* = object
     expiration*: Moment
     peerId*: PeerId
