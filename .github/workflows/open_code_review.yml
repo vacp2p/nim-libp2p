@@ -83,6 +83,5 @@ jobs:
           llm_auth_token: ${{ secrets.DEEPSEEK_API_KEY }}
           llm_model: ${{ steps.pr.outputs.model }}
           llm_use_anthropic: 'false'
-          rule: .opencodereview/rule.json
           base_ref: ${{ steps.pr.outputs.base_ref }}
           head_sha: ${{ steps.pr.outputs.head_sha }}
