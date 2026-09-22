@@ -21,7 +21,7 @@ const SupportedAlg = "RS256"
 
 proc toFlattenedJws*(
     protectedHeader: JsonNode, payload: string, key: rsa.RsaPrivateKey
-): Result[JsonNode, string] =
+): Result[JsonNode, string] {.raises: [].} =
   ## Signs `protectedHeader` and the already-serialized `payload` with `key` (RS256)
   ## and returns the flattened JWS JSON serialization: the base64url-encoded
   ## `protected`, `payload` and `signature` members.
@@ -53,5 +53,5 @@ proc toFlattenedJws*(
 
 proc toFlattenedJws*(
     protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
-): Result[JsonNode, string] =
+): Result[JsonNode, string] {.raises: [].} =
   toFlattenedJws(protectedHeader, $payload, key)

@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import base64, strutils, json
-import chronos/apps/http/httpclient, results
+import chronos/apps/http/httpclient, results, json_serialization
 import nimcrypto/sha2
 import ../../errors
 import ../../transports/tls/certificate_ffi
@@ -11,10 +11,22 @@ import ../../crypto/rsa
 type ACMEError* = object of LPError
 type ACMENetworkError* = object of ACMEError
 
-func header*(table: HttpTable, key: string): Result[string, string] =
+func header*(table: HttpTable, key: string): Result[string, string] {.raises: [].} =
   if not table.contains(key):
     return err("key " & key & " not present in headers")
   ok(table.getString(key))
+
+func tryGetStr*(node: JsonNode, key: string): Result[string, string] =
+  let field = node{key}
+  if field.isNil() or field.kind != JString:
+    return err("missing string field: " & key)
+  ok(field.getStr())
+
+func tryParseEnum*[T: enum](s: string): Result[T, string] =
+  for v in T:
+    if $v == s:
+      return ok(v)
+  err("invalid " & $T & ": " & s)
 
 proc base64UrlEncode*(data: seq[byte]): string =
   ## Encodes data using base64url (RFC 4648 §5) — no padding, URL-safe
@@ -41,11 +53,11 @@ proc getResponseBody*(
     let bodyBytes = await response.getBodyBytes()
     if bodyBytes.len == 0:
       return ok(%*{})
-    ok(bytesToString(bodyBytes).parseJson())
+    ok(Json.decode(bodyBytes, JsonNode))
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    err("Unexpected error occurred while getting body bytes: " & e.msg)
+    err("Failed to read response body: " & e.msg)
 
 proc createCSR*(domain: string, certKeyPair: RsaPrivateKey): Result[string, string] =
   let rawSeckey = certKeyPair.getBytes().valueOr:

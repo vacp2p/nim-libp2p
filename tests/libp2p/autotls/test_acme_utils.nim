@@ -66,3 +66,16 @@ suite "ACME utils":
 
     expect(ACMEError):
       discard await acmeApi.get(parseUri(server.url))
+
+  test "tryGetStr returns the string field or an error":
+    let node = %*{"status": "valid", "n": 1}
+    check:
+      node.tryGetStr("status").get() == "valid"
+      node.tryGetStr("n").error == "missing string field: n"
+      node.tryGetStr("absent").error == "missing string field: absent"
+
+  test "tryParseEnum matches the enum string value":
+    check:
+      tryParseEnum[ACMEChallengeStatus]("valid").get() == ACMEChallengeStatus.VALID
+      tryParseEnum[ACMEChallengeStatus]("bogus").error ==
+        "invalid ACMEChallengeStatus: bogus"

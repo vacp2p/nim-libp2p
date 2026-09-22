@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import json, sequtils, strutils, uri
+import json, parseutils, sequtils, strutils, uri
 from times import DateTime, parse
 import chronos/apps/http/httpclient, results, chronicles
 
@@ -438,41 +438,35 @@ proc requestChallenge*(
     finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
   )
 
+func retryAfter(headers: HttpTable): Duration =
+  let raw = headers.getString("Retry-After")
+  var secs: int
+  if raw.len == 0 or parseSaturatedNatural(raw, secs) != raw.len:
+    return DefaultChalCompletedRetryTime
+  secs.seconds
+
 proc requestCheck*(
     self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
     let payload = await self.createPostAsGetRequest(checkURL, key, kid)
     let acmeResponse = await self.post(checkURL, payload)
-    let retryAfter =
-      try:
-        parseInt(acmeResponse.headers.getString("Retry-After")).seconds
-      except ValueError:
-        DefaultChalCompletedRetryTime
+    let retryAfter = acmeResponse.headers.retryAfter()
+    let status = acmeResponse.body.tryGetStr("status").valueOrRaise(ACMEError)
 
     case checkKind
     of ACMEOrderCheck:
-      try:
-        ACMECheckResponse(
-          kind: checkKind,
-          orderStatus: parseEnum[ACMEOrderStatus](acmeResponse.body["status"].getStr),
-          retryAfter: retryAfter,
-        )
-      except ValueError:
-        raise newException(
-          ACMEError, "Invalid order status: " & acmeResponse.body["status"].getStr
-        )
+      ACMECheckResponse(
+        kind: checkKind,
+        orderStatus: tryParseEnum[ACMEOrderStatus](status).valueOrRaise(ACMEError),
+        retryAfter: retryAfter,
+      )
     of ACMEChallengeCheck:
-      try:
-        ACMECheckResponse(
-          kind: checkKind,
-          chalStatus: parseEnum[ACMEChallengeStatus](acmeResponse.body["status"].getStr),
-          retryAfter: retryAfter,
-        )
-      except ValueError:
-        raise newException(
-          ACMEError, "Invalid order status: " & acmeResponse.body["status"].getStr
-        )
+      ACMECheckResponse(
+        kind: checkKind,
+        chalStatus: tryParseEnum[ACMEChallengeStatus](status).valueOrRaise(ACMEError),
+        retryAfter: retryAfter,
+      )
 
 proc sendChallengeCompleted*(
     self: ACMEApi, chalURL: Uri, key: RsaPrivateKey, kid: Kid

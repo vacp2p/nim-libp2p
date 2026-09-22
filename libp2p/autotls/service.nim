@@ -217,7 +217,7 @@ proc issueCertificate(
     try:
       await self.requestCertificate(baseDomain, certKeyPair)
     except LPError as e:
-      return err(e.msg)
+      return err($e.name & ": " & e.msg)
 
   trace "Installing certificate"
   self.cert = Opt.some(?newAutotlsCert(certificate, certKeyPair))
@@ -251,7 +251,7 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
     trace "Certificate issuance failed", err = lastError, attempt = attempt + 1
 
   error "Failed to issue certificate",
-    err = (if lastError.len == 0: "no issuance attempts" else: lastError),
+    err = lastError,
     operation,
     maxAttempts = self.config.issueRetries + 1,
     hasCertificate = self.cert.isSome(),
