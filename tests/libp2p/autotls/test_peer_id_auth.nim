@@ -175,7 +175,10 @@ suite "PeerID Auth Client":
   test "tryCheckSignature reports a signature that is not base64":
     let key = specServerKey.getPublicKey().get()
 
-    check tryCheckSignature("!!!", key, "challenge", key, "example.com").isErr()
+    let checked = tryCheckSignature("!!!", key, "challenge", key, "example.com")
+
+    check checked.isErr()
+    check "Failed to decode server's signature" in checked.error
 
   asyncTest "authentication fields match names rather than substrings":
     client.authenticationInfo = Opt.some(
