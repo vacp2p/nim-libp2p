@@ -14,4 +14,5 @@ permissions:
 jobs:
   review:
     uses: vacp2p/common-open-code-review/.github/workflows/open_code_review.yml@main
-    secrets: inherit
+    secrets:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
