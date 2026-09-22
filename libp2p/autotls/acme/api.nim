@@ -8,6 +8,7 @@ import chronos/apps/http/httpclient, results, chronicles
 import ./jws
 import ./utils
 import ../../crypto/rsa
+import ../../errors
 import ../../utils/opt
 
 export ACMEError, ACMENetworkError
@@ -260,7 +261,7 @@ method requestNonce*(
 ): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]), base.} =
   handleError("requestNonce"):
     let acmeResponse = await self.get(parseUri((await self.getDirectory()).newNonce))
-    Nonce(acmeResponse.headers.keyOrError("Replay-Nonce"))
+    Nonce(acmeResponse.headers.header("Replay-Nonce").valueOrRaise(ACMEError))
 
 # TODO: save n and e in account so we don't have to recalculate every time
 proc acmeHeader(
@@ -310,7 +311,7 @@ method post*(
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
   let rawResponse = await self.sendPost(uri, payload)
-  let body = await rawResponse.getResponseBody()
+  let body = (await rawResponse.getResponseBody()).valueOrRaise(ACMEError)
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
   return resp
@@ -324,7 +325,7 @@ method get*(
   let request = HttpClientRequestRef.get(self.session, $uri).valueOr:
     raiseHttpAddressError(error)
   let rawResponse = await request.send()
-  let body = await rawResponse.getResponseBody()
+  let body = (await rawResponse.getResponseBody()).valueOrRaise(ACMEError)
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
   return resp
@@ -339,7 +340,7 @@ proc createSignedAcmeRequest(
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
   handleError("createSignedAcmeRequest"):
-    $toFlattenedJws(%*acmeHeader, %*payload, key)
+    $toFlattenedJws(%*acmeHeader, %*payload, key).valueOrRaise(ACMEError)
 
 proc createPostAsGetRequest(
     self: ACMEApi, uri: Uri, key: RsaPrivateKey, kid: Kid
@@ -347,7 +348,7 @@ proc createPostAsGetRequest(
   ## RFC 8555 section 6.3: a POST-as-GET is a signed POST with a zero-length payload.
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk = false, Opt.some(kid))
   handleError("createPostAsGetRequest"):
-    $toFlattenedJws(%*acmeHeader, "", key)
+    $toFlattenedJws(%*acmeHeader, "", key).valueOrRaise(ACMEError)
 
 proc requestRegister*(
     self: ACMEApi, key: RsaPrivateKey
@@ -365,7 +366,8 @@ proc requestRegister*(
     let acmeResponseBody = acmeResponse.body.to(ACMERegisterResponseBody)
 
     ACMERegisterResponse(
-      status: acmeResponseBody.status, kid: acmeResponse.headers.keyOrError("location")
+      status: acmeResponseBody.status,
+      kid: acmeResponse.headers.header("location").valueOrRaise(ACMEError),
     )
 
 proc requestNewOrder*(
@@ -391,7 +393,7 @@ proc requestNewOrder*(
       status: challengeResponseBody.status,
       authorizations: challengeResponseBody.authorizations,
       finalize: challengeResponseBody.finalize,
-      order: acmeResponse.headers.keyOrError("location"),
+      order: acmeResponse.headers.header("location").valueOrRaise(ACMEError),
     )
 
 proc requestAuthorizations*(
@@ -444,7 +446,7 @@ proc requestCheck*(
     let acmeResponse = await self.post(checkURL, payload)
     let retryAfter =
       try:
-        parseInt(acmeResponse.headers.keyOrError("Retry-After")).seconds
+        parseInt(acmeResponse.headers.getString("Retry-After")).seconds
       except ValueError:
         DefaultChalCompletedRetryTime
 
@@ -523,8 +525,9 @@ proc requestFinalize*(
     kid: Kid,
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestFinalize"):
+    let csr = createCSR(domain, certKeyPair).valueOrRaise(ACMEError)
     let payload = await self.createSignedAcmeRequest(
-      finalize, %*{"csr": createCSR(domain, certKeyPair)}, key, kid = Opt.some(kid)
+      finalize, %*{"csr": csr}, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(finalize, payload)
     # server responds with updated order response

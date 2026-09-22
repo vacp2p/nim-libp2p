@@ -191,7 +191,7 @@ suite "AutoTLS certificate issuance and renewal":
     # Nothing signals a round that ended, so wait out a three retries window.
     await sleepAsync(50.milliseconds)
 
-    let baseDomain = encodePeerId(switch.peerInfo.peerId) & "." & DomainSuffix
+    let baseDomain = encodePeerId(switch.peerInfo.peerId).get() & "." & DomainSuffix
     check:
       # One round is 8 requests, so more would be a second attempt.
       acmeApi.requestedUris.len == 8

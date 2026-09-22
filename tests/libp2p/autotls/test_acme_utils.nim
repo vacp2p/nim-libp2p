@@ -4,7 +4,7 @@
 {.used.}
 
 import json, uri
-import chronos
+import chronos, chronos/apps/http/httptable
 import ../../../libp2p/crypto/rsa
 import ../../../libp2p/autotls/acme/[api, utils]
 import ../../tools/[unittest, http_server]
@@ -29,6 +29,21 @@ suite "ACME utils":
 
   test "the thumbprint is the RFC 7638 canonical form":
     check thumbprint(rfc7517Key()) == Rfc7638Thumbprint
+
+  test "a header lookup returns the value or an error":
+    var headers = HttpTable.init()
+    headers.add("Replay-Nonce", "abc")
+
+    check:
+      headers.header("Replay-Nonce").get() == "abc"
+      headers.header("Location").isErr()
+
+  test "a CSR for a domain is base64url":
+    let csr = createCSR("example.com", rfc7517Key()).get()
+
+    check:
+      csr.len > 0
+      not csr.contains('=')
 
   asyncTest "an empty response body reads as an empty object":
     # The response to `newNonce` carries the nonce in a header and no body at all.
