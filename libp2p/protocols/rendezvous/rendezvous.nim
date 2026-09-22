@@ -121,6 +121,28 @@ type
 
   RendezVous* = GenericRendezVous[PeerRecord]
 
+func toAdvertiseError(e: ref RendezVousError): ref AdvertiseError =
+  newException(AdvertiseError, e.msg, e)
+
+func checkNamespace(ns: string): Result[void, ref RendezVousError] =
+  if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
+    return err(newException(RendezVousError, "Invalid namespace"))
+  ok()
+
+func checkTtl(
+    config: RendezVousConfig, ttl: Duration
+): Result[void, ref RendezVousError] =
+  if ttl < config.minDuration or ttl > config.maxDuration:
+    return err(newException(RendezVousError, "Invalid time to live: " & $ttl))
+  ok()
+
+func checkRequest(ns: Opt[string], limit: int): Result[void, ref RendezVousError] =
+  if limit <= 0 or limit > DiscoverLimit.int:
+    return err(newException(RendezVousError, "Invalid limit"))
+  if ns.isSome() and ns.get().len > MaximumNamespaceLen:
+    return err(newException(RendezVousError, "Invalid namespace"))
+  ok()
+
 proc checkPeerRecord*(
     _: PeerRecord, spr: seq[byte], peerId: PeerId
 ): Result[void, string] =
@@ -323,38 +345,49 @@ proc discover*[E](
   rdv.rng.shuffle(s)
   await stream.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 
+proc sendRegister[E](
+    rdv: GenericRendezVous[E], peer: PeerId, msg: seq[byte]
+): Future[Result[RegisterResponse, string]] {.async: (raises: [CancelledError]).} =
+  let stream =
+    try:
+      await rdv.switch.dial(peer, rdv.codec)
+    except DialFailedError as e:
+      return err("Failed to dial: " & e.msg)
+  defer:
+    await stream.close()
+
+  let buf =
+    try:
+      await stream.writeLp(msg)
+      await stream.readLp(4096)
+    except LPStreamError as e:
+      return err("Failed to communicate: " & e.msg)
+
+  let msgRecv = Message.decode(buf).valueOr:
+    return err("Failed to decode Message: " & $error)
+  if msgRecv.msgType != MessageType.RegisterResponse:
+    return err("Unexpected register response: " & $msgRecv.msgType)
+  let response = msgRecv.registerResponse.valueOr:
+    return err("Register response is empty")
+  ok(response)
+
 proc advertisePeer[E](
     rdv: GenericRendezVous[E], peer: PeerId, msg: seq[byte]
 ) {.async: (raises: [CancelledError]).} =
-  proc advertiseWrap() {.async: (raises: [CancelledError]).} =
-    try:
-      let stream = await rdv.switch.dial(peer, rdv.codec)
-      defer:
-        await stream.close()
-      await stream.writeLp(msg)
-      let
-        buf = await stream.readLp(4096)
-        msgRecv = Message.decode(buf).valueOr:
-          trace "Failed to decode Message", err = error
-          return
-      if msgRecv.msgType != MessageType.RegisterResponse:
-        trace "Unexpected register response", peer, msgType = msgRecv.msgType
-      elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
-        trace "Refuse to register", peer, response = msgRecv.registerResponse
-      else:
-        trace "Successfully registered", peer, response = msgRecv.registerResponse
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "Exception in the advertise", err = exc.msg
-    finally:
-      try:
-        rdv.sema.release()
-      except AsyncSemaphoreError:
-        raiseAssert "semaphore released without acquire"
-
   await rdv.sema.acquire()
-  await advertiseWrap()
+  defer:
+    try:
+      rdv.sema.release()
+    except AsyncSemaphoreError:
+      raiseAssert "semaphore released without acquire"
+
+  let response = (await rdv.sendRegister(peer, msg)).valueOr:
+    trace "Failed to advertise", peer, err = error
+    return
+  if response.status != ResponseStatus.Ok:
+    trace "Refuse to register", peer, response
+  else:
+    trace "Successfully registered", peer, response
 
 proc advertise*[E](
     rdv: GenericRendezVous[E],
@@ -370,7 +403,7 @@ proc advertise*[E](
     return
 
   let pBuff = signedPeerRecord.encode()
-  await rdv.advertise(ns, ttl, peers, Opt.some(pBuff))
+  await rdv.advertise(ns, ttl, peers, pBuff)
 
 proc advertise*[E](
     rdv: GenericRendezVous[E],
@@ -379,11 +412,10 @@ proc advertise*[E](
     peers: seq[PeerId],
     sprBuff: seq[byte],
 ) {.async: (raises: [CancelledError, AdvertiseError]).} =
-  if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
-    raise newException(AdvertiseError, "Invalid namespace")
-
-  if ttl < rdv.config.minDuration or ttl > rdv.config.maxDuration:
-    raise newException(AdvertiseError, "Invalid time to live: " & $ttl)
+  ns.checkNamespace().isOkOr:
+    raise error.toAdvertiseError()
+  rdv.config.checkTtl(ttl).isOkOr:
+    raise error.toAdvertiseError()
 
   let
     r = Register(ns: ns, signedPeerRecord: sprBuff, ttl: Opt.some(ttl.seconds.uint64))
@@ -477,10 +509,8 @@ proc request*[E](
     limit: uint64
   let l = lt.get(DiscoverLimit.int)
   let peers = peersOpt.get(rdv.peers)
-  if l <= 0 or l > DiscoverLimit.int:
-    raise newException(AdvertiseError, "Invalid limit")
-  if ns.isSome() and ns.get().len > MaximumNamespaceLen:
-    raise newException(AdvertiseError, "Invalid namespace")
+  checkRequest(ns, l).isOkOr:
+    raise error.toAdvertiseError()
 
   limit = l.uint64
 
@@ -518,8 +548,6 @@ proc request*[E](
         for (_, r) in s.values():
           rdv.save(ns.get(), peer, r, false).isOkOr:
             trace "Cannot save registration", namespace = ns, description = error
-    except CancelledError as e:
-      raise e
     except DialFailedError as e:
       trace "Failed to dial a peer", err = e.msg
     except LPStreamError as e:
@@ -538,23 +566,27 @@ proc unsubscribeLocally*[E](rdv: GenericRendezVous[E], ns: string) =
 proc unsubscribe*[E](
     rdv: GenericRendezVous[E], ns: string, peerIds: seq[PeerId]
 ) {.async: (raises: [RendezVousError, CancelledError]).} =
-  if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
-    raise newException(RendezVousError, "Invalid namespace")
+  ns.checkNamespace().isOkOr:
+    raise error
 
   let msg = encode(
     Message(msgType: MessageType.Unregister, unregister: Opt.some(Unregister(ns: ns)))
   )
 
   proc unsubscribePeer(peerId: PeerId) {.async: (raises: [CancelledError]).} =
+    let stream =
+      try:
+        await rdv.switch.dial(peerId, RendezVousCodec)
+      except DialFailedError as e:
+        trace "Failed to dial while unsubscribing", err = e.msg
+        return
+    defer:
+      await stream.close()
+
     try:
-      let stream = await rdv.switch.dial(peerId, RendezVousCodec)
-      defer:
-        await stream.close()
       await stream.writeLp(msg)
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      trace "Exception while unsubscribing", err = exc.msg
+    except LPStreamError as e:
+      trace "Failed to unsubscribe", err = e.msg
 
   let futs = collect(newSeq()):
     for peer in peerIds:
