@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, results, sequtils, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, connmanager]
 import ../../../libp2p/utils/future
 import ../../tools/[lifecycle, unittest, multiaddress]
 import ./utils.nim
@@ -120,3 +120,39 @@ suite "KadDHT - Probe backoff":
     checkUntilTimeout:
       kads[0].hasKey(peerId.toKey())
       not kads[0].probeFailures.hasKey(peerId)
+
+  asyncTest "local connection pressure defers admission without backing the peer off":
+    ## A dial our own limiter refused says nothing about the remote, so the peer
+    ## must stay a candidate instead of serving an escalating probe backoff.
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
+    let
+      hub = kads[0]
+      leafId = kads[1].switch.peerInfo.peerId
+      leaf = PeerInfo(peerId: leafId, addrs: kads[1].switch.peerInfo.addrs)
+
+    var held: seq[ConnectionSlot]
+    defer:
+      for slot in held:
+        slot.release()
+    while hub.switch.connManager.availableSlots(Direction.Out) > 0:
+      held.add(hub.switch.connManager.getOutgoingSlot())
+
+    hub.admitPeers(@[leaf])
+    check:
+      # The dial cannot leave the host, so it costs neither a probe slot nor an RPC.
+      hub.admissionProbes.len == 0
+      hub.admissionSem.availableSlots == hub.config.limits.maxConcurrentProbes
+      not hub.hasKey(leafId.toKey())
+      # Our own limit must not count as a failure against the peer.
+      not hub.probeFailures.hasKey(leafId)
+
+    for slot in held:
+      slot.release()
+    held.setLen(0)
+
+    # Capacity is back: the peer is admitted on the next reply that names it,
+    # with no backoff to wait out first.
+    hub.admitPeers(@[leaf])
+    checkUntilTimeout:
+      hub.hasKey(leafId.toKey())

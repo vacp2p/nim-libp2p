@@ -55,6 +55,8 @@ declarePublicCounter kad_admission_probes_backed_off,
   "admission probes skipped because the peer's last probe failed"
 declarePublicCounter kad_admission_probes_dropped,
   "admission probes skipped because no probe slot was free"
+declarePublicCounter kad_admission_probes_deferred,
+  "admission probes skipped because the local connection limit refused the dial"
 declarePublicCounter kad_lookup_undialable_peers,
   "lookup shortlist peers dropped for having no address in the peer store"
 declarePublicCounter kad_routing_table_reseeds,

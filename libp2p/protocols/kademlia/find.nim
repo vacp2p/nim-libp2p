@@ -313,15 +313,25 @@ proc admitPeer(
     addrs: seq[MultiAddress],
     onAdmit: AdmitHook,
 ) {.async: (raises: []).} =
-  let reachable =
+  let outcome =
     try:
-      await kad.lookupCheck(peerId, addrs)
+      await kad.lookupCheckResult(peerId, addrs)
     except CancelledError:
       return
-  if not reachable:
+  case outcome
+  of LocalCapacity:
+    # Our own connection limit refused the dial, so the peer's reachability is
+    # unknown. Backing it off would hold a healthy peer out of the table for as
+    # long as we stay full; leave it a candidate for the next reply that names it.
+    trace "Kad admission probe deferred: local connection limit", peerId
+    kad_admission_probes_deferred.inc()
+    return
+  of Unreachable:
     trace "Kad admission probe failed, not inserting peer", peerId
     kad.probeRecordFailure(peerId, addrs)
     return
+  of Reachable:
+    discard
   kad.probeClearFailures(peerId)
   # A seat outlives Low's TTL, so the addresses behind it must outlive it too.
   kad.switch.recordAddrs(peerId, addrs, AddressConfidence.Medium)
@@ -366,6 +376,14 @@ proc scheduleAdmissionProbe(
   if kad.probeBackedOff(peerId, addrs):
     trace "Kad admission probe backed off", peerId
     kad_admission_probes_backed_off.inc()
+    return false
+
+  # A probe to an unconnected peer needs a fresh outgoing slot. Without one the
+  # dial cannot leave the host, so spend neither a probe slot nor an RPC on it.
+  if kad.switch.connManager.availableSlots(Direction.Out) <= 0 and
+      kad.switch.connManager.connCount(peerId) == 0:
+    trace "Kad admission probe skipped: no local connection capacity", peerId
+    kad_admission_probes_deferred.inc()
     return false
 
   if not kad.admissionSem.tryAcquire():
