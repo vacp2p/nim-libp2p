@@ -73,12 +73,11 @@ jobs:
               content: 'eyes',
             });
 
-      # The action checks out the trusted base branch and fetches PR objects
-      # without running code or reading review rules from the PR branch.
-      - name: Review with DeepSeek
-        uses: alibaba/open-code-review@66120291271b2e605e420e9f11fbd6448f06163f # v1.9.10
+      # The shared action keeps Nim rules outside the PR checkout and tracks
+      # the latest upstream OpenCodeReview action and CLI.
+      - name: Review with shared Nim rules
+        uses: vacp2p/common-open-code-review@main
         with:
-          ocr_version: '1.9.10'
           llm_url: https://api.deepseek.com/chat/completions
           llm_auth_token: ${{ secrets.DEEPSEEK_API_KEY }}
           llm_model: ${{ steps.pr.outputs.model }}
