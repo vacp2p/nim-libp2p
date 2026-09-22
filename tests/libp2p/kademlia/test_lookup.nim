@@ -17,7 +17,7 @@ proc holdDial(
 ) {.async: (raises: [CancelledError]).} =
   ## Releases the previous held dial of `peer` and holds this one until the next.
   held[].withValue(peer, prev):
-    prev[].complete()
+    prev[].completeOnce()
   let gate = DialGate.init("holdDial")
   held[][peer] = gate
   try:
