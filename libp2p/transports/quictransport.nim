@@ -616,14 +616,13 @@ proc listenerEndpointFor(
   if matchedEndpoint.isSome() or address.family != AddressFamily.IPv4:
     return ok(matchedEndpoint)
 
-  when defined(linux):
-    for endpoint in self.listeners:
-      let local = endpoint.localAddress()
-      if local.family == AddressFamily.IPv6 and local.isAnyLocal() and
-          endpoint.datagramTransport().fd.getDualstack().get(false):
-        if matchedEndpoint.isSome():
-          return ok(Opt.none(QuicEndpoint))
-        matchedEndpoint = Opt.some(endpoint)
+  for endpoint in self.listeners:
+    let local = endpoint.localAddress()
+    if local.family == AddressFamily.IPv6 and local.isAnyLocal() and
+        endpoint.datagramTransport().fd.getDualstack().get(false):
+      if matchedEndpoint.isSome():
+        return ok(Opt.none(QuicEndpoint))
+      matchedEndpoint = Opt.some(endpoint)
 
   ok(matchedEndpoint)
 
