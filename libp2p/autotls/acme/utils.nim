@@ -4,12 +4,8 @@
 import base64, strutils, json
 import chronos/apps/http/httpclient, results, json_serialization
 import nimcrypto/sha2
-import ../../errors
 import ../../transports/tls/certificate_ffi
 import ../../crypto/rsa
-
-type ACMEError* = object of LPError
-type ACMENetworkError* = object of ACMEError
 
 func header*(table: HttpTable, key: string): Result[string, string] {.raises: [].} =
   if not table.contains(key):

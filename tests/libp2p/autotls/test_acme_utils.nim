@@ -54,7 +54,7 @@ suite "ACME utils":
     defer:
       await acmeApi.close()
 
-    check (await acmeApi.get(parseUri(server.url))).body == %*{}
+    check (await acmeApi.get(parseUri(server.url))).get().body == %*{}
 
   asyncTest "a response body that is not JSON is refused":
     let server = startTestHttpServer("<html>not json</html>")
@@ -64,8 +64,7 @@ suite "ACME utils":
     defer:
       await acmeApi.close()
 
-    expect(ACMEError):
-      discard await acmeApi.get(parseUri(server.url))
+    check (await acmeApi.get(parseUri(server.url))).isErr()
 
   test "tryGetStr returns the string field or an error":
     let node = %*{"status": "valid", "n": 1}
