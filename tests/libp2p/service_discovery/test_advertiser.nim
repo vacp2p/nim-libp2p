@@ -342,6 +342,50 @@ suite "Advertiser - maintainRegistrations":
     check disco.advertiser.running.len() > 0
     check not disco.localRegistrationLoop.finished()
 
+  asyncTest "a republish in client mode leaves the local registration stopped":
+    let disco = setupServiceDiscoveryNode()
+    check disco.addProvidedService(makeServiceInfo()).isOk()
+    check await disco.changeMode(isServer = false)
+
+    await disco.republishProvidedAdverts()
+
+    check:
+      disco.localRegistrationLoop.isNil()
+      disco.advertiser.running.len() == 0
+
+  asyncTest "schedules nothing while no record can be built":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+
+    disco.populateAdvertisementTable(service.id.hashServiceId())
+    check disco.addProvidedService(service).isOk()
+
+    await disco.advertiser.clear()
+    await disco.localRegistrationLoop.cancelAndWait()
+    disco.localRegistrationLoop = nil
+    disco.switch.peerInfo.addrs = @[]
+
+    await disco.maintainRegistrations()
+
+    check:
+      disco.advertiser.running.len() == 0
+      disco.localRegistrationLoop.isNil()
+
+  asyncTest "skips a routing table key that is not a peer id":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    var raw: array[IdLength, byte]
+    raw[^1] = 1
+    check disco.rtable.insert(Key.init(raw))
+
+    check disco.addProvidedService(service).isOk()
+
+    check:
+      disco.rtManager.getTable(service.id.hashServiceId()).get().allKeys().len == 1
+      disco.advertiser.running.len() == 0
+
+    await disco.localRegistrationLoop.cancelAndWait()
+
 suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()

@@ -218,27 +218,6 @@ proc isValidTicket(
 
   return ok(Opt.some(ticket))
 
-proc sendRegisterResponse*(
-    stream: Stream,
-    status: RegistrationStatus,
-    closerPeers: seq[Peer],
-    ticket: Opt[Ticket] = Opt.none(Ticket),
-) {.async: (raises: [CancelledError]).} =
-  let msg = Message(
-    msgType: Opt.some(MessageType.register),
-    register: Opt.some(
-      RegisterMessage(
-        advertisement: Opt.none(seq[byte]), status: Opt.some(status), ticket: ticket
-      )
-    ),
-    closerPeers: closerPeers,
-  )
-  let bytes = msg.encode()
-  let writeRes = catch:
-    await stream.writeLp(bytes)
-  if writeRes.isErr:
-    trace "Failed to send register response", err = writeRes.error.msg
-
 proc acceptAdvertisement*(
     disco: ServiceDiscovery,
     now: Moment,
