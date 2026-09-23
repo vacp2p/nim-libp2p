@@ -62,6 +62,12 @@ proc randomChallenge(
     c = ChallengeCharset[rng.rand(0, ChallengeCharset.high)]
   PeerIDAuthChallenge(challenge)
 
+proc tryDecode(encoded: string): Result[seq[byte], string] =
+  catch(base64.decode(encoded).toBytes()).mapErr(
+    proc(e: ref CatchableError): string =
+      e.msg
+  )
+
 func extractField(data, key: string): Result[string, string] =
   var fields = data
   fields.removePrefix(PeerIDAuthPrefix & " ")
@@ -127,11 +133,8 @@ proc tryCheckSignature*(
 ): Result[bool, string] =
   let params = ?getSigParams(false, hostname, challengeServer, clientPublicKey)
   let bytesToSign = ?params.genDataToSign()
-  let sigBytes =
-    try:
-      base64.decode(serverSig).toBytes()
-    except ValueError as e:
-      return err("Failed to decode server's signature: " & e.msg)
+  let sigBytes = serverSig.tryDecode().valueOr:
+    return err("Failed to decode server's signature: " & error)
 
   var serverSignature: Signature
   if not serverSignature.init(sigBytes):
@@ -189,29 +192,39 @@ method get*(
     body: await rawResponse.getBodyBytes(),
   )
 
+proc tryGet(
+    self: PeerIDAuthClient, uri: Uri
+): Future[Result[PeerIDAuthResponse, string]] {.async: (raises: [CancelledError]).} =
+  try:
+    ok(await self.get(uri))
+  except HttpError as e:
+    err(e.msg)
+  except PeerIDAuthError as e:
+    err(e.msg)
+
+proc tryPost(
+    self: PeerIDAuthClient, uri: Uri, payload: string, authHeader: string
+): Future[Result[PeerIDAuthResponse, string]] {.async: (raises: [CancelledError]).} =
+  try:
+    ok(await self.post(uri, payload, authHeader))
+  except HttpError as e:
+    err(e.msg)
+
 proc tryRequestAuthentication*(
     self: PeerIDAuthClient, uri: Uri
 ): Future[Result[PeerIDAuthAuthenticationResponse, string]] {.
     async: (raises: [CancelledError])
 .} =
-  let response =
-    try:
-      await self.get(uri)
-    except HttpError as e:
-      return err("Failed to start PeerID Auth: " & e.msg)
-    except PeerIDAuthError as e:
-      return err(e.msg)
+  let response = (await self.tryGet(uri)).valueOr:
+    return err("Failed to start PeerID Auth: " & error)
 
   let wwwAuthenticate = response.headers.getString("WWW-Authenticate")
   if wwwAuthenticate == "":
     return err("WWW-authenticate not present in response")
 
   let encodedPubkey = ?wwwAuthenticate.extractField("public-key")
-  let pubkeyBytes =
-    try:
-      decode(encodedPubkey).toBytes()
-    except ValueError as e:
-      return err("Failed to decode server public-key: " & e.msg)
+  let pubkeyBytes = encodedPubkey.tryDecode().valueOr:
+    return err("Failed to decode server public-key: " & error)
   let serverPubkey = PublicKey.init(pubkeyBytes).valueOr:
     return err("Failed to initialize server public-key")
 
@@ -237,23 +250,26 @@ proc pubkeyBytes*(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
       PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey: " & $error
     )
 
-proc parse3339DateTime(timeStr: string): Opt[DateTime] =
+proc tryParseDateTime(timeStr, format: string): Result[DateTime, string] =
   try:
-    if timeStr.len <= 19 or timeStr[19] != '.':
-      return Opt.some(parse(timeStr, "yyyy-MM-dd'T'HH:mm:sszzz", utc()))
+    ok(parse(timeStr, format, utc()))
+  except ValueError as e:
+    err(e.msg)
 
-    var fractionEnd = 20
-    while fractionEnd < timeStr.len and timeStr[fractionEnd] in {'0' .. '9'}:
-      inc fractionEnd
-    let digits = fractionEnd - 20
-    if digits < 1 or digits > 9:
-      return Opt.none(DateTime)
+proc parse3339DateTime(timeStr: string): Opt[DateTime] =
+  if timeStr.len <= 19 or timeStr[19] != '.':
+    return timeStr.tryParseDateTime("yyyy-MM-dd'T'HH:mm:sszzz").optValue()
 
-    let normalized =
-      timeStr[0 ..< fractionEnd] & repeat('0', 9 - digits) & timeStr[fractionEnd .. ^1]
-    Opt.some(parse(normalized, "yyyy-MM-dd'T'HH:mm:ss'.'fffffffffzzz", utc()))
-  except ValueError:
-    Opt.none(DateTime)
+  var fractionEnd = 20
+  while fractionEnd < timeStr.len and timeStr[fractionEnd] in {'0' .. '9'}:
+    inc fractionEnd
+  let digits = fractionEnd - 20
+  if digits < 1 or digits > 9:
+    return Opt.none(DateTime)
+
+  let normalized =
+    timeStr[0 ..< fractionEnd] & repeat('0', 9 - digits) & timeStr[fractionEnd .. ^1]
+  normalized.tryParseDateTime("yyyy-MM-dd'T'HH:mm:ss'.'fffffffffzzz").optValue()
 
 proc tryRequestAuthorization*(
     self: PeerIDAuthClient,
@@ -274,11 +290,8 @@ proc tryRequestAuthorization*(
     PeerIDAuthPrefix & " public-key=\"" & clientPubkey.encode(safe = true) & "\"" &
     ", opaque=\"" & opaque & "\"" & ", challenge-server=\"" & challengeServer & "\"" &
     ", sig=\"" & sig & "\""
-  let response =
-    try:
-      await self.post(uri, $payload, authHeader)
-    except HttpError as e:
-      return err("Failed to send Authorization for PeerID Auth: " & e.msg)
+  let response = (await self.tryPost(uri, $payload, authHeader)).valueOr:
+    return err("Failed to send Authorization for PeerID Auth: " & error)
 
   let authenticationInfo = response.headers.getString("authentication-info")
   let bearerExpires = authenticationInfo.extractField("expires").valueOr("")
@@ -347,11 +360,8 @@ proc sendWithBearer(
     return err("Bearer expired")
 
   let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
-  let response =
-    try:
-      await self.post(uri, $payload, authHeader)
-    except HttpError as e:
-      return err("Failed to send request with bearer token for PeerID Auth: " & e.msg)
+  let response = (await self.tryPost(uri, $payload, authHeader)).valueOr:
+    return err("Failed to send request with bearer token for PeerID Auth: " & error)
 
   ok((bearer, response))
 
