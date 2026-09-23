@@ -177,10 +177,6 @@ template handleError*(msg: string, body: untyped): untyped =
     raise exc
   except CancelledError as exc:
     raise exc
-  except JsonKindError as exc:
-    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
-  except ValueError as exc:
-    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except HttpError as exc:
     raise
       newException(ACMENetworkError, msg & ": Failed to connect to ACME server", exc)
@@ -207,18 +203,11 @@ proc checkOrigin*(self: ACMEApi, uri: Uri) {.raises: [ACMEError].} =
     )
 
 proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
-  let respType =
-    try:
-      resp.body["type"].getStr()
-    except KeyError:
-      return
+  let respType = resp.body.tryGetStr("type").valueOr:
+    return
 
   if respType.contains("acme:error"):
-    let detail =
-      try:
-        resp.body["detail"].getStr()
-      except KeyError:
-        ""
+    let detail = resp.body.tryGetStr("detail").valueOr("")
     raise newException(
       ACMEError, "API request failed. type: " & respType & " detail: " & detail
     )
@@ -252,7 +241,7 @@ proc getDirectory(
   handleError("getDirectory"):
     self.directory.valueOr:
       let acmeResponse = await self.get(self.directoryURL)
-      let directory = acmeResponse.body.to(ACMEDirectory)
+      let directory = acmeResponse.body.tryTo(ACMEDirectory).valueOrRaise(ACMEError)
       self.directory = Opt.some(directory)
       directory
 
@@ -363,7 +352,8 @@ proc requestRegister*(
     )
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newAccount), payload)
-    let acmeResponseBody = acmeResponse.body.to(ACMERegisterResponseBody)
+    let acmeResponseBody =
+      acmeResponse.body.tryTo(ACMERegisterResponseBody).valueOrRaise(ACMEError)
 
     ACMERegisterResponse(
       status: acmeResponseBody.status,
@@ -386,7 +376,8 @@ proc requestNewOrder*(
     )
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newOrder), payload)
-    let challengeResponseBody = acmeResponse.body.to(ACMEChallengeResponseBody)
+    let challengeResponseBody =
+      acmeResponse.body.tryTo(ACMEChallengeResponseBody).valueOrRaise(ACMEError)
     if challengeResponseBody.authorizations.len == 0:
       raise newException(ACMEError, "Authorizations field is empty")
     ACMEChallengeResponse(
@@ -408,10 +399,10 @@ proc requestAuthorizations*(
 
     var challenges: seq[ACMEChallenge]
     for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
-      try:
-        challenges.add(challenge.to(ACMEChallenge))
-      except ValueError, JsonKindError:
-        trace "Could not parse challenge", err = getCurrentExceptionMsg()
+      let parsed = challenge.tryTo(ACMEChallenge).valueOr:
+        trace "Could not parse challenge", err = error
+        continue
+      challenges.add(parsed)
 
     if challenges.len == 0:
       raise newException(ACMEError, "No challenges received")
@@ -475,7 +466,7 @@ proc sendChallengeCompleted*(
     let payload =
       await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
     let acmeResponse = await self.post(chalURL, payload)
-    acmeResponse.body.to(ACMECompletedResponse)
+    acmeResponse.body.tryTo(ACMECompletedResponse).valueOrRaise(ACMEError)
 
 proc checkChallengeCompleted*(
     self: ACMEApi,
@@ -525,7 +516,7 @@ proc requestFinalize*(
     )
     let acmeResponse = await self.post(finalize, payload)
     # server responds with updated order response
-    acmeResponse.body.to(ACMEFinalizeResponse)
+    acmeResponse.body.tryTo(ACMEFinalizeResponse).valueOrRaise(ACMEError)
 
 proc checkCertFinalized*(
     self: ACMEApi,
@@ -568,7 +559,7 @@ proc requestGetOrder*(
   handleError("requestGetOrder"):
     let payload = await self.createPostAsGetRequest(order, key, kid)
     let acmeResponse = await self.post(order, payload)
-    acmeResponse.body.to(ACMEOrderResponse)
+    acmeResponse.body.tryTo(ACMEOrderResponse).valueOrRaise(ACMEError)
 
 proc downloadCertificate*(
     self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid

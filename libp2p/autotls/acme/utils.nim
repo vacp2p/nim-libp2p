@@ -22,6 +22,12 @@ func tryGetStr*(node: JsonNode, key: string): Result[string, string] =
     return err("missing string field: " & key)
   ok(field.getStr())
 
+proc tryTo*[T](node: JsonNode, _: typedesc[T]): Result[T, string] =
+  try:
+    ok(node.to(T))
+  except CatchableError as e:
+    err("failed to decode " & $T & ": " & e.msg)
+
 func tryParseEnum*[T: enum](s: string): Result[T, string] =
   for v in T:
     if $v == s:

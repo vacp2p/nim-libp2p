@@ -74,6 +74,13 @@ suite "ACME utils":
       node.tryGetStr("n").error == "missing string field: n"
       node.tryGetStr("absent").error == "missing string field: absent"
 
+  test "tryTo decodes the object or returns an error":
+    check:
+      (%*{"token": "t", "url": "u", "type": "dns-01", "status": "valid"})
+        .tryTo(ACMEChallenge)
+        .get().token == "t"
+      (%*{"token": 1}).tryTo(ACMEChallenge).isErr()
+
   test "tryParseEnum matches the enum string value":
     check:
       tryParseEnum[ACMEChallengeStatus]("valid").get() == ACMEChallengeStatus.VALID
