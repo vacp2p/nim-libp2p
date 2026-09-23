@@ -1072,13 +1072,8 @@ proc libp2pCircuitRelayReserve*(
   let multiaddresses = parseMultiaddrs(req.relayAddrs).valueOr:
     return err(error)
 
-  let rsvp =
-    try:
-      await cl.reserve(peerId, multiaddresses)
-    except ReservationError as e:
-      return err("reservation failed: " & e.msg)
-    except DialFailedError as e:
-      return err("dial failed: " & e.msg)
+  let rsvp = (await cl.tryReserve(peerId, multiaddresses)).valueOr:
+    return err("reservation failed: " & error)
 
   ok(ReservationResponse(addrs: rsvp.addrs.mapIt($it), expireTime: rsvp.expire))
 
