@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import chronos, chronicles
+import std/sequtils, chronos, chronicles
 
 import
   ./client,
@@ -41,11 +41,10 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
   self.running = false
   self.selfRunning = false
   self.client.onNewConnection = nil
-  while not self.queue.empty():
-    try:
-      await self.queue.popFirstNoWait().close()
-    except AsyncQueueEmptyError:
-      continue # checked with self.queue.empty()
+
+  let pending = toSeq(self.queue)
+  self.queue.clear()
+  await noCancel allFutures(pending.mapIt(it.close()))
 
 method accept*(
     self: RelayTransport

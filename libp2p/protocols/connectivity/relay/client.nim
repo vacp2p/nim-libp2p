@@ -56,33 +56,39 @@ proc sendStopError(
 
 proc handleRelayedConnect(
     cl: RelayClient, stream: Stream, msg: StopMessage
-) {.async: (raises: [CancelledError, LPStreamError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   let
     # TODO: check the go version to see in which way this could fail
     # it's unclear in the spec
     srcPeer = msg.peer.valueOr:
       await sendStopError(stream, MalformedMessage)
-      return
+      return ok()
     src = srcPeer.peerId.valueOr:
       await sendStopError(stream, MalformedMessage)
-      return
+      return ok()
     limitDuration = msg.limit.get(Limit()).duration
     limitData = msg.limit.get(Limit()).data
     msg = StopMessage(msgType: Opt.some(StopMessageType.Status), status: Opt.some(Ok))
 
   trace "incoming relay connection", src
 
-  if cl.onNewConnection == nil:
+  if cl.onNewConnection.isNil():
     await sendStopError(stream, StatusV2.ConnectionFailed)
     await stream.close()
-    return
-  await stream.writeLp(encode(msg))
+    return ok()
+
+  try:
+    await stream.writeLp(encode(msg))
+  except LPStreamError as e:
+    return err("error writing stop status: " & e.msg)
+
   # This sound redundant but the callback could, in theory, be set to nil during
   # stream.writeLp so it's safer to double check
-  if cl.onNewConnection != nil:
-    await cl.onNewConnection(stream, limitDuration, limitData)
-  else:
+  if cl.onNewConnection.isNil():
     await stream.close()
+  else:
+    await cl.onNewConnection(stream, limitDuration, limitData)
+  ok()
 
 proc toRsvp(msg: HopMessage, relayPeerId: PeerId): Result[Rsvp, string] =
   if msg.msgType != Opt.some(HopMessageType.Status):
@@ -118,8 +124,12 @@ proc toRsvp(msg: HopMessage, relayPeerId: PeerId): Result[Rsvp, string] =
 
 proc tryReserve*(
     cl: RelayClient, peerId: PeerId, addrs: seq[MultiAddress] = @[]
-): Future[Result[Rsvp, string]] {.async: (raises: [DialFailedError, CancelledError]).} =
-  let stream = await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
+): Future[Result[Rsvp, string]] {.async: (raises: [CancelledError]).} =
+  let stream =
+    try:
+      await cl.switch.dial(peerId, addrs, RelayV2HopCodec)
+    except DialFailedError as e:
+      return err("dial relay peer failed: " & e.msg)
   defer:
     await stream.close()
 
@@ -138,7 +148,7 @@ proc tryReserve*(
 
 proc reserve*(
     cl: RelayClient, peerId: PeerId, addrs: seq[MultiAddress] = @[]
-): Future[Rsvp] {.async: (raises: [ReservationError, DialFailedError, CancelledError]).} =
+): Future[Rsvp] {.async: (raises: [ReservationError, CancelledError]).} =
   (await cl.tryReserve(peerId, addrs)).valueOrRaise(ReservationError)
 
 func checkHopResponse(msg: Result[RelayMessage, string]): Result[void, string] =
@@ -236,17 +246,26 @@ proc dialPeerV2*(
 
 proc handleStopStreamV2(
     cl: RelayClient, stream: Stream
-) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let msg = StopMessage.decode(await stream.readLp(RelayClientMsgSize)).valueOr:
-    await sendHopStatus(stream, MalformedMessage)
-    return
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  let decoded =
+    try:
+      StopMessage.decode(await stream.readLp(RelayClientMsgSize))
+    except LPStreamError as e:
+      return err("error reading stop message: " & e.msg)
+  let msg = decoded.valueOr:
+    try:
+      await sendHopStatus(stream, MalformedMessage)
+    except LPStreamError as e:
+      return err("error writing hop status: " & e.msg)
+    return ok()
   trace "client circuit relay v2 handle stream", msg
 
-  if msg.msgType.isSome and msg.msgType.get() == StopMessageType.Connect:
-    await cl.handleRelayedConnect(stream, msg)
-  else:
+  if msg.msgType != Opt.some(StopMessageType.Connect):
     trace "Unexpected client / relayv2 handshake", msgType = msg.msgType
     await sendStopError(stream, MalformedMessage)
+    return ok()
+
+  await cl.handleRelayedConnect(stream, msg)
 
 proc handleStop(
     cl: RelayClient, stream: Stream, msg: RelayMessage
@@ -265,30 +284,36 @@ proc handleStop(
 
   trace "get a relay connection", src, stream
 
-  if cl.onNewConnection == nil:
+  if cl.onNewConnection.isNil():
     await sendStatus(stream, StatusV1.StopRelayRefused)
     await stream.close()
     return
   await sendStatus(stream, StatusV1.Success)
   # This sound redundant but the callback could, in theory, be set to nil during
   # sendStatus(Success) so it's safer to double check
-  if cl.onNewConnection != nil:
-    await cl.onNewConnection(stream, 0, 0)
-  else:
+  if cl.onNewConnection.isNil():
     await stream.close()
+  else:
+    await cl.onNewConnection(stream, 0, 0)
 
 proc handleStreamV1(
     cl: RelayClient, stream: Stream
-) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let msg = RelayMessage.decode(await stream.readLp(RelayClientMsgSize)).valueOr:
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  let decoded =
+    try:
+      RelayMessage.decode(await stream.readLp(RelayClientMsgSize))
+    except LPStreamError as e:
+      return err("error reading relay message: " & e.msg)
+  let msg = decoded.valueOr:
     await sendStatus(stream, StatusV1.MalformedMessage)
-    return
+    return ok()
   trace "client circuit relay v1 handle stream", msg
 
   let typ = msg.msgType.valueOr:
     trace "Message type not set"
     await sendStatus(stream, StatusV1.MalformedMessage)
-    return
+    return ok()
+
   case typ
   of RelayType.Hop:
     if cl.canHop:
@@ -305,6 +330,7 @@ proc handleStreamV1(
   else:
     trace "Unexpected relay handshake", msgType = msg.msgType
     await sendStatus(stream, StatusV1.MalformedMessage)
+  ok()
 
 proc new*(
     T: typedesc[RelayClient],
@@ -328,25 +354,31 @@ proc new*(
     msgSize: msgSize,
     isCircuitRelayV1: circuitRelayV1,
   )
+  proc dispatch(
+      stream: Stream, proto: string
+  ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+    case proto
+    of RelayV1Codec:
+      await cl.handleStreamV1(stream)
+    of RelayV2StopCodec:
+      await cl.handleStopStreamV2(stream)
+    of RelayV2HopCodec:
+      try:
+        await cl.handleHopStreamV2(stream)
+        ok()
+      except LPStreamError as e:
+        err(e.msg)
+    else:
+      err("unexpected protocol " & proto)
+
   proc handleStream(
       stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
-    try:
-      case proto
-      of RelayV1Codec:
-        await cl.handleStreamV1(stream)
-      of RelayV2StopCodec:
-        await cl.handleStopStreamV2(stream)
-      of RelayV2HopCodec:
-        await cl.handleHopStreamV2(stream)
-    except CancelledError as exc:
-      trace "cancelled client handler"
-      raise exc
-    except CatchableError as exc:
-      trace "exception in client handler", err = exc.msg, stream
-    finally:
-      trace "exiting client handler", stream
+    defer:
       await stream.close()
+
+    (await dispatch(stream, proto)).isOkOr:
+      trace "error in client handler", err = error, stream
 
   cl.handler = handleStream
   cl.codecs =
