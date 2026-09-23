@@ -23,6 +23,19 @@ proc setupOptimisticHub(): seq[KadDHT] =
 proc holdsProviderRecord(kad: KadDHT): bool =
   kad.providerManager.providerRecords.len == 1
 
+proc mineKeyWithTwoReceiversWithin(
+    receivers: seq[KadDHT], maxDistance: float64, hasher: Opt[XorDHasher]
+): (Key, seq[KadDHT]) =
+  ## Two receivers share the top bit, so a key with both in range exists.
+  for _ in 0 ..< 10000:
+    let key = randomServiceId()
+    let closest = receivers
+      .mapIt((normedDistance(xorDistance(it.switch.peerInfo.peerId, key, hasher)), it))
+      .sortedByIt(it[0])
+    if closest[1][0] < maxDistance:
+      return (key, closest[0 .. 1].mapIt(it[1]))
+  raiseAssert "no key puts two receivers within " & $maxDistance
+
 suite "KadDHT - Add Provider":
   teardown:
     checkTrackers()
@@ -532,31 +545,19 @@ suite "KadDHT - Add Provider":
     let netSize = kads[0].nsEstimator.networkSize().expect("seeded estimate")
     let k = float64(kads[0].config.replication)
     let threshold = gammaIncRegInv(k, 0.1) / float64(netSize)
-    let hasher = kads[0].rtable.config.hasher
 
     # Full buckets reject receivers, and the walk only reaches the hub's table.
     let known =
       kads[1 ..^ 1].filterIt(kads[0].hasKey(it.switch.peerInfo.peerId.toKey()))
 
-    # Two of the known receivers share the top bit, so a key with both in range exists.
-    var key: Key
-    var closest: seq[(float64, KadDHT)]
-    for _ in 0 ..< 10000:
-      key = randomServiceId()
-      closest = known
-        .mapIt(
-          (normedDistance(xorDistance(it.switch.peerInfo.peerId, key, hasher)), it)
-        )
-        .sortedByIt(it[0])
-      if closest[1][0] < threshold * 0.9:
-        break
-    require closest[1][0] < threshold * 0.9
+    let (key, receivers) =
+      known.mineKeyWithTwoReceiversWithin(threshold * 0.9, kads[0].rtable.config.hasher)
 
     await kads[0].addProvider(key)
 
     checkUntilTimeout:
-      closest[0][1].holdsProviderRecord()
-      closest[1][1].holdsProviderRecord()
+      receivers[0].holdsProviderRecord()
+      receivers[1].holdsProviderRecord()
 
   asyncTest "Optimistic provide falls back to the mean distance of the k closest":
     let kads = setupOptimisticHub()
