@@ -27,6 +27,9 @@ declarePublicGauge(
   libp2p_gossipsub_seen_cache_size, "number of message IDs retained in the seen cache"
 )
 declareGauge(
+  libp2p_gossipsub_peers_without_send_stream, "gossipsub peers with no open send stream"
+)
+declareGauge(
   libp2p_gossipsub_peers_per_topic_mesh,
   "gossipsub peers per topic in mesh",
   labels = ["topic"],
@@ -704,6 +707,9 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
 
 proc onHeartbeat(g: GossipSub) =
   libp2p_gossipsub_seen_cache_size.set(g.seen.len.int64)
+  libp2p_gossipsub_peers_without_send_stream.set(
+    g.peers.values.countIt(not it.hasSendStream()).int64
+  )
 
   # reset IWANT budget
   # reset IHAVE cap

@@ -36,6 +36,10 @@ when defined(libp2p_expensive_metrics):
     labels = ["id"],
   )
 
+declareCounter(
+  libp2p_pubsub_send_stream_opens, "send stream open outcomes", labels = ["result"]
+)
+
 when defined(pubsubpeer_queue_metrics):
   declareGauge(
     libp2p_gossipsub_high_priority_queue_size,
@@ -415,6 +419,7 @@ proc connectOnce(
       p.codec = newStream.protocol
 
     p.connectedFut.completeOnce()
+    libp2p_pubsub_send_stream_opens.inc(labelValues = ["ok"])
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.StreamOpened))
 
@@ -427,14 +432,19 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     # Keep trying to establish a stream while it's possible to do so - the
     # send stream might get disconnected due to a timeout or an unrelated
     # issue so we try to get a new one
+    var first = true
     while true:
       if p.stopped:
         p.connectedFut.completeOnce()
         return
+      if not first:
+        libp2p_pubsub_send_stream_opens.inc(labelValues = ["retry"])
+      first = false
       await connectOnce(p)
   except CancelledError:
     discard
   except GetStreamDialError as exc:
+    libp2p_pubsub_send_stream_opens.inc(labelValues = ["gave_up"])
     trace "Could not establish send stream", err = exc.msg
 
 proc connect*(p: PubSubPeer) =
