@@ -13,6 +13,7 @@ import
   ../../peerinfo,
   ../../stream/connection,
   ../../crypto/crypto,
+  ../../logging,
   ../../utils/shortlog,
   ../../utils/future
 
@@ -185,6 +186,7 @@ type
     maxLowPriorityQueueLen*: int
     sendStreamRetryBaseDelay*: Duration
     sendStreamRetryMaxDelay*: Duration
+    sendStreamWarnings: LogRateLimit
     stopped: bool
     customStreamCallbacks*: Opt[CustomStreamCallbacks]
     connectFut: Future[void]
@@ -435,10 +437,10 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
         await p.connectOnce()
         delay = p.sendStreamRetryBaseDelay
       except GetStreamDialError as e:
-        trace "Could not establish send stream, retrying", peer = p, err = e.msg, delay
+        if p.sendStreamWarnings.allowLog():
+          warn "Could not establish send stream, retrying", peer = p, err = e.msg, delay
         await sleepAsync(delay)
         delay = min(delay * 2, p.sendStreamRetryMaxDelay)
-    p.connectedFut.completeOnce()
   except CancelledError:
     discard
 
