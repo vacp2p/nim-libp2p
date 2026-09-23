@@ -707,14 +707,14 @@ proc makeGossipControlMessages*(g: GossipSub): Table[PubSubPeer, ControlMessage]
 
 proc onHeartbeat(g: GossipSub) =
   libp2p_gossipsub_seen_cache_size.set(g.seen.len.int64)
-  libp2p_gossipsub_peers_without_send_stream.set(
-    g.peers.values.countIt(not it.hasSendStream()).int64
-  )
 
   # reset IWANT budget
   # reset IHAVE cap
   block:
+    var peersWithoutSendStream = 0'i64
     for peer in g.peers.values:
+      if not peer.connected():
+        inc peersWithoutSendStream
       peer.sentIHaves.addFirst(default(HashSet[MessageId]))
       if peer.sentIHaves.len > g.parameters.historyLength:
         discard peer.sentIHaves.popLast()
@@ -722,6 +722,7 @@ proc onHeartbeat(g: GossipSub) =
       if peer.iDontWants.len > g.parameters.historyLength:
         discard peer.iDontWants.popLast()
       peer.iHaveBudget = IHavePeerBudget
+    libp2p_gossipsub_peers_without_send_stream.set(peersWithoutSendStream)
 
   var meshMetrics = MeshMetrics()
 
