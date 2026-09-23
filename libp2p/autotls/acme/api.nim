@@ -116,6 +116,7 @@ const
   Alg = "RS256"
   DefaultChalCompletedRetries = 10
   DefaultChalCompletedRetryTime = 1.seconds
+  MaxRetryAfter = 1.hours
   DefaultFinalizeRetries = 10
   ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
@@ -434,7 +435,7 @@ func retryAfter(headers: HttpTable): Duration =
   var secs: int
   if raw.len == 0 or parseSaturatedNatural(raw, secs) != raw.len:
     return DefaultChalCompletedRetryTime
-  secs.seconds
+  min(secs, MaxRetryAfter.seconds.int).seconds
 
 proc requestCheck*(
     self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
