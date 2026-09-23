@@ -651,7 +651,8 @@ proc negotiateStream*(
   if not protos.contains(selected):
     raise newException(
       DialFailedError,
-      "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
+      "Unable to select sub-protocol. None of the offered protocols were accepted: " &
+        $protos,
     )
 
   self.ms.lookupProtocol(selected).ifValue(protocol):
