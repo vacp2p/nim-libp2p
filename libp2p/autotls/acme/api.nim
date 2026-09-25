@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import json, sequtils, strutils, uri
+import json, parseutils, sequtils, strutils, uri
 from times import DateTime, parse
 import chronos/apps/http/httpclient, results, chronicles
 
 import ./jws
 import ./utils
 import ../../crypto/rsa
+import ../../errors
 import ../../utils/opt
 
 export ACMEError, ACMENetworkError
@@ -115,6 +116,7 @@ const
   Alg = "RS256"
   DefaultChalCompletedRetries = 10
   DefaultChalCompletedRetryTime = 1.seconds
+  MaxRetryAfter = 1.hours
   DefaultFinalizeRetries = 10
   ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
@@ -176,10 +178,6 @@ template handleError*(msg: string, body: untyped): untyped =
     raise exc
   except CancelledError as exc:
     raise exc
-  except JsonKindError as exc:
-    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
-  except ValueError as exc:
-    raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
   except HttpError as exc:
     raise
       newException(ACMENetworkError, msg & ": Failed to connect to ACME server", exc)
@@ -206,18 +204,11 @@ proc checkOrigin*(self: ACMEApi, uri: Uri) {.raises: [ACMEError].} =
     )
 
 proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
-  let respType =
-    try:
-      resp.body["type"].getStr()
-    except KeyError:
-      return
+  let respType = resp.body.tryGetStr("type").valueOr:
+    return
 
   if respType.contains("acme:error"):
-    let detail =
-      try:
-        resp.body["detail"].getStr()
-      except KeyError:
-        ""
+    let detail = resp.body.tryGetStr("detail").valueOr("")
     raise newException(
       ACMEError, "API request failed. type: " & respType & " detail: " & detail
     )
@@ -251,7 +242,7 @@ proc getDirectory(
   handleError("getDirectory"):
     self.directory.valueOr:
       let acmeResponse = await self.get(self.directoryURL)
-      let directory = acmeResponse.body.to(ACMEDirectory)
+      let directory = acmeResponse.body.tryTo(ACMEDirectory).valueOrRaise(ACMEError)
       self.directory = Opt.some(directory)
       directory
 
@@ -260,7 +251,7 @@ method requestNonce*(
 ): Future[Nonce] {.async: (raises: [ACMEError, CancelledError]), base.} =
   handleError("requestNonce"):
     let acmeResponse = await self.get(parseUri((await self.getDirectory()).newNonce))
-    Nonce(acmeResponse.headers.keyOrError("Replay-Nonce"))
+    Nonce(acmeResponse.headers.header("Replay-Nonce").valueOrRaise(ACMEError))
 
 # TODO: save n and e in account so we don't have to recalculate every time
 proc acmeHeader(
@@ -310,7 +301,7 @@ method post*(
     async: (raises: [ACMEError, HttpError, CancelledError]), base
 .} =
   let rawResponse = await self.sendPost(uri, payload)
-  let body = await rawResponse.getResponseBody()
+  let body = (await rawResponse.getResponseBody()).valueOrRaise(ACMEError)
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
   return resp
@@ -324,7 +315,7 @@ method get*(
   let request = HttpClientRequestRef.get(self.session, $uri).valueOr:
     raiseHttpAddressError(error)
   let rawResponse = await request.send()
-  let body = await rawResponse.getResponseBody()
+  let body = (await rawResponse.getResponseBody()).valueOrRaise(ACMEError)
   let resp = HTTPResponse(body: body, headers: rawResponse.headers)
   checkAPIError(resp)
   return resp
@@ -339,7 +330,7 @@ proc createSignedAcmeRequest(
 ): Future[string] {.async: (raises: [ACMEError, CancelledError]).} =
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
   handleError("createSignedAcmeRequest"):
-    $toFlattenedJws(%*acmeHeader, %*payload, key)
+    $toFlattenedJws(%*acmeHeader, %*payload, key).valueOrRaise(ACMEError)
 
 proc createPostAsGetRequest(
     self: ACMEApi, uri: Uri, key: RsaPrivateKey, kid: Kid
@@ -347,7 +338,7 @@ proc createPostAsGetRequest(
   ## RFC 8555 section 6.3: a POST-as-GET is a signed POST with a zero-length payload.
   let acmeHeader = await self.acmeHeader(uri, key, needsJwk = false, Opt.some(kid))
   handleError("createPostAsGetRequest"):
-    $toFlattenedJws(%*acmeHeader, "", key)
+    $toFlattenedJws(%*acmeHeader, "", key).valueOrRaise(ACMEError)
 
 proc requestRegister*(
     self: ACMEApi, key: RsaPrivateKey
@@ -362,10 +353,12 @@ proc requestRegister*(
     )
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newAccount), payload)
-    let acmeResponseBody = acmeResponse.body.to(ACMERegisterResponseBody)
+    let acmeResponseBody =
+      acmeResponse.body.tryTo(ACMERegisterResponseBody).valueOrRaise(ACMEError)
 
     ACMERegisterResponse(
-      status: acmeResponseBody.status, kid: acmeResponse.headers.keyOrError("location")
+      status: acmeResponseBody.status,
+      kid: acmeResponse.headers.header("location").valueOrRaise(ACMEError),
     )
 
 proc requestNewOrder*(
@@ -384,14 +377,15 @@ proc requestNewOrder*(
     )
     let acmeResponse =
       await self.post(parseUri((await self.getDirectory()).newOrder), payload)
-    let challengeResponseBody = acmeResponse.body.to(ACMEChallengeResponseBody)
+    let challengeResponseBody =
+      acmeResponse.body.tryTo(ACMEChallengeResponseBody).valueOrRaise(ACMEError)
     if challengeResponseBody.authorizations.len == 0:
       raise newException(ACMEError, "Authorizations field is empty")
     ACMEChallengeResponse(
       status: challengeResponseBody.status,
       authorizations: challengeResponseBody.authorizations,
       finalize: challengeResponseBody.finalize,
-      order: acmeResponse.headers.keyOrError("location"),
+      order: acmeResponse.headers.header("location").valueOrRaise(ACMEError),
     )
 
 proc requestAuthorizations*(
@@ -406,10 +400,10 @@ proc requestAuthorizations*(
 
     var challenges: seq[ACMEChallenge]
     for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
-      try:
-        challenges.add(challenge.to(ACMEChallenge))
-      except ValueError, JsonKindError:
-        trace "Could not parse challenge", err = getCurrentExceptionMsg()
+      let parsed = challenge.tryTo(ACMEChallenge).valueOr:
+        trace "Could not parse challenge", err = error
+        continue
+      challenges.add(parsed)
 
     if challenges.len == 0:
       raise newException(ACMEError, "No challenges received")
@@ -436,41 +430,35 @@ proc requestChallenge*(
     finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
   )
 
+func retryAfter(headers: HttpTable): Duration =
+  let raw = headers.getString("Retry-After")
+  var secs: int
+  if raw.len == 0 or parseSaturatedNatural(raw, secs) != raw.len:
+    return DefaultChalCompletedRetryTime
+  min(secs, MaxRetryAfter.seconds.int).seconds
+
 proc requestCheck*(
     self: ACMEApi, checkURL: Uri, checkKind: ACMECheckKind, key: RsaPrivateKey, kid: Kid
 ): Future[ACMECheckResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestCheck"):
     let payload = await self.createPostAsGetRequest(checkURL, key, kid)
     let acmeResponse = await self.post(checkURL, payload)
-    let retryAfter =
-      try:
-        parseInt(acmeResponse.headers.keyOrError("Retry-After")).seconds
-      except ValueError:
-        DefaultChalCompletedRetryTime
+    let retryAfter = acmeResponse.headers.retryAfter()
+    let status = acmeResponse.body.tryGetStr("status").valueOrRaise(ACMEError)
 
     case checkKind
     of ACMEOrderCheck:
-      try:
-        ACMECheckResponse(
-          kind: checkKind,
-          orderStatus: parseEnum[ACMEOrderStatus](acmeResponse.body["status"].getStr),
-          retryAfter: retryAfter,
-        )
-      except ValueError:
-        raise newException(
-          ACMEError, "Invalid order status: " & acmeResponse.body["status"].getStr
-        )
+      ACMECheckResponse(
+        kind: checkKind,
+        orderStatus: tryParseEnum[ACMEOrderStatus](status).valueOrRaise(ACMEError),
+        retryAfter: retryAfter,
+      )
     of ACMEChallengeCheck:
-      try:
-        ACMECheckResponse(
-          kind: checkKind,
-          chalStatus: parseEnum[ACMEChallengeStatus](acmeResponse.body["status"].getStr),
-          retryAfter: retryAfter,
-        )
-      except ValueError:
-        raise newException(
-          ACMEError, "Invalid order status: " & acmeResponse.body["status"].getStr
-        )
+      ACMECheckResponse(
+        kind: checkKind,
+        chalStatus: tryParseEnum[ACMEChallengeStatus](status).valueOrRaise(ACMEError),
+        retryAfter: retryAfter,
+      )
 
 proc sendChallengeCompleted*(
     self: ACMEApi, chalURL: Uri, key: RsaPrivateKey, kid: Kid
@@ -479,7 +467,7 @@ proc sendChallengeCompleted*(
     let payload =
       await self.createSignedAcmeRequest(chalURL, %*{}, key, kid = Opt.some(kid))
     let acmeResponse = await self.post(chalURL, payload)
-    acmeResponse.body.to(ACMECompletedResponse)
+    acmeResponse.body.tryTo(ACMECompletedResponse).valueOrRaise(ACMEError)
 
 proc checkChallengeCompleted*(
     self: ACMEApi,
@@ -523,12 +511,13 @@ proc requestFinalize*(
     kid: Kid,
 ): Future[ACMEFinalizeResponse] {.async: (raises: [ACMEError, CancelledError]).} =
   handleError("requestFinalize"):
+    let csr = createCSR(domain, certKeyPair).valueOrRaise(ACMEError)
     let payload = await self.createSignedAcmeRequest(
-      finalize, %*{"csr": createCSR(domain, certKeyPair)}, key, kid = Opt.some(kid)
+      finalize, %*{"csr": csr}, key, kid = Opt.some(kid)
     )
     let acmeResponse = await self.post(finalize, payload)
     # server responds with updated order response
-    acmeResponse.body.to(ACMEFinalizeResponse)
+    acmeResponse.body.tryTo(ACMEFinalizeResponse).valueOrRaise(ACMEError)
 
 proc checkCertFinalized*(
     self: ACMEApi,
@@ -571,7 +560,7 @@ proc requestGetOrder*(
   handleError("requestGetOrder"):
     let payload = await self.createPostAsGetRequest(order, key, kid)
     let acmeResponse = await self.post(order, payload)
-    acmeResponse.body.to(ACMEOrderResponse)
+    acmeResponse.body.tryTo(ACMEOrderResponse).valueOrRaise(ACMEError)
 
 proc downloadCertificate*(
     self: ACMEApi, order: Uri, key: RsaPrivateKey, kid: Kid

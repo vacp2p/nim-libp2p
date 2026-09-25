@@ -145,20 +145,28 @@ method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError
     raise newException(ServiceSetupError, "Host does not have a public IP address")
   self.config.ipAddress = Opt.some(ip)
 
-method issueCertificate(
-    self: AutotlsService
-): Future[void] {.
-    base, async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError])
+proc newAutotlsCert(
+    certificate: ACMECertificateResponse, certKeyPair: RsaPrivateKey
+): Result[AutotlsCert, string] =
+  let derPrivKey = certKeyPair.getBytes().valueOr:
+    return err("Unable to get TLS private key")
+
+  try:
+    ok(
+      AutotlsCert.new(
+        TLSCertificate.init(certificate.rawCertificate),
+        TLSPrivateKey.init(derPrivKey.pemEncode("PRIVATE KEY")),
+        certificate.certificateExpiry,
+      )
+    )
+  except TLSStreamProtocolError as e:
+    err("Could not parse downloaded certificates: " & e.msg)
+
+proc requestCertificate(
+    self: AutotlsService, baseDomain: api.Domain, certKeyPair: RsaPrivateKey
+): Future[ACMECertificateResponse] {.
+    async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError])
 .} =
-  trace "Issuing certificate"
-
-  if self.peerInfo.isNil():
-    raise newException(AutoTLSError, "Cannot issue new certificate: peerInfo not set")
-
-  # generate autotls domain string: "*.{peerID}.{domainSuffix}"
-  let baseDomain =
-    api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.domainSuffix)
-
   trace "Requesting ACME challenge"
   let dns01Challenge =
     await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)])
@@ -183,12 +191,7 @@ method issueCertificate(
     raise newException(AutoTLSError, "DNS records not set")
 
   trace "Notifying challenge completion to ACME and downloading cert"
-  let certKeyPair = RsaPrivateKey.random(self.rng).valueOr:
-    raise newException(AutoTLSError, "Unable to generate certificate key pair")
-  let derPrivKey = certKeyPair.getBytes.valueOr:
-    raise newException(AutoTLSError, "Unable to get TLS private key")
-
-  let certificate = await self.acmeClient.getCertificate(
+  await self.acmeClient.getCertificate(
     api.Domain("*." & baseDomain),
     certKeyPair,
     dns01Challenge,
@@ -196,27 +199,37 @@ method issueCertificate(
     self.config.finalizeRetries,
   )
 
-  trace "Installing certificate"
-  let newCert =
+proc issueCertificate(
+    self: AutotlsService
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  trace "Issuing certificate"
+
+  if self.peerInfo.isNil():
+    return err("Cannot issue new certificate: peerInfo not set")
+
+  let peerLabel = ?encodePeerId(self.peerInfo.peerId)
+  let baseDomain = api.Domain(peerLabel & "." & self.config.domainSuffix)
+
+  let certKeyPair = RsaPrivateKey.random(self.rng).valueOr:
+    return err("Unable to generate certificate key pair")
+
+  let certificate =
     try:
-      AutotlsCert.new(
-        TLSCertificate.init(certificate.rawCertificate),
-        TLSPrivateKey.init(derPrivKey.pemEncode("PRIVATE KEY")),
-        certificate.certificateExpiry,
-      )
-    except TLSStreamProtocolError as exc:
-      raise newException(
-        AutoTLSError, "Could not parse downloaded certificates: " & exc.msg, exc
-      )
-  self.cert = Opt.some(newCert)
+      await self.requestCertificate(baseDomain, certKeyPair)
+    except LPError as e:
+      return err($e.name & ": " & e.msg)
+
+  trace "Installing certificate"
+  self.cert = Opt.some(?newAutotlsCert(certificate, certKeyPair))
   self.certReady.fire()
   info "AutoTLS successfully renewed certificate"
+  ok()
 
 proc hasTcpStarted(switch: Switch): bool =
   switch.transports.filterIt(it of TcpTransport and it.running).len == 0
 
 proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError]).} =
-  var lastError: ref CatchableError
+  var lastError = ""
   let operation = if self.cert.isSome(): "renewal" else: "initial issuance"
   var attempts = 0
   var outcome = "cancelled"
@@ -228,21 +241,17 @@ proc tryIssueCertificate(self: AutotlsService) {.async: (raises: [CancelledError
     if attempt > 0:
       await sleepAsync(self.config.issueRetryTime)
     attempts.inc()
-    try:
+    let issued = await self.issueCertificate()
+    if issued.isOk():
       outcome = "issued"
-      await self.issueCertificate()
       return
-    except CancelledError as exc:
-      raise exc
-    except CatchableError as exc:
-      outcome = "failed"
-      lastError = exc
-      trace "Certificate issuance failed",
-        err = exc.msg, errType = exc.name, attempt = attempt + 1
+
+    outcome = "failed"
+    lastError = issued.error
+    trace "Certificate issuance failed", err = lastError, attempt = attempt + 1
 
   error "Failed to issue certificate",
-    err = (if lastError.isNil: "no issuance attempts" else: lastError.msg),
-    errType = (if lastError.isNil: "" else: $lastError.name),
+    err = lastError,
     operation,
     maxAttempts = self.config.issueRetries + 1,
     hasCertificate = self.cert.isSome(),
