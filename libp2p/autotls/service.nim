@@ -162,33 +162,40 @@ proc newAutotlsCert(
   except TLSStreamProtocolError as e:
     err("Could not parse downloaded certificates: " & e.msg)
 
-proc requestCertificate(
-    self: AutotlsService, baseDomain: api.Domain, certKeyPair: RsaPrivateKey
-): Future[ACMECertificateResponse] {.
-    async: (raises: [AutoTLSError, ACMEError, PeerIDAuthError, CancelledError])
-.} =
-  trace "Requesting ACME challenge"
-  let dns01Challenge =
-    await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)])
-  trace "Generating key authorization"
-  let keyAuth = self.acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
-
+proc publishChallenge(
+    self: AutotlsService, baseDomain: api.Domain, keyAuth: KeyAuthorization
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   let addrs = await self.peerInfo.expandAddrs()
 
   # broker encapsulates request construction, bearer handling and response
   # validation: it either registers the challenge or raises on failure
-  await self.broker.sendChallenge(self.peerInfo, addrs, keyAuth)
-
-  let dnsSet = await checkDNSRecords(
-    self.config.nameResolver,
-    self.config.ipAddress.get(),
-    baseDomain,
-    keyAuth,
-    self.config.dnsRetries,
-    self.config.dnsRetryTime,
-  )
+  let dnsSet =
+    try:
+      await self.broker.sendChallenge(self.peerInfo, addrs, keyAuth)
+      await checkDNSRecords(
+        self.config.nameResolver,
+        self.config.ipAddress.get(),
+        baseDomain,
+        keyAuth,
+        self.config.dnsRetries,
+        self.config.dnsRetryTime,
+      )
+    except LPError as e:
+      return err($e.name & ": " & e.msg)
   if not dnsSet:
-    raise newException(AutoTLSError, "DNS records not set")
+    return err("DNS records not set")
+  ok()
+
+proc requestCertificate(
+    self: AutotlsService, baseDomain: api.Domain, certKeyPair: RsaPrivateKey
+): Future[Result[ACMECertificateResponse, string]] {.async: (raises: [CancelledError]).} =
+  trace "Requesting ACME challenge"
+  let dns01Challenge =
+    ?(await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)]))
+  trace "Generating key authorization"
+  let keyAuth = self.acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
+
+  ?(await self.publishChallenge(baseDomain, keyAuth))
 
   trace "Notifying challenge completion to ACME and downloading cert"
   await self.acmeClient.getCertificate(
@@ -213,11 +220,7 @@ proc issueCertificate(
   let certKeyPair = RsaPrivateKey.random(self.rng).valueOr:
     return err("Unable to generate certificate key pair")
 
-  let certificate =
-    try:
-      await self.requestCertificate(baseDomain, certKeyPair)
-    except LPError as e:
-      return err($e.name & ": " & e.msg)
+  let certificate = ?(await self.requestCertificate(baseDomain, certKeyPair))
 
   trace "Installing certificate"
   self.cert = Opt.some(?newAutotlsCert(certificate, certKeyPair))
