@@ -488,28 +488,31 @@ proc acquireDialLock(
 
 proc finishUpgrade(
     self: Dialer, muxed: Muxer, dir: Direction
-) {.async: (raises: [DialFailedError, CancelledError]).} =
+): Future[DialResult[void]] {.async: (raises: [CancelledError]).} =
   ## Store the muxer, learn who is on the other end, and announce the peer.
+  var finished = false
+  defer:
+    if not finished:
+      await muxed.close()
+
+  (await self.connManager.storeMuxer(muxed)).isOkOr:
+    return err("failed storeMuxer in finishUpgrade: " & error)
+
   try:
-    await self.connManager.storeMuxer(muxed)
     # Its own budget, not the dial's leftovers: the connection stands at this
     # point, and a remote that never answers identify would otherwise hold the
     # peer's dial lock for as long as that connection lives.
     await self.peerStore.identify(muxed, dir).wait(self.dialTimeout)
-    await self.connManager.triggerPeerEvents(
-      muxed.connection.peerId,
-      PeerEvent(kind: PeerEventKind.Identified, initiator: true),
-    )
   except CancelledError as e:
-    await muxed.close()
     raise e
   except CatchableError as e:
-    trace "Outgoing connection upgrade failed",
-      err = e.msg, peerId = muxed.connection.peerId
-    await muxed.close()
-    raise newException(
-      DialFailedError, "failed finishUpgrade in establishConnection: " & e.msg, e
-    )
+    return err("failed identify in finishUpgrade: " & e.msg)
+  await self.connManager.triggerPeerEvents(
+    muxed.connection.peerId, PeerEvent(kind: PeerEventKind.Identified, initiator: true)
+  )
+
+  finished = true
+  ok()
 
 proc establishConnection(
     self: Dialer,
@@ -518,26 +521,23 @@ proc establishConnection(
     forceDial: bool,
     reuseConnection: bool,
     dir: Direction,
-): Future[Muxer] {.async: (raises: [DialFailedError, CancelledError]).} =
+): Future[DialResult[Muxer]] {.async: (raises: [CancelledError]).} =
   if reuseConnection:
     peerId.ifValue(peerId):
       self.tryReusingConnection(peerId).ifValue(mux):
-        return mux
+        return ok(mux)
+
+  if addrs.len == 0:
+    return
+      err("no addresses to dial in establishConnection: peer_id=" & shortLog(peerId))
 
   self.dialBackoff.ifValue(backoff):
     if not forceDial and backoff.blocked(peerId):
-      raise newException(
-        DialFailedError,
-        "peer on dial backoff in establishConnection: peer_id=" & shortLog(peerId),
-      )
+      return
+        err("peer on dial backoff in establishConnection: peer_id=" & shortLog(peerId))
 
-  let slot =
-    try:
-      self.connManager.getOutgoingSlot(forceDial)
-    except TooManyConnectionsError as e:
-      raise newException(
-        DialFailedError, "failed getOutgoingSlot in establishConnection: " & e.msg, e
-      )
+  let slot = self.connManager.getOutgoingSlot(forceDial).valueOr:
+    return err("failed getOutgoingSlot in establishConnection: " & error)
 
   let
     dialAddrs = normalizedDialAddrs(peerId, addrs)
@@ -555,23 +555,22 @@ proc establishConnection(
     if reach.dialed:
       self.dialBackoff.ifValue(backoff):
         backoff.recordFailure(peerId)
-    raise newException(
-      DialFailedError,
+    return err(
       "Unable to establish outgoing link in establishConnection: peer_id=" &
-        shortLog(peerId) & " addrs=" & dialAddrs.shortLog,
+        shortLog(peerId) & " addrs=" & dialAddrs.shortLog
     )
 
   slot.trackMuxer(muxed)
-  try:
-    await self.finishUpgrade(muxed, dir)
-  except DialFailedError as e:
+  (await self.finishUpgrade(muxed, dir)).isOkOr:
+    trace "Outgoing connection upgrade failed",
+      err = error, peerId = muxed.connection.peerId
     self.dialBackoff.ifValue(backoff):
       backoff.recordFailure(peerId)
-    raise e
+    return err(error)
 
   self.dialBackoff.ifValue(backoff):
     backoff.recordSuccess(peerId)
-  muxed
+  ok(muxed)
 
 proc internalConnect(
     self: Dialer,
@@ -580,9 +579,9 @@ proc internalConnect(
     forceDial: bool,
     reuseConnection = true,
     dir = Direction.Out,
-): Future[Muxer] {.async: (raises: [DialFailedError, CancelledError]).} =
+): Future[DialResult[Muxer]] {.async: (raises: [CancelledError]).} =
   if Opt.some(self.localPeerId) == peerId:
-    raise newException(DialFailedError, "internalConnect can't dial self!")
+    return err("internalConnect can't dial self!")
 
   # A dial without a peer id has no connection to reuse and no identity to
   # serialize on. Sharing one lock for all of them would make an unreachable
@@ -613,8 +612,9 @@ method connect*(
   if self.connManager.connCount(peerId) > 0 and reuseConnection:
     return
 
-  discard
+  discard (
     await self.internalConnect(Opt.some(peerId), addrs, forceDial, reuseConnection, dir)
+  ).valueOrRaise(DialFailedError)
 
 method connect*(
     self: Dialer, address: MultiAddress, allowUnknownPeerId = false
@@ -624,15 +624,16 @@ method connect*(
   parseFullAddress(address).toOpt().ifValue(fullAddress):
     return (
       await self.internalConnect(Opt.some(fullAddress[0]), @[fullAddress[1]], false)
-    ).connection.peerId
+    ).valueOrRaise(DialFailedError).connection.peerId
 
   if allowUnknownPeerId == false:
     raise newException(
       DialFailedError, "Address without PeerID and unknown peer id disabled in connect"
     )
 
-  return
-    (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
+  return (await self.internalConnect(Opt.none(PeerId), @[address], false)).valueOrRaise(
+    DialFailedError
+  ).connection.peerId
 
 proc negotiateStream*(
     self: Dialer, stream: Stream, protos: seq[string]
@@ -742,7 +743,9 @@ method dial*(
 
   try:
     trace "Peer dial started", peerId, addresses = dialAddrs
-    conn = await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)
+    conn = (await self.internalConnect(Opt.some(peerId), dialAddrs, forceDial)).valueOrRaise(
+      DialFailedError
+    )
     trace "Protocol stream opening started", peerId, protocols = protos, conn
     let stream = await self.connManager.getStream(conn)
 

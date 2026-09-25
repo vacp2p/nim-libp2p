@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, sequtils, results
+import chronos, sequtils, strutils, results
 import
   ../../libp2p/[
     builders,
@@ -111,6 +111,27 @@ suite "Dialer":
     check src.peerInfo.peerId notin dst.connManager.connectedPeers()
 
     await allFuturesRaising(switches.mapIt(it.stop()))
+
+  asyncTest "Connect to self fails":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    expect DialFailedError:
+      await src.connect(src.peerInfo.peerId, src.peerInfo.addrs)
+
+  asyncTest "Connect without addresses fails":
+    let src = makeStandardSwitch()
+    await src.start()
+    defer:
+      await src.stop()
+
+    try:
+      await src.connect(randomPeerId(), @[])
+      raiseAssert "should not get here"
+    except DialFailedError as e:
+      check "no addresses to dial" in e.msg
 
   asyncTest "A stalling remote gives up at the dial timeout":
     let
