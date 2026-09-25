@@ -3,49 +3,35 @@
 
 {.used.}
 
-import std/hashes
+import std/importutils
 import chronos/timer
 import ../../../libp2p/protocols/pubsub/timedcache
 import ../../tools/unittest
 
-type TrackedKey = ref object
-  id: int
-
-var finalizedTrackedKeys: int
-
-proc finalizeTrackedKey(key: TrackedKey) =
-  inc finalizedTrackedKeys
-
-proc `==`(a, b: TrackedKey): bool =
-  a.id == b.id
-
-proc hash(key: TrackedKey): Hash =
-  hash(key.id)
-
-proc putTracked(cache: var TimedCache[TrackedKey], id: int, now: Moment) =
-  var key: TrackedKey
-  new(key, finalizeTrackedKey)
-  key.id = id
-  discard cache.put(key, now)
-
 suite "TimedCache":
-  test "expired entries are released while the cache remains populated":
-    finalizedTrackedKeys = 0
-    var cache = TimedCache[TrackedKey].init(5.seconds)
+  test "expiration clears the new head's backward link":
+    privateAccess(TimedCache[int])
+    privateAccess(TimedEntry[int])
+    var cache = TimedCache[int].init(5.seconds)
     let now = Moment.now()
 
-    cache.putTracked(0, now)
-    cache.putTracked(1, now + 1.seconds)
+    check:
+      not cache.put(0, now)
+      not cache.put(1, now + 1.seconds)
 
     cache.expire(now + 5.seconds + 1.nanoseconds)
-    GC_fullCollect()
     check:
       cache.len == 1
-      finalizedTrackedKeys == 1
+      0 notin cache
+      1 in cache
+    require not cache.head.isNil
+    check cache.head.prev.isNil
 
     cache.expire(now + 6.seconds + 1.nanoseconds)
-    GC_fullCollect()
-    check finalizedTrackedKeys == 2
+    check:
+      cache.len == 0
+      cache.head.isNil
+      cache.tail.isNil
 
   test "middle insertion preserves expiration order":
     var cache = TimedCache[int].init(5.seconds)
@@ -65,23 +51,25 @@ suite "TimedCache":
       4 in cache
 
   test "deleted entry does not retain its former neighbors":
-    finalizedTrackedKeys = 0
-    var cache = TimedCache[TrackedKey].init(5.seconds)
+    privateAccess(TimedEntry[int])
+    var cache = TimedCache[int].init(5.seconds)
     let now = Moment.now()
 
     for id in 0 ..< 3:
-      cache.putTracked(id, now)
+      discard cache.put(id, now)
 
-    let removed = cache.del(TrackedKey(id: 1))
+    let removed = cache.del(1)
+    require removed.isSome()
     check:
-      removed.isSome()
       cache.len == 2
+      0 in cache
+      1 notin cache
+      2 in cache
+      removed[].next.isNil
+      removed[].prev.isNil
 
     cache.expire(now + 5.seconds + 1.nanoseconds)
-    GC_fullCollect()
-    check:
-      cache.len == 0
-      finalizedTrackedKeys == 2
+    check cache.len == 0
 
   test "put/get":
     var cache = TimedCache[int].init(5.seconds)
