@@ -127,7 +127,7 @@ proc checkAndEvictPeer(
     peer = peerId, tables = evicted
   kad_routing_table_liveness_probes.inc(labelValues = ["fail"])
 
-proc launchLivenessProbe(kad: KadDHT, peers: seq[PeerId]) {.raises: [].} =
+proc launchLivenessProbe(kad: KadDHT, peers: openArray[PeerId]) {.raises: [].} =
   ## Starts a liveness probe unless one is already in flight
   for peerId in peers:
     if kad.livenessProbes.hasKey(peerId):
@@ -185,7 +185,7 @@ proc maintainLiveness(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## At most one probe is in flight per peer across all maintainable tables.
 
   while not kad.stopping:
-    var replaceablePeersFound: int
+    var replaceablePeersFound = 0
     for rtable in kad.maintainableTables():
       let peers = rtable.peersPastGracePeriod(kad.config.livenessGracePeriod)
       replaceablePeersFound += peers.len
