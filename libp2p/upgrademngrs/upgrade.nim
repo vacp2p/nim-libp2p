@@ -32,7 +32,7 @@ logScope:
 type
   UpgradeFailedError* = object of LPError
 
-  UpgradeResult*[T] = Result[T, string]
+  UpgradeResult*[T] = LPResult[T]
 
   Upgrade* = ref object of RootObj
     ms*: MultistreamSelect

@@ -55,7 +55,7 @@ type
     lock: AsyncLock
     users: int ## dials holding or waiting for `lock`
 
-  DialResult[T] = Result[T, string]
+  DialResult[T] = LPResult[T]
 
   Dialer* = ref object of Dial
     localPeerId*: PeerId
@@ -209,7 +209,7 @@ proc expandDnsAddr(
   var addrs: seq[(MultiAddress, Opt[PeerId])]
   for resolvedAddress in resolved:
     let lastPart = ?resolvedAddress[^1]
-    if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
+    if lastPart.protoCode == LPResult[MultiCodec].ok(multiCodec("p2p")):
       let addrPeerId = PeerId.init(?lastPart.protoArgument()).valueOr:
         return err($error)
       addrs.add((?resolvedAddress[0 ..^ 2], Opt.some(addrPeerId)))
