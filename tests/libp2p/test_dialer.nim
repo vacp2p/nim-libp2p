@@ -127,11 +127,8 @@ suite "Dialer":
     defer:
       await src.stop()
 
-    try:
+    expect DialFailedError:
       await src.connect(randomPeerId(), @[])
-      raiseAssert "should not get here"
-    except DialFailedError as e:
-      check "no addresses to dial" in e.msg
 
   asyncTest "A stalling remote gives up at the dial timeout":
     let
