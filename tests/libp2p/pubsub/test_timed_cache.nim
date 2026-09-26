@@ -3,11 +3,74 @@
 
 {.used.}
 
+import std/importutils
 import chronos/timer
 import ../../../libp2p/protocols/pubsub/timedcache
 import ../../tools/unittest
 
 suite "TimedCache":
+  test "expiration clears the new head's backward link":
+    privateAccess(TimedCache[int])
+    privateAccess(TimedEntry[int])
+    var cache = TimedCache[int].init(5.seconds)
+    let now = Moment.now()
+
+    check:
+      not cache.put(0, now)
+      not cache.put(1, now + 1.seconds)
+
+    cache.expire(now + 5.seconds + 1.nanoseconds)
+    check:
+      cache.len == 1
+      0 notin cache
+      1 in cache
+    require not cache.head.isNil
+    check cache.head.prev.isNil
+
+    cache.expire(now + 6.seconds + 1.nanoseconds)
+    check:
+      cache.len == 0
+      cache.head.isNil
+      cache.tail.isNil
+
+  test "middle insertion preserves expiration order":
+    var cache = TimedCache[int].init(5.seconds)
+    let now = Moment.now()
+
+    check:
+      not cache.put(1, now)
+      not cache.put(3, now + 2.seconds)
+      not cache.put(2, now + 1.seconds)
+      not cache.put(4, now + 1500.milliseconds)
+
+    cache.expire(now + 6.seconds + 1.nanoseconds)
+    check:
+      1 notin cache
+      2 notin cache
+      3 in cache
+      4 in cache
+
+  test "deleted entry does not retain its former neighbors":
+    privateAccess(TimedEntry[int])
+    var cache = TimedCache[int].init(5.seconds)
+    let now = Moment.now()
+
+    for id in 0 ..< 3:
+      discard cache.put(id, now)
+
+    let removed = cache.del(1)
+    require removed.isSome()
+    check:
+      cache.len == 2
+      0 in cache
+      1 notin cache
+      2 in cache
+      removed[].next.isNil
+      removed[].prev.isNil
+
+    cache.expire(now + 5.seconds + 1.nanoseconds)
+    check cache.len == 0
+
   test "put/get":
     var cache = TimedCache[int].init(5.seconds)
 

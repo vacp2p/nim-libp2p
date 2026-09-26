@@ -39,9 +39,10 @@ func hash*(a: TimedEntry): Hash =
 func expire*(t: var TimedCache, now: Moment = Moment.now()) =
   while t.head != nil and t.head.expiresAt < now:
     t.entries.excl(t.head)
-    t.head.prev = nil
     t.head = t.head.next
-    if t.head == nil:
+    if t.head != nil:
+      t.head.prev = nil
+    else:
       t.tail = nil
 
 func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
@@ -64,6 +65,8 @@ func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
       item.next.prev = item.prev
     if item.prev != nil:
       item.prev.next = item.next
+    item.next = nil
+    item.prev = nil
     Opt.some(item)
   else:
     Opt.none(TimedEntry[K])
@@ -111,6 +114,8 @@ func put*[K](cache: var TimedCache[K], key: K, now = Moment.now()): bool =
       node.prev = cur
       node.next = cur.next
       cur.next = node
+      if node.next != nil:
+        node.next.prev = node
       if cur == cache.tail:
         cache.tail = node
 
